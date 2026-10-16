@@ -26,58 +26,104 @@ async function readMeta() {
   catch { return null; }
 }
 
-// Recent releases, newest first. llama.cpp publishes a release before its
-// binaries finish uploading, so the newest one can have no (or few) assets:
-// we walk back until a release carries a build for this machine.
-async function recentReleases() {
-  const r = await fetch('https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10', {
-    headers: { 'User-Agent': 'Fabro', Accept: 'application/vnd.github+json' },
-  });
-  if (r.status === 403 || r.status === 429) throw new Error('GitHub rate limit reached, retry in a few minutes');
-  if (!r.ok) throw new Error(`GitHub API ${r.status}`);
-  const list = await r.json();
-  return (Array.isArray(list) ? list : []).filter((x) => !x.draft && !x.prerelease);
+const GH = { 'User-Agent': 'Fabro', Accept: 'application/vnd.github+json' };
+
+// 1) GitHub API: recent releases with their asset lists (drafts skipped).
+async function apiReleases() {
+  const r = await fetch('https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10', { headers: GH });
+  const body = await r.json().catch(() => null);
+  if (!r.ok || !Array.isArray(body)) {
+    const why = body && body.message ? body.message : `HTTP ${r.status}`;
+    throw new Error(`GitHub API: ${why}`);
+  }
+  return body.filter((x) => !x.draft);
+}
+
+// 2) Fallback without the API (rate limits, proxies): tags from the public
+//    Atom feed, then probe the predictable download URLs.
+async function feedTags() {
+  const r = await fetch('https://github.com/ggml-org/llama.cpp/releases.atom', { headers: { 'User-Agent': 'Fabro' } });
+  if (!r.ok) throw new Error(`releases feed HTTP ${r.status}`);
+  const xml = await r.text();
+  return [...new Set([...xml.matchAll(/releases\/tag\/(b\d+)/g)].map((m) => m[1]))].slice(0, 6);
+}
+async function probe(tag, name) {
+  const url = `https://github.com/ggml-org/llama.cpp/releases/download/${tag}/${name}`;
+  try {
+    const r = await fetch(url, { method: 'HEAD', redirect: 'follow', headers: { 'User-Agent': 'Fabro' } });
+    if (!r.ok) return null;
+    return { name, browser_download_url: url, size: Number(r.headers.get('content-length') || 0) };
+  } catch { return null; }
 }
 
 // Best (release, build) for this machine, skipping some variants if asked.
 async function pickBuild(skip = []) {
   const specs = await system.getSpecs();
   const cands = candidates(specs).filter((c) => !skip.includes(c.variant));
-  const releases = await recentReleases();
-  for (const rel of releases) {
-    for (const c of cands) {
-      const asset = (rel.assets || []).find((x) => c.re.test(x.name) && x.state !== 'starter');
-      if (asset) return { rel, pick: c, asset };
+  const notes = [];
+  try {
+    const releases = await apiReleases();
+    for (const rel of releases) {
+      for (const c of cands) {
+        const asset = (rel.assets || []).find((x) => c.re.test(x.name));
+        if (asset) {
+          const extra = c.cudart ? rel.assets.find((x) => /^cudart-/.test(x.name) && x.name.includes(`cuda-${(asset.name.match(/cuda-([\d.]+)-/) || [])[1]}-`)) : null;
+          return { tag: rel.tag_name, pick: c, asset, extra };
+        }
+      }
     }
-  }
-  throw new Error(`No compatible engine build for this computer (${specs.platform} ${specs.arch}, ${specs.accel}; ${releases.length} releases checked)`);
+    notes.push(`${releases.length} releases via API`);
+  } catch (e) { notes.push(e.message); }
+
+  try {
+    const tags = await feedTags();
+    for (const tag of tags) {
+      for (const c of cands) {
+        for (const name of c.names(tag)) {
+          const asset = await probe(tag, name);
+          if (!asset) continue;
+          let extra = null;
+          if (c.cudart) extra = await probe(tag, `cudart-llama-bin-win-cuda-${(name.match(/cuda-([\d.]+)-/) || [])[1]}-x64.zip`);
+          return { tag, pick: c, asset, extra };
+        }
+      }
+    }
+    notes.push(`${tags.length} tags via feed`);
+  } catch (e) { notes.push(e.message); }
+
+  throw new Error(`No compatible engine build for this computer (${specs.platform} ${specs.arch}, ${specs.accel}; ${notes.join('; ')})`);
 }
 
-// Ordered list of builds to try, best first.
+// Ordered list of builds to try, best first. `re` matches API asset names,
+// `names(tag)` spells the file names to probe when the API is unavailable.
+const CUDA13 = ['13.3', '13.4', '13.2', '13.1', '13.0', '13.5', '13.6'];
 function candidates(specs) {
   const { platform: p, arch: a, accel } = specs;
   const ext = '\\.(zip|tar\\.gz)$';
+  const both = (base) => [`${base}.zip`, `${base}.tar.gz`];
   if (p === 'win32') {
-    if (a === 'arm64') return [{ re: /bin-win-cpu-arm64\.zip$/, variant: 'cpu' }, { re: /bin-win-cpu-x64\.zip$/, variant: 'cpu' }];
+    if (a === 'arm64') return [
+      { re: /bin-win-cpu-arm64\.zip$/, variant: 'cpu', names: (t) => [`llama-${t}-bin-win-cpu-arm64.zip`] },
+      { re: /bin-win-cpu-x64\.zip$/, variant: 'cpu', names: (t) => [`llama-${t}-bin-win-cpu-x64.zip`] }];
     const l = [];
     if (accel === 'cuda') {
       // CUDA 12 first (works with older drivers), then CUDA 13+
-      l.push({ re: /bin-win-cuda-12[\d.]*-x64\.zip$/, variant: 'cuda', cudart: true });
-      l.push({ re: /bin-win-cuda-1[3-9][\d.]*-x64\.zip$/, variant: 'cuda', cudart: true });
+      l.push({ re: /bin-win-cuda-12[\d.]*-x64\.zip$/, variant: 'cuda', cudart: true, names: (t) => [`llama-${t}-bin-win-cuda-12.4-x64.zip`] });
+      l.push({ re: /bin-win-cuda-1[3-9][\d.]*-x64\.zip$/, variant: 'cuda', cudart: true, names: (t) => CUDA13.map((v) => `llama-${t}-bin-win-cuda-${v}-x64.zip`) });
     }
-    if (accel !== 'cpu') l.push({ re: /bin-win-vulkan-x64\.zip$/, variant: 'vulkan' });
-    l.push({ re: /bin-win-cpu-x64\.zip$/, variant: 'cpu' }, { re: /bin-win-avx2-x64\.zip$/, variant: 'cpu' });
+    if (accel !== 'cpu') l.push({ re: /bin-win-vulkan-x64\.zip$/, variant: 'vulkan', names: (t) => [`llama-${t}-bin-win-vulkan-x64.zip`] });
+    l.push({ re: /bin-win-cpu-x64\.zip$/, variant: 'cpu', names: (t) => [`llama-${t}-bin-win-cpu-x64.zip`] });
     return l;
   }
   if (p === 'darwin') {
     return a === 'arm64'
-      ? [{ re: new RegExp('bin-macos-arm64' + ext), variant: 'metal' }]
-      : [{ re: new RegExp('bin-macos-x64' + ext), variant: 'cpu' }];
+      ? [{ re: new RegExp('bin-macos-arm64' + ext), variant: 'metal', names: (t) => both(`llama-${t}-bin-macos-arm64`) }]
+      : [{ re: new RegExp('bin-macos-x64' + ext), variant: 'cpu', names: (t) => both(`llama-${t}-bin-macos-x64`) }];
   }
   const arch = a === 'arm64' ? 'arm64' : 'x64';
   const l = [];
-  if (accel !== 'cpu') l.push({ re: new RegExp(`bin-ubuntu-vulkan-${arch}${ext}`), variant: 'vulkan' });
-  l.push({ re: new RegExp(`bin-ubuntu-${arch}${ext}`), variant: 'cpu' });
+  if (accel !== 'cpu') l.push({ re: new RegExp(`bin-ubuntu-vulkan-${arch}${ext}`), variant: 'vulkan', names: (t) => both(`llama-${t}-bin-ubuntu-vulkan-${arch}`) });
+  l.push({ re: new RegExp(`bin-ubuntu-${arch}${ext}`), variant: 'cpu', names: (t) => both(`llama-${t}-bin-ubuntu-${arch}`) });
   return l;
 }
 
@@ -99,25 +145,22 @@ async function install({ skip = [] } = {}) {
   busy = true;
   set({ status: 'installing', progress: 0, error: null });
   try {
-    const { rel, pick, asset } = await pickBuild(skip);
+    const { tag, pick, asset, extra } = await pickBuild(skip);
 
-    const dir = path.join(root(), `${rel.tag_name}-${pick.variant}`);
+    const dir = path.join(root(), `${tag}-${pick.variant}`);
     await fsp.rm(dir, { recursive: true, force: true });
     await fsp.mkdir(dir, { recursive: true });
     const files = [asset];
-    if (pick.cudart) {
-      // CUDA runtime DLLs ship separately; match the same CUDA version.
-      const v = (asset.name.match(/cuda-([\d.]+)-x64/) || [])[1];
-      const x = rel.assets.find((a) => /^cudart-/.test(a.name) && a.name.includes(`cuda-${v}-x64`));
-      if (x) files.push(x);
-    }
+    if (extra) files.push(extra); // CUDA runtime DLLs ship separately
 
-    const total = files.reduce((s, f) => s + f.size, 0);
+    const known = files.reduce((s, f) => s + (f.size || 0), 0);
     let done = 0;
     for (const f of files) {
       const tmp = path.join(root(), f.name);
-      await downloadFile(f.browser_download_url, tmp, { onProgress: (n) => set({ progress: (done + n) / total }) });
-      done += f.size;
+      await downloadFile(f.browser_download_url, tmp, {
+        onProgress: (n, t) => set({ progress: Math.min(1, (done + n) / (known || (done + (t || n)) || 1)) }),
+      });
+      try { done += (await fsp.stat(tmp)).size; } catch { done += f.size || 0; }
       await extract(tmp, dir);
       await fsp.rm(tmp, { force: true });
     }
@@ -125,7 +168,7 @@ async function install({ skip = [] } = {}) {
     if (!bin) throw new Error('llama-server not found in engine package');
     if (process.platform !== 'win32') await fsp.chmod(bin, 0o755);
 
-    const meta = { tag: rel.tag_name, variant: pick.variant, dir, bin, installedAt: Date.now() };
+    const meta = { tag, variant: pick.variant, dir, bin, installedAt: Date.now() };
     await fsp.writeFile(metaFile(), JSON.stringify(meta, null, 2));
     // Clean older builds.
     for (const e of await fsp.readdir(root(), { withFileTypes: true })) {
@@ -235,8 +278,8 @@ async function checkUpdate() {
   if (busy || proc) return { updated: false, reason: 'busy' };
   const meta = await readMeta();
   if (!meta) return { updated: false, reason: 'not-installed' };
-  const { rel } = await pickBuild();
-  if (rel.tag_name === meta.tag) return { updated: false, version: meta.tag };
+  const { tag } = await pickBuild();
+  if (tag === meta.tag) return { updated: false, version: meta.tag };
   const m = await install();
   return { updated: true, version: m.tag };
 }
