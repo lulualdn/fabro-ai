@@ -8,15 +8,18 @@ const DEFAULTS = {
   language: 'auto',            // 'auto' or a language code
   theme: 'system',             // system | light | dark
   sidebarCollapsed: false,
-  backend: 'local',            // local (built-in llama.cpp) | ollama
-  selectedModel: null,         // { backend:'local', id } | { backend:'ollama', name }
-  ollamaUrl: 'http://127.0.0.1:11434',
+  selectedModel: null,         // { backend:'local', id } | { backend:'provider', provider, model }
+  providers: { enabled: false, list: [] }, // external providers (OpenAI, Anthropic, Ollama, LM Studio…)
   hfToken: '',
   engine: { ctx: 8192, gpuLayers: -1, threads: 0 }, // -1 = auto (all on GPU)
   gen: { temperature: 0.7, topP: 0.95, maxTokens: 4096, systemPrompt: '' },
   autoUpdate: true,
   devMode: true,               // internal builds: banner + devtools
   installedModes: ['chat'],
+  closeToTray: true,           // the window's close button hides Fabro in the tray
+  trayHintShown: false,
+  hotkey: { enabled: true, accelerator: 'Control+Super+Space', copilotKey: true },
+  quickTarget: 'current',      // quick bar: 'current' conversation or 'new'
 };
 
 const dir = () => app.getPath('userData');
@@ -25,10 +28,11 @@ const settingsFile = () => path.join(dir(), 'settings.json');
 let settings = null;
 
 function isObj(v) { return v && typeof v === 'object' && !Array.isArray(v); }
+const ATOMIC = new Set(['selectedModel']); // replaced as a whole, never deep-merged
 function merge(base, patch) {
   const out = { ...base };
   for (const k of Object.keys(patch || {})) {
-    out[k] = isObj(base[k]) && isObj(patch[k]) ? merge(base[k], patch[k]) : patch[k];
+    out[k] = !ATOMIC.has(k) && isObj(base[k]) && isObj(patch[k]) ? merge(base[k], patch[k]) : patch[k];
   }
   return out;
 }

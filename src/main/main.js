@@ -6,13 +6,15 @@ const engine = require('./engine');
 const models = require('./models');
 const chat = require('./chat');
 const updater = require('./updater');
+const providers = require('./providers');
+const desktop = require('./desktop');
 
 let win = null;
-const send = (ch, data) => { if (win && !win.isDestroyed()) win.webContents.send(ch, data); };
+const send = (ch, data) => { if (win && !win.isDestroyed()) win.webContents.send(ch, data); if (ch === 'chat:event') desktop.forward(ch, data); };
 const isMac = process.platform === 'darwin';
 
 if (!app.requestSingleInstanceLock()) app.quit();
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+app.on('second-instance', () => desktop.showMain());
 
 function overlayColors(dark) {
   if (store.getSettings().devMode) return { color: dark ? '#3a2a12' : '#f6d48a', symbolColor: dark ? '#f6d48a' : '#3a2a12', height: 28 };
@@ -30,8 +32,10 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true,
+      backgroundThrottling: false, // keeps streaming while hidden in the tray (quick bar answers)
     },
   });
+  desktop.attachMain(win);
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   // Developer mode: F12 / Ctrl+Shift+I devtools, Ctrl+R reload.
   win.webContents.on('before-input-event', (e, input) => {
@@ -40,7 +44,7 @@ function createWindow() {
     if (k === 'f12' || ((input.control || input.meta) && input.shift && k === 'i')) { win.webContents.toggleDevTools(); e.preventDefault(); }
     if ((input.control || input.meta) && !input.shift && k === 'r') { win.webContents.reload(); e.preventDefault(); }
   });
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => { if (!process.argv.includes('--hidden')) win.show(); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); shell.openExternal(url); } });
 }
@@ -77,6 +81,15 @@ function registerIpc() {
   h('engine:stop', () => engine.stop());
   h('engine:diagnostics', async () => ({ app: app.getVersion(), platform: `${process.platform} ${process.arch}`, electron: process.versions.electron, ...(await engine.diagnostics()) }));
 
+  h('providers:view', () => providers.view());
+  h('providers:detect', () => providers.detect());
+  h('providers:add', (o) => providers.add(o));
+  h('providers:update', (id, patch) => providers.update(id, patch));
+  h('providers:remove', (id) => providers.remove(id));
+  h('providers:refresh', (id) => providers.refresh(id));
+  h('providers:enable', (on) => providers.setEnabled(on));
+  h('providers:models', () => providers.chatModels());
+
   h('chat:send', (payload) => { chat.send(payload, (ev) => send('chat:event', ev)); return true; });
   h('chat:abort', (id) => chat.abort(id));
 
@@ -94,12 +107,15 @@ function registerIpc() {
 
 app.whenReady().then(async () => {
   store.init();
+  await providers.migrate();
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
   models.init((p) => send('models:progress', p));
   await engine.init((s) => send('engine:status', s));
   updater.init(send);
   createWindow();
+  desktop.init(() => win, (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a)));
+  if (process.argv.includes('--hidden')) win.once('ready-to-show', () => win.hide());
   system.getSpecs(); // warm cache
 
   if (store.getSettings().autoUpdate) {
@@ -112,5 +128,5 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => { if (!isMac) app.quit(); });
-app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+app.on('activate', () => { if (win) desktop.showMain(); else createWindow(); });
 app.on('before-quit', () => { engine.stop(); });

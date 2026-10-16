@@ -203,26 +203,8 @@ async function remove(id) {
 
 async function getLocal(id) { return (await listLocal()).find((m) => m.id === id) || null; }
 
-// ---- Ollama --------------------------------------------------------------
-async function ollama() {
-  const base = store.getSettings().ollamaUrl.replace(/\/$/, '');
-  try {
-    const ctrl = AbortSignal.timeout(1500);
-    const r = await fetch(`${base}/api/tags`, { signal: ctrl });
-    if (!r.ok) return { available: false, models: [] };
-    const j = await r.json();
-    return {
-      available: true,
-      models: (j.models || []).map((m) => ({
-        name: m.name, sizeBytes: m.size,
-        params: m.details && m.details.parameter_size, quant: m.details && m.details.quantization_level,
-      })),
-    };
-  } catch { return { available: false, models: [] }; }
-}
-
 async function installed() {
-  return { local: await listLocal(), ollama: await ollama(), downloads: [...downloads.values()].map(({ ctrl, ...d }) => d) };
+  return { local: await listLocal(), downloads: [...downloads.values()].map(({ ctrl, ...d }) => d) };
 }
 
 function init(emitter) { emit = emitter; fs.mkdirSync(modelsDir(), { recursive: true }); }

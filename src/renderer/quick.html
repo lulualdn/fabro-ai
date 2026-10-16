@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:" />
+  <title>Fabro</title>
+  <link rel="stylesheet" href="quick.css" />
+</head>
+<body>
+  <div class="wrap" id="wrap">
+    <form class="qbar" id="qbar" autocomplete="off">
+      <span class="q-logo" id="q-logo"></span>
+      <input id="q" type="text" spellcheck="false" />
+      <button type="button" class="q-target" id="q-target"></button>
+      <button type="submit" class="q-send" id="q-send" disabled></button>
+    </form>
+    <div class="qcard" id="qcard" hidden>
+      <div class="q-ans md" id="q-ans"></div>
+      <div class="q-foot">
+        <span class="q-meta" id="q-meta"></span>
+        <span class="grow"></span>
+        <button type="button" class="q-btn" id="q-copy"></button>
+        <button type="button" class="q-btn primary" id="q-open"></button>
+      </div>
+    </div>
+  </div>
+  <script src="../../node_modules/marked/lib/marked.umd.js"></script>
+  <script src="../../node_modules/dompurify/dist/purify.min.js"></script>
+  <script src="i18n.js"></script>
+  <script src="icons-data.js"></script>
+  <script src="icons.js"></script>
+  <script src="quick.js"></script>
+</body>
+</html>

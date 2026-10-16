@@ -9,7 +9,10 @@ const S = {
   convs: [], conv: null,
   mode: 'chat',
   engine: { status: 'idle' },
-  installed: { local: [], ollama: { available: false, models: [] }, downloads: [] },
+  installed: { local: [], downloads: [] },
+  provModels: [],          // models from external providers (when enabled)
+  prov: null,              // providers view { enabled, presets, list }
+  detect: null,            // { ollama, lmstudio } one-click detection
   catalog: null,
   downloads: {},           // id -> progress
   pending: [],             // attachments for next message
@@ -140,16 +143,17 @@ function md(text, prefix) {
 // ───────────────────────────── Models helpers ─────────────────────────────
 function allModels() {
   const l = S.installed.local.map((m) => ({ ref: { backend: 'local', id: m.id }, label: m.name, sub: `${m.quant || 'GGUF'} · ${fmtBytes(m.sizeBytes)}`, vision: m.vision, src: 'local' }));
-  const o = (S.installed.ollama.models || []).map((m) => ({ ref: { backend: 'ollama', name: m.name }, label: m.name, sub: `Ollama${m.params ? ' · ' + m.params : ''}`, src: 'ollama' }));
-  return [...l, ...o];
+  const p = (S.provModels || []).map((m) => ({ ref: m.ref, label: m.label, sub: [m.providerName, m.params, m.quant].filter(Boolean).join(' · '), vision: m.vision, src: m.provider, provider: m.providerName, kind: m.kind, remote: !m.local }));
+  return [...l, ...p];
 }
-const sameRef = (a, b) => a && b && a.backend === b.backend && (a.id || a.name) === (b.id || b.name);
+const refKey = (r) => !r ? '' : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
+const sameRef = (a, b) => !!a && !!b && refKey(a) === refKey(b);
 function currentModel() {
   const list = allModels();
   return list.find((m) => sameRef(m.ref, S.settings.selectedModel)) || null;
 }
 async function refreshModels() {
-  S.installed = await api.models.installed();
+  [S.installed, S.provModels] = await Promise.all([api.models.installed(), api.providers.models()]);
   for (const d of S.installed.downloads) S.downloads[d.id] = d;
   if (!currentModel()) {
     const first = allModels()[0];
@@ -320,6 +324,7 @@ function vt(fn, opts) {
 
 function renderView() {
   renderTopbar();
+  reportQuick();
   const v = $('#view');
   if (S.mode !== 'chat') {
     v.className = 'view';
@@ -369,7 +374,6 @@ function renderSetupCard() {
   const gpu = sp.gpus[0];
   const hw = [gpu ? `${gpu.name}${gpu.vramGB ? ` · ${gpu.vramGB} GB` : ''}` : t('noGpu'), `${sp.ramGB} GB RAM`].join(' · ');
   const dl = rec && Object.values(S.downloads).find((d) => d.repo === rec.repo && d.status === 'downloading');
-  const oll = S.installed.ollama.available;
   return `<div class="setup-card">
     <div class="sc-row">
       <div class="sc-ico">${icon('cpu', 20)}</div>
@@ -387,7 +391,7 @@ function renderSetupCard() {
     ${S.engine.status === 'error' ? errorCard({ code: S.engine.errorCode, message: S.engine.error, detail: S.engine.errorDetail }, 'engine') : ''}
     <div class="sc-links">
       <button class="link-btn" data-action="settings" data-tab="models">${esc(t('chooseAnother'))}</button>
-      ${oll ? `<span class="muted">·</span><span class="muted">${esc(t('ollamaDetected'))}</span>` : ''}
+      <span class="muted">·</span><button class="link-btn" data-action="settings" data-tab="providers">${esc(t('useProvider'))}</button>
     </div>
   </div>`;
 }
@@ -459,7 +463,8 @@ function assistantBody(m) {
 
 // Readable error card: what happened, what to do, one-click fixes, technical details folded.
 const ERR_ACTIONS = {
-  NETWORK: ['retry'], RATE_LIMIT: ['retry'], GITHUB: ['retry', 'copy'],
+  NETWORK: ['retry'], RATE_LIMIT: ['retry'],
+  PROVIDER_AUTH: ['providers'], PROVIDER_RATE: ['retry'], PROVIDER_MODEL: ['models'], PROVIDER_HTTP: ['retry', 'copy'], PROVIDER_DOWN: ['retry', 'providers'], PROVIDER_OFF: ['providers'], GITHUB: ['retry', 'copy'],
   NO_BUILD: ['retry', 'cpu', 'copy'], NO_BINARY: ['retry', 'cpu', 'copy'], BROKEN_BUILD: ['cpu', 'retry', 'copy'], DOWNLOAD: ['retry', 'copy'],
   OUT_OF_MEMORY: ['models', 'cpu'], MODEL_FILE: ['models'], START_FAILED: ['retry', 'cpu', 'copy'], TIMEOUT: ['retry', 'models', 'copy'],
   ENGINE_DOWN: ['retry', 'copy'], NO_MODEL: ['models'], UNKNOWN: ['retry', 'copy'],
@@ -467,7 +472,7 @@ const ERR_ACTIONS = {
 function errorCard(err, where = 'msg') {
   const code = I18N.en['err_' + err.code + '_t'] ? err.code : 'UNKNOWN';
   const acts = (ERR_ACTIONS[code] || ERR_ACTIONS.UNKNOWN).filter((a) => !(a === 'cpu' && (S.settings.engine || {}).variant === 'cpu'));
-  const btn = { retry: ['retry', 'errRetry'], cpu: ['cpu', 'errCpu'], models: ['box', 'errModels'], copy: ['copy', 'errCopy'] };
+  const btn = { retry: ['retry', 'errRetry'], cpu: ['cpu', 'errCpu'], models: ['box', 'errModels'], copy: ['copy', 'errCopy'], providers: ['cloud', 'errProviders'] };
   const tech = [err.message, err.detail].filter(Boolean).join('\n');
   return `<div class="err-card" data-where="${where}">
     <div class="err-head"><span class="err-ico">${icon('warning', 18)}</span><div><b>${esc(t('err_' + code + '_t'))}</b><p>${esc(t('err_' + code + '_b'))}</p></div></div>
@@ -669,23 +674,26 @@ function closePopover() { $('#popover-root').innerHTML = ''; }
 function openModelMenu(anchor) {
   const list = allModels();
   const r = anchor.getBoundingClientRect();
-  const local = list.filter((m) => m.src === 'local'), oll = list.filter((m) => m.src === 'ollama');
+  const local = list.filter((m) => m.src === 'local');
+  const groups = {}; list.filter((m) => m.src !== 'local').forEach((m) => { (groups[m.src] ||= { name: m.provider, items: [] }).items.push(m); });
   const item = (m) => `<button class="pm-item ${sameRef(m.ref, S.settings.selectedModel) ? 'sel' : ''}" data-action="pick-model" data-ref="${esc(JSON.stringify(m.ref))}">
       <span class="pm-text"><b>${esc(m.label)}</b><small>${esc(m.sub)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></span>
       ${sameRef(m.ref, S.settings.selectedModel) ? icon('check', 16) : ''}</button>`;
   $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
-    <div class="popover" style="right:${Math.max(12, innerWidth - r.right)}px; bottom:${innerHeight - r.top + 8}px">
+    <div class="popover models-pop" style="right:${Math.max(12, innerWidth - r.right)}px; bottom:${innerHeight - r.top + 8}px">
       ${local.length ? `<div class="pm-sec">${esc(t('builtInModels'))}</div>${local.map(item).join('')}` : ''}
-      ${oll.length ? `<div class="pm-sec">Ollama</div>${oll.map(item).join('')}` : ''}
+      ${Object.values(groups).map((g) => `<div class="pm-sec">${esc(g.name)}</div>${g.items.map(item).join('')}`).join('')}
       ${!list.length ? `<div class="pm-empty">${esc(t('noModelsYet'))}</div>` : ''}
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
+      <button class="pm-item" data-action="settings" data-tab="providers">${icon('cloud', 16)}<span class="pm-text"><b>${esc(t('tab_providers'))}</b></span></button>
     </div>`;
 }
 
 // ───────────────────────────── Settings overlay ─────────────────────────────
 const TABS = [
-  { id: 'general', icon: 'sliders' }, { id: 'models', icon: 'box' }, { id: 'engine', icon: 'zap' },
+  { id: 'general', icon: 'sliders' }, { id: 'models', icon: 'box' }, { id: 'engine', icon: 'zap' }, { id: 'providers', icon: 'cloud' },
+  { id: 'shortcut', icon: 'key' },
   { id: 'generation', icon: 'edit' }, { id: 'system', icon: 'cpu' }, { id: 'about', icon: 'info' },
 ];
 
@@ -694,6 +702,8 @@ async function openSettings(tab = 'general') {
   closePopover();
   renderSettings();
   if (tab === 'models' && !S.catalog) { S.catalog = await api.models.catalog(); renderSettings(); }
+  if (tab === 'providers') loadProviders();
+  if (tab === 'shortcut') loadHotkeyStatus();
 }
 function closeSettings() {
   S.settingsTab = null; S._lastTab = null;
@@ -742,6 +752,8 @@ function settingsBody(tab) {
       ${row(t('appVersion'), `<span class="mono">v${esc(S.info.version)}</span> <button class="btn sm" data-action="check-update">${esc(t('checkUpdates'))}</button>`, updaterText())}`;
   }
   if (tab === 'models') return modelsTab();
+  if (tab === 'providers') return providersTab();
+  if (tab === 'shortcut') return shortcutTab();
   if (tab === 'engine') {
     const e = S.engine;
     const ctxOpts = [2048, 4096, 8192, 16384, 32768, 65536, 131072].map((n) => `<option value="${n}" ${st.engine.ctx === n ? 'selected' : ''}>${n / 1024}K tokens</option>`).join('');
@@ -757,12 +769,11 @@ function settingsBody(tab) {
         <button class="btn sm" data-action="engine-update">${icon('refresh', 14)} ${esc(t('checkUpdates'))}</button>
       </div>
       ${e.status === 'error' ? errorCard({ code: e.errorCode, message: e.error, detail: e.errorDetail }, 'engine') : ''}
-      ${row(t('backend'), seg('backend', st.backend, [['local', t('backendLocal')], ['ollama', 'Ollama']]), t('backendHint'))}
       ${row(t('engineVariant'), seg('engine.variant', (st.engine || {}).variant || 'auto', [['auto', t('auto')], ['cpu', t('cpuOnly')]]), t('engineVariantHint'))}
       ${row(t('contextLength'), `<select class="input" data-input="engine.ctx" data-type="int">${ctxOpts}</select>`, t('contextHint'))}
       ${row(t('gpuLayers'), `<div class="range-wrap"><input type="range" min="-1" max="99" step="1" value="${gl}" data-input="engine.gpuLayers" data-type="int"><span class="rv">${gl < 0 ? t('auto') : gl}</span></div>`, t('gpuLayersHint'))}
       ${row(t('threads'), `<input class="input sm" type="number" min="0" max="256" value="${st.engine.threads}" data-input="engine.threads" data-type="int">`, t('threadsHint'))}
-      ${row('Ollama URL', `<input class="input" value="${esc(st.ollamaUrl)}" data-input="ollamaUrl">`, S.installed.ollama.available ? t('ollamaConnected', { n: S.installed.ollama.models.length }) : t('ollamaNotFound'))}`;
+      <p class="muted small st-foot">${icon('info', 13)} ${esc(t('engineOnlyNote'))} <button class="link-btn" data-action="settings-tab" data-tab="providers">${esc(t('tab_providers'))}</button></p>`;
   }
   if (tab === 'generation') {
     const g = st.gen;
@@ -803,18 +814,14 @@ function updaterText() {
 const FIT_ORDER = { great: 0, good: 1, ok: 2, 'needs-gpu': 3, 'too-big': 4 };
 function modelsTab() {
   const loc = S.installed.local;
-  const oll = S.installed.ollama;
   const mine = loc.map((m) => `<div class="m-row">
       <div class="m-ico">${icon('box', 18)}</div>
       <div class="m-text"><b>${esc(m.name)}</b><small>${esc(m.repo)} · ${esc(m.quant || '')} · ${fmtBytes(m.sizeBytes)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></div>
       ${sameRef({ backend: 'local', id: m.id }, S.settings.selectedModel) ? `<span class="chip">${esc(t('active'))}</span>` : `<button class="btn sm" data-action="pick-model" data-ref="${esc(JSON.stringify({ backend: 'local', id: m.id }))}">${esc(t('use'))}</button>`}
       <button class="icon-btn sm" data-action="model-delete" data-id="${esc(m.id)}" title="${esc(t('delete'))}">${icon('trash', 16)}</button>
     </div>`).join('');
-  const ollRows = (oll.models || []).map((m) => `<div class="m-row">
-      <div class="m-ico ollama">O</div>
-      <div class="m-text"><b>${esc(m.name)}</b><small>Ollama · ${esc(m.params || '')} ${esc(m.quant || '')} · ${fmtBytes(m.sizeBytes)}</small></div>
-      ${sameRef({ backend: 'ollama', name: m.name }, S.settings.selectedModel) ? `<span class="chip">${esc(t('active'))}</span>` : `<button class="btn sm" data-action="pick-model" data-ref="${esc(JSON.stringify({ backend: 'ollama', name: m.name }))}">${esc(t('use'))}</button>`}
-    </div>`).join('');
+  const provRows = (S.provModels || []).length ? `<button class="m-row link-row" data-action="settings-tab" data-tab="providers">
+      <div class="m-ico">${icon('cloud', 18)}</div><div class="m-text"><b>${esc(t('provModelsCount', { n: S.provModels.length }))}</b><small>${esc([...new Set(S.provModels.map((m) => m.providerName))].join(' · '))}</small></div>${icon('right', 16)}</button>` : '';
 
   const cat = S.catalog;
   const catHtml = !cat ? `<div class="muted">${esc(t('detecting'))}</div>` : [...cat.items].sort((a, b) => (b.id === cat.recommended) - (a.id === cat.recommended) || (FIT_ORDER[a.fit] ?? 9) - (FIT_ORDER[b.fit] ?? 9) || b.sizeGB - a.sizeGB).map((m) => {
@@ -839,7 +846,7 @@ function modelsTab() {
 
   return `
     <div class="st-sec">${esc(t('yourModels'))}</div>
-    ${mine || ollRows ? mine + ollRows : `<div class="empty-note">${esc(t('noModelsYet'))}</div>`}
+    ${mine || provRows ? mine + provRows : `<div class="empty-note">${esc(t('noModelsYet'))}</div>`}
     <div class="st-sec">${esc(t('recommendedFor'))} <span class="muted small">${S.specs ? esc(specLine()) : ''}</span></div>
     <div class="cat-grid">${catHtml}</div>
     <div class="st-sec">${esc(t('searchHF'))}</div>
@@ -887,6 +894,8 @@ async function openConv(id) {
   vt(() => { renderSidebar(); renderView(); });
 }
 
+function reportQuick() { api.quick.report({ convId: S.conv && S.conv.messages.length ? S.conv.id : null, title: S.conv ? S.conv.title : '' }); }
+
 function newChat() {
   if (S.streaming) return;
   S.conv = null; S.mode = 'chat'; S.code.clear(); S._draft = ''; navTo('chat', null);
@@ -911,7 +920,7 @@ function buildMessages() {
   return out;
 }
 
-async function sendPrompt(textOverride) {
+async function sendPrompt(textOverride, opts = {}) {
   if (S.streaming) return;
   const ta = $('#prompt');
   const text = (textOverride ?? (ta ? ta.value : '')).trim();
@@ -922,15 +931,15 @@ async function sendPrompt(textOverride) {
   S.conv.messages.push({ id: uid(), role: 'user', content: text, attachments: atts, createdAt: Date.now() });
   if (!S.conv.title) S.conv.title = (text || atts[0]?.name || '').replace(/\s+/g, ' ').slice(0, 64);
   S._draft = '';
-  generate();
+  generate(opts);
 }
 
-function generate() {
+function generate(opts = {}) {
   const cm = currentModel();
   const msg = { id: uid(), role: 'assistant', content: '', reasoning: '', model: cm ? cm.label : '', pending: true, createdAt: Date.now() };
   S.conv.messages.push(msg);
   const reqId = uid();
-  S.streaming = { reqId, msg };
+  S.streaming = { reqId, msg, quick: !!opts.quick };
   const first = S.conv.messages.length <= 2;
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: S.settings.gen });
@@ -938,7 +947,11 @@ function generate() {
 
 function finishStream() {
   const m = S.streaming && S.streaming.msg;
+  const fromQuick = S.streaming && S.streaming.quick;
   S.streaming = null;
+  if (m && !fromQuick && !m.error && (document.hidden || !document.hasFocus())) {
+    api.notify({ title: (S.conv && S.conv.title) || 'Fabro', body: (m.content || '').replace(/\s+/g, ' ').slice(0, 140), onlyIfHidden: true });
+  }
   if (m) {
     m.pending = false;
     if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now();
@@ -1009,7 +1022,7 @@ const actions = {
   'close-pop': closePopover,
   'pick-model': async (el) => {
     const ref = JSON.parse(el.dataset.ref);
-    await saveSettings({ selectedModel: ref, backend: ref.backend });
+    await saveSettings({ selectedModel: ref });
     closePopover(); renderSidebar(); refreshComposer(); renderSettings();
   },
   'copy-msg': (el) => {
@@ -1096,6 +1109,7 @@ const actions = {
     actions.regen();
   },
   'err-models': () => openSettings('models'),
+  'err-providers': () => openSettings('providers'),
   'err-copy': (el) => copyDiagnostics(el),
   'devtools': () => api.win.devtools(),
   'check-update': () => api.updater.check(),
@@ -1133,7 +1147,7 @@ async function applySetting(key, value) {
   if (key === 'devMode') { applyDevMode(); applyTheme(); }
   if (key === 'userName') { _greet.key = ''; renderSidebar(); renderView(); }
   if (key === 'language') { S.lang = resolveLang(); document.documentElement.lang = S.lang; renderSidebar(); renderView(); }
-  if (key === 'ollamaUrl') { await refreshModels(); renderSidebar(); }
+  if (key === 'closeToTray' || key.startsWith('hotkey')) { if (key.startsWith('hotkey')) S.hotkeyStatus = await api.hotkey.apply(); }
   renderSettings();
 }
 
@@ -1196,6 +1210,15 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme
 
 // IPC events
 api.on('chat:event', onChatEvent);
+api.on('app:command', ({ cmd }) => { if (cmd === 'new-chat') newChat(); });
+api.on('quick:run', async ({ text, target }) => {
+  if (S.streaming) { api.quick.started({ reqId: null, error: t('quickBusy') }); return; }
+  if (!currentModel()) { api.quick.started({ reqId: null, error: t('noModel') }); return; }
+  if (target === 'new' || !S.conv) { S.conv = null; S.code.clear(); S._draft = ''; navTo('chat', null); }
+  S.mode = 'chat';
+  await sendPrompt(text, { quick: true });
+  if (S.streaming) api.quick.started({ reqId: S.streaming.reqId, convId: S.conv.id, title: S.conv.title, model: currentModel()?.label });
+});
 api.on('engine:status', (s) => {
   const wasReady = S.engine.status === 'ready';
   S.engine = { ...S.engine, ...s };

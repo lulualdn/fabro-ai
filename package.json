@@ -1,6 +1,6 @@
 {
   "name": "fabro",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Lift off, locally.",
   "main": "src/main/main.js",
   "scripts": {
@@ -19,10 +19,11 @@
     "marked": "^18.1.1"
   },
   "devDependencies": {
+    "@phosphor-icons/core": "^2.1.1",
     "electron": "^44.8.0",
     "electron-builder": "^26.15.3",
     "heroicons": "^2.2.0",
-    "@phosphor-icons/core": "^2.1.1"
+    "playwright-core": "^1.56.0"
   },
   "productName": "Fabro",
   "build": {

@@ -190,14 +190,20 @@ fn desktop_dir() -> Option<PathBuf> {
 #[cfg(not(windows))]
 fn desktop_dir() -> Option<PathBuf> { None }
 
-/// Seed the app's first-run language with the one picked here (never overwrites).
-fn seed_settings(lang: &str) {
+/// Seed first-run choices into the app's settings (merges, never overwrites existing values).
+fn seed_settings(lang: &str, providers: bool) {
     let Some(appdata) = std::env::var_os("APPDATA") else { return };
     let dir = PathBuf::from(appdata).join("Fabro");
     let file = dir.join("settings.json");
-    if file.exists() { return; }
+    let mut s: Value = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_else(|| json!({}));
+    let Some(obj) = s.as_object_mut() else { return };
+    obj.entry("language").or_insert(json!(lang));
+    if providers {
+        let p = obj.entry("providers").or_insert(json!({ "list": [] }));
+        if let Some(p) = p.as_object_mut() { p.insert("enabled".into(), json!(true)); }
+    }
     let _ = std::fs::create_dir_all(&dir);
-    let _ = std::fs::write(file, serde_json::to_string_pretty(&json!({ "language": lang })).unwrap());
+    let _ = std::fs::write(file, serde_json::to_string_pretty(&s).unwrap());
 }
 
 fn run_setup(exe: &Path, dir: &str) -> Result<(), Fail> {
@@ -238,7 +244,7 @@ fn install(r: &Release, opts: &Value, js: &dyn Fn(Value)) -> Result<PathBuf, Fai
     }
 
     js(json!({ "type": "phase", "i": 2 }));
-    seed_settings(opts["lang"].as_str().unwrap_or("en"));
+    seed_settings(opts["lang"].as_str().unwrap_or("en"), opts["providers"] == json!(true));
     run_setup(&pkg, &dir)?;
 
     js(json!({ "type": "phase", "i": 3 }));

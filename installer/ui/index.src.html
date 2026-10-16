@@ -71,14 +71,14 @@ h1 { margin: 18px 0 6px; font: 500 34px/1.1 var(--serif); letter-spacing: -.02em
 .pill.accent { color: var(--accent-2); border-color: rgba(255,94,66,.35); background: rgba(255,94,66,.08); }
 
 /* options */
-.panel { width: 100%; max-width: 520px; text-align: left; display: grid; gap: 12px; margin-top: 4px; }
+.panel { width: 100%; max-width: 520px; text-align: left; display: grid; gap: 9px; margin-top: 4px; }
 .panel h2 { margin: 0 0 6px; font: 500 24px var(--serif); text-align: center; }
 .field { display: flex; gap: 8px; }
 .input { flex: 1; min-width: 0; height: 42px; padding: 0 12px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); font-size: 13px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; user-select: text; }
 .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,94,66,.18); }
 .lbl { font-size: 12.5px; color: var(--text-2); font-weight: 600; margin-bottom: -4px; }
 .hint { font-size: 12px; color: var(--muted); }
-.check { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--border); cursor: pointer; transition: border-color .15s, background .15s; }
+.check { display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--border); cursor: pointer; transition: border-color .15s, background .15s; }
 .check:hover { border-color: var(--border-2); background: rgba(255,255,255,.05); }
 .check input { display: none; }
 .check .box { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--border-2); display: grid; place-items: center; transition: background .15s, border-color .15s; flex: none; }
@@ -161,6 +161,7 @@ h1 { margin: 18px 0 6px; font: 500 34px/1.1 var(--serif); letter-spacing: -.02em
       <div class="field"><input class="input" id="dir" spellcheck="false"><button class="btn" id="browse" data-t="browse"></button></div>
       <span class="hint" data-t="locationHint"></span>
       <label class="check"><input type="checkbox" id="desk" checked><span class="box"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z"/></svg></span><span><b data-t="desktop"></b><small data-t="desktopHint"></small></span></label>
+      <label class="check"><input type="checkbox" id="prov"><span class="box"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z"/></svg></span><span><b data-t="providers"></b><small data-t="providersHint"></small></span></label>
       <label class="check"><input type="checkbox" id="launch" checked><span class="box"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z"/></svg></span><span><b data-t="launchAfter"></b><small data-t="launchHint"></small></span></label>
     </div>
     <div class="actions">
@@ -200,25 +201,25 @@ h1 { margin: 18px 0 6px; font: 500 34px/1.1 var(--serif); letter-spacing: -.02em
 
 <script>
 const I = {
-  en: { welcome: 'Welcome to Fabro', welcomeUpd: 'A new Fabro is here', tagline: 'Runs on your machine. Takes you anywhere.', install: 'Install Fabro', update: 'Update Fabro', options: 'Options', optsTitle: 'Make it yours',
+  en: { providers: 'External providers', providersHint: 'Also use OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Welcome to Fabro', welcomeUpd: 'A new Fabro is here', tagline: 'Runs on your machine. Takes you anywhere.', install: 'Install Fabro', update: 'Update Fabro', options: 'Options', optsTitle: 'Make it yours',
     location: 'Install location', browse: 'Browse…', locationHint: 'No admin rights needed. Fabro installs for you only.', desktop: 'Desktop shortcut', desktopHint: 'Start Fabro from your desktop.', launchAfter: 'Launch when done', launchHint: 'Open Fabro right after installing.',
     back: 'Back', checking: 'Looking for the latest version…', latest: 'Latest', installed: 'Installed', size: '{s}', ph_dl: 'Downloading Fabro', ph_verify: 'Checking the package', ph_install: 'Installing', ph_finish: 'Final touches', speed: '{s}/s', left: '{t} left',
     doneTitle: 'Fabro is ready', doneUpd: 'Fabro {v} is ready', doneSub: 'Lift off, locally.', liftoff: 'Lift off', closeBtn: 'Close',
     retry: 'Try again', manual: 'Download page', e_NETWORK_t: 'Can’t reach the internet', e_NETWORK_b: 'Check your connection, then try again.', e_INTEGRITY_t: 'The download was damaged', e_INTEGRITY_b: 'It didn’t pass the integrity check. Trying again usually fixes it.', e_INSTALL_t: 'Installation didn’t finish', e_INSTALL_b: 'Close Fabro if it’s open, then try again.', e_DISK_t: 'Can’t write to this folder', e_DISK_b: 'Pick another location or free up some space.', e_UNKNOWN_t: 'Something went wrong', e_UNKNOWN_b: 'Try again. If it keeps happening, use the download page.',
     foot: 'UF Studios · Internal build' },
-  fr: { welcome: 'Bienvenue dans Fabro', welcomeUpd: 'Un nouveau Fabro est arrivé', tagline: 'Tourne sur votre machine. Vous emmène partout.', install: 'Installer Fabro', update: 'Mettre à jour Fabro', options: 'Options', optsTitle: 'À votre façon',
+  fr: { providers: 'Fournisseurs externes', providersHint: 'Utiliser aussi OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Bienvenue dans Fabro', welcomeUpd: 'Un nouveau Fabro est arrivé', tagline: 'Tourne sur votre machine. Vous emmène partout.', install: 'Installer Fabro', update: 'Mettre à jour Fabro', options: 'Options', optsTitle: 'À votre façon',
     location: 'Emplacement', browse: 'Parcourir…', locationHint: 'Aucun droit administrateur requis. Installé pour vous uniquement.', desktop: 'Raccourci sur le bureau', desktopHint: 'Lancez Fabro depuis votre bureau.', launchAfter: 'Lancer à la fin', launchHint: 'Ouvrir Fabro juste après l’installation.',
     back: 'Retour', checking: 'Recherche de la dernière version…', latest: 'Dernière version', installed: 'Installée', size: '{s}', ph_dl: 'Téléchargement de Fabro', ph_verify: 'Vérification du paquet', ph_install: 'Installation', ph_finish: 'Dernières retouches', speed: '{s}/s', left: 'encore {t}',
     doneTitle: 'Fabro est prêt', doneUpd: 'Fabro {v} est prêt', doneSub: 'Lift off, locally.', liftoff: 'Décoller', closeBtn: 'Fermer',
     retry: 'Réessayer', manual: 'Page de téléchargement', e_NETWORK_t: 'Pas de connexion Internet', e_NETWORK_b: 'Vérifiez votre connexion puis réessayez.', e_INTEGRITY_t: 'Le téléchargement est endommagé', e_INTEGRITY_b: 'Il n’a pas passé la vérification d’intégrité. Réessayer suffit en général.', e_INSTALL_t: 'L’installation n’a pas abouti', e_INSTALL_b: 'Fermez Fabro s’il est ouvert, puis réessayez.', e_DISK_t: 'Impossible d’écrire dans ce dossier', e_DISK_b: 'Choisissez un autre emplacement ou libérez de l’espace.', e_UNKNOWN_t: 'Un problème est survenu', e_UNKNOWN_b: 'Réessayez. Si ça continue, utilisez la page de téléchargement.',
     foot: 'UF Studios · Build interne' },
-  es: { welcome: 'Bienvenido a Fabro', welcomeUpd: 'Hay un nuevo Fabro', tagline: 'Funciona en tu equipo. Te lleva a todas partes.', install: 'Instalar Fabro', update: 'Actualizar Fabro', options: 'Opciones', optsTitle: 'A tu manera',
+  es: { providers: 'Proveedores externos', providersHint: 'Usar también OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Bienvenido a Fabro', welcomeUpd: 'Hay un nuevo Fabro', tagline: 'Funciona en tu equipo. Te lleva a todas partes.', install: 'Instalar Fabro', update: 'Actualizar Fabro', options: 'Opciones', optsTitle: 'A tu manera',
     location: 'Ubicación', browse: 'Examinar…', locationHint: 'No requiere permisos de administrador.', desktop: 'Acceso directo en el escritorio', desktopHint: 'Abre Fabro desde el escritorio.', launchAfter: 'Abrir al terminar', launchHint: 'Abrir Fabro justo después.',
     back: 'Atrás', checking: 'Buscando la última versión…', latest: 'Última', installed: 'Instalada', size: '{s}', ph_dl: 'Descargando Fabro', ph_verify: 'Comprobando el paquete', ph_install: 'Instalando', ph_finish: 'Últimos detalles', speed: '{s}/s', left: 'quedan {t}',
     doneTitle: 'Fabro está listo', doneUpd: 'Fabro {v} está listo', doneSub: 'Lift off, locally.', liftoff: 'Despegar', closeBtn: 'Cerrar',
     retry: 'Reintentar', manual: 'Página de descarga', e_NETWORK_t: 'Sin conexión a Internet', e_NETWORK_b: 'Comprueba tu conexión y vuelve a intentarlo.', e_INTEGRITY_t: 'La descarga está dañada', e_INTEGRITY_b: 'No pasó la verificación. Reintentar suele bastar.', e_INSTALL_t: 'La instalación no terminó', e_INSTALL_b: 'Cierra Fabro si está abierto y reinténtalo.', e_DISK_t: 'No se puede escribir aquí', e_DISK_b: 'Elige otra ubicación o libera espacio.', e_UNKNOWN_t: 'Algo salió mal', e_UNKNOWN_b: 'Reinténtalo o usa la página de descarga.',
     foot: 'UF Studios · Build interno' },
-  de: { welcome: 'Willkommen bei Fabro', welcomeUpd: 'Ein neues Fabro ist da', tagline: 'Läuft auf deinem Rechner. Bringt dich überallhin.', install: 'Fabro installieren', update: 'Fabro aktualisieren', options: 'Optionen', optsTitle: 'Ganz nach dir',
+  de: { providers: 'Externe Anbieter', providersHint: 'Auch OpenAI, Claude, Grok, Gemini, Ollama, LM Studio nutzen…', welcome: 'Willkommen bei Fabro', welcomeUpd: 'Ein neues Fabro ist da', tagline: 'Läuft auf deinem Rechner. Bringt dich überallhin.', install: 'Fabro installieren', update: 'Fabro aktualisieren', options: 'Optionen', optsTitle: 'Ganz nach dir',
     location: 'Speicherort', browse: 'Durchsuchen…', locationHint: 'Keine Administratorrechte nötig.', desktop: 'Desktop-Verknüpfung', desktopHint: 'Fabro vom Desktop starten.', launchAfter: 'Danach starten', launchHint: 'Fabro direkt nach der Installation öffnen.',
     back: 'Zurück', checking: 'Suche nach der neuesten Version…', latest: 'Neueste', installed: 'Installiert', size: '{s}', ph_dl: 'Fabro wird geladen', ph_verify: 'Paket wird geprüft', ph_install: 'Wird installiert', ph_finish: 'Letzter Schliff', speed: '{s}/s', left: 'noch {t}',
     doneTitle: 'Fabro ist bereit', doneUpd: 'Fabro {v} ist bereit', doneSub: 'Lift off, locally.', liftoff: 'Abheben', closeBtn: 'Schließen',
@@ -282,7 +283,7 @@ function confetti() {
 function start() {
   if (S.busy || !S.release) return;
   S.busy = true; S.lastErr = null; go('s-run'); setPhase(0); $('#fill').style.width = '0%';
-  send('install', { dir: $('#dir').value.trim() || S.dir, desktop: $('#desk').checked, launch: $('#launch').checked, lang: S.lang });
+  send('install', { dir: $('#dir').value.trim() || S.dir, desktop: $('#desk').checked, providers: $('#prov').checked, launch: $('#launch').checked, lang: S.lang });
 }
 
 // Rust → page

@@ -1,0 +1,53 @@
+:root {
+  --bar: #f9f8f5; --card: #ffffff; --text: #1f1e1b; --text-2: #4a4741; --muted: #8a857b; --border: rgba(31,30,27,.12);
+  --hover: rgba(31,30,27,.06); --accent: #cf6a3c; --accent-ink: #fff; --logo: #e2683a; --code: #f2f0ea;
+  --shadow: 0 18px 50px -12px rgba(30,20,5,.35), 0 2px 8px rgba(30,20,5,.12);
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+:root[data-theme="dark"] {
+  --bar: #1c212b; --card: #1c212b; --text: #eef1f4; --text-2: #c9cfd6; --muted: #8b95a1; --border: rgba(255,255,255,.1);
+  --hover: rgba(255,255,255,.07); --accent: #ff5e42; --accent-ink: #14161b; --logo: #ff5e42; --code: #12161d;
+  --shadow: 0 22px 60px -12px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.35);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; overflow: hidden; font: 14px/1.5 var(--sans); color: var(--text); -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+button { border: 0; background: none; cursor: pointer; }
+.wrap { padding: 16px 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+.qbar { display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 10px 0 20px; border-radius: 20px; background: var(--bar);
+  border: 1px solid var(--border); box-shadow: var(--shadow); animation: in .28s cubic-bezier(.2,.8,.2,1) both; -webkit-app-region: drag; }
+.qbar > * { -webkit-app-region: no-drag; }
+@keyframes in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+.q-logo { display: grid; place-items: center; width: 24px; height: 24px; flex: none; }
+.q-logo svg { width: 22px; height: 22px; }
+.q-logo .prop { transform-origin: 50% 50%; transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.busy .q-logo .prop { animation: spin .45s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#q { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 16.5px; color: var(--text); caret-color: var(--accent); }
+#q::placeholder { color: var(--muted); }
+.q-target { display: inline-flex; align-items: center; gap: 6px; max-width: 240px; height: 32px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--border); color: var(--text-2); font-size: 12.5px; white-space: nowrap; transition: background .15s, border-color .15s, transform .18s cubic-bezier(.34,1.56,.64,1); }
+.q-target:hover { background: var(--hover); }
+.q-target:active { transform: scale(.95); }
+.q-target b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.q-target.new { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.q-target svg { flex: none; }
+.q-send { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); flex: none; transition: transform .18s cubic-bezier(.34,1.56,.64,1), opacity .15s; }
+.q-send:disabled { opacity: .35; cursor: default; }
+.q-send:not(:disabled):active { transform: scale(.9); }
+.qcard { border-radius: 18px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow); overflow: hidden; animation: in .3s cubic-bezier(.2,.8,.2,1) both; }
+.q-ans { padding: 16px 20px 6px; max-height: 440px; overflow: auto; font-size: 14.5px; line-height: 1.6; user-select: text; }
+.q-ans.empty { color: var(--muted); font-style: italic; }
+.q-ans > :first-child { margin-top: 0; } .q-ans > :last-child { margin-bottom: 0; }
+.q-ans pre { background: var(--code); padding: 10px 12px; border-radius: 10px; overflow: auto; font-size: 12.5px; }
+.q-ans code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .92em; }
+.q-ans p { margin: 0 0 .7em; }
+.q-ans .err { color: #e5534b; }
+.q-foot { display: flex; align-items: center; gap: 6px; padding: 8px 10px 10px 20px; }
+.q-meta { color: var(--muted); font-size: 12px; }
+.grow { flex: 1; }
+.q-btn { height: 30px; padding: 0 11px; border-radius: 9px; font-size: 12.5px; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px; }
+.q-btn:hover { background: var(--hover); color: var(--text); }
+.q-btn.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.q-btn.primary:hover { filter: brightness(1.06); }
+kbd { font: 11px ui-monospace, Consolas, monospace; opacity: .7; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
