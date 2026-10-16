@@ -7,12 +7,14 @@ const http = require('http'); const fs = require('fs'); const os = require('os')
 const shots = process.argv[2] || fs.mkdtempSync(path.join(os.tmpdir(), 'fabro-shots-'));
 fs.mkdirSync(shots, { recursive: true });
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'fabro-e2e-'));
+const agentDir = path.join(userData, 'dossier-agent'); fs.mkdirSync(agentDir);
 fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpdate: false, language: 'fr', userName: 'Lulu', theme: process.env.THEME || 'light' }));
 
 const reply = 'Bonjour ! Voici **une réponse** de test.\n\n```js\nconsole.log("ok")\n```';
 const srv = http.createServer((req, res) => {
   let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
     if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'fake-model-large' }, { id: 'fake-model-mini' }] }));
+    if (req.url === '/login') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end('<!doctype html><title>Connexion test</title><h1>Connexion</h1><form><input name="user" placeholder="Identifiant"><input type="password" name="pw" placeholder="Mot de passe"><button>Se connecter</button></form>'); }
     if (req.url.startsWith('/search')) return res.end(JSON.stringify({ results: [{ title: 'Fabro — Lift off, locally', url: 'https://fabro.example/a', snippet: 'Local AI app' }, { title: 'llama.cpp', url: 'https://github.com/ggml-org/llama.cpp', snippet: 'Inference' }] }));
     if (req.url === '/v1/chat/completions') {
       const body = JSON.parse(b);
@@ -22,6 +24,25 @@ const srv = http.createServer((req, res) => {
       const one = (text) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
       if (/You name conversations/.test(sys)) return one('Test de Fabro');
       if (/maintain a short memory/.test(sys)) return one('["Teste Fabro en profondeur"]');
+      // ── agent scripts ──
+      const toolsDone = body.messages.filter((m) => m.role === 'tool');
+      const call1 = (name, args) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 't' + toolsDone.length, function: { name, arguments: JSON.stringify(args) } }] } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
+      if (/range mon dossier/i.test(ut)) {
+        if (toolsDone.length === 0) return call1('write_file', { path: path.join(agentDir, 'resume.md'), content: '# Résumé\nTout est rangé.' });
+        if (toolsDone.length === 1) return call1('create_document', { format: 'docx', title: 'Rapport Fabro', content: '# Rapport\n\nTout va **bien**.\n\n- un\n- deux', folder: agentDir });
+        return one('C’est fait : resume.md et Rapport Fabro.docx sont dans ton dossier.');
+      }
+      if (/connecte-toi/i.test(ut)) {
+        if (toolsDone.length === 0) return call1('browser_open', { url: global.__base.replace('/v1', '/login') });
+        if (toolsDone.length === 1) return call1('browser_type', { id: 2, text: 'hunter2' });
+        if (toolsDone.length === 2) return call1('browser_type', { id: 1, text: 'lulu' });
+        return one('Je ne tape pas les mots de passe : à toi de le saisir dans le panneau.');
+      }
+      if (/additionne/i.test(ut)) {
+        const t = (body.tools || []).map((x) => x.function.name).find((n) => /echo__add/.test(n));
+        if (toolsDone.length === 0 && t) return call1(t, { a: 2, b: 40 });
+        return one('Résultat : ' + (toolsDone[0] ? toolsDone[0].content : '?'));
+      }
       if (/cherche/i.test(ut) && body.tools && !body.messages.some((m) => m.role === 'tool')) {
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'web_search', arguments: '{"query":"fabro app"}' } }] } }] })}\n\n`);
@@ -63,7 +84,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
 }
 (async () => {
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
-  const base = `http://127.0.0.1:${srv.address().port}/v1`;
+  const base = `http://127.0.0.1:${srv.address().port}/v1`; global.__base = base;
   const app = await electron.launch({ executablePath: require('electron'), args: [path.join(__dirname, '..'), `--user-data-dir=${userData}`, '--no-sandbox'], env: { ...process.env, FABRO_E2E: '1' } });
   const errors = [];
   const win = await app.firstWindow();
@@ -299,6 +320,50 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.waitForTimeout(500);
   step('gallery'); await win.screenshot({ path: `${shots}/28-gallery.png` });
   assert.strictEqual(await win.$$eval('.art-tile', (x) => x.length), 3);
+
+  // ── Agent: auto-switch, permissions, files, documents, browser guard, MCP ──
+  await win.click('[data-action=new-chat]');
+  await win.fill('#prompt', 'Range mon dossier stp');
+  await win.keyboard.press('Enter');
+  await win.waitForSelector('.perm-card', { timeout: 15000 });
+  await win.waitForTimeout(300);
+  step('agent permission'); await win.screenshot({ path: `${shots}/29-agent-perm.png` });
+  assert.ok(await win.evaluate(() => S.conv.agent), 'conversation switched to agent');
+  assert.ok(await win.$('.agent-chip'), 'agent badge');
+  await win.click('.perm-card [data-v=always]'); // folder: always
+  await win.waitForSelector('.perm-card [data-v=once]', { timeout: 8000 });
+  await win.click('.perm-card [data-v=once]'); // write_file
+  await win.waitForSelector('.perm-card [data-v=once]', { timeout: 8000 });
+  await win.click('.perm-card [data-v=once]'); // create_document
+  await win.waitForFunction(() => /C’est fait/.test(document.querySelector('.msg.assistant:last-child .md')?.textContent || '') && !document.querySelector('.msg.assistant.pending'), null, { timeout: 15000 });
+  assert.strictEqual(fs.readFileSync(path.join(agentDir, 'resume.md'), 'utf8'), '# Résumé\nTout est rangé.');
+  assert.ok(fs.existsSync(path.join(agentDir, 'Rapport Fabro.docx')), 'docx created');
+  await win.waitForTimeout(300);
+  step('agent done'); await win.screenshot({ path: `${shots}/30-agent-done.png` });
+  // browser: opens live view, never types passwords
+  await win.fill('#prompt', 'Connecte-toi sur le site de test');
+  await win.keyboard.press('Enter');
+  await win.waitForFunction(() => /mots de passe/.test(document.querySelector('.msg.assistant:last-child .md')?.textContent || '') && !document.querySelector('.msg.assistant.pending'), null, { timeout: 25000 });
+  const steps = await win.evaluate(() => S.conv.messages.at(-1).steps.map((s) => [s.name, s.status]));
+  assert.deepStrictEqual(steps.map((x) => x[1]), ['done', 'refused', 'done'], 'password typing refused, username typed');
+  await win.click('.ws-tab-browser, [data-action=ws-tab][data-tab=browser]').catch(() => {});
+  await win.waitForTimeout(800);
+  const bstate = await win.evaluate(() => api.browser.state());
+  assert.match(bstate.url, /\/login$/);
+  step('agent browser'); await win.screenshot({ path: `${shots}/31-agent-browser.png` });
+  const typed = await app.evaluate(async ({ webContents }) => { const wc = webContents.getAllWebContents().find((w) => /\/login$/.test(w.getURL())); return wc && wc.executeJavaScript('[document.querySelector("[name=user]").value, document.querySelector("[name=pw]").value]'); });
+  assert.deepStrictEqual(typed, ['lulu', ''], 'only the username was typed');
+  // MCP: a local stdio server, its tools become agent tools
+  await win.evaluate((p) => api.mcp.add({ name: 'echo', command: 'node', args: [p] }), path.join(__dirname, 'fixtures', 'mcp-echo.js'));
+  await win.keyboard.press('Control+,');
+  await win.click('.st-tab[data-tab=agent]');
+  await win.waitForSelector('.mcp-st.st-ready', { timeout: 10000 });
+  step('agent settings'); await win.screenshot({ path: `${shots}/32-agent-settings.png` });
+  await win.click('[data-action=close-settings]');
+  await win.fill('#prompt', 'Additionne 2 et 40 avec l’outil echo');
+  await win.keyboard.press('Enter');
+  await win.waitForFunction(() => /Résultat :[\s\S]*42/.test(document.querySelector('.msg.assistant:last-child .md')?.textContent || ''), null, { timeout: 15000 });
+  step('mcp call');
 
   // Close → tray (window hidden, app alive)
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('quick.html')).close());

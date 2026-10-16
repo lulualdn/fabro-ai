@@ -277,6 +277,7 @@ function renderTopbar() {
     <div class="tb-left">
       ${S.settings.sidebarCollapsed ? '' : ''}
       <span class="tb-title">${esc(title)}</span>
+      ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="chip agent-chip" data-action="open-workspace" title="${esc(t('ws_title'))}">${icon('agent', 13)} ${esc(t('agentBadge'))}</button>` : ''}
       ${S.mode === 'chat' && ((S.conv && S.conv.ephemeral) || (!S.conv && S.ephemeralNext)) ? `<span class="chip ghost-chip">${icon('eyeOff', 13)} ${esc(t('ephemeralBadge'))}</span>` : ''}
     </div>
     <div class="tb-right">
@@ -500,6 +501,7 @@ function renderStats(m) {
   const parts = [];
   if (s.completionTokens) parts.push(t('tokensOut', { n: fmtNum(s.completionTokens) }));
   if (s.tokPerSec) parts.push(`${s.tokPerSec} tok/s`);
+  if (m.toolsInfo && m.toolsInfo.count) parts.push(t('toolsGauge', { n: m.toolsInfo.count, k: fmtNum(m.toolsInfo.tokens) }));
   if (s.promptTokens) parts.push(t('tokensIn', { n: fmtNum(s.promptTokens) }));
   return `<span class="stats" title="${esc(m.model || '')}">${esc(parts.join(' · '))}</span>`;
 }
@@ -653,9 +655,11 @@ function closeViewer() { S.viewer = null; renderViewer(); }
 function renderViewer() {
   const el = $('#viewer');
   $('#app').classList.toggle('with-viewer', !!S.viewer);
-  $('#app').classList.toggle('wide-viewer', !!S.viewer && ['artifact', 'htmlpreview'].includes(S.viewer.type));
+  $('#app').classList.toggle('wide-viewer', !!S.viewer && ['artifact', 'htmlpreview', 'agent'].includes(S.viewer.type));
+  if (!S.viewer || S.viewer.type !== 'agent') setTimeout(() => typeof syncBrowser === 'function' && syncBrowser(), 0);
   if (!S.viewer) { el.innerHTML = ''; return; }
   const v = S.viewer;
+  if (v.type === 'agent') { el.innerHTML = workspaceView(); afterViewerRender(); return; }
   if (v.type === 'artifact') { el.innerHTML = artifactViewer(); if (v.editing) bindArtEditor(); return; }
   if (v.type === 'htmlpreview') {
     el.innerHTML = `<div class="v-head"><span class="v-title">${esc(v.title)}</span><div class="v-tools"><button class="icon-btn sm" data-action="viewer-close" title="${esc(t('close'))}">${icon('x', 17)}</button></div></div>
@@ -707,7 +711,7 @@ function openModelMenu(anchor) {
 // ───────────────────────────── Settings overlay ─────────────────────────────
 const TABS = [
   { id: 'general', icon: 'sliders' }, { id: 'models', icon: 'box' }, { id: 'engine', icon: 'zap' }, { id: 'storage', icon: 'archive' }, { id: 'providers', icon: 'cloud' },
-  { id: 'usage', icon: 'chart' },
+  { id: 'usage', icon: 'chart' }, { id: 'agent', icon: 'agent' },
   { id: 'shortcut', icon: 'key' },
   { id: 'generation', icon: 'edit' }, { id: 'system', icon: 'cpu' }, { id: 'about', icon: 'info' },
 ];
@@ -721,6 +725,7 @@ async function openSettings(tab = 'general') {
   if (tab === 'models' || tab === 'storage') loadModelExtras();
   if (tab === 'engine') startMonitor(); else stopMonitor();
   if (tab === 'usage') loadUsage();
+  if (tab === 'agent') loadAgentSettings();
   if (tab === 'shortcut') loadHotkeyStatus();
 }
 function closeSettings() {
@@ -780,6 +785,7 @@ function settingsBody(tab) {
   if (tab === 'engine') return engineTab();
   if (tab === 'storage') return storageTab();
   if (tab === 'usage') return usageTab();
+  if (tab === 'agent') return agentTab();
   if (tab === 'generation') {
     const g = st.gen;
     const range = (k, min, max, step, v) => `<div class="range-wrap"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-input="gen.${k}" data-type="float"><span class="rv">${v}</span></div>`;
@@ -909,7 +915,8 @@ function generate(opts = {}) {
   const first = S.conv.messages.length <= 2;
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
-  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? undefined : r, tools: chatTools() }, meta: { convId: S.conv.id, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
+  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? undefined : r, tools: chatTools(), agentMode: !!S.conv.agent, agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false }, meta: { convId: S.conv.id, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {
@@ -938,8 +945,9 @@ function onChatEvent(ev) {
     case 'status': m.status = ev.status; scheduleStreamRender(); break;
     case 'reasoning': if (!m.thinkStart) m.thinkStart = Date.now(); m.reasoning += ev.text; scheduleStreamRender(); break;
     case 'token': if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now(); m.content += ev.text; scheduleStreamRender(); break;
-    case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running' }); scheduleStreamRender(); break;
-    case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : 'done'; st.view = ev.view; st.error = ev.error; } scheduleStreamRender(); break; }
+    case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running' }); scheduleStreamRender(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab === 'steps') renderViewer(); break;
+    case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; st.error = ev.error; st.perm = null; st.deps = null; if (st.view && st.view.out == null && st.live) st.view.out = st.live; delete st.live; } scheduleStreamRender(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab !== 'browser') renderViewer(); break; }
+    case 'agent_switch': case 'tools_info': case 'permission': case 'deps_needed': case 'tool_progress': case 'retract': onAgentEvent(ev, m); break;
     case 'tool_round': if (m.content && !/\n\n$/.test(m.content)) m.content += '\n\n'; break;
     case 'done': m.stats = ev.stats; finishStream(); break;
     case 'error': m.error = ev.message; m.errorCode = ev.code; m.errorDetail = ev.detail; finishStream(); break;

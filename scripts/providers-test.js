@@ -107,7 +107,7 @@ const run = (payload) => new Promise((resolve) => { const ev = []; chat.send(pay
   const second = seen.toolReqs[1];
   assert.strictEqual(second.messages[1].tool_calls[0].function.name, 'web_search');
   assert.match(second.messages[2].content, /RESULT for web_search/);
-  assert.strictEqual(seen.toolReqs[0].tools.length, 2);
+  assert.ok(['web_search', 'fetch_url'].every((n) => seen.toolReqs[0].tools.some((t) => t.function.name === n)));
   // Anthropic tool_use / tool_result round trip
   v = await providers.add({ kind: 'anthropic', apiKey: 'k2', baseUrl: `${B}/anttool/v1` });
   const at = v.list.filter((p) => p.kind === 'anthropic').pop();

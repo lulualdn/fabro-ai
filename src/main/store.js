@@ -29,6 +29,9 @@ const DEFAULTS = {
   memory: { enabled: true, auto: true },           // use / generate memories
   styles: [], activeStyle: 'default',              // response styles (built-in + learned)
   autoTitle: true,
+  agent: { enabled: true, folders: [], permissions: {}, disabledTools: [] },
+  mcp: { servers: [] },
+  skills: { disabled: [], extraDirs: [] },
 };
 
 const dir = () => app.getPath('userData');

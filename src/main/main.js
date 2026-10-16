@@ -14,6 +14,12 @@ const localapi = require('./localapi');
 const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
+const agent = require('./agent');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents');
+const browser = require('./agent/browser');
+const skills = require('./agent/skills');
+const python = require('./agent/python');
+const mcp = require('./agent/mcp');
 exporter.registerScheme();
 
 let win = null;
@@ -147,6 +153,35 @@ function registerIpc() {
 
   h('chat:send', (payload) => { chat.send(payload, (ev) => send('chat:event', ev)); return true; });
   h('chat:abort', (id) => chat.abort(id));
+  h('chat:answer', (reqId, callId, value) => chat.answer(reqId, callId, value));
+
+  h('agent:tools', () => agent.list());
+  h('agent:policy', async (name, value) => { await agent.setPolicy(name, value); return agent.list(); });
+  h('agent:addFolder', async () => {
+    const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });
+    if (r.canceled || !r.filePaths[0]) return null;
+    const cur = (store.getSettings().agent || {}).folders || [];
+    await store.setSettings({ agent: { folders: [...new Set([...cur, r.filePaths[0]])] } });
+    return store.getSettings().agent.folders;
+  });
+  h('agent:removeFolder', async (f) => { await store.setSettings({ agent: { folders: ((store.getSettings().agent || {}).folders || []).filter((x) => x !== f) } }); return store.getSettings().agent.folders; });
+  h('browser:bounds', (b) => browser.setBounds(b));
+  h('browser:control', (action, arg) => browser.control(action, arg));
+  h('browser:state', () => browser.state());
+  h('deps:status', () => python.deps());
+  h('deps:install', async (dep) => { if (dep === 'python') return python.install((p) => send('deps:progress', { dep, p })); throw new Error('Unknown dependency'); });
+  h('mcp:view', () => mcp.view());
+  h('mcp:add', (cfg) => mcp.add(cfg));
+  h('mcp:remove', (id) => mcp.remove(id));
+  h('mcp:toggle', (id, on) => mcp.toggle(id, on));
+  h('mcp:signin', (id) => mcp.signIn(id));
+  h('mcp:reconnect', async (id) => { const c = ((store.getSettings().mcp || {}).servers || []).find((x) => x.id === id); return c ? mcp.connect(c) : mcp.view(); });
+  h('mcp:claudeConfig', () => mcp.readClaudeConfig());
+  h('mcp:importClaude', (names) => mcp.importClaude(names));
+  h('skills:list', () => skills.scan());
+  h('skills:toggle', (name, on) => skills.setEnabled(name, on));
+  h('skills:create', (o) => skills.create(o.name, o.description, o.body));
+  h('skills:openFolder', () => { const d = skills.dirs()[0]; require('fs').mkdirSync(d, { recursive: true }); shell.openPath(d); });
 
   h('updater:check', () => updater.check());
   h('updater:install', () => updater.install());
@@ -155,6 +190,7 @@ function registerIpc() {
   h('modes:install', async (mode) => ({ ok: false, mode, reason: 'coming_soon' }));
 
   h('shell:open', (url) => { if (/^https?:/.test(url)) shell.openExternal(url); });
+  h('shell:openPath', (p) => { if (typeof p === 'string' && require('fs').existsSync(p) && !/\.(exe|bat|cmd|ps1|sh|msi|com|scr|vbs|js|lnk)$/i.test(p)) return shell.openPath(p); });
   h('shell:reveal', (p) => { if (typeof p === 'string' && require('fs').existsSync(p)) shell.showItemInFolder(p); });
   h('window:devtools', () => { if (win) win.webContents.toggleDevTools(); });
   h('window:theme', (dark) => { if (!isMac && win) try { win.setTitleBarOverlay(overlayColors(dark)); } catch {} });
@@ -174,6 +210,8 @@ app.whenReady().then(async () => {
   setTimeout(() => engine.preloadAll(async () => (await models.installed()).local).catch(() => {}), 2500);
   updater.init(send);
   createWindow();
+  browser.init(win, send);
+  mcp.init(send);
   desktop.init(() => win, (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a)));
   if (process.argv.includes('--hidden')) win.once('ready-to-show', () => win.hide());
   system.getSpecs(); // warm cache
@@ -190,4 +228,4 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => { if (!isMac) app.quit(); });
 app.on('activate', () => { if (win) desktop.showMain(); else createWindow(); });
 app.on('before-quit', () => { engine.stop(); });
-app.on('will-quit', () => { engine.stop(); db.close(); });
+app.on('will-quit', () => { engine.stop(); mcp.stopAll(); db.close(); });

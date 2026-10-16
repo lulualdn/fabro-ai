@@ -7,6 +7,38 @@ const models = require('./models');
 const providers = require('./providers');
 const usage = require('./usage');
 const tools = require('./tools');
+const agent = require('./agent');
+const skills = require('./agent/skills');
+
+// ───────────────────────────── permissions & dependencies (asked in the UI) ─────────────────────────────
+const waiting = new Map(); // `${reqId}:${callId}` → resolve
+const convGrants = new Map(); // conversation → folders allowed "once" (kept for this app session)
+function ask(reqId, callId, req, out, signal) {
+  return new Promise((resolve) => {
+    const key = `${reqId}:${callId}`;
+    waiting.set(key, resolve);
+    signal.addEventListener('abort', () => { if (waiting.delete(key)) resolve('deny'); });
+    out({ type: 'permission', id: callId, ...req });
+  });
+}
+function needDeps(reqId, callId, dep, out, signal) {
+  return new Promise((resolve) => {
+    const key = `${reqId}:${callId}`;
+    waiting.set(key, resolve);
+    signal.addEventListener('abort', () => { if (waiting.delete(key)) resolve(false); });
+    out({ type: 'deps_needed', id: callId, dep });
+  });
+}
+function answer(reqId, callId, value) { const k = `${reqId}:${callId}`; const r = waiting.get(k); if (r) { waiting.delete(k); r(value); } return !!r; }
+
+function agentSystem(base) {
+  const os = require('os');
+  const folders = ((store.getSettings().agent || {}).folders || []);
+  return [base, skills.promptSection(),
+    `Computer: ${process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux'} · home ${os.homedir()} · default output folder ${require('path').join(os.homedir(), 'Documents', 'Fabro')}`,
+    folders.length ? `Folders the user already allowed: ${folders.join(', ')}` : 'No folder allowed yet: using a folder shows the user a permission request.',
+  ].filter(Boolean).join('\n\n');
+}
 
 const active = new Map();
 
@@ -73,7 +105,10 @@ async function completeOpenAI(be, messages, params, signal, acc, tools) {
     const txt = await res.text();
     let changed = false;
     if (/stream_options/i.test(txt) && body.stream_options) { delete body.stream_options; changed = true; }
-    else if (/tool/i.test(txt) && body.tools) { delete body.tools; delete body.tool_choice; acc.noTools = true; changed = true; }
+    else if (/tool/i.test(txt) && body.tools) {
+      // No native tool calling: describe the tools in the prompt and parse <tool_call> blocks instead.
+      body.messages = withToolPrompt(body.messages, body.tools); delete body.tools; delete body.tool_choice; acc.noTools = true; acc.fallback = true; changed = true;
+    }
     else if (/reasoning|think|chat_template_kwargs/i.test(txt) && (body.reasoning_effort || body.think !== undefined || body.chat_template_kwargs)) { delete body.reasoning_effort; delete body.think; delete body.chat_template_kwargs; changed = true; }
     if (!changed) throw be.httpErr ? await be.httpErr(new Response(txt, { status: 400 })) : new Error(txt.slice(0, 300));
     res = await post();
@@ -98,7 +133,30 @@ async function completeOpenAI(be, messages, params, signal, acc, tools) {
       if (tc.function && tc.function.arguments) c.args += tc.function.arguments;
     }
   });
-  return { content, toolCalls: calls.filter((c) => c && c.name).map((c, i) => ({ ...c, id: c.id || `call_${Date.now().toString(36)}_${i}` })) };
+  let toolCalls = calls.filter((c) => c && c.name).map((c, i) => ({ ...c, id: c.id || `call_${Date.now().toString(36)}_${i}` }));
+  if (!toolCalls.length && acc.fallback && /<tool_call>/.test(content)) {
+    const parsed = parseToolCalls(content);
+    if (parsed.calls.length) { acc.push('retract', parsed.raw); content = parsed.rest; toolCalls = parsed.calls; }
+  }
+  return { content, toolCalls };
+}
+
+// Fallback for models without native tools (Hermes-style <tool_call> JSON).
+function withToolPrompt(messages, tools) {
+  const spec = tools.map((t) => `- ${t.function.name}: ${t.function.description.slice(0, 300)}\n  arguments: ${JSON.stringify(t.function.parameters.properties || {}).slice(0, 600)}`).join('\n');
+  const add = `\n\nYou can call tools. To call one, reply with ONLY this block (nothing else) and wait for the result:\n<tool_call>{"name": "tool_name", "arguments": {…}}</tool_call>\nTools:\n${spec}`;
+  const out = messages.map((m) => ({ ...m }));
+  const sys = out.find((m) => m.role === 'system');
+  if (sys) sys.content = String(sys.content) + add; else out.unshift({ role: 'system', content: add.trim() });
+  return out.map((m) => m.role === 'tool' ? { role: 'user', content: `Tool result:\n${m.content}` } : m.tool_calls ? { role: 'assistant', content: (m.content || '') + m.tool_calls.map((c) => `\n<tool_call>{"name":"${c.function.name}","arguments":${c.function.arguments}}</tool_call>`).join('') } : m);
+}
+function parseToolCalls(text) {
+  const calls = []; let raw = '';
+  for (const m of text.matchAll(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g)) {
+    raw += m[0];
+    try { const j = JSON.parse(m[1]); if (j.name) calls.push({ id: `fb_${Date.now().toString(36)}_${calls.length}`, name: j.name, args: JSON.stringify(j.arguments || j.parameters || {}) }); } catch {}
+  }
+  return { calls, raw, rest: text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim() };
 }
 
 // ───────────────────────────── Anthropic Messages API ─────────────────────────────
@@ -132,7 +190,10 @@ function toAnthropic(messages) {
     }
     const last = conv[conv.length - 1];
     if (last && last.role === m.role && typeof last.content === 'string' && typeof content === 'string') last.content += '\n\n' + content;
-    else conv.push({ role: m.role, content: content || ' ' });
+    else if (last && last.role === m.role) { // roles must alternate: merge as content blocks
+      const toBlocks = (c) => (Array.isArray(c) ? c : [{ type: 'text', text: String(c || ' ') }]);
+      last.content = [...toBlocks(last.content), ...toBlocks(content)];
+    } else conv.push({ role: m.role, content: content || ' ' });
   }
   return { system, messages: conv };
 }
@@ -183,29 +244,61 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit) {
     if (be.gen) params = { ...params, ...Object.fromEntries(Object.entries(be.gen).filter(([, v]) => v !== null && v !== '' && v !== undefined)) };
     if (be.inst) engine.acquire(be.inst);
     out({ type: 'status', status: 'generating', backend: be.kind === 'local' ? 'local' : be.provider.kind });
-    const toolSchemas = tools.schemas(params.tools || []);
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    const userText = lastUser ? (typeof lastUser.content === 'string' ? lastUser.content : (lastUser.content || []).map((c) => c.text || '').join(' ')) : '';
+    let agentMode = !!params.agentMode;
+    const buildTools = () => {
+      const chatT = tools.schemas(params.tools || []);
+      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: userText, used: params.usedTools || [] }).map(agent.schema);
+      return [...chatT, ...agentT];
+    };
+    let toolSchemas = buildTools();
+    out({ type: 'tools_info', count: toolSchemas.length, tokens: agent.estTokens(toolSchemas) });
     const msgs = messages.slice();
+    const setSystem = (text) => { const sys = msgs.find((m) => m.role === 'system'); if (sys) sys.content = text; else msgs.unshift({ role: 'system', content: text }); };
+    if (agentMode && params.agentPrompt) setSystem(agentSystem(params.agentPrompt));
     const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
+    const gkey = meta.convId || reqId;
+    if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
+    const ctxBase = { emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn) };
     let steps = 0;
+    const maxSteps = () => (agentMode ? 40 : 12);
     for (;;) {
-      const r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools ? [] : toolSchemas);
-      if (!r.toolCalls.length || steps >= 8) break;
+      const r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas);
+      if (!r.toolCalls.length || steps >= maxSteps()) break;
       steps++;
       msgs.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' } })) });
       for (const c of r.toolCalls) {
         let args = {}; try { args = JSON.parse(c.args || '{}'); } catch {}
-        out({ type: 'tool_start', id: c.id, name: c.name, args });
+        // Calling any tool other than search / fetch / image switches the conversation to agent mode.
+        if (!agentMode && agent.isAgentTool(c.name) && params.agent !== false) {
+          agentMode = true;
+          out({ type: 'agent_switch', tool: c.name });
+          if (params.agentPrompt) setSystem(agentSystem(params.agentPrompt));
+        }
+        out({ type: 'tool_start', id: c.id, name: c.name, args, agent: agent.isAgentTool(c.name) });
         let result;
         try {
-          if (!(params.tools || []).includes(c.name)) throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
-          result = await tools.run(c.name, args);
-          out({ type: 'tool_end', id: c.id, name: c.name, view: result.view });
+          if (tools.CHAT_TOOLS[c.name]) {
+            if (!(params.tools || []).includes(c.name)) throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
+            result = await tools.run(c.name, args);
+          } else if (agent.get(c.name) && params.agent !== false) {
+            const ctx = { ...ctxBase, callId: c.id, ask: (req) => ask(reqId, c.id, req, out, ctrl.signal), needDeps: (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) };
+            result = await agent.execute({ name: c.name, args }, ctx);
+          } else throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
+          out({ type: 'tool_end', id: c.id, name: c.name, view: result.view, refused: result.refused });
         } catch (e) {
+          if (ctrl.signal.aborted) throw e;
           result = { content: `Error: ${e.message}` };
           out({ type: 'tool_end', id: c.id, name: c.name, error: e.message, code: e.code });
         }
         msgs.push({ role: 'tool', tool_call_id: c.id, content: result.content });
+        if (result.image) {
+          if (params.vision) msgs.push({ role: 'user', content: [{ type: 'text', text: `(Image returned by ${c.name})` }, { type: 'image_url', image_url: { url: result.image } }] });
+          else msgs[msgs.length - 1].content += '\n(An image was produced but this model cannot see images.)';
+        }
       }
+      if (agentMode) toolSchemas = buildTools();
       out({ type: 'tool_round' });
     }
     const elapsed = (Date.now() - (tFirst || t0)) / 1000;
@@ -247,4 +340,4 @@ function quick(model, messages, params = {}) {
 
 function abort(reqId) { const c = active.get(reqId); if (c) c.abort(); return true; }
 
-module.exports = { send, abort, quick, toAnthropic };
+module.exports = { send, abort, quick, answer, toAnthropic, parseToolCalls };

@@ -55,6 +55,7 @@ const fav = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } c
 function renderSteps(m) {
   if (!m.steps || !m.steps.length) return '';
   const items = m.steps.map((st) => {
+    if (!['web_search', 'fetch_url'].includes(st.name) && typeof renderAgentStep === 'function') return renderAgentStep(st, m);
     const run = st.status === 'running';
     const ico = st.name === 'web_search' ? 'search' : 'globe';
     let label;
@@ -262,3 +263,9 @@ Object.assign(actions, {
     S.code.clear(); renderView(); persist();
   },
 });
+
+function agentPrompt() {
+  return t('sysAgent', { date: new Date().toLocaleDateString(S.lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), name: (typeof userFirstName === 'function' && userFirstName()) || '' })
+    + ((S.settings.memory || {}).enabled !== false && S.memories && S.memories.length && !(S.conv && S.conv.ephemeral) ? `\n\n${t('sysMemory')}\n${S.memories.slice(0, 30).map((m) => `- ${m.text}`).join('\n')}` : '')
+    + ((S.settings.gen.systemPrompt || '').trim() ? `\n\n${S.settings.gen.systemPrompt.trim()}` : '');
+}

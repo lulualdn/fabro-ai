@@ -19,6 +19,8 @@ jobs:
       - run: npm ci
       - name: Providers (offline adapters)
         run: node scripts/providers-test.js
+      - name: Agent runtime (permissions, files, terminal, fallback)
+        run: node scripts/agent-test.js
       - name: End-to-end UI (Electron + Playwright)
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null

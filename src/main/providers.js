@@ -246,4 +246,4 @@ async function migrate() {
   if (cfg().enabled && lst.length) refresh().catch(() => {});
 }
 
-module.exports = { PRESETS, view, detect, add, update, remove, refresh, setEnabled, chatModels, target, migrate, ProviderError, getKey };
+module.exports = { setSecret: setKey, PRESETS, view, detect, add, update, remove, refresh, setEnabled, chatModels, target, migrate, ProviderError, getKey };

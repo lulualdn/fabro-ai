@@ -25,7 +25,12 @@ contextBridge.exposeInMainWorld('api', {
     status: i('engine:status'), update: i('engine:update'), reinstall: i('engine:reinstall'), stop: i('engine:stop'), diagnostics: i('engine:diagnostics'),
     load: i('engine:load'), rollback: i('engine:rollback'), logs: i('engine:logs'), energy: i('engine:energy'),
   },
-  chat: { send: i('chat:send'), abort: i('chat:abort') },
+  chat: { send: i('chat:send'), abort: i('chat:abort'), answer: i('chat:answer') },
+  agent: { tools: i('agent:tools'), policy: i('agent:policy'), addFolder: i('agent:addFolder'), removeFolder: i('agent:removeFolder') },
+  browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
+  deps: { status: i('deps:status'), install: i('deps:install') },
+  mcp: { view: i('mcp:view'), add: i('mcp:add'), remove: i('mcp:remove'), toggle: i('mcp:toggle'), signIn: i('mcp:signin'), reconnect: i('mcp:reconnect'), claudeConfig: i('mcp:claudeConfig'), importClaude: i('mcp:importClaude') },
+  skills: { list: i('skills:list'), toggle: i('skills:toggle'), create: i('skills:create'), openFolder: i('skills:openFolder') },
   providers: {
     view: i('providers:view'), detect: i('providers:detect'), add: i('providers:add'), update: i('providers:update'),
     remove: i('providers:remove'), refresh: i('providers:refresh'), enable: i('providers:enable'), models: i('providers:models'),
@@ -39,10 +44,10 @@ contextBridge.exposeInMainWorld('api', {
   notify: i('app:notify'), quit: i('app:quit'),
   updater: { check: i('updater:check'), install: i('updater:install') },
   modes: { install: i('modes:install') },
-  shell: { open: i('shell:open'), reveal: i('shell:reveal') },
+  shell: { open: i('shell:open'), reveal: i('shell:reveal'), openPath: i('shell:openPath') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);
