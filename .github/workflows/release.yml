@@ -2,7 +2,8 @@ name: Build & release
 
 on:
   push:
-    tags: ['v*']          # git tag v0.1.0 && git push --tags  → builds + publishes a GitHub Release
+    branches: [main]      # every push builds installers (artifacts); "[release]" in the commit message publishes
+    tags: ['v*']          # or push a v* tag to publish
   workflow_dispatch:      # manual run → builds installers as downloadable artifacts
 
 permissions:
@@ -26,7 +27,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false   # no code signing for now
-        run: npx electron-builder --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+        run: npx electron-builder --publish ${{ (startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')) && 'always' || 'never' }}
       - uses: actions/upload-artifact@v4
         with:
           name: fabro-${{ matrix.os }}

@@ -40,7 +40,8 @@
       {
         "provider": "github",
         "owner": "lulualdn",
-        "repo": "fabro-ai"
+        "repo": "fabro-ai",
+        "releaseType": "release"
       }
     ],
     "win": {

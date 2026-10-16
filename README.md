@@ -49,5 +49,5 @@ Anglais par défaut, détection auto de la langue système. Incluses : en, fr, e
 
 ## Releases
 
-`git tag v0.1.0 && git push --tags` → GitHub Actions builds Windows (`Fabro-Setup-x.y.z.exe`), macOS and Linux installers and publishes them in a Release, which the in-app auto-updater reads.
+Every push to `main` builds the installers (Actions artifacts). A commit whose message contains `[release]` (or a pushed `v*` tag) makes GitHub Actions build Windows (`Fabro-Setup-x.y.z.exe`), macOS and Linux installers and publishes them in a Release, which the in-app auto-updater reads.
 Run the workflow manually (Actions › Build & release › Run workflow) to get the installers as artifacts without publishing.
