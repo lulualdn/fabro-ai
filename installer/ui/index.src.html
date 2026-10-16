@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fabro</title>
+<style>
+:root {
+  --bg: #12161d; --bg-2: #0d1117; --elev: #1c212b; --elev-2: #232a36; --border: #2a3240; --border-2: #364052;
+  --text: #f2f4f7; --text-2: #a7b0ba; --muted: #6f7986; --accent: #ff5e42; --accent-2: #ff7a5c; --accent-ink: #14161b; --ok: #4cc38a; --err: #ff6b5e;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; user-select: none; cursor: default; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+
+/* backdrop: slow drifting coral glow */
+.glow { position: fixed; inset: -30%; pointer-events: none; background:
+  radial-gradient(40% 35% at 30% 30%, rgba(255, 94, 66, .16), transparent 70%),
+  radial-gradient(35% 30% at 75% 75%, rgba(255, 122, 92, .08), transparent 70%);
+  animation: drift 18s ease-in-out infinite alternate; }
+@keyframes drift { to { transform: translate(6%, -4%) rotate(8deg); } }
+.grain { position: fixed; inset: 0; pointer-events: none; opacity: .5; background: linear-gradient(180deg, rgba(255,255,255,.025), transparent 40%); }
+
+/* title bar */
+.bar { position: fixed; top: 0; left: 0; right: 0; height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 16px; z-index: 5; }
+.bar .brand { display: flex; align-items: center; gap: 8px; font: 600 14px var(--serif); color: var(--text-2); letter-spacing: -.01em; }
+.bar .drag { flex: 1; align-self: stretch; }
+.wbtn { width: 34px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--text-2); transition: background .15s, color .15s; }
+.wbtn:hover { background: rgba(255,255,255,.07); color: var(--text); }
+.wbtn.close:hover { background: #c42b1c; color: #fff; }
+.lang { position: relative; }
+.lang select { appearance: none; height: 30px; padding: 0 28px 0 10px; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid var(--border); color: var(--text-2); font-size: 12.5px; cursor: pointer; }
+.lang select:hover { border-color: var(--border-2); color: var(--text); }
+.lang svg { position: absolute; right: 9px; top: 9px; pointer-events: none; color: var(--muted); }
+option { background: var(--elev); }
+
+/* steps */
+.stage { position: fixed; inset: 44px 0 0 0; }
+.step { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 56px 40px; text-align: center; opacity: 0; pointer-events: none; transform: translateX(24px); transition: opacity .35s var(--ease), transform .45s var(--ease); }
+.step.on { opacity: 1; pointer-events: auto; transform: none; }
+.step.left { transform: translateX(-24px); }
+h1 { margin: 18px 0 6px; font: 500 34px/1.1 var(--serif); letter-spacing: -.02em; }
+.sub { margin: 0; color: var(--text-2); font-size: 15px; max-width: 460px; }
+.on h1, .on .sub, .on .actions, .on .meta { animation: rise .6s var(--ease) both; }
+.on .sub { animation-delay: .06s; } .on .meta { animation-delay: .1s; } .on .actions { animation-delay: .14s; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+.mark { width: 96px; height: 96px; filter: drop-shadow(0 10px 30px rgba(255, 94, 66, .35)); }
+.mark .p { transform-origin: 50px 50px; }
+.on .mark.hero .p { animation: hero-in 1.4s var(--ease) both; }
+.mark.hero:hover .p { animation: spin .5s linear infinite; }
+@keyframes hero-in { from { transform: rotate(-720deg) scale(.4); opacity: 0; } 60% { opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.actions { display: flex; gap: 10px; margin-top: 28px; align-items: center; }
+.btn { height: 42px; padding: 0 20px; border-radius: 12px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; background: rgba(255,255,255,.05); border: 1px solid var(--border-2); transition: transform .18s var(--spring), background .15s, border-color .15s, box-shadow .2s; }
+.btn:hover { background: rgba(255,255,255,.09); }
+.btn:active { transform: scale(.95); }
+.btn.primary { background: linear-gradient(180deg, var(--accent-2), var(--accent)); border-color: transparent; color: var(--accent-ink); box-shadow: 0 8px 24px -8px rgba(255, 94, 66, .6), inset 0 1px 0 rgba(255,255,255,.25); }
+.btn.primary:hover { filter: brightness(1.06); box-shadow: 0 10px 30px -8px rgba(255, 94, 66, .75), inset 0 1px 0 rgba(255,255,255,.25); }
+.btn.lg { height: 48px; padding: 0 28px; font-size: 15px; border-radius: 14px; }
+.btn[disabled] { opacity: .45; pointer-events: none; }
+.link { color: var(--text-2); font-size: 13px; padding: 6px 8px; border-radius: 8px; }
+.link:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.meta { margin-top: 14px; color: var(--muted); font-size: 12.5px; display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 18px; }
+.pill { padding: 2px 9px; border-radius: 99px; background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pill.accent { color: var(--accent-2); border-color: rgba(255,94,66,.35); background: rgba(255,94,66,.08); }
+
+/* options */
+.panel { width: 100%; max-width: 520px; text-align: left; display: grid; gap: 12px; margin-top: 4px; }
+.panel h2 { margin: 0 0 6px; font: 500 24px var(--serif); text-align: center; }
+.field { display: flex; gap: 8px; }
+.input { flex: 1; min-width: 0; height: 42px; padding: 0 12px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); font-size: 13px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; user-select: text; }
+.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,94,66,.18); }
+.lbl { font-size: 12.5px; color: var(--text-2); font-weight: 600; margin-bottom: -4px; }
+.hint { font-size: 12px; color: var(--muted); }
+.check { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--border); cursor: pointer; transition: border-color .15s, background .15s; }
+.check:hover { border-color: var(--border-2); background: rgba(255,255,255,.05); }
+.check input { display: none; }
+.check .box { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--border-2); display: grid; place-items: center; transition: background .15s, border-color .15s; flex: none; }
+.check .box svg { opacity: 0; transform: scale(.5); transition: transform .2s var(--spring), opacity .15s; color: var(--accent-ink); }
+.check input:checked + .box { background: var(--accent); border-color: var(--accent); }
+.check input:checked + .box svg { opacity: 1; transform: none; }
+.check b { font-weight: 600; display: block; font-size: 13.5px; }
+.check small { color: var(--muted); font-size: 12px; }
+
+/* progress */
+.spinner { width: 92px; height: 92px; filter: drop-shadow(0 10px 30px rgba(255, 94, 66, .4)); }
+.spinner .spin { transform-origin: 50px 50px; animation: spin .42s linear infinite; }
+.spinner.slow .spin { animation-duration: .9s; }
+.track { width: 100%; max-width: 440px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.06); overflow: hidden; margin-top: 26px; position: relative; }
+.fill { position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 18px rgba(255, 94, 66, .6); transition: width .3s var(--ease); }
+.fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); background-size: 50% 100%; background-repeat: no-repeat; animation: sheen 1.4s linear infinite; }
+@keyframes sheen { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+.track.indet .fill { width: 30% !important; animation: indet 1.2s var(--ease) infinite; }
+@keyframes indet { from { left: -30%; } to { left: 100%; } }
+.pmeta { display: flex; justify-content: space-between; width: 100%; max-width: 440px; margin-top: 10px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.phase { margin-top: 16px; font: 500 22px var(--serif); min-height: 30px; }
+.phases { display: flex; gap: 6px; margin-top: 18px; }
+.phases i { width: 26px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.08); transition: background .3s, width .3s var(--ease); }
+.phases i.done { background: var(--accent); }
+.phases i.cur { background: var(--accent-2); width: 40px; }
+
+/* done */
+.okring { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle, rgba(255,94,66,.18), transparent 70%); position: relative; }
+.okring::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(255,94,66,.5); animation: ring 1.6s var(--ease) both; }
+@keyframes ring { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.on .okring .mark { animation: pop .7s var(--spring) both; }
+@keyframes pop { from { transform: scale(.4) rotate(-120deg); opacity: 0; } }
+.confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.confetti i { position: absolute; top: 40%; left: 50%; width: 6px; height: 10px; border-radius: 2px; background: var(--accent); opacity: 0; }
+.on .confetti i { animation: burst 1.2s var(--ease) both; }
+@keyframes burst { 0% { opacity: 1; transform: translate(-50%, -50%) rotate(0); } 100% { opacity: 0; transform: translate(var(--x), var(--y)) rotate(var(--r)); } }
+
+/* error */
+.errico { width: 72px; height: 72px; border-radius: 22px; display: grid; place-items: center; background: rgba(255,107,94,.1); border: 1px solid rgba(255,107,94,.3); color: var(--err); }
+.on .errico { animation: shake .5s var(--ease) both; }
+@keyframes shake { 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+.detail { margin-top: 12px; max-width: 520px; max-height: 70px; overflow: auto; padding: 8px 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--border); color: var(--muted); font: 11.5px/1.5 ui-monospace, Consolas, monospace; text-align: left; user-select: text; white-space: pre-wrap; }
+.detail:empty { display: none; }
+
+.foot { position: fixed; left: 0; right: 0; bottom: 14px; text-align: center; color: var(--muted); font-size: 11.5px; letter-spacing: .02em; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<div class="glow"></div><div class="grain"></div>
+
+<header class="bar">
+  <span class="brand"><svg width="18" height="18" viewBox="0 0 100 100"><path fill="#ff5e42" fill-rule="evenodd" d="{{MARK}}"/></svg>Fabro</span>
+  <span class="drag" id="drag"></span>
+  <label class="lang"><select id="lang" aria-label="Language">
+    <option value="en">English</option><option value="fr">Français</option><option value="es">Español</option><option value="de">Deutsch</option>
+  </select><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M5.2 7.2a1 1 0 0 1 1.4 0L10 10.6l3.4-3.4a1 1 0 1 1 1.4 1.4l-4.1 4.1a1 1 0 0 1-1.4 0L5.2 8.6a1 1 0 0 1 0-1.4Z"/></svg></label>
+  <button class="wbtn" data-cmd="minimize" title="Minimize"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="5.4" width="10" height="1.4" rx=".7" fill="currentColor"/></svg></button>
+  <button class="wbtn close" data-cmd="close" title="Close"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+</header>
+
+<main class="stage">
+  <!-- 1 · Welcome -->
+  <section class="step on" id="s-welcome">
+    <svg class="mark hero" viewBox="0 0 100 100"><defs><linearGradient id="g1" x1=".15" y1=".1" x2=".85" y2=".95"><stop offset="0" stop-color="#ff7a5c"/><stop offset=".55" stop-color="#ff5e42"/><stop offset="1" stop-color="#e9472d"/></linearGradient></defs><path class="p" fill="url(#g1)" fill-rule="evenodd" d="{{MARK}}"/></svg>
+    <h1 data-t="welcome"></h1>
+    <p class="sub" data-t="tagline"></p>
+    <div class="meta" id="w-meta"><span class="pill" id="w-ver">…</span></div>
+    <div class="actions">
+      <button class="btn primary lg" id="go" disabled></button>
+      <button class="link" id="to-opts" data-t="options"></button>
+    </div>
+  </section>
+
+  <!-- 2 · Options -->
+  <section class="step" id="s-opts">
+    <div class="panel">
+      <h2 data-t="optsTitle"></h2>
+      <span class="lbl" data-t="location"></span>
+      <div class="field"><input class="input" id="dir" spellcheck="false"><button class="btn" id="browse" data-t="browse"></button></div>
+      <span class="hint" data-t="locationHint"></span>
+      <label class="check"><input type="checkbox" id="desk" checked><span class="box"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z"/></svg></span><span><b data-t="desktop"></b><small data-t="desktopHint"></small></span></label>
+      <label class="check"><input type="checkbox" id="launch" checked><span class="box"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path d="M16.7 5.3a1 1 0 0 1 0 1.4l-8 8a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L8 12.6l7.3-7.3a1 1 0 0 1 1.4 0Z"/></svg></span><span><b data-t="launchAfter"></b><small data-t="launchHint"></small></span></label>
+    </div>
+    <div class="actions">
+      <button class="btn" id="back" data-t="back"></button>
+      <button class="btn primary" id="go2"></button>
+    </div>
+  </section>
+
+  <!-- 3 · Installing -->
+  <section class="step" id="s-run">
+    <svg class="spinner" viewBox="0 0 100 100"><g class="spin" fill="#ff5e42">{{TRAIL}}</g></svg>
+    <div class="phase" id="phase"></div>
+    <div class="track" id="track"><div class="fill" id="fill"></div></div>
+    <div class="pmeta"><span id="pl"></span><span id="pr"></span></div>
+    <div class="phases"><i></i><i></i><i></i><i></i></div>
+  </section>
+
+  <!-- 4 · Done -->
+  <section class="step" id="s-done">
+    <div class="confetti" id="confetti"></div>
+    <div class="okring"><svg class="mark" viewBox="0 0 100 100" style="width:64px;height:64px"><path fill="url(#g1)" fill-rule="evenodd" d="{{MARK}}"/></svg></div>
+    <h1 id="done-title"></h1>
+    <p class="sub" data-t="doneSub"></p>
+    <div class="actions"><button class="btn primary lg" id="liftoff" data-t="liftoff"></button><button class="link" data-cmd="close" data-t="closeBtn"></button></div>
+  </section>
+
+  <!-- 5 · Error -->
+  <section class="step" id="s-err">
+    <div class="errico"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.4 3.6c1.15-2 4.05-2 5.2 0l7.35 12.75c1.15 2-.29 4.5-2.6 4.5H4.65c-2.31 0-3.75-2.5-2.6-4.5L9.4 3.6ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.9.9 0 1 0 0-1.8.9.9 0 0 0 0 1.8Z"/></svg></div>
+    <h1 id="err-title"></h1>
+    <p class="sub" id="err-body"></p>
+    <div class="detail" id="err-detail"></div>
+    <div class="actions"><button class="btn primary" id="retry" data-t="retry"></button><button class="btn" id="manual" data-t="manual"></button></div>
+  </section>
+</main>
+<div class="foot" id="foot"></div>
+
+<script>
+const I = {
+  en: { welcome: 'Welcome to Fabro', welcomeUpd: 'A new Fabro is here', tagline: 'Runs on your machine. Takes you anywhere.', install: 'Install Fabro', update: 'Update Fabro', options: 'Options', optsTitle: 'Make it yours',
+    location: 'Install location', browse: 'Browse…', locationHint: 'No admin rights needed. Fabro installs for you only.', desktop: 'Desktop shortcut', desktopHint: 'Start Fabro from your desktop.', launchAfter: 'Launch when done', launchHint: 'Open Fabro right after installing.',
+    back: 'Back', checking: 'Looking for the latest version…', latest: 'Latest', installed: 'Installed', size: '{s}', ph_dl: 'Downloading Fabro', ph_verify: 'Checking the package', ph_install: 'Installing', ph_finish: 'Final touches', speed: '{s}/s', left: '{t} left',
+    doneTitle: 'Fabro is ready', doneUpd: 'Fabro {v} is ready', doneSub: 'Lift off, locally.', liftoff: 'Lift off', closeBtn: 'Close',
+    retry: 'Try again', manual: 'Download page', e_NETWORK_t: 'Can’t reach the internet', e_NETWORK_b: 'Check your connection, then try again.', e_INTEGRITY_t: 'The download was damaged', e_INTEGRITY_b: 'It didn’t pass the integrity check. Trying again usually fixes it.', e_INSTALL_t: 'Installation didn’t finish', e_INSTALL_b: 'Close Fabro if it’s open, then try again.', e_DISK_t: 'Can’t write to this folder', e_DISK_b: 'Pick another location or free up some space.', e_UNKNOWN_t: 'Something went wrong', e_UNKNOWN_b: 'Try again. If it keeps happening, use the download page.',
+    foot: 'UF Studios · Internal build' },
+  fr: { welcome: 'Bienvenue dans Fabro', welcomeUpd: 'Un nouveau Fabro est arrivé', tagline: 'Tourne sur votre machine. Vous emmène partout.', install: 'Installer Fabro', update: 'Mettre à jour Fabro', options: 'Options', optsTitle: 'À votre façon',
+    location: 'Emplacement', browse: 'Parcourir…', locationHint: 'Aucun droit administrateur requis. Installé pour vous uniquement.', desktop: 'Raccourci sur le bureau', desktopHint: 'Lancez Fabro depuis votre bureau.', launchAfter: 'Lancer à la fin', launchHint: 'Ouvrir Fabro juste après l’installation.',
+    back: 'Retour', checking: 'Recherche de la dernière version…', latest: 'Dernière version', installed: 'Installée', size: '{s}', ph_dl: 'Téléchargement de Fabro', ph_verify: 'Vérification du paquet', ph_install: 'Installation', ph_finish: 'Dernières retouches', speed: '{s}/s', left: 'encore {t}',
+    doneTitle: 'Fabro est prêt', doneUpd: 'Fabro {v} est prêt', doneSub: 'Lift off, locally.', liftoff: 'Décoller', closeBtn: 'Fermer',
+    retry: 'Réessayer', manual: 'Page de téléchargement', e_NETWORK_t: 'Pas de connexion Internet', e_NETWORK_b: 'Vérifiez votre connexion puis réessayez.', e_INTEGRITY_t: 'Le téléchargement est endommagé', e_INTEGRITY_b: 'Il n’a pas passé la vérification d’intégrité. Réessayer suffit en général.', e_INSTALL_t: 'L’installation n’a pas abouti', e_INSTALL_b: 'Fermez Fabro s’il est ouvert, puis réessayez.', e_DISK_t: 'Impossible d’écrire dans ce dossier', e_DISK_b: 'Choisissez un autre emplacement ou libérez de l’espace.', e_UNKNOWN_t: 'Un problème est survenu', e_UNKNOWN_b: 'Réessayez. Si ça continue, utilisez la page de téléchargement.',
+    foot: 'UF Studios · Build interne' },
+  es: { welcome: 'Bienvenido a Fabro', welcomeUpd: 'Hay un nuevo Fabro', tagline: 'Funciona en tu equipo. Te lleva a todas partes.', install: 'Instalar Fabro', update: 'Actualizar Fabro', options: 'Opciones', optsTitle: 'A tu manera',
+    location: 'Ubicación', browse: 'Examinar…', locationHint: 'No requiere permisos de administrador.', desktop: 'Acceso directo en el escritorio', desktopHint: 'Abre Fabro desde el escritorio.', launchAfter: 'Abrir al terminar', launchHint: 'Abrir Fabro justo después.',
+    back: 'Atrás', checking: 'Buscando la última versión…', latest: 'Última', installed: 'Instalada', size: '{s}', ph_dl: 'Descargando Fabro', ph_verify: 'Comprobando el paquete', ph_install: 'Instalando', ph_finish: 'Últimos detalles', speed: '{s}/s', left: 'quedan {t}',
+    doneTitle: 'Fabro está listo', doneUpd: 'Fabro {v} está listo', doneSub: 'Lift off, locally.', liftoff: 'Despegar', closeBtn: 'Cerrar',
+    retry: 'Reintentar', manual: 'Página de descarga', e_NETWORK_t: 'Sin conexión a Internet', e_NETWORK_b: 'Comprueba tu conexión y vuelve a intentarlo.', e_INTEGRITY_t: 'La descarga está dañada', e_INTEGRITY_b: 'No pasó la verificación. Reintentar suele bastar.', e_INSTALL_t: 'La instalación no terminó', e_INSTALL_b: 'Cierra Fabro si está abierto y reinténtalo.', e_DISK_t: 'No se puede escribir aquí', e_DISK_b: 'Elige otra ubicación o libera espacio.', e_UNKNOWN_t: 'Algo salió mal', e_UNKNOWN_b: 'Reinténtalo o usa la página de descarga.',
+    foot: 'UF Studios · Build interno' },
+  de: { welcome: 'Willkommen bei Fabro', welcomeUpd: 'Ein neues Fabro ist da', tagline: 'Läuft auf deinem Rechner. Bringt dich überallhin.', install: 'Fabro installieren', update: 'Fabro aktualisieren', options: 'Optionen', optsTitle: 'Ganz nach dir',
+    location: 'Speicherort', browse: 'Durchsuchen…', locationHint: 'Keine Administratorrechte nötig.', desktop: 'Desktop-Verknüpfung', desktopHint: 'Fabro vom Desktop starten.', launchAfter: 'Danach starten', launchHint: 'Fabro direkt nach der Installation öffnen.',
+    back: 'Zurück', checking: 'Suche nach der neuesten Version…', latest: 'Neueste', installed: 'Installiert', size: '{s}', ph_dl: 'Fabro wird geladen', ph_verify: 'Paket wird geprüft', ph_install: 'Wird installiert', ph_finish: 'Letzter Schliff', speed: '{s}/s', left: 'noch {t}',
+    doneTitle: 'Fabro ist bereit', doneUpd: 'Fabro {v} ist bereit', doneSub: 'Lift off, locally.', liftoff: 'Abheben', closeBtn: 'Schließen',
+    retry: 'Erneut versuchen', manual: 'Downloadseite', e_NETWORK_t: 'Keine Internetverbindung', e_NETWORK_b: 'Prüfe deine Verbindung und versuche es erneut.', e_INTEGRITY_t: 'Download beschädigt', e_INTEGRITY_b: 'Integritätsprüfung fehlgeschlagen. Erneut versuchen hilft meist.', e_INSTALL_t: 'Installation nicht abgeschlossen', e_INSTALL_b: 'Schließe Fabro, falls offen, und versuche es erneut.', e_DISK_t: 'Ordner nicht beschreibbar', e_DISK_b: 'Wähle einen anderen Ort oder schaffe Platz.', e_UNKNOWN_t: 'Etwas ist schiefgelaufen', e_UNKNOWN_b: 'Versuche es erneut oder nutze die Downloadseite.',
+    foot: 'UF Studios · Interner Build' },
+};
+const $ = (s) => document.querySelector(s);
+const S = { lang: 'en', step: 's-welcome', release: null, installed: null, dir: '', busy: false, lastErr: null };
+const send = (cmd, data = {}) => window.ipc.postMessage(JSON.stringify({ cmd, ...data }));
+const t = (k, v = {}) => String((I[S.lang] || I.en)[k] ?? I.en[k] ?? k).replace(/\{(\w+)\}/g, (_, x) => v[x] ?? '');
+const fmt = (b) => b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(0, Math.round(b / 1e3)) + ' KB';
+const dur = (s) => s >= 90 ? Math.round(s / 60) + ' min' : Math.max(1, Math.round(s)) + ' s';
+
+function paint() {
+  document.documentElement.lang = S.lang;
+  document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
+  const upd = !!S.installed;
+  $('#s-welcome h1').textContent = t(upd ? 'welcomeUpd' : 'welcome');
+  $('#go').textContent = t(upd ? 'update' : 'install');
+  $('#go2').textContent = t(upd ? 'update' : 'install');
+  $('#go').disabled = !S.release;
+  const r = S.release;
+  $('#w-meta').innerHTML = !r ? `<span class="pill">${t('checking')}</span>` :
+    upd ? `<span class="pill">${t('installed')} v${S.installed.version || '?'}</span><span>→</span><span class="pill accent">v${r.version}</span>${r.size ? `<span class="pill">${fmt(r.size)}</span>` : ''}`
+        : `<span class="pill accent">${t('latest')} v${r.version}</span>${r.size ? `<span class="pill">${fmt(r.size)}</span>` : ''}`;
+  $('#done-title').textContent = upd && r ? t('doneUpd', { v: r.version }) : t('doneTitle');
+  $('#foot').textContent = t('foot');
+  $('#to-opts').style.visibility = upd ? 'hidden' : 'visible';
+  if (S.lastErr) showErr(S.lastErr, true);
+}
+function go(id) {
+  const order = ['s-welcome', 's-opts', 's-run', 's-done', 's-err'];
+  const back = order.indexOf(id) < order.indexOf(S.step);
+  document.querySelectorAll('.step').forEach((s) => { s.classList.remove('left'); if (s.id !== id && s.classList.contains('on')) { s.classList.remove('on'); if (!back) s.classList.add('left'); } });
+  const n = $('#' + id); if (back) { n.classList.add('left'); void n.offsetWidth; n.classList.remove('left'); }
+  n.classList.add('on'); S.step = id;
+  $('#to-opts').style.visibility = S.installed ? 'hidden' : 'visible';
+}
+function setPhase(i) {
+  const keys = ['ph_dl', 'ph_verify', 'ph_install', 'ph_finish'];
+  $('#phase').textContent = t(keys[i]);
+  document.querySelectorAll('.phases i').forEach((el, j) => { el.className = j < i ? 'done' : j === i ? 'cur' : ''; });
+  $('#track').classList.toggle('indet', i > 0);
+  if (i > 0) { $('#pl').textContent = ''; $('#pr').textContent = ''; }
+  document.querySelector('.spinner').classList.toggle('slow', i === 3);
+}
+function showErr(e, silent) {
+  S.lastErr = e; const c = I.en['e_' + e.code + '_t'] ? e.code : 'UNKNOWN';
+  $('#err-title').textContent = t('e_' + c + '_t'); $('#err-body').textContent = t('e_' + c + '_b'); $('#err-detail').textContent = e.detail || '';
+  if (!silent) go('s-err');
+}
+function confetti() {
+  const box = $('#confetti'); box.innerHTML = '';
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * Math.PI * 2 + Math.random() * .3, d = 140 + Math.random() * 160;
+    const el = document.createElement('i');
+    el.style.cssText = `--x:${Math.cos(a) * d}px;--y:${Math.sin(a) * d - 40}px;--r:${Math.random() * 720 - 360}deg;animation-delay:${Math.random() * .15}s;background:${['#ff5e42', '#ff7a5c', '#ffb199', '#f2f4f7'][i % 4]}`;
+    box.appendChild(el);
+  }
+}
+function start() {
+  if (S.busy || !S.release) return;
+  S.busy = true; S.lastErr = null; go('s-run'); setPhase(0); $('#fill').style.width = '0%';
+  send('install', { dir: $('#dir').value.trim() || S.dir, desktop: $('#desk').checked, launch: $('#launch').checked, lang: S.lang });
+}
+
+// Rust → page
+window.__fabro = (m) => {
+  if (m.type === 'init') {
+    S.lang = I[m.lang] ? m.lang : 'en'; $('#lang').value = S.lang;
+    S.installed = m.installed; S.dir = (m.installed && m.installed.location) || m.defaultDir; $('#dir').value = S.dir;
+    $('#dir').disabled = $('#browse').disabled = !!m.installed;
+    paint(); send('fetch');
+  } else if (m.type === 'release') { S.release = m; paint(); if (m.autostart) start(); }
+  else if (m.type === 'dir') { $('#dir').value = m.dir; }
+  else if (m.type === 'progress') {
+    const p = m.total ? m.done / m.total : 0; $('#fill').style.width = (p * 100).toFixed(1) + '%';
+    $('#pl').textContent = m.total ? `${fmt(m.done)} / ${fmt(m.total)}` : fmt(m.done);
+    $('#pr').textContent = m.speed ? `${t('speed', { s: fmt(m.speed) })}${m.total && m.speed ? ' · ' + t('left', { t: dur((m.total - m.done) / m.speed) }) : ''}` : '';
+  } else if (m.type === 'phase') setPhase(m.i);
+  else if (m.type === 'done') { S.busy = false; confetti(); go('s-done'); $('#liftoff').focus(); }
+  else if (m.type === 'error') { S.busy = false; if (S.step === 's-welcome' && !S.release) { paint(); } showErr(m); }
+};
+
+// page → Rust
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cmd]'); if (b) return send(b.dataset.cmd);
+});
+$('#drag').addEventListener('mousedown', (e) => { if (e.button === 0) send('drag'); });
+document.querySelector('.bar .brand').addEventListener('mousedown', (e) => { if (e.button === 0) send('drag'); });
+$('#lang').addEventListener('change', (e) => { S.lang = e.target.value; paint(); });
+$('#go').onclick = start; $('#go2').onclick = start;
+$('#to-opts').onclick = () => go('s-opts'); $('#back').onclick = () => go('s-welcome');
+$('#browse').onclick = () => send('browse', { dir: $('#dir').value });
+$('#liftoff').onclick = () => send('launch');
+$('#retry').onclick = () => { if (!S.release) { go('s-welcome'); send('fetch'); } else start(); };
+$('#manual').onclick = () => send('open', { url: 'https://github.com/lulualdn/fabro-ai/releases/latest' });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && S.step === 's-welcome') start();
+  if (e.key === 'Enter' && S.step === 's-done') send('launch');
+  if (e.key === 'Escape' && S.step === 's-opts') go('s-welcome');
+});
+document.addEventListener('contextmenu', (e) => { if (!e.target.closest('input')) e.preventDefault(); });
+paint();
+send('ready');
+</script>
+</body>
+</html>

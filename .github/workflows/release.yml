@@ -38,3 +38,30 @@ jobs:
             dist/*.AppImage
             dist/latest*.yml
           if-no-files-found: ignore
+
+  installer:
+    # Fabro-Installer.exe: standalone bootstrapper with Fabro's own UI (Rust + WebView2).
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            installer/target
+          key: installer-${{ hashFiles('installer/Cargo.lock') }}
+      - name: Build installer
+        working-directory: installer
+        run: cargo build --release --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fabro-installer
+          path: installer/target/release/Fabro-Installer.exe
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v$(node -p "require('./package.json').version")" installer/target/release/Fabro-Installer.exe --clobber
