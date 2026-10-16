@@ -26,12 +26,31 @@ async function readMeta() {
   catch { return null; }
 }
 
-async function latestRelease() {
-  const r = await fetch('https://api.github.com/repos/ggml-org/llama.cpp/releases/latest', {
+// Recent releases, newest first. llama.cpp publishes a release before its
+// binaries finish uploading, so the newest one can have no (or few) assets:
+// we walk back until a release carries a build for this machine.
+async function recentReleases() {
+  const r = await fetch('https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10', {
     headers: { 'User-Agent': 'Fabro', Accept: 'application/vnd.github+json' },
   });
+  if (r.status === 403 || r.status === 429) throw new Error('GitHub rate limit reached, retry in a few minutes');
   if (!r.ok) throw new Error(`GitHub API ${r.status}`);
-  return r.json();
+  const list = await r.json();
+  return (Array.isArray(list) ? list : []).filter((x) => !x.draft && !x.prerelease);
+}
+
+// Best (release, build) for this machine, skipping some variants if asked.
+async function pickBuild(skip = []) {
+  const specs = await system.getSpecs();
+  const cands = candidates(specs).filter((c) => !skip.includes(c.variant));
+  const releases = await recentReleases();
+  for (const rel of releases) {
+    for (const c of cands) {
+      const asset = (rel.assets || []).find((x) => c.re.test(x.name) && x.state !== 'starter');
+      if (asset) return { rel, pick: c, asset };
+    }
+  }
+  throw new Error(`No compatible engine build for this computer (${specs.platform} ${specs.arch}, ${specs.accel}; ${releases.length} releases checked)`);
 }
 
 // Ordered list of builds to try, best first.
@@ -39,9 +58,13 @@ function candidates(specs) {
   const { platform: p, arch: a, accel } = specs;
   const ext = '\\.(zip|tar\\.gz)$';
   if (p === 'win32') {
-    if (a === 'arm64') return [{ re: /bin-win-cpu-arm64\.zip$/, variant: 'cpu' }];
+    if (a === 'arm64') return [{ re: /bin-win-cpu-arm64\.zip$/, variant: 'cpu' }, { re: /bin-win-cpu-x64\.zip$/, variant: 'cpu' }];
     const l = [];
-    if (accel === 'cuda') l.push({ re: /bin-win-cuda-1[2-9][\d.]*-x64\.zip$/, variant: 'cuda', cudart: true });
+    if (accel === 'cuda') {
+      // CUDA 12 first (works with older drivers), then CUDA 13+
+      l.push({ re: /bin-win-cuda-12[\d.]*-x64\.zip$/, variant: 'cuda', cudart: true });
+      l.push({ re: /bin-win-cuda-1[3-9][\d.]*-x64\.zip$/, variant: 'cuda', cudart: true });
+    }
     if (accel !== 'cpu') l.push({ re: /bin-win-vulkan-x64\.zip$/, variant: 'vulkan' });
     l.push({ re: /bin-win-cpu-x64\.zip$/, variant: 'cpu' }, { re: /bin-win-avx2-x64\.zip$/, variant: 'cpu' });
     return l;
@@ -76,14 +99,7 @@ async function install({ skip = [] } = {}) {
   busy = true;
   set({ status: 'installing', progress: 0, error: null });
   try {
-    const specs = await system.getSpecs();
-    const rel = await latestRelease();
-    let pick = null, asset = null;
-    for (const c of candidates(specs).filter((c) => !skip.includes(c.variant))) {
-      asset = rel.assets.find((x) => c.re.test(x.name));
-      if (asset) { pick = c; break; }
-    }
-    if (!asset) throw new Error('No compatible engine build for this computer');
+    const { rel, pick, asset } = await pickBuild(skip);
 
     const dir = path.join(root(), `${rel.tag_name}-${pick.variant}`);
     await fsp.rm(dir, { recursive: true, force: true });
@@ -219,7 +235,7 @@ async function checkUpdate() {
   if (busy || proc) return { updated: false, reason: 'busy' };
   const meta = await readMeta();
   if (!meta) return { updated: false, reason: 'not-installed' };
-  const rel = await latestRelease();
+  const { rel } = await pickBuild();
   if (rel.tag_name === meta.tag) return { updated: false, version: meta.tag };
   const m = await install();
   return { updated: true, version: m.tag };
