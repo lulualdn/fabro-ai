@@ -1,0 +1,83 @@
+{
+  "name": "fabro",
+  "version": "0.1.0",
+  "description": "Lift off, locally.",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "release": "electron-builder --publish always",
+    "icons": "node scripts/build-icons.js"
+  },
+  "author": "UFStudios",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@highlightjs/cdn-assets": "^11.12.0",
+    "dompurify": "^3.4.17",
+    "electron-updater": "^6.8.9",
+    "extract-zip": "^2.0.1",
+    "marked": "^18.1.1"
+  },
+  "devDependencies": {
+    "electron": "^44.8.0",
+    "electron-builder": "^26.15.3",
+    "heroicons": "^2.2.0",
+    "@phosphor-icons/core": "^2.1.1"
+  },
+  "productName": "Fabro",
+  "build": {
+    "appId": "eu.ufstudios.fabro",
+    "productName": "Fabro",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "lulualdn",
+        "repo": "fabro-ai"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Fabro",
+      "artifactName": "Fabro-Setup-${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility",
+      "icon": "build/icon.png"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lulualdn/fabro-ai.git"
+  }
+}

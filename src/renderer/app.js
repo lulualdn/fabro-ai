@@ -1,0 +1,1130 @@
+'use strict';
+/* Fabro — renderer. Plain JS, no framework. */
+// `api` is the global exposed by preload.js (contextBridge).
+
+// ───────────────────────────── State ─────────────────────────────
+const S = {
+  info: null, settings: null, specs: null,
+  lang: 'en',
+  convs: [], conv: null,
+  mode: 'chat',
+  engine: { status: 'idle' },
+  installed: { local: [], ollama: { available: false, models: [] }, downloads: [] },
+  catalog: null,
+  downloads: {},           // id -> progress
+  pending: [],             // attachments for next message
+  streaming: null,         // { reqId, msg }
+  code: new Map(),         // code card registry
+  viewer: null,            // { type, ... }
+  settingsTab: null,       // open settings tab or null
+  search: { q: '', results: null, loading: false, repo: null, files: null },
+  updater: { state: 'idle' },
+  hist: [], histIdx: -1, sbQuery: '', moreOpen: false,
+};
+
+const MODES = [            // workspaces (top toggle). Agent is automatic inside Chat.
+  { id: 'chat', icon: 'chat' },
+  { id: 'code', icon: 'code' },
+];
+const PAGES = [            // sidebar destinations
+  { id: 'projects', icon: 'folder', locked: true },
+  { id: 'artifacts', icon: 'shapes' },
+  { id: 'tasks', icon: 'tasks' },
+  { id: 'custom', icon: 'brush' },
+];
+const pageIcon = (id) => (MODES.find((m) => m.id === id) || PAGES.find((m) => m.id === id) || { icon: 'chat' }).icon;
+const LANGS = { en: 'English', fr: 'Français', es: 'Español', de: 'Deutsch' };
+
+// ───────────────────────────── Utils ─────────────────────────────
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const fmtBytes = (b) => { if (!b && b !== 0) return '—'; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; } return `${b.toFixed(b < 10 && i > 1 ? 1 : 0)} ${u[i]}`; };
+const fmtNum = (n) => n == null ? '—' : n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k' : String(n);
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+function t(key, vars) {
+  const d = I18N[S.lang] || I18N.en;
+  let s = d[key] ?? I18N.en[key] ?? key;
+  if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+  return s;
+}
+
+function toast(msg, kind = '') {
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3200);
+}
+
+async function saveSettings(patch) {
+  S.settings = await api.settings.set(patch);
+}
+
+function resolveLang() {
+  const pref = S.settings.language;
+  if (pref && pref !== 'auto' && I18N[pref]) return pref;
+  const sys = [...(S.info.systemLanguages || []), S.info.locale || '', navigator.language || ''];
+  for (const l of sys) { const c = String(l).slice(0, 2).toLowerCase(); if (I18N[c]) return c; }
+  return 'en';
+}
+
+function applyDevMode() {
+  const on = !!S.settings.devMode;
+  document.body.classList.toggle('dev', on);
+  const b = $('#dev-banner');
+  b.hidden = !on;
+  if (on) b.innerHTML = `${icon('warning', 14)}<b>${esc(t('devBanner'))}</b><span>v${esc(S.info.version)}-dev · ${esc(S.info.platform)}</span>`;
+}
+
+function applyTheme() {
+  const th = S.settings.theme;
+  const dark = th === 'dark' || (th === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  api.win.theme(dark);
+}
+
+// ───────────────────────────── Markdown ─────────────────────────────
+const LANG_NAMES = { js: 'JavaScript', javascript: 'JavaScript', ts: 'TypeScript', typescript: 'TypeScript', py: 'Python', python: 'Python', lua: 'Lua', luau: 'Luau', html: 'HTML', css: 'CSS', json: 'JSON', bash: 'Bash', sh: 'Shell', shell: 'Shell', powershell: 'PowerShell', c: 'C', cpp: 'C++', cs: 'C#', csharp: 'C#', java: 'Java', go: 'Go', rust: 'Rust', rs: 'Rust', php: 'PHP', ruby: 'Ruby', sql: 'SQL', yaml: 'YAML', yml: 'YAML', md: 'Markdown', markdown: 'Markdown', xml: 'XML', kotlin: 'Kotlin', swift: 'Swift', text: 'Text', plaintext: 'Text' };
+const langName = (l) => LANG_NAMES[(l || '').toLowerCase()] || (l ? l[0].toUpperCase() + l.slice(1) : t('code'));
+let MD_CTX = { prefix: 'x', n: 0 };
+
+function highlight(code, lang) {
+  try {
+    if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+    if (code.length < 20000) return hljs.highlightAuto(code).value;
+  } catch { /* fall through */ }
+  return esc(code);
+}
+
+marked.use({
+  gfm: true, breaks: false,
+  renderer: {
+    code(tok, infoArg) {
+      const text = typeof tok === 'object' ? tok.text : tok;
+      const lang = ((typeof tok === 'object' ? tok.lang : infoArg) || '').split(/\s+/)[0];
+      const key = `${MD_CTX.prefix}:${MD_CTX.n++}`;
+      S.code.set(key, { code: text, lang });
+      const lines = text.split('\n').length;
+      const long = lines > 14;
+      return `<div class="code-card${long ? ' collapsed' : ''}" data-key="${key}">
+        <div class="cc-head">
+          <span class="cc-badge">${icon('code', 14)}</span>
+          <span class="cc-lang">${esc(langName(lang))}</span>
+          <span class="cc-lines">${t('lines', { n: lines })}</span>
+          <span class="cc-actions">
+            <button class="icon-btn sm" data-action="code-copy" title="${esc(t('copy'))}">${icon('copy', 15)}</button>
+            <button class="icon-btn sm" data-action="code-open" title="${esc(t('openViewer'))}">${icon('expand', 15)}</button>
+          </span>
+        </div>
+        <pre class="cc-body"><code class="hljs">${highlight(text, lang)}</code></pre>
+        ${long ? `<button class="cc-more" data-action="code-toggle"><span>${esc(t('showAll', { n: lines }))}</span>${icon('down', 14)}</button>` : ''}
+      </div>`;
+    },
+    link(tok) {
+      const href = tok.href || '', text = tok.text || href;
+      return `<a href="${esc(href)}" data-action="ext-link" title="${esc(href)}">${esc(text)}</a>`;
+    },
+  },
+});
+
+function md(text, prefix) {
+  MD_CTX = { prefix, n: 0 };
+  const html = marked.parse(text || '');
+  return DOMPurify.sanitize(html, { ADD_ATTR: ['data-action', 'data-key', 'target'] });
+}
+
+// ───────────────────────────── Models helpers ─────────────────────────────
+function allModels() {
+  const l = S.installed.local.map((m) => ({ ref: { backend: 'local', id: m.id }, label: m.name, sub: `${m.quant || 'GGUF'} · ${fmtBytes(m.sizeBytes)}`, vision: m.vision, src: 'local' }));
+  const o = (S.installed.ollama.models || []).map((m) => ({ ref: { backend: 'ollama', name: m.name }, label: m.name, sub: `Ollama${m.params ? ' · ' + m.params : ''}`, src: 'ollama' }));
+  return [...l, ...o];
+}
+const sameRef = (a, b) => a && b && a.backend === b.backend && (a.id || a.name) === (b.id || b.name);
+function currentModel() {
+  const list = allModels();
+  return list.find((m) => sameRef(m.ref, S.settings.selectedModel)) || null;
+}
+async function refreshModels() {
+  S.installed = await api.models.installed();
+  for (const d of S.installed.downloads) S.downloads[d.id] = d;
+  if (!currentModel()) {
+    const first = allModels()[0];
+    if (first) await saveSettings({ selectedModel: first.ref });
+  }
+}
+
+// ───────────────────────────── Sidebar ─────────────────────────────
+function engineLabel() {
+  const eng = S.engine;
+  return ({
+    idle: t('engine_idle'), installing: t('engine_installing', { p: Math.round((eng.progress || 0) * 100) }),
+    loading: t('engine_loading'), ready: t('engine_ready'), error: t('engine_error'), stopping: t('engine_idle'),
+  })[eng.status] || eng.status;
+}
+
+function recentItem(c) {
+  const active = S.conv && S.conv.id === c.id;
+  const live = S.streaming && S.conv && S.conv.id === c.id;
+  const badge = live ? '<span class="r-live" aria-label="En cours"></span>'
+    : c.agent ? `<span class="r-ico" title="${esc(t('agentConv'))}">${icon('agentBadge', 15)}</span>`
+    : c.hasArtifact ? `<span class="r-ico">${icon('file', 15)}</span>` : '';
+  return `<div class="recent ${active ? 'active' : ''}" data-action="open-conv" data-id="${c.id}" title="${esc(c.title || t('untitled'))}">
+      <span class="r-title">${esc(c.title || t('untitled'))}</span>
+      <span class="r-tools">
+        <button class="icon-btn xs" data-action="pin-conv" data-id="${c.id}" title="${esc(t(c.pinned ? 'unpin' : 'pin'))}">${icon('pin', 14)}</button>
+        <button class="icon-btn xs" data-action="del-conv" data-id="${c.id}" title="${esc(t('delete'))}">${icon('x', 14)}</button>
+      </span>
+      ${badge}
+    </div>`;
+}
+
+function renderRecents() {
+  const el = $('#sb-lists');
+  if (!el) return;
+  const q = S.sbQuery.trim().toLowerCase();
+  const list = S.convs.filter((c) => !q || (c.title || '').toLowerCase().includes(q));
+  const pinned = list.filter((c) => c.pinned), rest = list.filter((c) => !c.pinned);
+  el.innerHTML = `
+    ${pinned.length ? `<div class="sb-section"><span>${esc(t('pinned'))}</span></div>${pinned.map(recentItem).join('')}` : ''}
+    ${rest.length ? `<div class="sb-section"><span>${esc(t('recents'))}</span><button class="icon-btn xs" data-action="noop" title="${esc(t('filter'))}">${icon('filter', 14)}</button></div>${rest.map(recentItem).join('')}` : ''}
+    ${q && !list.length ? `<div class="sb-empty">${esc(t('noResults'))}</div>` : ''}`;
+}
+
+function renderSidebar() {
+  const sb = $('#sidebar');
+  const collapsed = S.settings.sidebarCollapsed;
+  $('#app').classList.toggle('sb-collapsed', collapsed);
+  const installed = S.settings.installedModes || ['chat'];
+  const eng = S.engine;
+  const cm = currentModel();
+  const ws = MODES.includes(MODES.find((m) => m.id === S.mode)) ? S.mode : 'chat';
+  const name = S.settings.userName || S.info.userName || 'Vous';
+
+  const toggle = `<div class="ws-toggle" role="tablist" aria-label="${esc(t('workspace'))}">${MODES.map((m) =>
+    `<button role="tab" aria-selected="${ws === m.id}" class="${ws === m.id ? 'on' : ''}" data-action="mode" data-mode="${m.id}" title="${esc(t('mode_' + m.id))}">${icon(m.icon, 16)}</button>`).join('')}</div>`;
+
+  const pages = PAGES.map((p) => `<button class="nav-item ${S.mode === p.id ? 'active' : ''}" data-action="mode" data-mode="${p.id}" title="${esc(t('nav_' + p.id))}">
+      ${icon(p.icon)}<span class="label">${esc(t('nav_' + p.id))}</span>${p.locked && !installed.includes(p.id) ? `<span class="lock">${icon('lock', 13)}</span>` : ''}</button>`).join('');
+
+  const more = S.moreOpen ? `<div class="nav-sub">
+      <button class="nav-item sub" data-action="settings" data-tab="models">${icon('box', 16)}<span class="label">${esc(t('tab_models'))}</span></button>
+      <button class="nav-item sub" data-action="settings" data-tab="engine">${icon('zap', 16)}<span class="label">${esc(t('tab_engine'))}</span></button>
+      <button class="nav-item sub" data-action="soon">${icon('cpu', 16)}<span class="label">${esc(t('nav_extensions'))}</span></button>
+    </div>` : '';
+
+  sb.innerHTML = `
+    <div class="sb-top">
+      <button class="icon-btn" data-action="toggle-sidebar" title="${esc(t(collapsed ? 'expandSidebar' : 'collapseSidebar'))}">${icon('panel')}</button>
+      <button class="icon-btn hide-c" data-action="hist-back" ${S.histIdx > 0 ? '' : 'disabled'} title="${esc(t('back'))}">${icon('back', 17)}</button>
+      <button class="icon-btn hide-c" data-action="hist-fwd" ${S.histIdx < S.hist.length - 1 ? '' : 'disabled'} title="${esc(t('forward'))}">${icon('forward', 17)}</button>
+      <span class="grow hide-c"></span>
+      <span class="hide-c">${toggle}</span>
+    </div>
+    <label class="sb-search hide-c">${icon('search', 16)}<input id="sb-q" type="search" placeholder="${esc(t('searchChats'))}" value="${esc(S.sbQuery)}" aria-label="${esc(t('searchChats'))}"><kbd>Ctrl K</kbd></label>
+    <nav class="nav">
+      <button class="nav-item new" data-action="new-chat" title="${esc(t('newChat'))}"><span class="nc-ico">${icon('plus', 15)}</span><span class="label">${esc(t('newChat'))}</span></button>
+      ${pages}
+      <button class="nav-item muted-item" data-action="toggle-more" aria-expanded="${S.moreOpen}">${icon(S.moreOpen ? 'down' : 'right', 16)}<span class="label">${esc(t('nav_more'))}</span></button>
+      ${more}
+    </nav>
+    <div class="recents-wrap"><div class="recents" id="sb-lists"></div></div>
+    <button class="sb-user" data-action="user-menu" title="${esc(cm ? cm.label + ' · ' + engineLabel() : t('noModelShort'))}">
+      <span class="avatar">${esc((name[0] || 'F').toUpperCase())}${['loading', 'installing'].includes(eng.status) ? `<span class="av-spin">${spinner(14)}</span>` : `<span class="av-dot st-${eng.status}"></span>`}</span>
+      <span class="label u-text"><b>${esc(name)}</b><small>${esc(cm ? cm.label : t('noModelShort'))} · ${esc(engineLabel())}</small></span>
+      <span class="hide-c u-chev">${icon('down', 15)}</span>
+    </button>`;
+  renderRecents();
+  const q = $('#sb-q');
+  if (q) q.addEventListener('input', () => { S.sbQuery = q.value; renderRecents(); });
+}
+
+function openUserMenu(anchor) {
+  const r = anchor.getBoundingClientRect();
+  const th = S.settings.theme;
+  $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
+    <div class="popover" style="left:${r.left}px; bottom:${innerHeight - r.top + 8}px; min-width:${Math.max(240, r.width)}px">
+      <button class="pm-item" data-action="settings" data-tab="general">${icon('settings', 16)}<span class="pm-text"><b>${esc(t('settings'))}</b></span><kbd>Ctrl ,</kbd></button>
+      <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
+      <button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'dark' ? 'light' : 'dark'}">${icon(th === 'dark' ? 'sun' : 'moon', 16)}<span class="pm-text"><b>${esc(t(th === 'dark' ? 'themeLight' : 'themeDark'))}</b></span></button>
+      <div class="pm-sep"></div>
+      <button class="pm-item" data-action="settings" data-tab="about">${icon('info', 16)}<span class="pm-text"><b>${esc(t('tab_about'))}</b></span></button>
+    </div>`;
+}
+
+function navTo(mode, convId, push = true) {
+  if (push) {
+    S.hist = S.hist.slice(0, S.histIdx + 1);
+    const last = S.hist[S.hist.length - 1];
+    if (!last || last.mode !== mode || last.convId !== convId) { S.hist.push({ mode, convId }); S.histIdx = S.hist.length - 1; }
+  }
+}
+
+// ───────────────────────────── Topbar ─────────────────────────────
+function renderTopbar() {
+  const title = S.mode === 'chat' ? (S.conv && S.conv.messages.length ? S.conv.title || t('untitled') : '') : t(S.mode === 'code' ? 'mode_code' : 'nav_' + S.mode);
+  $('#topbar').innerHTML = `
+    <div class="tb-left">
+      ${S.settings.sidebarCollapsed ? '' : ''}
+      <span class="tb-title">${esc(title)}</span>
+    </div>
+    <div class="tb-right">
+      ${S.updater.state === 'ready' ? `<button class="chip accent" data-action="install-update">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
+      ${S.settings.sidebarCollapsed ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
+    </div>`;
+}
+
+// ───────────────────────────── Views ─────────────────────────────
+function renderView() {
+  renderTopbar();
+  const v = $('#view');
+  if (S.mode !== 'chat') {
+    v.className = 'view';
+    v.innerHTML = ['code', 'projects'].includes(S.mode) ? renderLockedMode(S.mode) : renderSoon(S.mode);
+    return;
+  }
+  const empty = !S.conv || !S.conv.messages.length;
+  v.className = 'view ' + (empty ? 'is-welcome' : 'is-thread');
+  if (empty) {
+    v.innerHTML = renderWelcome();
+  } else {
+    v.innerHTML = `<div class="scroller" id="scroller"><div class="thread">${S.conv.messages.map(renderMessage).join('')}</div></div>
+      <div class="dock">${renderComposer()}<div class="disclaimer">${esc(t('disclaimer'))}</div></div>`;
+    scrollBottom(true);
+  }
+  bindComposer();
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  return t(h < 5 ? 'greet_night' : h < 12 ? 'greet_morning' : h < 18 ? 'greet_afternoon' : 'greet_evening');
+}
+
+function renderWelcome() {
+  const models = allModels();
+  const setup = !models.length ? renderSetupCard() : '';
+  const chips = ['sugg_explain', 'sugg_write', 'sugg_code', 'sugg_plan'].map((k) =>
+    `<button class="sugg" data-action="suggest" data-text="${esc(t(k + '_prompt'))}">${esc(t(k))}</button>`).join('');
+  return `<div class="welcome">
+    <h1 class="greet">${logo(38)}<span>${esc(greeting())}</span></h1>
+    ${setup}
+    ${renderComposer()}
+    ${models.length ? `<div class="suggestions">${chips}</div>` : ''}
+  </div>`;
+}
+
+function renderSetupCard() {
+  const cat = S.catalog;
+  if (!cat) return `<div class="setup-card loading">${esc(t('detecting'))}</div>`;
+  const rec = cat.items.find((m) => m.id === cat.recommended);
+  const sp = cat.specs;
+  const gpu = sp.gpus[0];
+  const hw = [gpu ? `${gpu.name}${gpu.vramGB ? ` · ${gpu.vramGB} GB` : ''}` : t('noGpu'), `${sp.ramGB} GB RAM`].join(' · ');
+  const dl = rec && Object.values(S.downloads).find((d) => d.repo === rec.repo && d.status === 'downloading');
+  const oll = S.installed.ollama.available;
+  return `<div class="setup-card">
+    <div class="sc-row">
+      <div class="sc-ico">${icon('cpu', 20)}</div>
+      <div class="sc-text">
+        <div class="sc-title">${esc(t('setupTitle'))}</div>
+        <div class="sc-sub">${esc(hw)}</div>
+      </div>
+    </div>
+    ${rec ? `<div class="sc-model">
+      <div><div class="sc-name">${esc(rec.name)} <span class="fit fit-${rec.fit}">${esc(t('fit_' + rec.fit))}</span></div>
+      <div class="sc-meta">${esc(rec.by)} · ${esc(rec.params)} · ≈ ${rec.sizeGB} GB</div></div>
+      ${dl ? renderProgress(dl) : `<button class="btn primary" data-action="dl-catalog" data-id="${rec.id}">${icon('download', 16)} ${esc(t('downloadStart'))}</button>`}
+    </div>` : ''}
+    <div class="sc-links">
+      <button class="link-btn" data-action="settings" data-tab="models">${esc(t('chooseAnother'))}</button>
+      ${oll ? `<span class="muted">·</span><span class="muted">${esc(t('ollamaDetected'))}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderProgress(d) {
+  const p = d.total ? d.received / d.total : 0;
+  return `<div class="progress-inline" data-dl="${esc(d.id)}">
+    <div class="bar"><i style="width:${(p * 100).toFixed(1)}%"></i></div>
+    <span class="pct">${Math.round(p * 100)}% · ${fmtBytes(d.received)} / ${fmtBytes(d.total)}${d.speed ? ` · ${fmtBytes(d.speed)}/s` : ''}</span>
+    <button class="icon-btn xs" data-action="dl-cancel" data-id="${esc(d.id)}" title="${esc(t('cancel'))}">${icon('x', 14)}</button>
+  </div>`;
+}
+
+function renderSoon(mode) {
+  return `<div class="locked">
+    <div class="lk-ico">${icon(pageIcon(mode), 30)}</div>
+    <h2>${esc(t('nav_' + mode))}</h2>
+    <p class="lk-desc">${esc(t('desc_' + mode))}</p>
+    <span class="chip">${esc(t('soon'))}</span>
+  </div>`;
+}
+
+function renderLockedMode(mode) {
+  const m = { icon: pageIcon(mode) };
+  const items = (t('deps_' + mode) || '').split('|').filter(Boolean);
+  return `<div class="locked">
+    <div class="lk-ico">${icon(m.icon, 30)}</div>
+    <h2>${esc(t(mode === 'code' ? 'mode_code' : 'nav_' + mode))}</h2>
+    <p class="lk-desc">${esc(t('desc_' + mode))}</p>
+    <ul class="lk-list">${items.map((i) => `<li>${icon('check', 15)}<span>${esc(i)}</span></li>`).join('')}</ul>
+    <button class="btn primary lg" data-action="install-mode" data-mode="${mode}">${icon('download', 17)} ${esc(t('installDeps'))}</button>
+    <p class="muted small">${esc(t('installNote'))}</p>
+  </div>`;
+}
+
+// ───────────────────────────── Messages ─────────────────────────────
+function renderAttachments(atts = [], removable = false) {
+  if (!atts.length) return '';
+  return `<div class="atts">${atts.map((a, i) => {
+    const rm = removable ? `<button class="att-x" data-action="att-remove" data-i="${i}">${icon('x', 12)}</button>` : '';
+    if (a.kind === 'image') return `<div class="att att-img" data-action="att-open" data-i="${i}" data-src="${removable ? 'pending' : ''}"><img src="${a.data}" alt="">${rm}</div>`;
+    const ic = a.kind === 'video' ? 'video' : 'file';
+    return `<div class="att att-file" data-action="att-open" data-i="${i}" data-src="${removable ? 'pending' : ''}">
+      <span class="af-ico">${icon(ic, 18)}</span><span class="af-text"><b>${esc(a.name)}</b><small>${esc(a.ext || a.kind)} · ${fmtBytes(a.size)}</small></span>${rm}</div>`;
+  }).join('')}</div>`;
+}
+
+function renderThinking(m) {
+  if (!m.reasoning) return '';
+  const live = m.pending && !m.content;
+  const secs = m.thinkStart ? Math.max(1, Math.round(((m.thinkEnd || Date.now()) - m.thinkStart) / 1000)) : null;
+  const label = live ? t('thinking') : secs ? t('thoughtFor', { s: secs }) : t('thoughts');
+  return `<details class="think" ${live ? 'open' : ''}>
+    <summary>${icon('brain', 15)}<span>${esc(label)}</span>${icon('down', 14, 'chev')}</summary>
+    <div class="think-body">${esc(m.reasoning)}</div>
+  </details>`;
+}
+
+function assistantBody(m) {
+  let html = renderThinking(m);
+  if (m.content) html += `<div class="md">${md(m.content, m.id)}</div>`;
+  else if (m.pending && !m.reasoning) {
+    const st = m.status === 'loading' ? t('loadingModel') : '';
+    html += `<div class="typing">${spinner(24)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
+  }
+  if (m.error) html += `<div class="msg-error">${icon('info', 16)}<span>${esc(errorText(m.error))}</span></div>`;
+  return html;
+}
+
+function errorText(e) {
+  if (e === 'NO_MODEL') return t('noModel');
+  return e;
+}
+
+function renderStats(m) {
+  if (!m.stats || m.pending) return '';
+  const s = m.stats;
+  const parts = [];
+  if (s.completionTokens) parts.push(t('tokensOut', { n: fmtNum(s.completionTokens) }));
+  if (s.tokPerSec) parts.push(`${s.tokPerSec} tok/s`);
+  if (s.promptTokens) parts.push(t('tokensIn', { n: fmtNum(s.promptTokens) }));
+  return `<span class="stats" title="${esc(m.model || '')}">${esc(parts.join(' · '))}</span>`;
+}
+
+function renderMessage(m, idx) {
+  if (m.role === 'user') {
+    return `<div class="msg user" id="m-${m.id}">
+      <div class="bubble">${renderAttachments(m.attachments)}${m.content ? `<div class="u-text">${esc(m.content)}</div>` : ''}</div>
+      <div class="msg-actions"><button class="icon-btn xs" data-action="copy-msg" data-id="${m.id}" title="${esc(t('copy'))}">${icon('copy', 14)}</button></div>
+    </div>`;
+  }
+  const isLast = S.conv && idx === S.conv.messages.length - 1;
+  return `<div class="msg assistant ${m.pending ? 'pending' : ''}" id="m-${m.id}">
+    <div class="a-body">${assistantBody(m)}</div>
+    <div class="msg-actions ${m.pending ? 'hidden' : ''}">
+      <button class="icon-btn xs" data-action="copy-msg" data-id="${m.id}" title="${esc(t('copy'))}">${icon('copy', 14)}</button>
+      ${isLast ? `<button class="icon-btn xs" data-action="regen" title="${esc(t('retry'))}">${icon('retry', 14)}</button>` : ''}
+      ${renderStats(m)}
+    </div>
+  </div>`;
+}
+
+let rafPending = false;
+function scheduleStreamRender() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => {
+    rafPending = false;
+    const m = S.streaming && S.streaming.msg;
+    if (!m) return;
+    const el = $(`#m-${m.id} .a-body`);
+    if (!el) return;
+    const near = isNearBottom();
+    const thinkOpen = el.querySelector('details.think')?.open;
+    el.innerHTML = assistantBody(m);
+    const th = el.querySelector('details.think');
+    if (th && thinkOpen === false) th.open = false;
+    if (near) scrollBottom();
+  });
+}
+
+function isNearBottom() { const s = $('#scroller'); return !s || s.scrollHeight - s.scrollTop - s.clientHeight < 140; }
+function scrollBottom(force) { const s = $('#scroller'); if (s && (force || isNearBottom())) s.scrollTop = s.scrollHeight; }
+
+// ───────────────────────────── Composer ─────────────────────────────
+function estimateTokens() {
+  if (!S.conv) return 0;
+  const last = [...S.conv.messages].reverse().find((m) => m.stats && m.stats.promptTokens);
+  if (last) {
+    const idx = S.conv.messages.indexOf(last);
+    const after = S.conv.messages.slice(idx + 1).reduce((n, m) => n + (m.content || '').length / 3.7, 0);
+    return Math.round(last.stats.promptTokens + (last.stats.completionTokens || 0) + after);
+  }
+  return Math.round(S.conv.messages.reduce((n, m) => n + (m.content || '').length / 3.7, 0));
+}
+
+function ctxRing() {
+  const ctx = S.settings.engine.ctx || 8192;
+  const used = estimateTokens();
+  const p = Math.min(1, used / ctx);
+  const r = 8, c = 2 * Math.PI * r;
+  const warn = p > 0.85 ? 'warn' : '';
+  return `<div class="ctx-ring ${warn}" title="${esc(t('contextUsage', { used: fmtNum(used), max: fmtNum(ctx) }))}">
+    <svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="${r}" class="track"/><circle cx="11" cy="11" r="${r}" class="fill" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - p)}"/></svg>
+  </div>`;
+}
+
+function renderComposer() {
+  const cm = currentModel();
+  const busy = !!S.streaming;
+  return `<div class="composer" id="composer">
+    ${renderAttachments(S.pending, true)}
+    <textarea id="prompt" rows="1" placeholder="${esc(t(S.conv && S.conv.messages.length ? 'replyPlaceholder' : 'placeholder'))}"></textarea>
+    <div class="c-bar">
+      <button class="icon-btn" data-action="attach" title="${esc(t('attach'))}">${icon('plus', 19)}</button>
+      <div class="grow"></div>
+      <button class="model-pill" data-action="model-menu">${esc(cm ? cm.label : t('chooseModel'))}${icon('down', 14)}</button>
+      ${ctxRing()}
+      <button class="send ${busy ? 'stop' : ''}" id="send-btn" data-action="${busy ? 'stop' : 'send'}" title="${esc(t(busy ? 'stop' : 'send'))}">${icon(busy ? 'stop' : 'up', 18)}</button>
+    </div>
+  </div>`;
+}
+
+function bindComposer() {
+  const ta = $('#prompt');
+  if (!ta) return;
+  if (S._draft) ta.value = S._draft;
+  const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 260) + 'px'; updateSendState(); };
+  ta.addEventListener('input', () => { S._draft = ta.value; fit(); });
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!S.streaming) sendPrompt(); }
+  });
+  ta.addEventListener('paste', (e) => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  });
+  fit();
+  if (!S.settingsTab) ta.focus();
+}
+
+function updateSendState() {
+  const b = $('#send-btn'), ta = $('#prompt');
+  if (b && !S.streaming) b.disabled = !(ta && ta.value.trim()) && !S.pending.length;
+}
+
+function refreshComposer() {
+  const c = $('#composer');
+  if (!c) return;
+  const val = $('#prompt')?.value || '';
+  c.outerHTML = renderComposer();
+  S._draft = val;
+  bindComposer();
+}
+
+// ───────────────────────────── Attachments ─────────────────────────────
+const TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|js|mjs|cjs|ts|tsx|jsx|py|lua|luau|html?|css|scss|xml|ya?ml|toml|ini|sh|bat|ps1|c|h|cpp|hpp|cs|java|kt|go|rs|php|rb|sql|swift|log)$/i;
+const readAs = (f, how) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r[how](f); });
+
+async function addFiles(files) {
+  for (const f of files) {
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    const base = { name: f.name, size: f.size, type: f.type, ext };
+    try {
+      if (f.type.startsWith('image/')) S.pending.push({ ...base, kind: 'image', data: await readAs(f, 'readAsDataURL') });
+      else if (f.type.startsWith('video/')) S.pending.push({ ...base, kind: 'video', url: URL.createObjectURL(f) });
+      else if (TEXT_EXT.test(f.name) || f.type.startsWith('text/')) {
+        if (f.size > 2 * 1024 * 1024) { toast(t('fileTooBig', { name: f.name }), 'err'); continue; }
+        S.pending.push({ ...base, kind: 'text', text: await readAs(f, 'readAsText') });
+      } else toast(t('fileUnsupported', { name: f.name }), 'err');
+    } catch { toast(t('fileUnsupported', { name: f.name }), 'err'); }
+  }
+  refreshComposer();
+}
+
+function openAttachment(a) {
+  if (!a) return;
+  if (a.kind === 'image') openViewer({ type: 'image', title: a.name, src: a.data });
+  else if (a.kind === 'video') a.url ? openViewer({ type: 'video', title: a.name, src: a.url }) : toast(t('videoSessionOnly'));
+  else if (a.kind === 'text') {
+    if (/^(md|markdown)$/i.test(a.ext)) openViewer({ type: 'markdown', title: a.name, text: a.text });
+    else openViewer({ type: 'code', title: a.name, lang: a.ext, code: a.text });
+  }
+}
+
+// ───────────────────────────── Viewer panel ─────────────────────────────
+function openViewer(v) { S.viewer = v; renderViewer(); }
+function closeViewer() { S.viewer = null; renderViewer(); }
+
+function renderViewer() {
+  const el = $('#viewer');
+  $('#app').classList.toggle('with-viewer', !!S.viewer);
+  if (!S.viewer) { el.innerHTML = ''; return; }
+  const v = S.viewer;
+  let body = '', tools = '';
+  if (v.type === 'code') {
+    const lines = v.code.split('\n');
+    body = `<div class="v-code"><pre><code class="hljs">${highlight(v.code, v.lang).split('\n').map((l, i) => `<span class="ln" data-n="${i + 1}">${l || ' '}</span>`).join('\n')}</code></pre></div>`;
+    tools = `<span class="muted small">${esc(langName(v.lang))} · ${t('lines', { n: lines.length })}</span>
+      <button class="icon-btn sm" data-action="viewer-copy" title="${esc(t('copy'))}">${icon('copy', 16)}</button>
+      <button class="icon-btn sm" data-action="viewer-save" title="${esc(t('download'))}">${icon('download', 16)}</button>`;
+  } else if (v.type === 'image') {
+    body = `<div class="v-media"><img src="${v.src}" alt=""></div>`;
+  } else if (v.type === 'video') {
+    body = `<div class="v-media"><video src="${v.src}" controls autoplay></video></div>`;
+  } else if (v.type === 'markdown') {
+    body = `<div class="v-doc md">${md(v.text, 'viewer')}</div>`;
+    tools = `<button class="icon-btn sm" data-action="viewer-copy" title="${esc(t('copy'))}">${icon('copy', 16)}</button>`;
+  }
+  el.innerHTML = `<div class="v-head"><span class="v-title">${esc(v.title || '')}</span><div class="v-tools">${tools}
+      <button class="icon-btn sm" data-action="viewer-close" title="${esc(t('close'))}">${icon('x', 17)}</button></div></div>
+    <div class="v-body">${body}</div>`;
+}
+
+// ───────────────────────────── Popover (model menu) ─────────────────────────────
+function closePopover() { $('#popover-root').innerHTML = ''; }
+
+function openModelMenu(anchor) {
+  const list = allModels();
+  const r = anchor.getBoundingClientRect();
+  const local = list.filter((m) => m.src === 'local'), oll = list.filter((m) => m.src === 'ollama');
+  const item = (m) => `<button class="pm-item ${sameRef(m.ref, S.settings.selectedModel) ? 'sel' : ''}" data-action="pick-model" data-ref="${esc(JSON.stringify(m.ref))}">
+      <span class="pm-text"><b>${esc(m.label)}</b><small>${esc(m.sub)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></span>
+      ${sameRef(m.ref, S.settings.selectedModel) ? icon('check', 16) : ''}</button>`;
+  $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
+    <div class="popover" style="right:${Math.max(12, innerWidth - r.right)}px; bottom:${innerHeight - r.top + 8}px">
+      ${local.length ? `<div class="pm-sec">${esc(t('builtInModels'))}</div>${local.map(item).join('')}` : ''}
+      ${oll.length ? `<div class="pm-sec">Ollama</div>${oll.map(item).join('')}` : ''}
+      ${!list.length ? `<div class="pm-empty">${esc(t('noModelsYet'))}</div>` : ''}
+      <div class="pm-sep"></div>
+      <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
+    </div>`;
+}
+
+// ───────────────────────────── Settings overlay ─────────────────────────────
+const TABS = [
+  { id: 'general', icon: 'sliders' }, { id: 'models', icon: 'box' }, { id: 'engine', icon: 'zap' },
+  { id: 'generation', icon: 'edit' }, { id: 'system', icon: 'cpu' }, { id: 'about', icon: 'info' },
+];
+
+async function openSettings(tab = 'general') {
+  S.settingsTab = tab;
+  closePopover();
+  renderSettings();
+  if (tab === 'models' && !S.catalog) { S.catalog = await api.models.catalog(); renderSettings(); }
+}
+function closeSettings() {
+  S.settingsTab = null;
+  const o = $('.overlay');
+  if (o) { o.classList.add('closing'); setTimeout(() => { $('#overlay-root').innerHTML = ''; $('#prompt')?.focus(); }, 160); }
+}
+
+function renderSettings(keepScroll = true) {
+  if (!S.settingsTab) return;
+  const prev = $('.st-content');
+  const scroll = keepScroll && prev ? prev.scrollTop : 0;
+  const existing = $('.overlay');
+  const nav = TABS.map((x) => `<button class="st-tab ${S.settingsTab === x.id ? 'active' : ''}" data-action="settings-tab" data-tab="${x.id}">${icon(x.icon, 17)}<span>${esc(t('tab_' + x.id))}</span></button>`).join('');
+  const html = `<div class="overlay ${existing ? 'shown' : ''}" data-action="overlay-bg">
+    <div class="st-panel" role="dialog" aria-modal="true">
+      <div class="st-nav"><div class="st-heading">${esc(t('settings'))}</div>${nav}</div>
+      <div class="st-main">
+        <div class="st-top"><h2>${esc(t('tab_' + S.settingsTab))}</h2><button class="icon-btn" data-action="close-settings" title="${esc(t('close'))}">${icon('x')}</button></div>
+        <div class="st-content">${settingsBody(S.settingsTab)}</div>
+      </div>
+    </div></div>`;
+  $('#overlay-root').innerHTML = html;
+  const c = $('.st-content'); if (c) c.scrollTop = scroll;
+  if (!existing) requestAnimationFrame(() => $('.overlay')?.classList.add('shown'));
+}
+
+const row = (label, control, hint = '') => `<div class="st-row"><div class="st-label"><span>${esc(label)}</span>${hint ? `<small>${esc(hint)}</small>` : ''}</div><div class="st-control">${control}</div></div>`;
+const seg = (key, value, opts) => `<div class="seg">${opts.map(([v, l, ic]) => `<button class="${String(value) === String(v) ? 'on' : ''}" data-action="set" data-key="${key}" data-value="${esc(v)}">${ic ? icon(ic, 15) : ''}${esc(l)}</button>`).join('')}</div>`;
+const toggle = (key, on) => `<button class="switch ${on ? 'on' : ''}" data-action="set" data-key="${key}" data-value="${!on}" role="switch" aria-checked="${on}"><i></i></button>`;
+const getPath = (o, p) => p.split('.').reduce((a, k) => (a ? a[k] : undefined), o);
+function patchFor(path, value) { const keys = path.split('.'); const out = {}; let cur = out; keys.forEach((k, i) => { cur[k] = i === keys.length - 1 ? value : {}; cur = cur[k]; }); return out; }
+
+function settingsBody(tab) {
+  const st = S.settings;
+  if (tab === 'general') {
+    const langOpts = [['auto', t('langAuto', { l: LANGS[resolveLangAuto()] || 'English' })], ...Object.entries(LANGS)]
+      .map(([v, l]) => `<option value="${v}" ${st.language === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
+    return `
+      ${row(t('language'), `<select class="input" data-input="language">${langOpts}</select>`)}
+      ${row(t('theme'), seg('theme', st.theme, [['system', t('themeSystem'), 'monitor'], ['light', t('themeLight'), 'sun'], ['dark', t('themeDark'), 'moon']]))}
+      ${row(t('autoUpdate'), toggle('autoUpdate', st.autoUpdate), t('autoUpdateHint'))}
+      ${row(t('devMode'), toggle('devMode', st.devMode), t('devModeHint'))}
+      ${st.devMode ? row(t('devTools'), `<button class="btn sm" data-action="devtools">${icon('terminal', 14)} ${esc(t('open'))}</button>`, 'F12 · Ctrl+Shift+I · Ctrl+R') : ''}
+      ${row(t('appVersion'), `<span class="mono">v${esc(S.info.version)}</span> <button class="btn sm" data-action="check-update">${esc(t('checkUpdates'))}</button>`, updaterText())}`;
+  }
+  if (tab === 'models') return modelsTab();
+  if (tab === 'engine') {
+    const e = S.engine;
+    const ctxOpts = [2048, 4096, 8192, 16384, 32768, 65536, 131072].map((n) => `<option value="${n}" ${st.engine.ctx === n ? 'selected' : ''}>${n / 1024}K tokens</option>`).join('');
+    const gl = st.engine.gpuLayers;
+    return `
+      <div class="eng-card st-${e.status}">
+        <span class="dot"></span>
+        <div><b>${esc(t('engine_' + (e.status === 'stopping' ? 'idle' : e.status), { p: Math.round((e.progress || 0) * 100) }))}</b>
+        <small>llama.cpp ${esc(e.version || '—')}${e.variant ? ' · ' + esc(e.variant.toUpperCase()) : ''}${e.model ? ' · ' + esc(e.model) : ''}</small>
+        ${e.error ? `<small class="err">${esc(e.error).slice(0, 300)}</small>` : ''}</div>
+        <div class="grow"></div>
+        ${e.status === 'ready' ? `<button class="btn sm" data-action="engine-stop">${icon('power', 14)} ${esc(t('unload'))}</button>` : ''}
+        <button class="btn sm" data-action="engine-update">${icon('refresh', 14)} ${esc(t('checkUpdates'))}</button>
+      </div>
+      ${row(t('backend'), seg('backend', st.backend, [['local', t('backendLocal')], ['ollama', 'Ollama']]), t('backendHint'))}
+      ${row(t('contextLength'), `<select class="input" data-input="engine.ctx" data-type="int">${ctxOpts}</select>`, t('contextHint'))}
+      ${row(t('gpuLayers'), `<div class="range-wrap"><input type="range" min="-1" max="99" step="1" value="${gl}" data-input="engine.gpuLayers" data-type="int"><span class="rv">${gl < 0 ? t('auto') : gl}</span></div>`, t('gpuLayersHint'))}
+      ${row(t('threads'), `<input class="input sm" type="number" min="0" max="256" value="${st.engine.threads}" data-input="engine.threads" data-type="int">`, t('threadsHint'))}
+      ${row('Ollama URL', `<input class="input" value="${esc(st.ollamaUrl)}" data-input="ollamaUrl">`, S.installed.ollama.available ? t('ollamaConnected', { n: S.installed.ollama.models.length }) : t('ollamaNotFound'))}`;
+  }
+  if (tab === 'generation') {
+    const g = st.gen;
+    const range = (k, min, max, step, v) => `<div class="range-wrap"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-input="gen.${k}" data-type="float"><span class="rv">${v}</span></div>`;
+    return `
+      ${row(t('temperature'), range('temperature', 0, 2, 0.05, g.temperature), t('temperatureHint'))}
+      ${row('Top P', range('topP', 0.05, 1, 0.05, g.topP))}
+      ${row(t('maxTokens'), `<input class="input sm" type="number" min="0" max="131072" value="${g.maxTokens}" data-input="gen.maxTokens" data-type="int">`, t('maxTokensHint'))}
+      <div class="st-block"><div class="st-label"><span>${esc(t('systemPrompt'))}</span><small>${esc(t('systemPromptHint'))}</small></div>
+      <textarea class="input area" rows="6" data-input="gen.systemPrompt" placeholder="${esc(t('systemPromptPh'))}">${esc(g.systemPrompt)}</textarea></div>`;
+  }
+  if (tab === 'system') {
+    const sp = S.specs;
+    if (!sp) return `<div class="muted">${esc(t('detecting'))}</div>`;
+    const accel = { cuda: 'NVIDIA CUDA', metal: 'Apple Metal', vulkan: 'Vulkan', cpu: 'CPU' }[sp.accel];
+    return `<div class="spec-grid">
+      <div class="spec"><small>${esc(t('os'))}</small><b>${esc(sp.os)} · ${esc(sp.arch)}</b></div>
+      <div class="spec"><small>CPU</small><b>${esc(sp.cpu.model)}</b><span>${sp.cpu.threads} threads</span></div>
+      <div class="spec"><small>RAM</small><b>${sp.ramGB} GB</b></div>
+      <div class="spec"><small>${esc(t('acceleration'))}</small><b>${esc(accel)}</b></div>
+      ${sp.gpus.map((g) => `<div class="spec wide"><small>GPU</small><b>${esc(g.name)}</b><span>${g.vramGB ? g.vramGB + ' GB VRAM' : sp.unified ? t('unifiedMemory') : ''}</span></div>`).join('')}
+    </div>
+    <p class="muted small">${esc(t('budgetNote', { g: sp.gpuBudgetGB, r: sp.ramBudgetGB }))}</p>`;
+  }
+  if (tab === 'about') {
+    return `<div class="about">${logo(56)}<h3>Fabro</h3><p class="muted">v${esc(S.info.version)} · ${esc(t('tagline'))}</p>
+      <p class="small">${esc(t('taglineLong'))}</p><p class="small muted">${esc(t('aboutText'))}</p>
+      <p class="small"><a href="https://github.com/ggml-org/llama.cpp" data-action="ext-link">llama.cpp</a> · <a href="https://huggingface.co/models?library=gguf" data-action="ext-link">Hugging Face</a> · <a href="https://ollama.com" data-action="ext-link">Ollama</a></p></div>`;
+  }
+  return '';
+}
+function resolveLangAuto() { const s = S.settings.language; S.settings.language = 'auto'; const l = resolveLang(); S.settings.language = s; return l; }
+function updaterText() {
+  const u = S.updater;
+  return ({ checking: t('upd_checking'), latest: t('upd_latest'), downloading: t('upd_downloading', { p: Math.round((u.progress || 0) * 100) }), ready: t('upd_ready', { v: u.version || '' }), error: t('upd_error'), dev: t('upd_dev') })[u.state] || '';
+}
+
+const FIT_ORDER = { great: 0, good: 1, ok: 2, 'too-big': 3 };
+function modelsTab() {
+  const loc = S.installed.local;
+  const oll = S.installed.ollama;
+  const mine = loc.map((m) => `<div class="m-row">
+      <div class="m-ico">${icon('box', 18)}</div>
+      <div class="m-text"><b>${esc(m.name)}</b><small>${esc(m.repo)} · ${esc(m.quant || '')} · ${fmtBytes(m.sizeBytes)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></div>
+      ${sameRef({ backend: 'local', id: m.id }, S.settings.selectedModel) ? `<span class="chip">${esc(t('active'))}</span>` : `<button class="btn sm" data-action="pick-model" data-ref="${esc(JSON.stringify({ backend: 'local', id: m.id }))}">${esc(t('use'))}</button>`}
+      <button class="icon-btn sm" data-action="model-delete" data-id="${esc(m.id)}" title="${esc(t('delete'))}">${icon('trash', 16)}</button>
+    </div>`).join('');
+  const ollRows = (oll.models || []).map((m) => `<div class="m-row">
+      <div class="m-ico ollama">O</div>
+      <div class="m-text"><b>${esc(m.name)}</b><small>Ollama · ${esc(m.params || '')} ${esc(m.quant || '')} · ${fmtBytes(m.sizeBytes)}</small></div>
+      ${sameRef({ backend: 'ollama', name: m.name }, S.settings.selectedModel) ? `<span class="chip">${esc(t('active'))}</span>` : `<button class="btn sm" data-action="pick-model" data-ref="${esc(JSON.stringify({ backend: 'ollama', name: m.name }))}">${esc(t('use'))}</button>`}
+    </div>`).join('');
+
+  const cat = S.catalog;
+  const catHtml = !cat ? `<div class="muted">${esc(t('detecting'))}</div>` : [...cat.items].sort((a, b) => FIT_ORDER[a.fit] - FIT_ORDER[b.fit] || b.sizeGB - a.sizeGB).map((m) => {
+    const dl = Object.values(S.downloads).find((d) => d.repo === m.repo && d.status === 'downloading');
+    return `<div class="cat-card ${m.fit === 'too-big' ? 'dim' : ''}">
+      <div class="cc-top"><b>${esc(m.name)}</b>${m.id === cat.recommended ? `<span class="chip accent">${esc(t('recommended'))}</span>` : ''}</div>
+      <div class="cc-meta">${esc(m.by)} · ${esc(m.params)} · ≈ ${m.sizeGB} GB</div>
+      <div class="cc-tags"><span class="fit fit-${m.fit}">${esc(t('fit_' + m.fit))}</span>${m.tags.map((x) => `<span class="tag">${esc(t('tag_' + x))}</span>`).join('')}</div>
+      <div class="cc-act">${m.installed ? `<span class="muted small">${icon('check', 14)} ${esc(t('installed'))}</span>` : dl ? renderProgress(dl) : `<button class="btn sm" data-action="dl-catalog" data-id="${m.id}">${icon('download', 14)} ${esc(t('download'))}</button>`}</div>
+    </div>`;
+  }).join('');
+
+  const sr = S.search;
+  let searchHtml = '';
+  if (sr.loading) searchHtml = `<div class="muted small">${esc(t('searching'))}</div>`;
+  else if (sr.results) {
+    searchHtml = sr.results.length ? sr.results.map((r) => `<div class="sr-item ${sr.repo === r.repo ? 'open' : ''}">
+        <button class="sr-head" data-action="sr-open" data-repo="${esc(r.repo)}">${icon(sr.repo === r.repo ? 'down' : 'right', 15)}<b>${esc(r.repo)}</b><span class="muted small">${icon('download', 12)} ${fmtNum(r.downloads)}</span></button>
+        ${sr.repo === r.repo ? renderRepoFiles() : ''}
+      </div>`).join('') : `<div class="muted small">${esc(t('noResults'))}</div>`;
+  }
+
+  return `
+    <div class="st-sec">${esc(t('yourModels'))}</div>
+    ${mine || ollRows ? mine + ollRows : `<div class="empty-note">${esc(t('noModelsYet'))}</div>`}
+    <div class="st-sec">${esc(t('recommendedFor'))} <span class="muted small">${S.specs ? esc(specLine()) : ''}</span></div>
+    <div class="cat-grid">${catHtml}</div>
+    <div class="st-sec">${esc(t('searchHF'))}</div>
+    <form class="search-row" data-form="hf-search">${icon('search', 16)}<input class="input bare" name="q" value="${esc(sr.q)}" placeholder="${esc(t('searchPh'))}"><button class="btn sm" type="submit">${esc(t('search'))}</button></form>
+    <div class="sr-list">${searchHtml}</div>`;
+}
+
+function specLine() {
+  const sp = S.specs; const g = sp.gpus[0];
+  return [g ? g.name + (g.vramGB ? ` ${g.vramGB} GB` : '') : 'CPU', `${sp.ramGB} GB RAM`].join(' · ');
+}
+
+function renderRepoFiles() {
+  const f = S.search.files;
+  if (!f) return `<div class="sr-files muted small">${esc(t('loading'))}</div>`;
+  if (f.error) return `<div class="sr-files err small">${esc(f.error)}</div>`;
+  if (!f.files.length) return `<div class="sr-files muted small">${esc(t('noGguf'))}</div>`;
+  return `<div class="sr-files">${f.files.map((x) => {
+    const id = `${f.repo}/${x.file}`;
+    const dl = S.downloads[id] && S.downloads[id].status === 'downloading' ? S.downloads[id] : null;
+    const inst = S.installed.local.some((m) => m.id === id);
+    return `<div class="sf-row ${x.file === f.preferred ? 'pref' : ''}">
+      <span class="sf-name" title="${esc(x.file)}">${esc(x.quant || x.file)}</span>
+      <span class="muted small">${x.sizeGB} GB${x.parts.length > 1 ? ` · ${x.parts.length} parts` : ''}${x.mmproj ? ' · ' + esc(t('vision')) : ''}</span>
+      <span class="fit fit-${x.fit}">${esc(t('fit_' + x.fit))}</span>
+      ${inst ? `<span class="muted small">${icon('check', 14)}</span>` : dl ? renderProgress(dl) : `<button class="icon-btn sm" data-action="dl-file" data-repo="${esc(f.repo)}" data-file="${esc(x.file)}" title="${esc(t('download'))}">${icon('download', 16)}</button>`}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ───────────────────────────── Conversations ─────────────────────────────
+function newConv() { return { id: uid(), title: '', mode: 'chat', messages: [], createdAt: Date.now(), updatedAt: Date.now() }; }
+const persist = debounce(async () => {
+  if (!S.conv || !S.conv.messages.length) return;
+  const clean = { ...S.conv, messages: S.conv.messages.map(({ pending, status, ...m }) => ({ ...m, attachments: (m.attachments || []).map(({ url, ...a }) => a) })) };
+  await api.conv.save(clean);
+  S.convs = await api.conv.list();
+  renderRecents();
+}, 400);
+
+async function openConv(id) {
+  if (S.streaming) return;
+  try { S.conv = await api.conv.get(id); } catch { toast(t('loadFailed'), 'err'); return; }
+  S.mode = 'chat'; S.code.clear(); navTo('chat', id);
+  renderSidebar(); renderView();
+}
+
+function newChat() {
+  if (S.streaming) return;
+  S.conv = null; S.mode = 'chat'; S.code.clear(); S._draft = ''; navTo('chat', null);
+  renderSidebar(); renderView();
+}
+
+// ───────────────────────────── Sending ─────────────────────────────
+function buildMessages() {
+  const out = [];
+  const sys = (S.settings.gen.systemPrompt || '').trim();
+  const base = t('sysDefault', { date: new Date().toLocaleDateString(S.lang) });
+  out.push({ role: 'system', content: sys ? `${base}\n\n${sys}` : base });
+  for (const m of S.conv.messages) {
+    if (m.pending || (m.role === 'assistant' && m.error && !m.content)) continue;
+    if (m.role === 'assistant') { out.push({ role: 'assistant', content: m.content }); continue; }
+    const texts = (m.attachments || []).filter((a) => a.kind === 'text').map((a) => `File: ${a.name}\n\`\`\`${a.ext || ''}\n${a.text}\n\`\`\``);
+    const content = [...texts, m.content].filter(Boolean).join('\n\n');
+    const imgs = (m.attachments || []).filter((a) => a.kind === 'image');
+    if (imgs.length) out.push({ role: 'user', content: [{ type: 'text', text: content || ' ' }, ...imgs.map((a) => ({ type: 'image_url', image_url: { url: a.data } }))] });
+    else out.push({ role: 'user', content });
+  }
+  return out;
+}
+
+async function sendPrompt(textOverride) {
+  if (S.streaming) return;
+  const ta = $('#prompt');
+  const text = (textOverride ?? (ta ? ta.value : '')).trim();
+  if (!text && !S.pending.length) return;
+  if (!currentModel()) { toast(t('noModel'), 'err'); openSettings('models'); return; }
+  if (!S.conv) S.conv = newConv();
+  const atts = S.pending.splice(0);
+  S.conv.messages.push({ id: uid(), role: 'user', content: text, attachments: atts, createdAt: Date.now() });
+  if (!S.conv.title) S.conv.title = (text || atts[0]?.name || '').replace(/\s+/g, ' ').slice(0, 64);
+  S._draft = '';
+  generate();
+}
+
+function generate() {
+  const cm = currentModel();
+  const msg = { id: uid(), role: 'assistant', content: '', reasoning: '', model: cm ? cm.label : '', pending: true, createdAt: Date.now() };
+  S.conv.messages.push(msg);
+  const reqId = uid();
+  S.streaming = { reqId, msg };
+  renderView(); renderSidebar();
+  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: S.settings.gen });
+}
+
+function finishStream() {
+  const m = S.streaming && S.streaming.msg;
+  S.streaming = null;
+  if (m) {
+    m.pending = false;
+    if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now();
+    const el = $(`#m-${m.id}`);
+    if (el) el.outerHTML = renderMessage(m, S.conv.messages.indexOf(m));
+  }
+  // drop "retry" button from previous assistant messages
+  refreshComposer();
+  persist();
+}
+
+function onChatEvent(ev) {
+  if (!S.streaming || ev.reqId !== S.streaming.reqId) return;
+  const m = S.streaming.msg;
+  switch (ev.type) {
+    case 'status': m.status = ev.status; scheduleStreamRender(); break;
+    case 'reasoning': if (!m.thinkStart) m.thinkStart = Date.now(); m.reasoning += ev.text; scheduleStreamRender(); break;
+    case 'token': if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now(); m.content += ev.text; scheduleStreamRender(); break;
+    case 'done': m.stats = ev.stats; finishStream(); break;
+    case 'error': m.error = ev.message; finishStream(); break;
+  }
+}
+
+// ───────────────────────────── Actions ─────────────────────────────
+const actions = {
+  'toggle-sidebar': async () => { await saveSettings({ sidebarCollapsed: !S.settings.sidebarCollapsed }); renderSidebar(); renderTopbar(); },
+  'new-chat': newChat,
+  'mode': (el) => { S.mode = el.dataset.mode; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); renderSidebar(); renderView(); },
+  'hist-back': () => histGo(-1),
+  'hist-fwd': () => histGo(1),
+  'toggle-more': () => { S.moreOpen = !S.moreOpen; renderSidebar(); },
+  'focus-search': async () => { if (S.settings.sidebarCollapsed) await actions['toggle-sidebar'](); $('#sb-q')?.focus(); },
+  'user-menu': (el) => openUserMenu(el),
+  'soon': () => toast(t('soon')),
+  'noop': () => {},
+  'pin-conv': async (el, e) => {
+    e.stopPropagation();
+    const c = S.convs.find((x) => x.id === el.dataset.id);
+    if (!c) return;
+    await api.conv.patch(c.id, { pinned: !c.pinned });
+    if (S.conv && S.conv.id === c.id) S.conv.pinned = !c.pinned;
+    S.convs = await api.conv.list(); renderRecents();
+  },
+  'open-conv': (el) => openConv(el.dataset.id),
+  'del-conv': async (el, e) => {
+    e.stopPropagation();
+    await api.conv.delete(el.dataset.id);
+    if (S.conv && S.conv.id === el.dataset.id) S.conv = null;
+    S.convs = await api.conv.list();
+    renderSidebar(); renderView();
+  },
+  'settings': (el) => { closePopover(); openSettings(el.dataset.tab || 'general'); },
+  'settings-tab': (el) => { openSettings(el.dataset.tab); },
+  'close-settings': closeSettings,
+  'overlay-bg': (el, e) => { if (e.target === el) closeSettings(); },
+  'send': () => sendPrompt(),
+  'stop': () => { if (S.streaming) api.chat.abort(S.streaming.reqId); },
+  'suggest': (el) => { const ta = $('#prompt'); ta.value = el.dataset.text; S._draft = ta.value; ta.dispatchEvent(new Event('input')); ta.focus(); },
+  'attach': () => $('#file-input').click(),
+  'att-remove': (el, e) => { e.stopPropagation(); S.pending.splice(+el.dataset.i, 1); refreshComposer(); },
+  'att-open': (el) => {
+    const i = +el.dataset.i;
+    if (el.dataset.src === 'pending') return openAttachment(S.pending[i]);
+    const msgEl = el.closest('.msg'); const m = S.conv.messages.find((x) => `m-${x.id}` === msgEl.id);
+    openAttachment(m && m.attachments[i]);
+  },
+  'model-menu': (el) => openModelMenu(el),
+  'close-pop': closePopover,
+  'pick-model': async (el) => {
+    const ref = JSON.parse(el.dataset.ref);
+    await saveSettings({ selectedModel: ref, backend: ref.backend });
+    closePopover(); renderSidebar(); refreshComposer(); renderSettings();
+  },
+  'copy-msg': (el) => {
+    const m = S.conv.messages.find((x) => x.id === el.dataset.id);
+    navigator.clipboard.writeText(m ? m.content : ''); flashCheck(el);
+  },
+  'regen': () => {
+    if (S.streaming) return;
+    const last = S.conv.messages[S.conv.messages.length - 1];
+    if (last && last.role === 'assistant') S.conv.messages.pop();
+    generate();
+  },
+  'code-copy': (el) => { const c = S.code.get(el.closest('.code-card').dataset.key); navigator.clipboard.writeText(c ? c.code : ''); flashCheck(el); },
+  'code-open': (el) => { const c = S.code.get(el.closest('.code-card').dataset.key); if (c) openViewer({ type: 'code', title: langName(c.lang), lang: c.lang, code: c.code }); },
+  'code-toggle': (el) => {
+    const card = el.closest('.code-card'); card.classList.toggle('collapsed');
+    const n = S.code.get(card.dataset.key).code.split('\n').length;
+    el.querySelector('span').textContent = card.classList.contains('collapsed') ? t('showAll', { n }) : t('showLess');
+  },
+  'viewer-close': closeViewer,
+  'viewer-copy': (el) => { navigator.clipboard.writeText(S.viewer.code || S.viewer.text || ''); flashCheck(el); },
+  'viewer-save': () => {
+    const v = S.viewer; const ext = v.lang && /^[a-z0-9]+$/i.test(v.lang) ? v.lang : 'txt';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([v.code])); a.download = /\./.test(v.title) ? v.title : `code.${ext}`; a.click();
+  },
+  'ext-link': (el, e) => { e.preventDefault(); api.shell.open(el.getAttribute('href')); },
+  'install-mode': async (el) => {
+    const r = await api.modes.install(el.dataset.mode);
+    toast(r.ok ? t('modeInstalled') : t('comingSoon'));
+  },
+  'set': async (el) => {
+    closePopover();
+    let v = el.dataset.value;
+    if (v === 'true' || v === 'false') v = v === 'true';
+    await applySetting(el.dataset.key, v);
+  },
+  'dl-catalog': async (el) => {
+    const m = (S.catalog?.items || []).find((x) => x.id === el.dataset.id);
+    if (!m) return;
+    el.disabled = true;
+    try { await api.models.download({ repo: m.repo, catalogId: m.id }); }
+    catch (e) { toast(e.message, 'err'); el.disabled = false; }
+  },
+  'dl-file': async (el) => {
+    try { await api.models.download({ repo: el.dataset.repo, file: el.dataset.file }); } catch (e) { toast(e.message, 'err'); }
+  },
+  'dl-cancel': (el) => api.models.cancel(el.dataset.id),
+  'model-delete': async (el) => {
+    if (!confirm(t('confirmDelete'))) return;
+    if (S.settings.selectedModel && S.settings.selectedModel.id === el.dataset.id) { await api.engine.stop(); await saveSettings({ selectedModel: null }); }
+    await api.models.delete(el.dataset.id);
+    await refreshModels(); S.catalog = await api.models.catalog();
+    renderSettings(); renderSidebar(); renderView();
+  },
+  'sr-open': async (el) => {
+    const repo = el.dataset.repo;
+    if (S.search.repo === repo) { S.search.repo = null; renderSettings(); return; }
+    S.search.repo = repo; S.search.files = null; renderSettings();
+    try { S.search.files = await api.models.files(repo); } catch (e) { S.search.files = { error: e.message }; }
+    if (S.search.repo === repo) renderSettings();
+  },
+  'engine-update': async () => {
+    try { const r = await api.engine.update(); toast(r.updated ? t('engineUpdated', { v: r.version }) : r.reason === 'not-installed' ? t('engineNotInstalled') : r.reason === 'busy' ? t('engineBusy') : t('upd_latest')); }
+    catch (e) { toast(e.message, 'err'); }
+  },
+  'engine-stop': () => api.engine.stop(),
+  'devtools': () => api.win.devtools(),
+  'check-update': () => api.updater.check(),
+  'install-update': () => api.updater.install(),
+};
+
+async function histGo(d) {
+  const i = S.histIdx + d;
+  const h = S.hist[i];
+  if (!h || S.streaming) return;
+  S.histIdx = i;
+  if (h.mode === 'chat' && h.convId) { try { S.conv = await api.conv.get(h.convId); } catch { S.conv = null; } }
+  else if (h.mode === 'chat') S.conv = null;
+  S.mode = h.mode; S.code.clear();
+  renderSidebar(); renderView();
+}
+
+function flashCheck(btn) {
+  const old = btn.innerHTML; btn.innerHTML = icon('check', 15); btn.classList.add('ok');
+  setTimeout(() => { btn.innerHTML = old; btn.classList.remove('ok'); }, 1200);
+}
+
+async function applySetting(key, value) {
+  await saveSettings(patchFor(key, value));
+  if (key === 'theme') applyTheme();
+  if (key === 'devMode') { applyDevMode(); applyTheme(); }
+  if (key === 'language') { S.lang = resolveLang(); document.documentElement.lang = S.lang; renderSidebar(); renderView(); }
+  if (key === 'ollamaUrl') { await refreshModels(); renderSidebar(); }
+  renderSettings();
+}
+
+// ───────────────────────────── Global events ─────────────────────────────
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action]');
+  if (!el) { return; }
+  const fn = actions[el.dataset.action];
+  if (fn) fn(el, e);
+});
+
+document.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-input]');
+  if (!el) return;
+  let v = el.value;
+  if (el.dataset.type === 'int') v = parseInt(v, 10) || 0;
+  if (el.dataset.type === 'float') v = parseFloat(v);
+  applySetting(el.dataset.input, v);
+});
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (el.type === 'range') { const rv = el.parentElement.querySelector('.rv'); if (rv) rv.textContent = el.dataset.input === 'engine.gpuLayers' && +el.value < 0 ? t('auto') : el.value; }
+  if (el.matches('textarea[data-input]')) debouncedText(el);
+});
+const debouncedText = debounce((el) => saveSettings(patchFor(el.dataset.input, el.value)), 500);
+
+document.addEventListener('submit', async (e) => {
+  const f = e.target.closest('[data-form="hf-search"]');
+  if (!f) return;
+  e.preventDefault();
+  const q = new FormData(f).get('q').trim();
+  if (!q) return;
+  S.search = { q, loading: true, results: null, repo: null, files: null };
+  renderSettings();
+  try { S.search.results = await api.models.search(q); } catch (err) { S.search.results = []; toast(err.message, 'err'); }
+  S.search.loading = false;
+  renderSettings();
+});
+
+document.addEventListener('keydown', (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (e.key === 'Escape') {
+    if ($('#popover-root').innerHTML) return closePopover();
+    if (S.settingsTab) return closeSettings();
+    if (S.viewer) return closeViewer();
+    if (S.streaming) api.chat.abort(S.streaming.reqId);
+  }
+  if (mod && e.key === ',') { e.preventDefault(); openSettings('general'); }
+  if (mod && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); actions['focus-search'](); }
+  if (mod && (e.key === 'n' || e.key === 'N') && !e.shiftKey) { e.preventDefault(); newChat(); }
+  if (mod && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); actions['toggle-sidebar'](); }
+});
+
+$('#file-input').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
+['dragover', 'drop'].forEach((ev) => document.addEventListener(ev, (e) => {
+  e.preventDefault();
+  if (ev === 'drop' && e.dataTransfer.files.length && S.mode === 'chat') addFiles([...e.dataTransfer.files]);
+}));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+// IPC events
+api.on('chat:event', onChatEvent);
+api.on('engine:status', (s) => {
+  S.engine = { ...S.engine, ...s };
+  if (document.activeElement?.id !== 'sb-q') renderSidebar();
+  if (S.settingsTab === 'engine') renderSettings();
+});
+const refreshAfterDl = debounce(async () => {
+  await refreshModels(); S.catalog = await api.models.catalog();
+  renderSidebar(); if (S.mode === 'chat' && (!S.conv || !S.conv.messages.length)) renderView(); renderSettings();
+}, 200);
+api.on('models:progress', (p) => {
+  S.downloads[p.id] = p;
+  if (p.status === 'done') { toast(t('downloadDone', { name: p.model?.name || '' })); delete S.downloads[p.id]; refreshAfterDl(); return; }
+  if (p.status === 'error') { toast(`${t('downloadFailed')}: ${p.error}`, 'err'); delete S.downloads[p.id]; refreshAfterDl(); return; }
+  if (p.status === 'cancelled') { delete S.downloads[p.id]; refreshAfterDl(); return; }
+  // cheap in-place progress update
+  const els = $$(`[data-dl="${CSS.escape(p.id)}"]`);
+  if (els.length) els.forEach((el) => { el.outerHTML = renderProgress(p); });
+  else { if (S.settingsTab === 'models') renderSettings(); if (!S.conv || !S.conv.messages.length) { const sc = $('.setup-card'); if (sc) sc.outerHTML = renderSetupCard(); } }
+});
+api.on('updater:status', (u) => { S.updater = u; renderTopbar(); if (S.settingsTab === 'general') renderSettings(); });
+
+// ───────────────────────────── Boot ─────────────────────────────
+(async function boot() {
+  [S.info, S.settings] = await Promise.all([api.info(), api.settings.get()]);
+  document.body.classList.add('platform-' + S.info.platform);
+  S.lang = resolveLang();
+  document.documentElement.lang = S.lang;
+  applyTheme();
+  applyDevMode();
+  [S.convs, S.engine] = await Promise.all([api.conv.list(), api.engine.status()]);
+  await refreshModels();
+  navTo('chat', null);
+  renderSidebar(); renderView(); renderViewer();
+  S.specs = await api.system.specs();
+  S.catalog = await api.models.catalog();
+  if (!allModels().length && S.mode === 'chat' && !S.conv) renderView();
+})();
