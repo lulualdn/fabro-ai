@@ -172,7 +172,7 @@ function recentItem(c) {
   const badge = live ? '<span class="r-live" aria-label="En cours"></span>'
     : c.agent ? `<span class="r-ico" title="${esc(t('agentConv'))}">${icon('agentBadge', 15)}</span>`
     : c.hasArtifact ? `<span class="r-ico">${icon('file', 15)}</span>` : '';
-  return `<div class="recent ${active ? 'active' : ''}" data-action="open-conv" data-id="${c.id}" title="${esc(c.title || t('untitled'))}">
+  return `<div class="recent ${active ? 'active' : ''}" style="--i:${S.convs.indexOf(c)}" data-action="open-conv" data-id="${c.id}" title="${esc(c.title || t('untitled'))}">
       <span class="r-title">${esc(c.title || t('untitled'))}</span>
       <span class="r-tools">
         <button class="icon-btn xs" data-action="pin-conv" data-id="${c.id}" title="${esc(t(c.pinned ? 'unpin' : 'pin'))}">${icon('pin', 14)}</button>
@@ -233,7 +233,7 @@ function renderSidebar() {
     </nav>
     <div class="recents-wrap"><div class="recents" id="sb-lists"></div></div>
     <button class="sb-user" data-action="user-menu" title="${esc(cm ? cm.label + ' · ' + engineLabel() : t('noModelShort'))}">
-      <span class="avatar">${esc((name[0] || 'F').toUpperCase())}${['loading', 'installing'].includes(eng.status) ? `<span class="av-spin">${spinner(14)}</span>` : `<span class="av-dot st-${eng.status}"></span>`}</span>
+      <span class="avatar">${esc((name[0] || 'F').toUpperCase())}${['loading', 'installing'].includes(eng.status) ? `<span class="av-spin">${spinner(18)}</span>` : `<span class="av-dot st-${eng.status}"></span>`}</span>
       <span class="label u-text"><b>${esc(name)}</b><small>${esc(cm ? cm.label : t('noModelShort'))} · ${esc(engineLabel())}</small></span>
       <span class="hide-c u-chev">${icon('down', 15)}</span>
     </button>`;
@@ -278,6 +278,16 @@ function renderTopbar() {
 }
 
 // ───────────────────────────── Views ─────────────────────────────
+// Animated view swap (View Transitions API, falls back to an instant swap).
+function vt(fn, opts) {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!document.startViewTransition || reduce) { fn(); return null; }
+  if (opts && opts.kind) document.documentElement.dataset.vt = opts.kind;
+  const t = document.startViewTransition(fn);
+  t.finished.finally(() => { delete document.documentElement.dataset.vt; });
+  return t;
+}
+
 function renderView() {
   renderTopbar();
   const v = $('#view');
@@ -306,10 +316,10 @@ function greeting() {
 function renderWelcome() {
   const models = allModels();
   const setup = !models.length ? renderSetupCard() : '';
-  const chips = ['sugg_explain', 'sugg_write', 'sugg_code', 'sugg_plan'].map((k) =>
-    `<button class="sugg" data-action="suggest" data-text="${esc(t(k + '_prompt'))}">${esc(t(k))}</button>`).join('');
+  const chips = ['sugg_explain', 'sugg_write', 'sugg_code', 'sugg_plan'].map((k, i) =>
+    `<button class="sugg" style="--i:${i}" data-action="suggest" data-text="${esc(t(k + '_prompt'))}">${esc(t(k))}</button>`).join('');
   return `<div class="welcome">
-    <h1 class="greet">${logo(38)}<span>${esc(greeting())}</span></h1>
+    <h1 class="greet">${logo(42, 'hero-spin')}<span>${esc(greeting())}</span></h1>
     ${setup}
     ${renderComposer()}
     ${models.length ? `<div class="suggestions">${chips}</div>` : ''}
@@ -404,7 +414,7 @@ function assistantBody(m) {
   if (m.content) html += `<div class="md">${md(m.content, m.id)}</div>`;
   else if (m.pending && !m.reasoning) {
     const st = m.status === 'loading' ? t('loadingModel') : '';
-    html += `<div class="typing">${spinner(24)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
+    html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
   }
   if (m.error) html += `<div class="msg-error">${icon('info', 16)}<span>${esc(errorText(m.error))}</span></div>`;
   return html;
@@ -427,13 +437,13 @@ function renderStats(m) {
 
 function renderMessage(m, idx) {
   if (m.role === 'user') {
-    return `<div class="msg user" id="m-${m.id}">
+    return `<div class="msg user ${Date.now() - m.createdAt < 1500 ? 'fresh' : ''}" id="m-${m.id}">
       <div class="bubble">${renderAttachments(m.attachments)}${m.content ? `<div class="u-text">${esc(m.content)}</div>` : ''}</div>
       <div class="msg-actions"><button class="icon-btn xs" data-action="copy-msg" data-id="${m.id}" title="${esc(t('copy'))}">${icon('copy', 14)}</button></div>
     </div>`;
   }
   const isLast = S.conv && idx === S.conv.messages.length - 1;
-  return `<div class="msg assistant ${m.pending ? 'pending' : ''}" id="m-${m.id}">
+  return `<div class="msg assistant ${m.pending ? 'pending' : ''} ${m.pending && Date.now() - m.createdAt < 1500 ? 'fresh' : ''}" id="m-${m.id}">
     <div class="a-body">${assistantBody(m)}</div>
     <div class="msg-actions ${m.pending ? 'hidden' : ''}">
       <button class="icon-btn xs" data-action="copy-msg" data-id="${m.id}" title="${esc(t('copy'))}">${icon('copy', 14)}</button>
@@ -511,7 +521,7 @@ function bindComposer() {
   const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 260) + 'px'; updateSendState(); };
   ta.addEventListener('input', () => { S._draft = ta.value; fit(); });
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!S.streaming) sendPrompt(); }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!S.streaming) { const b = $('#send-btn'); if (b) { b.classList.remove('launch'); void b.offsetWidth; b.classList.add('launch'); } sendPrompt(); } }
   });
   ta.addEventListener('paste', (e) => {
     const files = [...(e.clipboardData?.files || [])];
@@ -627,7 +637,7 @@ async function openSettings(tab = 'general') {
   if (tab === 'models' && !S.catalog) { S.catalog = await api.models.catalog(); renderSettings(); }
 }
 function closeSettings() {
-  S.settingsTab = null;
+  S.settingsTab = null; S._lastTab = null;
   const o = $('.overlay');
   if (o) { o.classList.add('closing'); setTimeout(() => { $('#overlay-root').innerHTML = ''; $('#prompt')?.focus(); }, 160); }
 }
@@ -643,11 +653,12 @@ function renderSettings(keepScroll = true) {
       <div class="st-nav"><div class="st-heading">${esc(t('settings'))}</div>${nav}</div>
       <div class="st-main">
         <div class="st-top"><h2>${esc(t('tab_' + S.settingsTab))}</h2><button class="icon-btn" data-action="close-settings" title="${esc(t('close'))}">${icon('x')}</button></div>
-        <div class="st-content">${settingsBody(S.settingsTab)}</div>
+        <div class="st-content ${S._lastTab !== S.settingsTab ? 'tab-in' : ''}">${settingsBody(S.settingsTab)}</div>
       </div>
     </div></div>`;
   $('#overlay-root').innerHTML = html;
   const c = $('.st-content'); if (c) c.scrollTop = scroll;
+  S._lastTab = S.settingsTab;
   if (!existing) requestAnimationFrame(() => $('.overlay')?.classList.add('shown'));
 }
 
@@ -811,13 +822,13 @@ async function openConv(id) {
   if (S.streaming) return;
   try { S.conv = await api.conv.get(id); } catch { toast(t('loadFailed'), 'err'); return; }
   S.mode = 'chat'; S.code.clear(); navTo('chat', id);
-  renderSidebar(); renderView();
+  vt(() => { renderSidebar(); renderView(); });
 }
 
 function newChat() {
   if (S.streaming) return;
   S.conv = null; S.mode = 'chat'; S.code.clear(); S._draft = ''; navTo('chat', null);
-  renderSidebar(); renderView();
+  vt(() => { renderSidebar(); renderView(); });
 }
 
 // ───────────────────────────── Sending ─────────────────────────────
@@ -858,7 +869,8 @@ function generate() {
   S.conv.messages.push(msg);
   const reqId = uid();
   S.streaming = { reqId, msg };
-  renderView(); renderSidebar();
+  const first = S.conv.messages.length <= 2;
+  if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: S.settings.gen });
 }
 
@@ -892,7 +904,7 @@ function onChatEvent(ev) {
 const actions = {
   'toggle-sidebar': async () => { await saveSettings({ sidebarCollapsed: !S.settings.sidebarCollapsed }); renderSidebar(); renderTopbar(); },
   'new-chat': newChat,
-  'mode': (el) => { S.mode = el.dataset.mode; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); renderSidebar(); renderView(); },
+  'mode': (el) => { S.mode = el.dataset.mode; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); vt(() => { renderSidebar(); renderView(); }); },
   'hist-back': () => histGo(-1),
   'hist-fwd': () => histGo(1),
   'toggle-more': () => { S.moreOpen = !S.moreOpen; renderSidebar(); },
@@ -920,7 +932,7 @@ const actions = {
   'settings-tab': (el) => { openSettings(el.dataset.tab); },
   'close-settings': closeSettings,
   'overlay-bg': (el, e) => { if (e.target === el) closeSettings(); },
-  'send': () => sendPrompt(),
+  'send': (el) => { el.classList.remove('launch'); void el.offsetWidth; el.classList.add('launch'); sendPrompt(); },
   'stop': () => { if (S.streaming) api.chat.abort(S.streaming.reqId); },
   'suggest': (el) => { const ta = $('#prompt'); ta.value = el.dataset.text; S._draft = ta.value; ta.dispatchEvent(new Event('input')); ta.focus(); },
   'attach': () => $('#file-input').click(),
@@ -966,10 +978,19 @@ const actions = {
     const r = await api.modes.install(el.dataset.mode);
     toast(r.ok ? t('modeInstalled') : t('comingSoon'));
   },
-  'set': async (el) => {
+  'set': async (el, e) => {
     closePopover();
     let v = el.dataset.value;
     if (v === 'true' || v === 'false') v = v === 'true';
+    if (el.dataset.key === 'theme' && document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const x = e.clientX || innerWidth / 2, y = e.clientY || innerHeight / 2;
+      const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+      const t = vt(() => applySetting('theme', v), { kind: 'theme' });
+      await t.ready;
+      document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
+        { duration: 650, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' });
+      return;
+    }
     await applySetting(el.dataset.key, v);
   },
   'dl-catalog': async (el) => {
@@ -1015,7 +1036,7 @@ async function histGo(d) {
   if (h.mode === 'chat' && h.convId) { try { S.conv = await api.conv.get(h.convId); } catch { S.conv = null; } }
   else if (h.mode === 'chat') S.conv = null;
   S.mode = h.mode; S.code.clear();
-  renderSidebar(); renderView();
+  vt(() => { renderSidebar(); renderView(); }, { kind: d < 0 ? 'back' : 'fwd' });
 }
 
 function flashCheck(btn) {
@@ -1092,7 +1113,9 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme
 // IPC events
 api.on('chat:event', onChatEvent);
 api.on('engine:status', (s) => {
+  const wasReady = S.engine.status === 'ready';
   S.engine = { ...S.engine, ...s };
+  if (!wasReady && s.status === 'ready') { document.body.classList.add('engine-pop'); setTimeout(() => document.body.classList.remove('engine-pop'), 900); }
   if (document.activeElement?.id !== 'sb-q') renderSidebar();
   if (S.settingsTab === 'engine') renderSettings();
 });
@@ -1115,7 +1138,8 @@ api.on('updater:status', (u) => { S.updater = u; renderTopbar(); if (S.settingsT
 // ───────────────────────────── Boot ─────────────────────────────
 (async function boot() {
   [S.info, S.settings] = await Promise.all([api.info(), api.settings.get()]);
-  document.body.classList.add('platform-' + S.info.platform);
+  document.body.classList.add('platform-' + S.info.platform, 'booting');
+  setTimeout(() => document.body.classList.remove('booting'), 1600);
   S.lang = resolveLang();
   document.documentElement.lang = S.lang;
   applyTheme();

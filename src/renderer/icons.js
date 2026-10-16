@@ -12,7 +12,10 @@ function logo(size = 28, extra = '') {
 }
 // Loading state: the propeller spins with a rotational motion-blur trail.
 function spinner(size = 22, extra = '') {
-  const trail = [0, -8, -16, -24, -32, -40].map((a, i) =>
-    `<path d="${FABRO_MARK}" fill-rule="evenodd" transform="rotate(${a} 50 50)" opacity="${[1, .5, .3, .18, .1, .05][i]}"/>`).join('');
+  // 9 ghost copies trailing behind = strong rotational motion blur
+  // ghost copies trailing behind the blades = rotational motion blur, blades stay readable
+  const op = [1, .4, .2, .09];
+  const trail = op.map((o, i) =>
+    `<path d="${FABRO_MARK}" fill-rule="evenodd" transform="rotate(${-i * 9} 50 50)" opacity="${o}"/>`).reverse().join('');
   return `<svg class="spinner ${extra}" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true"><g class="spin" fill="var(--logo)">${trail}</g></svg>`;
 }

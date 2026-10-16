@@ -455,9 +455,9 @@ select.input { padding-right: 6px; }
 :root { --logo: var(--accent); }
 .logo .prop { transform-origin: 50px 50px; transition: transform .9s var(--ease); }
 .brand:hover .logo .prop, .greet:hover .logo .prop { transform: rotate(120deg); }
-.spinner .spin { transform-origin: 50px 50px; animation: prop-spin .5s linear infinite; }
-.spinner { filter: blur(.35px); }
-.spinner.slow .spin { animation-duration: 1.4s; }
+.spinner .spin { transform-origin: 50px 50px; animation: prop-spin .42s linear infinite; }
+.spinner { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--logo) 40%, transparent)); overflow: visible; }
+.spinner.slow .spin { animation-duration: .6s; }
 @keyframes prop-spin { to { transform: rotate(360deg); } }
 .typing { gap: 10px; }
 .typing em { margin-left: 0; }
@@ -531,3 +531,83 @@ kbd { font-family: var(--mono); font-size: 10.5px; color: var(--muted); border: 
 .dev-banner[hidden] { display: none; }
 body.dev .app { height: calc(100vh - 28px); margin-top: 28px; }
 body.dev.platform-win32 .topbar, body.dev.platform-linux .topbar { padding-right: 14px; }
+
+/* ───────── Motion system ───────── */
+:root { --spring: cubic-bezier(.34, 1.56, .64, 1); }
+
+/* Propeller hero: spins up on arrival, settles, spins again on hover */
+.hero-spin .prop { transform-origin: 50px 50px; animation: hero-in 1.6s cubic-bezier(.12, .8, .2, 1) both; }
+@keyframes hero-in { from { transform: rotate(-900deg) scale(.4); opacity: 0; filter: blur(2px); } 60% { opacity: 1; filter: blur(0); } to { transform: rotate(0) scale(1); } }
+.greet:hover .hero-spin .prop, .brand:hover .logo .prop { animation: prop-spin .35s linear infinite; }
+.greet span { animation: rise .7s .15s var(--ease) both; }
+
+/* Typing / loading row */
+.typing { gap: 12px; height: 40px; }
+.typing em { font-size: 13.5px; color: var(--text-2); animation: pulse 1.6s infinite; }
+
+/* Streaming caret at the end of the answer */
+.msg.pending .md > :last-child::after { content: ''; display: inline-block; width: .5em; height: 1.05em; margin-left: 3px; vertical-align: -2px; border-radius: 2px; background: var(--accent); animation: caret 1s steps(2, start) infinite; }
+@keyframes caret { to { visibility: hidden; } }
+
+/* Messages */
+.msg { animation: none; }
+.msg.user.fresh { animation: msg-in-r .38s var(--spring) both; }
+.msg.assistant.fresh { animation: rise .35s var(--ease) both; }
+@keyframes msg-in-r { from { opacity: 0; transform: translate(18px, 10px) scale(.96); } }
+.msg:not(.pending) .think[open] .think-body { animation: rise .3s var(--ease) both; }
+.code-card .cc-body { transition: max-height .45s var(--ease); }
+.code-card:not(.collapsed) .cc-body { max-height: 6000px; }
+
+/* Send button launch */
+.send.launch .ico { animation: launch .5s var(--ease); }
+@keyframes launch { 0% { transform: none; } 45% { transform: translateY(-16px); opacity: 0; } 46% { transform: translateY(14px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.send.stop { animation: pop .3s var(--spring); }
+
+/* Press & hover feedback */
+.btn, .icon-btn, .nav-item, .sugg, .model-pill, .send, .pm-item, .st-tab, .recent { transition: transform .18s var(--spring), background .15s, color .15s, border-color .15s, box-shadow .2s; }
+.btn:active, .icon-btn:active, .sugg:active, .model-pill:active, .send:active, .pm-item:active { transform: scale(.94); }
+.nav-item:hover, .recent:hover, .st-tab:hover { transform: translateX(2px); }
+.nav-item.new:hover .nc-ico { transform: rotate(90deg) scale(1.08); }
+.nc-ico { transition: transform .35s var(--spring); }
+.composer { transition: border-color .2s, box-shadow .3s, transform .3s var(--spring); }
+.composer:focus-within { transform: translateY(-1px); }
+
+/* Boot stagger */
+.booting .nav-item, .booting .recent, .booting .sb-search, .booting .sb-top, .booting .sb-user { animation: rise .45s var(--ease) both; animation-delay: calc(var(--i, 0) * 28ms + 60ms); }
+.booting .nav .nav-item:nth-child(1) { --i: 1; } .booting .nav .nav-item:nth-child(2) { --i: 2; } .booting .nav .nav-item:nth-child(3) { --i: 3; }
+.booting .nav .nav-item:nth-child(4) { --i: 4; } .booting .nav .nav-item:nth-child(5) { --i: 5; } .booting .nav .nav-item:nth-child(6) { --i: 6; }
+.sugg { animation: rise .5s var(--ease) both; animation-delay: calc(var(--i, 0) * 60ms + 350ms); }
+.setup-card, .welcome .composer { animation: rise .55s .2s var(--ease) both; }
+
+/* Settings tab switch + overlay */
+.st-content.tab-in > * { animation: rise .32s var(--ease) both; }
+.st-content.tab-in > *:nth-child(2) { animation-delay: 30ms; } .st-content.tab-in > *:nth-child(3) { animation-delay: 60ms; }
+.st-content.tab-in > *:nth-child(4) { animation-delay: 90ms; } .st-content.tab-in > *:nth-child(5) { animation-delay: 120ms; }
+.switch i { transition: transform .3s var(--spring); }
+.cat-card { transition: transform .25s var(--spring), border-color .15s, box-shadow .2s; }
+.cat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.progress-inline .bar i { background: linear-gradient(90deg, var(--accent) 0 40%, color-mix(in srgb, var(--accent) 60%, #fff) 50%, var(--accent) 60% 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* Popover, toasts, viewer */
+.toast { transform: translateY(14px) scale(.96); transition: opacity .25s, transform .4s var(--spring); }
+.toast.show { transform: none; }
+.with-viewer .viewer .v-body > * { animation: rise .4s .1s var(--ease) both; }
+@keyframes pop { from { transform: scale(.6); } }
+
+/* Engine just became ready */
+.engine-pop .av-dot { animation: ready-pop .8s var(--spring); }
+@keyframes ready-pop { 0% { transform: scale(.4); } 40% { transform: scale(1.8); box-shadow: 0 0 0 6px color-mix(in srgb, var(--ok) 30%, transparent); } 100% { transform: scale(1); } }
+
+/* View transitions: cross-fade + slide between views, circular reveal for theme */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .32s; animation-timing-function: var(--ease); }
+::view-transition-old(root) { animation-name: vt-out; }
+::view-transition-new(root) { animation-name: vt-in; }
+@keyframes vt-out { to { opacity: 0; transform: scale(.985); } }
+@keyframes vt-in { from { opacity: 0; transform: scale(1.012); } }
+[data-vt="back"]::view-transition-new(root) { animation-name: vt-from-left; }
+[data-vt="fwd"]::view-transition-new(root) { animation-name: vt-from-right; }
+@keyframes vt-from-left { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes vt-from-right { from { opacity: 0; transform: translateX(24px); } }
+[data-vt="theme"]::view-transition-old(root), [data-vt="theme"]::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+.dev-banner { view-transition-name: dev-banner; }
