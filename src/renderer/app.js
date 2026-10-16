@@ -202,7 +202,7 @@ function renderSidebar() {
   const eng = S.engine;
   const cm = currentModel();
   const ws = MODES.includes(MODES.find((m) => m.id === S.mode)) ? S.mode : 'chat';
-  const name = S.settings.userName || S.info.userName || 'Vous';
+  const name = userFirstName() || 'Fabro';
 
   const toggle = `<div class="ws-toggle" role="tablist" aria-label="${esc(t('workspace'))}">${MODES.map((m) =>
     `<button role="tab" aria-selected="${ws === m.id}" class="${ws === m.id ? 'on' : ''}" data-action="mode" data-mode="${m.id}" title="${esc(t('mode_' + m.id))}">${icon(m.icon, 16)}</button>`).join('')}</div>`;
@@ -272,10 +272,40 @@ function renderTopbar() {
       <span class="tb-title">${esc(title)}</span>
     </div>
     <div class="tb-right">
-      ${S.updater.state === 'ready' ? `<button class="chip accent" data-action="install-update">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
+      ${S.updater.state === 'ready' ? `<button class="chip accent upd-chip" data-action="upd-open">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
       ${S.settings.sidebarCollapsed ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
     </div>`;
 }
+
+// ───────────────────────────── Update dialog ─────────────────────────────
+// Shown once per downloaded version; "Later" leaves the topbar chip and installs on quit.
+function maybeShowUpdate() {
+  const v = S.updater.version || '';
+  let seen = ''; try { seen = localStorage.getItem('fabro.updSeen') || ''; } catch {}
+  if (seen === v) return;
+  try { localStorage.setItem('fabro.updSeen', v); } catch {}
+  openUpdateDialog();
+}
+function openUpdateDialog() {
+  const u = S.updater;
+  const notes = u.notes ? DOMPurify.sanitize(u.notes, { FORBID_TAGS: ['img', 'style', 'iframe', 'form'], FORBID_ATTR: ['style'] }) : '';
+  const date = u.date ? new Date(u.date).toLocaleDateString(S.lang, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="upd-later"></div>
+    <div class="modal upd" role="dialog" aria-modal="true" aria-labelledby="upd-title">
+      <div class="upd-hero">${logo(46, 'upd-logo')}<div><h2 id="upd-title">${esc(t('upd_title', { v: u.version || '' }))}</h2>
+        <small>v${esc(S.info.version)} → v${esc(u.version || '')}${date ? ' · ' + esc(date) : ''}</small></div></div>
+      <div class="upd-notes md">${notes || `<p class="muted">${esc(t('upd_noNotes'))}</p>`}</div>
+      <p class="upd-hint">${icon('info', 14)} ${esc(t('upd_hint'))}</p>
+      <div class="modal-actions">
+        <button class="btn" data-action="upd-later">${esc(t('upd_later'))}</button>
+        <button class="btn primary" data-action="install-update">${icon('refresh', 15)} ${esc(t('upd_restart'))}</button>
+      </div>
+    </div>`;
+  const m = $('#modal-root .modal'); m.querySelectorAll('a[href]').forEach((a) => { a.target = '_blank'; a.rel = 'noopener'; });
+  m.querySelector('.btn.primary').focus();
+}
+function closeModal() { const r = $('#modal-root'); const m = r.querySelector('.modal'); if (!m) return; r.classList.add('closing'); setTimeout(() => { r.innerHTML = ''; r.classList.remove('closing'); }, 180); }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#modal-root .modal')) { e.stopPropagation(); closeModal(); } }, true);
 
 // ───────────────────────────── Views ─────────────────────────────
 // Animated view swap (View Transitions API, falls back to an instant swap).
@@ -308,9 +338,14 @@ function renderView() {
   bindComposer();
 }
 
+// Picked once per (language, name, hour) so it doesn't flicker on re-render.
+let _greet = { key: '', text: '' };
+function userFirstName() { return (S.settings.userName || '').trim() || prettyName(S.info.userName); }
 function greeting() {
-  const h = new Date().getHours();
-  return t(h < 5 ? 'greet_night' : h < 12 ? 'greet_morning' : h < 18 ? 'greet_afternoon' : 'greet_evening');
+  const name = userFirstName(), d = new Date();
+  const key = `${S.lang}|${name}|${d.toDateString()}|${d.getHours()}`;
+  if (_greet.key !== key) _greet = { key, text: pickGreeting(S.lang, name, d) };
+  return _greet.text;
 }
 
 function renderWelcome() {
@@ -341,13 +376,15 @@ function renderSetupCard() {
       <div class="sc-text">
         <div class="sc-title">${esc(t('setupTitle'))}</div>
         <div class="sc-sub">${esc(hw)}</div>
+        ${sp.gpuNote === 'gpu-too-small' ? `<div class="sc-note">${icon('info', 14)} ${esc(t('gpuTooSmall'))}</div>` : sp.accel === 'cpu' ? `<div class="sc-note">${icon('cpu', 14)} ${esc(t('cpuOnlyNote'))}</div>` : ''}
       </div>
     </div>
     ${rec ? `<div class="sc-model">
       <div><div class="sc-name">${esc(rec.name)} <span class="fit fit-${rec.fit}">${esc(t('fit_' + rec.fit))}</span></div>
       <div class="sc-meta">${esc(rec.by)} · ${esc(rec.params)} · ≈ ${rec.sizeGB} GB</div></div>
       ${dl ? renderProgress(dl) : `<button class="btn primary" data-action="dl-catalog" data-id="${rec.id}">${icon('download', 16)} ${esc(t('downloadStart'))}</button>`}
-    </div>` : ''}
+    </div>` : `<div class="sc-model"><span class="muted">${esc(t('noFitModel'))}</span></div>`}
+    ${S.engine.status === 'error' ? errorCard({ code: S.engine.errorCode, message: S.engine.error, detail: S.engine.errorDetail }, 'engine') : ''}
     <div class="sc-links">
       <button class="link-btn" data-action="settings" data-tab="models">${esc(t('chooseAnother'))}</button>
       ${oll ? `<span class="muted">·</span><span class="muted">${esc(t('ollamaDetected'))}</span>` : ''}
@@ -416,13 +453,35 @@ function assistantBody(m) {
     const st = m.status === 'loading' ? t('loadingModel') : '';
     html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
   }
-  if (m.error) html += `<div class="msg-error">${icon('info', 16)}<span>${esc(errorText(m.error))}</span></div>`;
+  if (m.error) html += errorCard({ code: m.errorCode || (m.error === 'NO_MODEL' ? 'NO_MODEL' : 'UNKNOWN'), message: m.error, detail: m.errorDetail });
   return html;
 }
 
-function errorText(e) {
-  if (e === 'NO_MODEL') return t('noModel');
-  return e;
+// Readable error card: what happened, what to do, one-click fixes, technical details folded.
+const ERR_ACTIONS = {
+  NETWORK: ['retry'], RATE_LIMIT: ['retry'], GITHUB: ['retry', 'copy'],
+  NO_BUILD: ['retry', 'cpu', 'copy'], NO_BINARY: ['retry', 'cpu', 'copy'], BROKEN_BUILD: ['cpu', 'retry', 'copy'], DOWNLOAD: ['retry', 'copy'],
+  OUT_OF_MEMORY: ['models', 'cpu'], MODEL_FILE: ['models'], START_FAILED: ['retry', 'cpu', 'copy'], TIMEOUT: ['retry', 'models', 'copy'],
+  ENGINE_DOWN: ['retry', 'copy'], NO_MODEL: ['models'], UNKNOWN: ['retry', 'copy'],
+};
+function errorCard(err, where = 'msg') {
+  const code = I18N.en['err_' + err.code + '_t'] ? err.code : 'UNKNOWN';
+  const acts = (ERR_ACTIONS[code] || ERR_ACTIONS.UNKNOWN).filter((a) => !(a === 'cpu' && (S.settings.engine || {}).variant === 'cpu'));
+  const btn = { retry: ['retry', 'errRetry'], cpu: ['cpu', 'errCpu'], models: ['box', 'errModels'], copy: ['copy', 'errCopy'] };
+  const tech = [err.message, err.detail].filter(Boolean).join('\n');
+  return `<div class="err-card" data-where="${where}">
+    <div class="err-head"><span class="err-ico">${icon('warning', 18)}</span><div><b>${esc(t('err_' + code + '_t'))}</b><p>${esc(t('err_' + code + '_b'))}</p></div></div>
+    <div class="err-actions">${acts.map((a, i) => `<button class="btn sm ${i === 0 ? 'primary' : ''}" data-action="err-${a}" data-where="${where}">${icon(btn[a][0], 14)} ${esc(t(btn[a][1]))}</button>`).join('')}</div>
+    ${tech && code !== 'NO_MODEL' ? `<details class="err-tech"><summary>${esc(t('errDetails'))}</summary><pre>${esc(tech)}</pre></details>` : ''}
+  </div>`;
+}
+async function copyDiagnostics(btn) {
+  let d = {};
+  try { d = await api.engine.diagnostics(); } catch (e) { d = { error: String(e) }; }
+  const text = ['Fabro diagnostic', `app ${S.info.version} · ${d.platform || S.info.platform}`, '```json', JSON.stringify(d, null, 2).slice(0, 12000), '```'].join('\n');
+  await navigator.clipboard.writeText(text);
+  if (btn) flashCheck(btn);
+  toast(t('errCopied'));
 }
 
 function renderStats(m) {
@@ -674,6 +733,7 @@ function settingsBody(tab) {
     const langOpts = [['auto', t('langAuto', { l: LANGS[resolveLangAuto()] || 'English' })], ...Object.entries(LANGS)]
       .map(([v, l]) => `<option value="${v}" ${st.language === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
     return `
+      ${row(t('yourName'), `<input class="input" type="text" maxlength="40" data-input="userName" value="${esc(st.userName || '')}" placeholder="${esc(prettyName(S.info.userName) || t('yourName'))}">`, t('yourNameHint'))}
       ${row(t('language'), `<select class="input" data-input="language">${langOpts}</select>`)}
       ${row(t('theme'), seg('theme', st.theme, [['system', t('themeSystem'), 'monitor'], ['light', t('themeLight'), 'sun'], ['dark', t('themeDark'), 'moon']]))}
       ${row(t('autoUpdate'), toggle('autoUpdate', st.autoUpdate), t('autoUpdateHint'))}
@@ -691,12 +751,14 @@ function settingsBody(tab) {
         <span class="dot"></span>
         <div><b>${esc(t('engine_' + (e.status === 'stopping' ? 'idle' : e.status), { p: Math.round((e.progress || 0) * 100) }))}</b>
         <small>llama.cpp ${esc(e.version || '—')}${e.variant ? ' · ' + esc(e.variant.toUpperCase()) : ''}${e.model ? ' · ' + esc(e.model) : ''}</small>
-        ${e.error ? `<small class="err">${esc(e.error).slice(0, 300)}</small>` : ''}</div>
+        </div>
         <div class="grow"></div>
         ${e.status === 'ready' ? `<button class="btn sm" data-action="engine-stop">${icon('power', 14)} ${esc(t('unload'))}</button>` : ''}
         <button class="btn sm" data-action="engine-update">${icon('refresh', 14)} ${esc(t('checkUpdates'))}</button>
       </div>
+      ${e.status === 'error' ? errorCard({ code: e.errorCode, message: e.error, detail: e.errorDetail }, 'engine') : ''}
       ${row(t('backend'), seg('backend', st.backend, [['local', t('backendLocal')], ['ollama', 'Ollama']]), t('backendHint'))}
+      ${row(t('engineVariant'), seg('engine.variant', (st.engine || {}).variant || 'auto', [['auto', t('auto')], ['cpu', t('cpuOnly')]]), t('engineVariantHint'))}
       ${row(t('contextLength'), `<select class="input" data-input="engine.ctx" data-type="int">${ctxOpts}</select>`, t('contextHint'))}
       ${row(t('gpuLayers'), `<div class="range-wrap"><input type="range" min="-1" max="99" step="1" value="${gl}" data-input="engine.gpuLayers" data-type="int"><span class="rv">${gl < 0 ? t('auto') : gl}</span></div>`, t('gpuLayersHint'))}
       ${row(t('threads'), `<input class="input sm" type="number" min="0" max="256" value="${st.engine.threads}" data-input="engine.threads" data-type="int">`, t('threadsHint'))}
@@ -738,7 +800,7 @@ function updaterText() {
   return ({ checking: t('upd_checking'), latest: t('upd_latest'), downloading: t('upd_downloading', { p: Math.round((u.progress || 0) * 100) }), ready: t('upd_ready', { v: u.version || '' }), error: t('upd_error'), dev: t('upd_dev') })[u.state] || '';
 }
 
-const FIT_ORDER = { great: 0, good: 1, ok: 2, 'too-big': 3 };
+const FIT_ORDER = { great: 0, good: 1, ok: 2, 'needs-gpu': 3, 'too-big': 4 };
 function modelsTab() {
   const loc = S.installed.local;
   const oll = S.installed.ollama;
@@ -755,13 +817,13 @@ function modelsTab() {
     </div>`).join('');
 
   const cat = S.catalog;
-  const catHtml = !cat ? `<div class="muted">${esc(t('detecting'))}</div>` : [...cat.items].sort((a, b) => FIT_ORDER[a.fit] - FIT_ORDER[b.fit] || b.sizeGB - a.sizeGB).map((m) => {
+  const catHtml = !cat ? `<div class="muted">${esc(t('detecting'))}</div>` : [...cat.items].sort((a, b) => (b.id === cat.recommended) - (a.id === cat.recommended) || (FIT_ORDER[a.fit] ?? 9) - (FIT_ORDER[b.fit] ?? 9) || b.sizeGB - a.sizeGB).map((m) => {
     const dl = Object.values(S.downloads).find((d) => d.repo === m.repo && d.status === 'downloading');
-    return `<div class="cat-card ${m.fit === 'too-big' ? 'dim' : ''}">
+    return `<div class="cat-card ${m.blocked ? 'dim' : ''}">
       <div class="cc-top"><b>${esc(m.name)}</b>${m.id === cat.recommended ? `<span class="chip accent">${esc(t('recommended'))}</span>` : ''}</div>
       <div class="cc-meta">${esc(m.by)} · ${esc(m.params)} · ≈ ${m.sizeGB} GB</div>
-      <div class="cc-tags"><span class="fit fit-${m.fit}">${esc(t('fit_' + m.fit))}</span>${m.tags.map((x) => `<span class="tag">${esc(t('tag_' + x))}</span>`).join('')}</div>
-      <div class="cc-act">${m.installed ? `<span class="muted small">${icon('check', 14)} ${esc(t('installed'))}</span>` : dl ? renderProgress(dl) : `<button class="btn sm" data-action="dl-catalog" data-id="${m.id}">${icon('download', 14)} ${esc(t('download'))}</button>`}</div>
+      <div class="cc-tags">${m.blocked ? '' : `<span class="fit fit-${m.fit}">${esc(t('fit_' + m.fit))}</span>`}${m.tags.map((x) => `<span class="tag">${esc(t('tag_' + x))}</span>`).join('')}</div>
+      <div class="cc-act">${m.installed ? `<span class="muted small">${icon('check', 14)} ${esc(t('installed'))}</span>` : dl ? renderProgress(dl) : m.blocked ? `<span class="blocked">${icon('lock', 14)} ${esc(t('fitWhy_' + m.fit))}</span>` : `<button class="btn sm" data-action="dl-catalog" data-id="${m.id}">${icon('download', 14)} ${esc(t('download'))}</button>`}</div>
     </div>`;
   }).join('');
 
@@ -803,7 +865,7 @@ function renderRepoFiles() {
       <span class="sf-name" title="${esc(x.file)}">${esc(x.quant || x.file)}</span>
       <span class="muted small">${x.sizeGB} GB${x.parts.length > 1 ? ` · ${x.parts.length} parts` : ''}${x.mmproj ? ' · ' + esc(t('vision')) : ''}</span>
       <span class="fit fit-${x.fit}">${esc(t('fit_' + x.fit))}</span>
-      ${inst ? `<span class="muted small">${icon('check', 14)}</span>` : dl ? renderProgress(dl) : `<button class="icon-btn sm" data-action="dl-file" data-repo="${esc(f.repo)}" data-file="${esc(x.file)}" title="${esc(t('download'))}">${icon('download', 16)}</button>`}
+      ${inst ? `<span class="muted small">${icon('check', 14)}</span>` : dl ? renderProgress(dl) : x.blocked ? `<span class="muted small" title="${esc(t('fitWhy_' + x.fit))}">${icon('lock', 15)}</span>` : `<button class="icon-btn sm" data-action="dl-file" data-repo="${esc(f.repo)}" data-file="${esc(x.file)}" title="${esc(t('download'))}">${icon('download', 16)}</button>`}
     </div>`;
   }).join('')}</div>`;
 }
@@ -896,7 +958,7 @@ function onChatEvent(ev) {
     case 'reasoning': if (!m.thinkStart) m.thinkStart = Date.now(); m.reasoning += ev.text; scheduleStreamRender(); break;
     case 'token': if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now(); m.content += ev.text; scheduleStreamRender(); break;
     case 'done': m.stats = ev.stats; finishStream(); break;
-    case 'error': m.error = ev.message; finishStream(); break;
+    case 'error': m.error = ev.message; m.errorCode = ev.code; m.errorDetail = ev.detail; finishStream(); break;
   }
 }
 
@@ -998,10 +1060,10 @@ const actions = {
     if (!m) return;
     el.disabled = true;
     try { await api.models.download({ repo: m.repo, catalogId: m.id }); }
-    catch (e) { toast(e.message, 'err'); el.disabled = false; }
+    catch (e) { toast(dlErr(e), 'err'); el.disabled = false; }
   },
   'dl-file': async (el) => {
-    try { await api.models.download({ repo: el.dataset.repo, file: el.dataset.file }); } catch (e) { toast(e.message, 'err'); }
+    try { await api.models.download({ repo: el.dataset.repo, file: el.dataset.file }); } catch (e) { toast(dlErr(e), 'err'); }
   },
   'dl-cancel': (el) => api.models.cancel(el.dataset.id),
   'model-delete': async (el) => {
@@ -1023,9 +1085,23 @@ const actions = {
     catch (e) { toast(e.message, 'err'); }
   },
   'engine-stop': () => api.engine.stop(),
+  'err-retry': async (el) => {
+    if (el.dataset.where === 'engine') { try { await api.engine.reinstall(); } catch {} return; }
+    actions.regen();
+  },
+  'err-cpu': async (el) => {
+    await saveSettings({ engine: { variant: 'cpu' } });
+    toast(t('errCpuOn'));
+    if (el.dataset.where === 'engine') { try { await api.engine.reinstall(); } catch {} return; }
+    actions.regen();
+  },
+  'err-models': () => openSettings('models'),
+  'err-copy': (el) => copyDiagnostics(el),
   'devtools': () => api.win.devtools(),
   'check-update': () => api.updater.check(),
-  'install-update': () => api.updater.install(),
+  'install-update': () => { closeModal(); api.updater.install(); },
+  'upd-open': () => openUpdateDialog(),
+  'upd-later': () => closeModal(),
 };
 
 async function histGo(d) {
@@ -1039,6 +1115,13 @@ async function histGo(d) {
   vt(() => { renderSidebar(); renderView(); }, { kind: d < 0 ? 'back' : 'fwd' });
 }
 
+function dlErr(e) {
+  const m = String(e && e.message || e);
+  if (/NEEDS_GPU/.test(m)) return t('fitWhy_needs-gpu');
+  if (/TOO_BIG/.test(m)) return t('fitWhy_too-big');
+  return m.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+}
+
 function flashCheck(btn) {
   const old = btn.innerHTML; btn.innerHTML = icon('check', 15); btn.classList.add('ok');
   setTimeout(() => { btn.innerHTML = old; btn.classList.remove('ok'); }, 1200);
@@ -1048,6 +1131,7 @@ async function applySetting(key, value) {
   await saveSettings(patchFor(key, value));
   if (key === 'theme') applyTheme();
   if (key === 'devMode') { applyDevMode(); applyTheme(); }
+  if (key === 'userName') { _greet.key = ''; renderSidebar(); renderView(); }
   if (key === 'language') { S.lang = resolveLang(); document.documentElement.lang = S.lang; renderSidebar(); renderView(); }
   if (key === 'ollamaUrl') { await refreshModels(); renderSidebar(); }
   renderSettings();
@@ -1117,6 +1201,7 @@ api.on('engine:status', (s) => {
   S.engine = { ...S.engine, ...s };
   if (!wasReady && s.status === 'ready') { document.body.classList.add('engine-pop'); setTimeout(() => document.body.classList.remove('engine-pop'), 900); }
   if (document.activeElement?.id !== 'sb-q') renderSidebar();
+  const sc = $('.setup-card'); if (sc && S.catalog) sc.outerHTML = renderSetupCard();
   if (S.settingsTab === 'engine') renderSettings();
 });
 const refreshAfterDl = debounce(async () => {
@@ -1133,7 +1218,7 @@ api.on('models:progress', (p) => {
   if (els.length) els.forEach((el) => { el.outerHTML = renderProgress(p); });
   else { if (S.settingsTab === 'models') renderSettings(); if (!S.conv || !S.conv.messages.length) { const sc = $('.setup-card'); if (sc) sc.outerHTML = renderSetupCard(); } }
 });
-api.on('updater:status', (u) => { S.updater = u; renderTopbar(); if (S.settingsTab === 'general') renderSettings(); });
+api.on('updater:status', (u) => { const was = S.updater.state; S.updater = u; if (u.state === 'ready' && was !== 'ready') maybeShowUpdate(); renderTopbar(); if (S.settingsTab === 'general') renderSettings(); });
 
 // ───────────────────────────── Boot ─────────────────────────────
 (async function boot() {

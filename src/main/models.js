@@ -32,12 +32,19 @@ let emit = () => {};
 const downloads = new Map();
 
 // ---- Fit estimation -----------------------------------------------------
+// great / good / ok = runs · needs-gpu = fits in RAM but far too slow without a GPU · too-big = does not fit
+const CPU_MAX_DENSE_GB = 5.5;   // dense models above this are unusable on CPU only
+const BLOCKED = new Set(['needs-gpu', 'too-big']);
 function fitFor(sizeGB, specs, moe = false) {
   const need = sizeGB * 1.12 + 0.8; // weights + KV cache/context overhead
   const { gpuBudgetGB: g, ramBudgetGB: r } = specs;
   if (g && need <= g) return 'great';                          // fully on GPU
   if (g && need <= g + r) return moe ? 'good' : 'ok';          // GPU + RAM offload
-  if (!g && need <= r) return sizeGB <= 5 || moe ? 'good' : 'ok'; // CPU only
+  if (!g) {
+    if (need > r) return 'too-big';
+    if (!moe && sizeGB > CPU_MAX_DENSE_GB) return 'needs-gpu';
+    return sizeGB <= 3.5 || moe ? 'good' : 'ok';               // CPU only
+  }
   return 'too-big';
 }
 
@@ -47,12 +54,15 @@ async function catalog() {
   const items = CATALOG.map((m) => ({
     ...m,
     fit: fitFor(m.sizeGB, specs, m.moe),
+    blocked: BLOCKED.has(fitFor(m.sizeGB, specs, m.moe)),
     installed: installed.some((x) => x.repo === m.repo),
   }));
   const rank = { great: 3, good: 2, ok: 1, 'too-big': 0 };
   const general = items.filter((m) => m.tags.includes('chat'));
-  const best = [...general].sort((a, b) => rank[b.fit] - rank[a.fit] || b.sizeGB - a.sizeGB)
-    .find((m) => m.fit === 'great' || m.fit === 'good') || general.find((m) => m.fit !== 'too-big') || general[0];
+  rank['needs-gpu'] = -1;
+  const usable = general.filter((m) => !m.blocked);
+  const best = [...usable].sort((a, b) => rank[b.fit] - rank[a.fit] || b.sizeGB - a.sizeGB)
+    .find((m) => m.fit === 'great' || m.fit === 'good') || usable[0] || null;
   return { items, recommended: best && best.id, specs };
 }
 
@@ -96,11 +106,14 @@ async function repoFiles(repo) {
     g.parts.sort();
     const q = (path.basename(g.file).match(QUANT_RE) || [])[1] || '';
     const sizeGB = g.size / 2 ** 30;
-    return { ...g, quant: q.toUpperCase(), sizeGB: +sizeGB.toFixed(2), mmproj: mm ? mm.path : null, fit: fitFor(sizeGB, specs) };
+    const fit = fitFor(sizeGB, specs, /\bA\d+B\b|MoE/i.test(repo));
+    return { ...g, quant: q.toUpperCase(), sizeGB: +sizeGB.toFixed(2), mmproj: mm ? mm.path : null, fit, blocked: BLOCKED.has(fit) };
   });
   const pi = (q) => { const i = QUANT_PREF.indexOf(q); return i < 0 ? 99 : i; };
   out.sort((a, b) => a.sizeGB - b.sizeGB);
-  const best = [...out].sort((a, b) => pi(a.quant) - pi(b.quant))[0];
+  // preferred = best quant that this machine can run (else best quant overall)
+  const byQuant = [...out].sort((a, b) => pi(a.quant) - pi(b.quant));
+  const best = byQuant.find((f) => !f.blocked) || byQuant[0];
   return { repo, files: out, preferred: best && best.file };
 }
 
@@ -121,6 +134,7 @@ async function download({ repo, file, catalogId }) {
   const info = await repoFiles(repo);
   const v = info.files.find((f) => f.file === (file || info.preferred));
   if (!v) throw new Error('File not found in repository');
+  if (v.blocked) { const e = new Error(v.fit === 'needs-gpu' ? 'NEEDS_GPU' : 'TOO_BIG'); throw e; }
   const id = `${repo}/${v.file}`;
   if (downloads.has(id)) return id;
   const ctrl = new AbortController();
@@ -213,4 +227,4 @@ async function installed() {
 
 function init(emitter) { emit = emitter; fs.mkdirSync(modelsDir(), { recursive: true }); }
 
-module.exports = { init, catalog, search, repoFiles, download, cancel, remove, installed, getLocal, CATALOG };
+module.exports = { BLOCKED, init, catalog, search, repoFiles, download, cancel, remove, installed, getLocal, CATALOG };

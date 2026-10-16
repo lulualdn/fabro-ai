@@ -62,19 +62,22 @@ async function getSpecs() {
   const ramGB = +(os.totalmem() / 2 ** 30).toFixed(1);
   const gpus = await detectGpus();
   const appleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
-  const nvidia = gpus.find((g) => g.vendor === 'nvidia');
-  const dedicated = gpus.find((g) => ['amd', 'intel'].includes(g.vendor));
+  // A GPU only helps with enough video memory: tiny or integrated GPUs run on the CPU.
+  const MIN_VRAM = 2.5;
+  const nvidia = gpus.filter((g) => g.vendor === 'nvidia').sort((a, b) => (b.vramGB || 0) - (a.vramGB || 0))[0];
+  const dedicated = gpus.find((g) => (g.vendor === 'amd' || (g.vendor === 'intel' && /arc/i.test(g.name))) && (g.vramGB == null || g.vramGB >= MIN_VRAM));
 
-  let accel = 'cpu';
+  let accel = 'cpu', gpuNote = '';
   if (appleSilicon) accel = 'metal';
-  else if (nvidia) accel = 'cuda';
+  else if (nvidia && nvidia.vramGB >= MIN_VRAM) accel = 'cuda';
   else if (dedicated) accel = 'vulkan';
+  if (accel === 'cpu' && gpus.length && !appleSilicon) gpuNote = 'gpu-too-small';
 
   // Memory the model can live in at full speed.
   let gpuBudgetGB = 0;
   if (appleSilicon) gpuBudgetGB = ramGB * 0.7;
-  else if (nvidia) gpuBudgetGB = nvidia.vramGB * 0.92;
-  else if (dedicated && dedicated.vramGB) gpuBudgetGB = dedicated.vramGB * 0.85;
+  else if (accel === 'cuda') gpuBudgetGB = nvidia.vramGB * 0.92;
+  else if (accel === 'vulkan') gpuBudgetGB = (dedicated.vramGB || 4) * 0.85;
 
   cache = {
     platform: process.platform,
@@ -84,6 +87,7 @@ async function getSpecs() {
     ramGB,
     gpus,
     accel,
+    gpuNote,
     unified: appleSilicon,
     gpuBudgetGB: +gpuBudgetGB.toFixed(1),
     ramBudgetGB: +(appleSilicon ? 0 : ramGB * 0.6).toFixed(1),

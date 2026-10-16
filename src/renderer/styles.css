@@ -611,3 +611,43 @@ body.dev.platform-win32 .topbar, body.dev.platform-linux .topbar { padding-right
 @keyframes vt-from-right { from { opacity: 0; transform: translateX(24px); } }
 [data-vt="theme"]::view-transition-old(root), [data-vt="theme"]::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 .dev-banner { view-transition-name: dev-banner; }
+
+/* ───────── Error cards ───────── */
+.err-card { margin-top: 8px; border: 1px solid color-mix(in srgb, var(--err) 35%, var(--border)); background: color-mix(in srgb, var(--err) 6%, var(--elev)); border-radius: var(--r-lg); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; animation: rise .35s var(--ease) both; }
+.err-head { display: flex; gap: 12px; align-items: flex-start; }
+.err-ico { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
+.err-head b { font-weight: 600; font-size: 15px; display: block; }
+.err-head p { margin: 2px 0 0; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+.err-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 46px; }
+.err-tech { padding-left: 46px; font-size: 12.5px; color: var(--muted); }
+.err-tech summary { cursor: pointer; user-select: none; }
+.err-tech pre { margin: 8px 0 0; padding: 10px 12px; max-height: 180px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 var(--mono); background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-2); }
+.blocked { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.sc-note { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12.5px; color: var(--text-2); }
+.setup-card .err-card { margin-top: 0; }
+
+/* ── Modal / update dialog ── */
+#modal-root:empty { display: none; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 90; background: color-mix(in srgb, #05070b 42%, transparent); backdrop-filter: blur(6px); animation: fade-in .2s var(--ease) both; }
+.modal { position: fixed; z-index: 91; left: 50%; top: 50%; width: min(520px, calc(100vw - 32px)); max-height: min(640px, calc(100vh - 64px)); display: flex; flex-direction: column; gap: 14px;
+  translate: -50% -50%; padding: 22px; border-radius: 22px; background: var(--elev); border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+  animation: modal-in .32s var(--ease) both; }
+#modal-root.closing .modal { animation: modal-out .18s ease-in both; }
+#modal-root.closing .modal-backdrop { animation: fade-in .18s reverse both; }
+@keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.96); } }
+@keyframes modal-out { to { opacity: 0; transform: translateY(6px) scale(.97); } }
+@keyframes fade-in { from { opacity: 0; } }
+.upd-hero { display: flex; align-items: center; gap: 14px; }
+.upd-hero h2 { margin: 0; font: 500 21px/1.2 var(--serif); color: var(--text); }
+.upd-hero small { color: var(--muted); font-size: 12.5px; }
+.upd-logo .prop { transform-origin: 50% 50%; animation: prop-spin 1.6s cubic-bezier(.2,.7,.2,1) 1 both; }
+.upd-notes { overflow: auto; padding: 12px 14px; border-radius: 14px; background: var(--bg); border: 1px solid var(--border); font-size: 13.5px; line-height: 1.55; min-height: 60px; }
+.upd-notes > :first-child { margin-top: 0; } .upd-notes > :last-child { margin-bottom: 0; }
+.upd-notes h1, .upd-notes h2, .upd-notes h3, .upd-notes h4 { font-size: 14px; margin: 10px 0 4px; }
+.upd-notes ul { padding-left: 18px; margin: 4px 0; }
+.upd-hint { display: flex; gap: 8px; align-items: flex-start; margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.upd-hint svg { flex: none; margin-top: 2px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.upd-chip { animation: chip-pulse 2.4s ease-in-out infinite; }
+@keyframes chip-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 18%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .modal, .modal-backdrop, .upd-chip, .upd-logo .prop { animation: none !important; } }

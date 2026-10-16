@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('api', {
     catalog: i('models:catalog'), installed: i('models:installed'), search: i('models:search'),
     files: i('models:files'), download: i('models:download'), cancel: i('models:cancel'), delete: i('models:delete'),
   },
-  engine: { status: i('engine:status'), update: i('engine:update'), reinstall: i('engine:reinstall'), stop: i('engine:stop') },
+  engine: { status: i('engine:status'), update: i('engine:update'), reinstall: i('engine:reinstall'), stop: i('engine:stop'), diagnostics: i('engine:diagnostics') },
   chat: { send: i('chat:send'), abort: i('chat:abort') },
   updater: { check: i('updater:check'), install: i('updater:install') },
   modes: { install: i('modes:install') },

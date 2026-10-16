@@ -77,7 +77,10 @@ async function send({ reqId, model, messages, params = {} }, emit) {
     out({ type: 'done', stats });
   } catch (e) {
     if (ctrl.signal.aborted) out({ type: 'done', aborted: true, stats: { totalMs: Date.now() - t0 } });
-    else out({ type: 'error', message: e.message });
+    else {
+      const code = e.code || (e.message === 'NO_MODEL' ? 'NO_MODEL' : /ECONNREFUSED|fetch failed/i.test(e.message) ? 'ENGINE_DOWN' : 'UNKNOWN');
+      out({ type: 'error', message: e.message, code, detail: e.detail || '' });
+    }
   } finally {
     active.delete(reqId);
   }

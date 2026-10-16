@@ -75,6 +75,7 @@ function registerIpc() {
   h('engine:update', () => engine.checkUpdate());
   h('engine:reinstall', () => engine.install());
   h('engine:stop', () => engine.stop());
+  h('engine:diagnostics', async () => ({ app: app.getVersion(), platform: `${process.platform} ${process.arch}`, electron: process.versions.electron, ...(await engine.diagnostics()) }));
 
   h('chat:send', (payload) => { chat.send(payload, (ev) => send('chat:event', ev)); return true; });
   h('chat:abort', (id) => chat.abort(id));
