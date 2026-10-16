@@ -6,7 +6,11 @@ contextBridge.exposeInMainWorld('api', {
   info: i('app:info'),
   settings: { get: i('settings:get'), set: i('settings:set') },
   system: { specs: i('system:specs') },
-  conv: { list: i('conv:list'), get: i('conv:get'), save: i('conv:save'), delete: i('conv:delete'), patch: i('conv:patch') },
+  conv: { list: i('conv:list'), get: i('conv:get'), save: i('conv:save'), delete: i('conv:delete'), patch: i('conv:patch'), search: i('conv:search') },
+  memory: { list: i('memory:list'), add: i('memory:add'), update: i('memory:update'), delete: i('memory:delete'), clear: i('memory:clear') },
+  artifacts: { list: i('artifacts:list'), get: i('artifacts:get'), save: i('artifacts:save'), delete: i('artifacts:delete') },
+  exporter: { save: i('export:save'), preview: i('art:preview') },
+  brain: { title: i('brain:title'), memories: i('brain:memories'), style: i('brain:style') },
   models: {
     catalog: i('models:catalog'), installed: i('models:installed'), search: i('models:search'),
     files: i('models:files'), download: i('models:download'), cancel: i('models:cancel'), delete: i('models:delete'),

@@ -17,6 +17,22 @@ const srv = http.createServer((req, res) => {
       if (req.headers.authorization !== 'Bearer sk-good') { res.writeHead(401); return res.end(JSON.stringify({ error: { message: 'Incorrect API key' } })); }
       return res.end(JSON.stringify({ data: [{ id: 'gpt-x' }, { id: 'text-embedding-3-small' }, { id: 'whisper-1' }] }));
     }
+    if (req.url === '/tool/v1/models') return res.end(JSON.stringify({ data: [{ id: 'toolie' }] }));
+    if (req.url === '/tool/v1/chat/completions') {
+      const b = JSON.parse(body); (seen.toolReqs ||= []).push(b);
+      if (!b.messages.some((m) => m.role === 'tool')) return sse(res, ['data: {"choices":[{"delta":{"content":"Je cherche…"}}]}\n\n',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"web_search","arguments":"{\\"que"}}]}}]}\n\n',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ry\\":\\"fabro\\"}"}}]}}]}\n\n', 'data: [DONE]\n\n']);
+      return sse(res, ['data: {"choices":[{"delta":{"content":"Voici [1]."}}]}\n\n', 'data: [DONE]\n\n']);
+    }
+    if (req.url === '/anttool/v1/models?limit=100') return res.end(JSON.stringify({ data: [{ id: 'claude-t' }] }));
+    if (req.url === '/anttool/v1/messages') {
+      const b = JSON.parse(body); (seen.antReqs ||= []).push(b);
+      const hasResult = b.messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === 'tool_result'));
+      if (!hasResult) return sse(res, ['event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tu1","name":"fetch_url"}}\n\n',
+        'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"url\\":\\"https://x.y\\"}"}}\n\n']);
+      return sse(res, ['event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Lu."}}\n\n']);
+    }
     if (req.url === '/oai/v1/chat/completions') return sse(res, ['data: {"choices":[{"delta":{"reasoning_content":"hmm"}}]}\n\n', 'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n', 'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n', 'data: {"choices":[],"usage":{"prompt_tokens":11,"completion_tokens":2}}\n\n', 'data: [DONE]\n\n']);
     if (req.url === '/ant/v1/models?limit=100') return res.end(JSON.stringify({ data: [{ id: 'claude-x', display_name: 'Claude X' }] }));
     if (req.url === '/ant/v1/messages') return sse(res, ['event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":20}}}\n\n',
@@ -79,6 +95,31 @@ const run = (payload) => new Promise((resolve) => { const ev = []; chat.send(pay
   assert.ok('ollama' in det && 'lmstudio' in det);
   await providers.remove(ant.id);
   assert.ok(!fs.readFileSync(path.join(tmp, 'secrets.json'), 'utf8').includes(ant.id));
+  // Tool loop (OpenAI format, arguments streamed in pieces) with a stubbed tool runner.
+  const toolsMod = require('../src/main/tools');
+  toolsMod.run = async (name, args) => ({ content: `RESULT for ${name} ${JSON.stringify(args)}`, view: { kind: name === 'web_search' ? 'search' : 'fetch', sources: [] } });
+  v = await providers.add({ kind: 'custom', baseUrl: `${B}/tool/v1`, name: 'Tooly' });
+  const tp = v.list.find((p) => p.name === 'Tooly');
+  ev = await run({ reqId: 't', model: { backend: 'provider', provider: tp.id, model: 'toolie' }, messages: [{ role: 'user', content: 'cherche' }], params: { tools: ['web_search', 'fetch_url'] } });
+  assert.deepStrictEqual(ev.filter((e) => e.type.startsWith('tool_')).map((e) => e.type), ['tool_start', 'tool_end', 'tool_round']);
+  assert.deepStrictEqual(ev.find((e) => e.type === 'tool_start').args, { query: 'fabro' });
+  assert.strictEqual(ev.filter((e) => e.type === 'token').map((e) => e.text).join(''), 'Je cherche…Voici [1].');
+  const second = seen.toolReqs[1];
+  assert.strictEqual(second.messages[1].tool_calls[0].function.name, 'web_search');
+  assert.match(second.messages[2].content, /RESULT for web_search/);
+  assert.strictEqual(seen.toolReqs[0].tools.length, 2);
+  // Anthropic tool_use / tool_result round trip
+  v = await providers.add({ kind: 'anthropic', apiKey: 'k2', baseUrl: `${B}/anttool/v1` });
+  const at = v.list.filter((p) => p.kind === 'anthropic').pop();
+  ev = await run({ reqId: 'u', model: { backend: 'provider', provider: at.id, model: 'claude-t' }, messages: [{ role: 'user', content: 'lis' }], params: { tools: ['fetch_url'] } });
+  assert.strictEqual(ev.filter((e) => e.type === 'token').map((e) => e.text).join(''), 'Lu.');
+  const a2 = seen.antReqs[1];
+  assert.strictEqual(a2.messages[1].content[0].type, 'tool_use');
+  assert.strictEqual(a2.messages[2].content[0].type, 'tool_result');
+  assert.strictEqual(seen.antReqs[0].tools[0].input_schema.type, 'object');
+  // A tool the conversation didn't allow is refused (agent tools don't run in chat mode).
+  ev = await run({ reqId: 'v', model: { backend: 'provider', provider: tp.id, model: 'toolie' }, messages: [{ role: 'user', content: 'cherche' }], params: { tools: ['fetch_url'] } });
+  assert.strictEqual(ev.find((e) => e.type === 'tool_end').code, 'UNKNOWN_TOOL');
   console.log('providers-test: all passed');
   srv.close();
 })().catch((e) => { console.error(e); process.exit(1); });

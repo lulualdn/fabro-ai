@@ -6,6 +6,7 @@ const engine = require('./engine');
 const models = require('./models');
 const providers = require('./providers');
 const usage = require('./usage');
+const tools = require('./tools');
 
 const active = new Map();
 
@@ -46,35 +47,58 @@ async function readSSE(res, onData) {
 }
 
 // ───────────────────────────── OpenAI-compatible ─────────────────────────────
-async function streamOpenAI(be, messages, params, out, signal, acc) {
+const REASONING_KINDS = ['openai', 'xai', 'openrouter', 'groq', 'deepseek', 'custom', 'lmstudio', 'ollama'];
+
+// One streamed completion. Returns { content, toolCalls }.
+async function completeOpenAI(be, messages, params, signal, acc, tools) {
   const body = { model: be.model, messages, stream: true, stream_options: { include_usage: true } };
   const cloudOpenAI = be.kind === 'provider' && be.provider.kind === 'openai';
-  if (!cloudOpenAI) { body.temperature = params.temperature; body.top_p = params.topP; }
+  if (!cloudOpenAI) { if (params.temperature != null) body.temperature = params.temperature; if (params.topP != null) body.top_p = params.topP; }
   if (params.maxTokens > 0) body[cloudOpenAI ? 'max_completion_tokens' : 'max_tokens'] = params.maxTokens;
-  if (be.kind === 'local') body.cache_prompt = true;
-  if (params.reasoning && be.kind === 'provider' && ['openai', 'xai', 'openrouter', 'groq'].includes(be.provider.kind)) body.reasoning_effort = params.reasoning;
-  let res;
-  try { res = await fetch(`${be.base}/chat/completions`, { method: 'POST', headers: be.headers, body: JSON.stringify(body), signal }); }
-  catch (e) { if (signal.aborted) throw e; throw be.netErr ? be.netErr(e) : e; }
-  if (!res.ok) {
-    // Some servers reject stream_options; retry once without it.
-    if (res.status === 400 && body.stream_options) {
-      const txt = await res.text();
-      if (/stream_options/i.test(txt)) { delete body.stream_options; res = await fetch(`${be.base}/chat/completions`, { method: 'POST', headers: be.headers, body: JSON.stringify(body), signal }); }
-      else throw be.httpErr ? await be.httpErr(new Response(txt, { status: 400 })) : new Error(txt.slice(0, 300));
-    }
-    if (!res.ok) throw be.httpErr ? await be.httpErr(res) : new Error(`HTTP ${res.status}`);
+  if (tools && tools.length) { body.tools = tools; body.tool_choice = 'auto'; }
+  const r = params.reasoning;
+  if (be.kind === 'local') {
+    body.cache_prompt = true;
+    if (r) body.chat_template_kwargs = { enable_thinking: r !== 'off', reasoning_effort: r === 'off' ? 'low' : r };
+  } else if (r && REASONING_KINDS.includes(be.provider.kind)) {
+    if (r === 'off') { if (be.provider.kind === 'ollama') body.think = false; else if (cloudOpenAI) body.reasoning_effort = 'minimal'; }
+    else if (['openai', 'xai', 'openrouter', 'groq'].includes(be.provider.kind)) body.reasoning_effort = r;
+    else if (be.provider.kind === 'ollama') body.think = true;
   }
+  const post = () => fetch(`${be.base}/chat/completions`, { method: 'POST', headers: be.headers, body: JSON.stringify(body), signal });
+  let res;
+  try { res = await post(); } catch (e) { if (signal.aborted) throw e; throw be.netErr ? be.netErr(e) : e; }
+  // Servers that reject an optional field: retry once without it.
+  for (let i = 0; i < 3 && !res.ok && res.status === 400; i++) {
+    const txt = await res.text();
+    let changed = false;
+    if (/stream_options/i.test(txt) && body.stream_options) { delete body.stream_options; changed = true; }
+    else if (/tool/i.test(txt) && body.tools) { delete body.tools; delete body.tool_choice; acc.noTools = true; changed = true; }
+    else if (/reasoning|think|chat_template_kwargs/i.test(txt) && (body.reasoning_effort || body.think !== undefined || body.chat_template_kwargs)) { delete body.reasoning_effort; delete body.think; delete body.chat_template_kwargs; changed = true; }
+    if (!changed) throw be.httpErr ? await be.httpErr(new Response(txt, { status: 400 })) : new Error(txt.slice(0, 300));
+    res = await post();
+  }
+  if (!res.ok) throw be.httpErr ? await be.httpErr(res) : new Error(`HTTP ${res.status}`);
+  let content = '';
+  const calls = [];
   await readSSE(res, (j) => {
-    if (j.usage) acc.usage = { prompt: j.usage.prompt_tokens, completion: j.usage.completion_tokens };
+    if (j.usage) acc.addUsage(j.usage.prompt_tokens, j.usage.completion_tokens);
     if (j.timings) acc.timings = j.timings;
     if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
     const d = j.choices && j.choices[0] && j.choices[0].delta;
     if (!d) return;
-    const r = d.reasoning_content || d.reasoning;
-    if (r) acc.push('reasoning', r);
-    if (d.content) acc.push('token', d.content);
+    const rr = d.reasoning_content || d.reasoning;
+    if (rr) acc.push('reasoning', rr);
+    if (d.content) { content += d.content; acc.push('token', d.content); }
+    for (const tc of d.tool_calls || []) {
+      const i = tc.index ?? calls.length;
+      const c = (calls[i] ||= { id: '', name: '', args: '' });
+      if (tc.id) c.id = tc.id;
+      if (tc.function && tc.function.name) c.name += tc.function.name;
+      if (tc.function && tc.function.arguments) c.args += tc.function.arguments;
+    }
   });
+  return { content, toolCalls: calls.filter((c) => c && c.name).map((c, i) => ({ ...c, id: c.id || `call_${Date.now().toString(36)}_${i}` })) };
 }
 
 // ───────────────────────────── Anthropic Messages API ─────────────────────────────
@@ -84,6 +108,20 @@ function toAnthropic(messages) {
   for (const m of messages) {
     if (m.role === 'system') continue;
     let content = m.content;
+    if (m.role === 'tool') { // OpenAI tool result → Anthropic tool_result block in a user turn
+      const block = { type: 'tool_result', tool_use_id: m.tool_call_id, content: String(m.content || '') };
+      const last = conv[conv.length - 1];
+      if (last && last.role === 'user' && Array.isArray(last.content) && last.content.every((c) => c.type === 'tool_result')) last.content.push(block);
+      else conv.push({ role: 'user', content: [block] });
+      continue;
+    }
+    if (m.role === 'assistant' && m.tool_calls) {
+      const blocks = [];
+      if (m.content) blocks.push({ type: 'text', text: m.content });
+      for (const tc of m.tool_calls) { let input = {}; try { input = JSON.parse(tc.function.arguments || '{}'); } catch {} blocks.push({ type: 'tool_use', id: tc.id, name: tc.function.name, input }); }
+      conv.push({ role: 'assistant', content: blocks });
+      continue;
+    }
     if (Array.isArray(content)) {
       content = content.map((c) => {
         if (c.type === 'text') return { type: 'text', text: c.text };
@@ -99,26 +137,32 @@ function toAnthropic(messages) {
   return { system, messages: conv };
 }
 
-async function streamAnthropic(be, messages, params, out, signal, acc) {
+async function completeAnthropic(be, messages, params, signal, acc, tools) {
   const { system, messages: conv } = toAnthropic(messages);
   const body = { model: be.model, max_tokens: params.maxTokens > 0 ? params.maxTokens : 8192, system: system || undefined, messages: conv, stream: true };
-  if (params.reasoning) {
+  if (tools && tools.length) body.tools = tools.map((t) => ({ name: t.function.name, description: t.function.description, input_schema: t.function.parameters }));
+  if (params.reasoning && params.reasoning !== 'off') {
     const budget = { low: 2048, medium: 8192, high: 24576 }[params.reasoning] || 4096;
     body.thinking = { type: 'enabled', budget_tokens: budget };
     body.max_tokens = Math.max(body.max_tokens, budget + 4096);
-  } else body.temperature = Math.min(1, params.temperature ?? 0.7);
+  } else if (params.temperature != null) body.temperature = Math.min(1, params.temperature);
   let res;
   try { res = await fetch(`${be.base}/messages`, { method: 'POST', headers: be.headers, body: JSON.stringify(body), signal }); }
   catch (e) { if (signal.aborted) throw e; throw be.netErr(e); }
   if (!res.ok) throw await be.httpErr(res);
+  let content = '';
+  const blocks = {};
   await readSSE(res, (j) => {
-    if (j.type === 'message_start' && j.message?.usage) acc.usage = { prompt: j.message.usage.input_tokens, completion: 0 };
-    if (j.type === 'message_delta' && j.usage) acc.usage = { ...(acc.usage || {}), completion: j.usage.output_tokens };
+    if (j.type === 'message_start' && j.message?.usage) acc.addUsage(j.message.usage.input_tokens, 0);
+    if (j.type === 'message_delta' && j.usage) acc.addUsage(0, j.usage.output_tokens);
     if (j.type === 'error') throw new Error(j.error?.message || 'Anthropic error');
+    if (j.type === 'content_block_start' && j.content_block?.type === 'tool_use') blocks[j.index] = { id: j.content_block.id, name: j.content_block.name, args: '' };
     if (j.type !== 'content_block_delta') return;
-    if (j.delta.type === 'text_delta') acc.push('token', j.delta.text);
+    if (j.delta.type === 'text_delta') { content += j.delta.text; acc.push('token', j.delta.text); }
     if (j.delta.type === 'thinking_delta') acc.push('reasoning', j.delta.thinking);
+    if (j.delta.type === 'input_json_delta' && blocks[j.index]) blocks[j.index].args += j.delta.partial_json;
   });
+  return { content, toolCalls: Object.values(blocks) };
 }
 
 // ───────────────────────────── main entry ─────────────────────────────
@@ -129,7 +173,8 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit) {
   const t0 = Date.now();
   let tFirst = null, chars = 0;
   const acc = {
-    usage: null, timings: null,
+    usage: { prompt: 0, completion: 0, has: false }, timings: null, noTools: false,
+    addUsage(p, c) { this.usage.prompt = Math.max(this.usage.prompt, p || 0); this.usage.completion += c || 0; this.usage.has = true; },
     push(type, text) { tFirst = tFirst || Date.now(); if (type === 'token') chars += text.length; out({ type, text }); },
   };
   let be = null;
@@ -138,17 +183,41 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit) {
     if (be.gen) params = { ...params, ...Object.fromEntries(Object.entries(be.gen).filter(([, v]) => v !== null && v !== '' && v !== undefined)) };
     if (be.inst) engine.acquire(be.inst);
     out({ type: 'status', status: 'generating', backend: be.kind === 'local' ? 'local' : be.provider.kind });
-    if (be.protocol === 'anthropic') await streamAnthropic(be, messages, params, out, ctrl.signal, acc);
-    else await streamOpenAI(be, messages, params, out, ctrl.signal, acc);
+    const toolSchemas = tools.schemas(params.tools || []);
+    const msgs = messages.slice();
+    const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
+    let steps = 0;
+    for (;;) {
+      const r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools ? [] : toolSchemas);
+      if (!r.toolCalls.length || steps >= 8) break;
+      steps++;
+      msgs.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' } })) });
+      for (const c of r.toolCalls) {
+        let args = {}; try { args = JSON.parse(c.args || '{}'); } catch {}
+        out({ type: 'tool_start', id: c.id, name: c.name, args });
+        let result;
+        try {
+          if (!(params.tools || []).includes(c.name)) throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
+          result = await tools.run(c.name, args);
+          out({ type: 'tool_end', id: c.id, name: c.name, view: result.view });
+        } catch (e) {
+          result = { content: `Error: ${e.message}` };
+          out({ type: 'tool_end', id: c.id, name: c.name, error: e.message, code: e.code });
+        }
+        msgs.push({ role: 'tool', tool_call_id: c.id, content: result.content });
+      }
+      out({ type: 'tool_round' });
+    }
     const elapsed = (Date.now() - (tFirst || t0)) / 1000;
-    const completion = (acc.usage && acc.usage.completion) || (acc.timings && acc.timings.predicted_n) || Math.round(chars / 4);
+    const completion = (acc.usage.has && acc.usage.completion) || (acc.timings && acc.timings.predicted_n) || Math.round(chars / 4);
     const stats = {
-      promptTokens: (acc.usage && acc.usage.prompt) || (acc.timings && acc.timings.prompt_n) || null,
+      promptTokens: (acc.usage.has && acc.usage.prompt) || (acc.timings && acc.timings.prompt_n) || null,
       completionTokens: completion,
       tokPerSec: +((acc.timings && acc.timings.predicted_per_second) || completion / Math.max(elapsed, 0.01)).toFixed(1),
       firstTokenMs: tFirst ? tFirst - t0 : null,
       totalMs: Date.now() - t0,
       backend: be.kind === 'local' ? 'local' : be.provider.kind,
+      tools: steps || undefined, noTools: acc.noTools || undefined,
     };
     out({ type: 'done', stats });
     usage.record({ model: meta.modelLabel || (be.kind === 'local' ? be.model : `${be.provider.name} · ${be.model}`), backend: stats.backend, convId: meta.convId, prompt: stats.promptTokens || 0, completion: stats.completionTokens || 0 });
@@ -164,6 +233,18 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit) {
   }
 }
 
+// One-shot, non-streamed helper for background jobs (titles, memory extraction, style learning).
+function quick(model, messages, params = {}) {
+  return new Promise((resolve, reject) => {
+    let text = '';
+    send({ reqId: 'bg-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), model, messages, params: { temperature: 0.2, maxTokens: 400, reasoning: 'off', ...params }, meta: { modelLabel: 'Fabro · background' } }, (ev) => {
+      if (ev.type === 'token') text += ev.text;
+      if (ev.type === 'done') resolve(text.trim());
+      if (ev.type === 'error') reject(Object.assign(new Error(ev.message), { code: ev.code }));
+    });
+  });
+}
+
 function abort(reqId) { const c = active.get(reqId); if (c) c.abort(); return true; }
 
-module.exports = { send, abort, toAnthropic };
+module.exports = { send, abort, quick, toAnthropic };

@@ -18,7 +18,9 @@ async function loadProviders(redetect = true) {
   if (S.settingsTab === 'providers') renderSettings();
   if (redetect && S.prov.enabled) {
     S.detect = await api.providers.detect().catch(() => null);
-    if (S.settingsTab === 'providers') renderSettings();
+    // Update only the one-click cards: never re-render forms the user may be typing in.
+    const grid = $('.oc-grid');
+    if (S.settingsTab === 'providers' && grid) grid.innerHTML = oneClickCards();
   }
 }
 async function afterProviderChange(view) {
@@ -42,8 +44,14 @@ function providersTab() {
       </div>`;
   }
   const byKind = (k) => P.list.filter((p) => p.kind === k);
+  const oneClick = oneClickCards();
+  return providersBody(P, byKind, oneClick, master);
+}
+function oneClickCards() {
+  const P = S.prov;
+  const byKind = (k) => P.list.filter((p) => p.kind === k);
   const det = S.detect || {};
-  const oneClick = ['ollama', 'lmstudio'].map((k) => {
+  return ['ollama', 'lmstudio'].map((k) => {
     const pre = P.presets.find((x) => x.kind === k);
     const have = byKind(k)[0];
     const d = det[k];
@@ -59,7 +67,8 @@ function providersTab() {
       ${btn}
     </div>`;
   }).join('');
-
+}
+function providersBody(P, byKind, oneClick, master) {
   const rows = P.list.map((p) => {
     const n = (p.models || []).length;
     const sub = [hostOf(p.baseUrl), t('provModels', { n }), p.keyHint].filter(Boolean).join(' · ');
@@ -127,7 +136,7 @@ Object.assign(actions, {
       await afterProviderChange(v);
     } catch (e) { toast(cleanErr(e), 'err'); renderSettings(); }
   },
-  'prov-form': (el) => { S.provForm = S.provForm && S.provForm.kind === el.dataset.kind ? null : { kind: el.dataset.kind }; S.provEdit = null; S.provError = ''; renderSettings(); setTimeout(() => $('.prov-form input')?.focus(), 50); },
+  'prov-form': (el) => { S.provForm = S.provForm && S.provForm.kind === el.dataset.kind ? null : { kind: el.dataset.kind }; S.provEdit = null; S.provError = ''; renderSettings(); requestAnimationFrame(() => { const f = $('.prov-form input'); if (f && !(document.activeElement && document.activeElement.closest('.prov-form'))) f.focus(); }); },
   'prov-edit': (el) => { S.provEdit = S.provEdit === el.dataset.id ? null : el.dataset.id; S.provForm = null; S.provError = ''; renderSettings(); },
   'prov-cancel': () => { S.provForm = null; S.provEdit = null; S.provError = ''; renderSettings(); },
   'prov-remove': async (el) => {

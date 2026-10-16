@@ -120,6 +120,8 @@ marked.use({
           <span class="cc-lines">${t('lines', { n: lines })}</span>
           <span class="cc-actions">
             <button class="icon-btn sm" data-action="code-copy" title="${esc(t('copy'))}">${icon('copy', 15)}</button>
+            ${/^(html?|svg)$/i.test(lang) ? `<button class="icon-btn sm" data-action="code-preview" title="${esc(t('artPreview'))}">${icon('play', 15)}</button>` : ''}
+            ${lines > 12 ? `<button class="icon-btn sm" data-action="code-keep" title="${esc(t('artKeep'))}">${icon('shapes', 15)}</button>` : ''}
             <button class="icon-btn sm" data-action="code-open" title="${esc(t('openViewer'))}">${icon('expand', 15)}</button>
           </span>
         </div>
@@ -190,6 +192,7 @@ function renderRecents() {
   const el = $('#sb-lists');
   if (!el) return;
   const q = S.sbQuery.trim().toLowerCase();
+  if (q && S.sbResults) return renderSearchResults(el);
   const list = S.convs.filter((c) => !q || (c.title || '').toLowerCase().includes(q));
   const pinned = list.filter((c) => c.pinned), rest = list.filter((c) => !c.pinned);
   el.innerHTML = `
@@ -243,7 +246,7 @@ function renderSidebar() {
     </button>`;
   renderRecents();
   const q = $('#sb-q');
-  if (q) q.addEventListener('input', () => { S.sbQuery = q.value; renderRecents(); });
+  if (q) q.addEventListener('input', () => { S.sbQuery = q.value; renderRecents(); runSearch(); });
 }
 
 function openUserMenu(anchor) {
@@ -274,6 +277,7 @@ function renderTopbar() {
     <div class="tb-left">
       ${S.settings.sidebarCollapsed ? '' : ''}
       <span class="tb-title">${esc(title)}</span>
+      ${S.mode === 'chat' && ((S.conv && S.conv.ephemeral) || (!S.conv && S.ephemeralNext)) ? `<span class="chip ghost-chip">${icon('eyeOff', 13)} ${esc(t('ephemeralBadge'))}</span>` : ''}
     </div>
     <div class="tb-right">
       ${S.updater.state === 'ready' ? `<button class="chip accent upd-chip" data-action="upd-open">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
@@ -328,7 +332,8 @@ function renderView() {
   const v = $('#view');
   if (S.mode !== 'chat') {
     v.className = 'view';
-    v.innerHTML = ['code', 'projects'].includes(S.mode) ? renderLockedMode(S.mode) : renderSoon(S.mode);
+    v.innerHTML = S.mode === 'custom' ? renderCustomPage() : S.mode === 'artifacts' && typeof renderArtifactsPage === 'function' ? renderArtifactsPage() : ['code', 'projects'].includes(S.mode) ? renderLockedMode(S.mode) : renderSoon(S.mode);
+    if (S.mode === 'custom') bindCustomPage();
     return;
   }
   const empty = !S.conv || !S.conv.messages.length;
@@ -451,9 +456,9 @@ function renderThinking(m) {
 }
 
 function assistantBody(m) {
-  let html = renderThinking(m);
-  if (m.content) html += `<div class="md">${md(m.content, m.id)}</div>`;
-  else if (m.pending && !m.reasoning) {
+  let html = renderThinking(m) + renderSteps(m);
+  if (m.content) html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.content, m.id)}</div>`) + citedSources(m);
+  else if (m.pending && !m.reasoning && !(m.steps || []).length) {
     const st = m.status === 'loading' ? t('loadingModel') : '';
     html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
   }
@@ -503,13 +508,14 @@ function renderMessage(m, idx) {
   if (m.role === 'user') {
     return `<div class="msg user ${Date.now() - m.createdAt < 1500 ? 'fresh' : ''}" id="m-${m.id}">
       <div class="bubble">${renderAttachments(m.attachments)}${m.content ? `<div class="u-text">${esc(m.content)}</div>` : ''}</div>
-      <div class="msg-actions"><button class="icon-btn xs" data-action="copy-msg" data-id="${m.id}" title="${esc(t('copy'))}">${icon('copy', 14)}</button></div>
+      <div class="msg-actions">${branchNav(m)}<button class="icon-btn xs" data-action="edit-msg" data-id="${m.id}" title="${esc(t('editMsg'))}">${icon('edit', 14)}</button><button class="icon-btn xs" data-action="copy-msg" data-id="${m.id}" title="${esc(t('copy'))}">${icon('copy', 14)}</button></div>
     </div>`;
   }
   const isLast = S.conv && idx === S.conv.messages.length - 1;
   return `<div class="msg assistant ${m.pending ? 'pending' : ''} ${m.pending && Date.now() - m.createdAt < 1500 ? 'fresh' : ''}" id="m-${m.id}">
     <div class="a-body">${assistantBody(m)}</div>
     <div class="msg-actions ${m.pending ? 'hidden' : ''}">
+      ${branchNav(m)}
       <button class="icon-btn xs" data-action="copy-msg" data-id="${m.id}" title="${esc(t('copy'))}">${icon('copy', 14)}</button>
       ${isLast ? `<button class="icon-btn xs" data-action="regen" title="${esc(t('retry'))}">${icon('retry', 14)}</button>` : ''}
       ${renderStats(m)}
@@ -569,7 +575,8 @@ function renderComposer() {
     ${renderAttachments(S.pending, true)}
     <textarea id="prompt" rows="1" placeholder="${esc(t(S.conv && S.conv.messages.length ? 'replyPlaceholder' : 'placeholder'))}"></textarea>
     <div class="c-bar">
-      <button class="icon-btn" data-action="attach" title="${esc(t('attach'))}">${icon('plus', 19)}</button>
+      <button class="icon-btn" data-action="plus-menu" title="${esc(t('plusMenu'))}">${icon('plus', 19)}</button>
+      <div class="c-extras">${composerExtras()}</div>
       <div class="grow"></div>
       <button class="model-pill" data-action="model-menu">${esc(cm ? cm.label : t('chooseModel'))}${icon('down', 14)}</button>
       ${ctxRing()}
@@ -646,8 +653,15 @@ function closeViewer() { S.viewer = null; renderViewer(); }
 function renderViewer() {
   const el = $('#viewer');
   $('#app').classList.toggle('with-viewer', !!S.viewer);
+  $('#app').classList.toggle('wide-viewer', !!S.viewer && ['artifact', 'htmlpreview'].includes(S.viewer.type));
   if (!S.viewer) { el.innerHTML = ''; return; }
   const v = S.viewer;
+  if (v.type === 'artifact') { el.innerHTML = artifactViewer(); if (v.editing) bindArtEditor(); return; }
+  if (v.type === 'htmlpreview') {
+    el.innerHTML = `<div class="v-head"><span class="v-title">${esc(v.title)}</span><div class="v-tools"><button class="icon-btn sm" data-action="viewer-close" title="${esc(t('close'))}">${icon('x', 17)}</button></div></div>
+      <div class="v-body art-body"><iframe class="art-frame" sandbox="allow-scripts allow-forms allow-modals allow-popups" src="${esc(v.url)}"></iframe></div>`;
+    return;
+  }
   let body = '', tools = '';
   if (v.type === 'code') {
     const lines = v.code.split('\n');
@@ -729,7 +743,12 @@ function renderSettings(keepScroll = true) {
         <div class="st-content ${S._lastTab !== S.settingsTab ? 'tab-in' : ''}">${settingsBody(S.settingsTab)}</div>
       </div>
     </div></div>`;
+  // Keep what the user is typing in forms across re-renders (live status updates re-render the panel).
+  const kept = $$('.st-content form[data-form] [name]').map((el) => [el.closest('form').dataset.form + '|' + el.name, el.value]);
+  const focused = document.activeElement && document.activeElement.closest('.st-content form[data-form]') ? document.activeElement.closest('form').dataset.form + '|' + document.activeElement.name : null;
   $('#overlay-root').innerHTML = html;
+  for (const [k, v] of kept) { const [f, n] = k.split('|'); const el = $(`.st-content form[data-form="${f}"] [name="${n}"]`); if (el && !el.value) el.value = v; }
+  if (focused) { const [f, n] = focused.split('|'); $(`.st-content form[data-form="${f}"] [name="${n}"]`)?.focus(); }
   const c = $('.st-content'); if (c) c.scrollTop = scroll;
   S._lastTab = S.settingsTab;
   if (!existing) requestAnimationFrame(() => $('.overlay')?.classList.add('shown'));
@@ -822,10 +841,15 @@ function renderRepoFiles() {
 }
 
 // ───────────────────────────── Conversations ─────────────────────────────
-function newConv() { return { id: uid(), title: '', mode: 'chat', messages: [], createdAt: Date.now(), updatedAt: Date.now() }; }
+function newConv() {
+  const c = { id: uid(), title: '', mode: 'chat', nodes: [], leafId: null, messages: [], createdAt: Date.now(), updatedAt: Date.now(), ephemeral: !!S.ephemeralNext };
+  S.ephemeralNext = false;
+  return c;
+}
 const persist = debounce(async () => {
-  if (!S.conv || !S.conv.messages.length) return;
-  const clean = { ...S.conv, messages: S.conv.messages.map(({ pending, status, ...m }) => ({ ...m, attachments: (m.attachments || []).map(({ url, ...a }) => a) })) };
+  if (!S.conv || !S.conv.messages.length || S.conv.ephemeral) return;
+  const { messages, ...rest } = S.conv;
+  const clean = { ...rest, nodes: S.conv.nodes.map(({ pending, status, ...m }) => ({ ...m, attachments: (m.attachments || []).map(({ url, ...a }) => a) })) };
   await api.conv.save(clean);
   S.convs = await api.conv.list();
   renderRecents();
@@ -833,7 +857,7 @@ const persist = debounce(async () => {
 
 async function openConv(id) {
   if (S.streaming) return;
-  try { S.conv = await api.conv.get(id); } catch { toast(t('loadFailed'), 'err'); return; }
+  try { S.conv = treeify(await api.conv.get(id)); } catch { toast(t('loadFailed'), 'err'); return; }
   S.mode = 'chat'; S.code.clear(); navTo('chat', id);
   vt(() => { renderSidebar(); renderView(); });
 }
@@ -849,9 +873,7 @@ function newChat() {
 // ───────────────────────────── Sending ─────────────────────────────
 function buildMessages() {
   const out = [];
-  const sys = (S.settings.gen.systemPrompt || '').trim();
-  const base = t('sysDefault', { date: new Date().toLocaleDateString(S.lang) });
-  out.push({ role: 'system', content: sys ? `${base}\n\n${sys}` : base });
+  out.push({ role: 'system', content: systemPrompt() });
   for (const m of S.conv.messages) {
     if (m.pending || (m.role === 'assistant' && m.error && !m.content)) continue;
     if (m.role === 'assistant') { out.push({ role: 'assistant', content: m.content }); continue; }
@@ -872,7 +894,8 @@ async function sendPrompt(textOverride, opts = {}) {
   if (!currentModel()) { toast(t('noModel'), 'err'); openSettings('models'); return; }
   if (!S.conv) S.conv = newConv();
   const atts = S.pending.splice(0);
-  S.conv.messages.push({ id: uid(), role: 'user', content: text, attachments: atts, createdAt: Date.now() });
+  if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+  addNode({ id: uid(), role: 'user', content: text, attachments: atts, createdAt: Date.now() });
   if (!S.conv.title) S.conv.title = (text || atts[0]?.name || '').replace(/\s+/g, ' ').slice(0, 64);
   S._draft = '';
   generate(opts);
@@ -880,13 +903,13 @@ async function sendPrompt(textOverride, opts = {}) {
 
 function generate(opts = {}) {
   const cm = currentModel();
-  const msg = { id: uid(), role: 'assistant', content: '', reasoning: '', model: cm ? cm.label : '', pending: true, createdAt: Date.now() };
-  S.conv.messages.push(msg);
+  const msg = addNode({ id: uid(), role: 'assistant', content: '', reasoning: '', steps: [], model: cm ? cm.label : '', pending: true, createdAt: Date.now() });
   const reqId = uid();
   S.streaming = { reqId, msg, quick: !!opts.quick };
   const first = S.conv.messages.length <= 2;
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
-  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: S.settings.gen, meta: { convId: S.conv.id, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  const r = S.settings.gen.reasoning || 'auto';
+  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? undefined : r, tools: chatTools() }, meta: { convId: S.conv.id, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {
@@ -905,6 +928,7 @@ function finishStream() {
   // drop "retry" button from previous assistant messages
   refreshComposer();
   persist();
+  if (m) { afterAnswer(m); saveArtifactsFrom(m).catch(() => {}); }
 }
 
 function onChatEvent(ev) {
@@ -914,6 +938,9 @@ function onChatEvent(ev) {
     case 'status': m.status = ev.status; scheduleStreamRender(); break;
     case 'reasoning': if (!m.thinkStart) m.thinkStart = Date.now(); m.reasoning += ev.text; scheduleStreamRender(); break;
     case 'token': if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now(); m.content += ev.text; scheduleStreamRender(); break;
+    case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running' }); scheduleStreamRender(); break;
+    case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : 'done'; st.view = ev.view; st.error = ev.error; } scheduleStreamRender(); break; }
+    case 'tool_round': if (m.content && !/\n\n$/.test(m.content)) m.content += '\n\n'; break;
     case 'done': m.stats = ev.stats; finishStream(); break;
     case 'error': m.error = ev.message; m.errorCode = ev.code; m.errorDetail = ev.detail; finishStream(); break;
   }
@@ -976,9 +1003,10 @@ const actions = {
   'regen': () => {
     if (S.streaming) return;
     const last = S.conv.messages[S.conv.messages.length - 1];
-    if (last && last.role === 'assistant') S.conv.messages.pop();
+    if (last && last.role === 'assistant') { S.conv.leafId = last.parentId; S.conv.messages = pathOf(S.conv); }
     generate();
   },
+  'settings-page': (el) => { closePopover(); S.mode = el.dataset.page; navTo(S.mode, null); vt(() => { renderSidebar(); renderView(); }); },
   'code-copy': (el) => { const c = S.code.get(el.closest('.code-card').dataset.key); navigator.clipboard.writeText(c ? c.code : ''); flashCheck(el); },
   'code-open': (el) => { const c = S.code.get(el.closest('.code-card').dataset.key); if (c) openViewer({ type: 'code', title: langName(c.lang), lang: c.lang, code: c.code }); },
   'code-toggle': (el) => {
@@ -987,7 +1015,7 @@ const actions = {
     el.querySelector('span').textContent = card.classList.contains('collapsed') ? t('showAll', { n }) : t('showLess');
   },
   'viewer-close': closeViewer,
-  'viewer-copy': (el) => { navigator.clipboard.writeText(S.viewer.code || S.viewer.text || ''); flashCheck(el); },
+  'viewer-copy': (el) => { const a = typeof curArt === 'function' && curArt(); navigator.clipboard.writeText(a ? a.versions[S.viewer.v].content : (S.viewer.code || S.viewer.text || '')); flashCheck(el); },
   'viewer-save': () => {
     const v = S.viewer; const ext = v.lang && /^[a-z0-9]+$/i.test(v.lang) ? v.lang : 'txt';
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([v.code])); a.download = /\./.test(v.title) ? v.title : `code.${ext}`; a.click();
@@ -1070,7 +1098,7 @@ async function histGo(d) {
   const h = S.hist[i];
   if (!h || S.streaming) return;
   S.histIdx = i;
-  if (h.mode === 'chat' && h.convId) { try { S.conv = await api.conv.get(h.convId); } catch { S.conv = null; } }
+  if (h.mode === 'chat' && h.convId) { try { S.conv = treeify(await api.conv.get(h.convId)); } catch { S.conv = null; } }
   else if (h.mode === 'chat') S.conv = null;
   S.mode = h.mode; S.code.clear();
   vt(() => { renderSidebar(); renderView(); }, { kind: d < 0 ? 'back' : 'fwd' });
@@ -1093,7 +1121,8 @@ async function applySetting(key, value) {
   await saveSettings(patchFor(key, value));
   if (key === 'theme') applyTheme();
   if (key === 'devMode') { applyDevMode(); applyTheme(); }
-  if (key === 'userName') { _greet.key = ''; renderSidebar(); renderView(); }
+  if (key === 'userName') { _greet.key = ''; renderSidebar(); if (S.mode !== 'custom') renderView(); }
+  if (S.mode === 'custom' && (key.startsWith('memory') || key === 'activeStyle') && typeof rerenderCustom === 'function') rerenderCustom();
   if (key === 'language') { S.lang = resolveLang(); document.documentElement.lang = S.lang; renderSidebar(); renderView(); }
   if (key.startsWith('hotkey')) S.hotkeyStatus = await api.hotkey.apply();
   if (key.startsWith('localApi')) S.localApiStatus = await api.localApi.apply();
@@ -1199,7 +1228,8 @@ api.on('models:progress', (p) => {
 api.on('updater:status', (u) => { const was = S.updater.state; S.updater = u; if (u.state === 'ready' && was !== 'ready') maybeShowUpdate(); renderTopbar(); if (S.settingsTab === 'general') renderSettings(); });
 
 // ───────────────────────────── Boot ─────────────────────────────
-(async function boot() {
+// Boot once every renderer script (chat-ui, models-ui…) is loaded.
+window.addEventListener('DOMContentLoaded', async function boot() {
   [S.info, S.settings] = await Promise.all([api.info(), api.settings.get()]);
   document.body.classList.add('platform-' + S.info.platform, 'booting');
   setTimeout(() => document.body.classList.remove('booting'), 1600);
@@ -1207,11 +1237,11 @@ api.on('updater:status', (u) => { const was = S.updater.state; S.updater = u; if
   document.documentElement.lang = S.lang;
   applyTheme();
   applyDevMode();
-  [S.convs, S.engine] = await Promise.all([api.conv.list(), api.engine.status()]);
+  [S.convs, S.engine, S.memories] = await Promise.all([api.conv.list(), api.engine.status(), api.memory.list().catch(() => [])]);
   await refreshModels();
   navTo('chat', null);
   renderSidebar(); renderView(); renderViewer();
   S.specs = await api.system.specs();
   S.catalog = await api.models.catalog();
   if (!allModels().length && S.mode === 'chat' && !S.conv) renderView();
-})();
+});

@@ -16,7 +16,7 @@ const DEFAULTS = {
   libraries: [], defaultLibrary: 'default',
   downloads: { maxConcurrent: 1, limitMBps: 0 },
   localApi: { enabled: false, port: 11500, key: '', lan: false },
-  gen: { temperature: 0.7, topP: 0.95, maxTokens: 4096, systemPrompt: '' },
+  gen: { temperature: 0.7, topP: 0.95, maxTokens: 4096, systemPrompt: '', reasoning: 'auto' },
   autoUpdate: true,
   devMode: true,               // internal builds: banner + devtools
   installedModes: ['chat'],
@@ -24,6 +24,11 @@ const DEFAULTS = {
   trayHintShown: false,
   hotkey: { enabled: true, accelerator: 'Control+Super+Space', copilotKey: true },
   quickTarget: 'current',      // quick bar: 'current' conversation or 'new'
+  search: { engine: 'duckduckgo', duckyUrl: '' },   // web search tool
+  chatTools: { webSearch: true, fetch: true },     // tools allowed in chat mode
+  memory: { enabled: true, auto: true },           // use / generate memories
+  styles: [], activeStyle: 'default',              // response styles (built-in + learned)
+  autoTitle: true,
 };
 
 const dir = () => app.getPath('userData');

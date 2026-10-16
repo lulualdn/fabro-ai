@@ -11,6 +11,10 @@ const desktop = require('./desktop');
 const usage = require('./usage');
 const monitor = require('./monitor');
 const localapi = require('./localapi');
+const db = require('./db');
+const brain = require('./brain');
+const exporter = require('./export');
+exporter.registerScheme();
 
 let win = null;
 const send = (ch, data) => { if (win && !win.isDestroyed()) win.webContents.send(ch, data); if (ch === 'chat:event') desktop.forward(ch, data); };
@@ -65,11 +69,27 @@ function registerIpc() {
   h('settings:set', (patch) => store.setSettings(patch));
   h('system:specs', () => system.getSpecs());
 
-  h('conv:list', () => store.listConversations());
-  h('conv:get', (id) => store.getConversation(id));
-  h('conv:save', (c) => store.saveConversation(c));
-  h('conv:delete', (id) => store.deleteConversation(id));
-  h('conv:patch', (id, patch) => store.patchConversation(id, patch));
+  h('conv:list', (o) => db.listConversations(o || {}));
+  h('conv:get', (id) => db.getConversation(id));
+  h('conv:save', (c) => db.saveConversation(c));
+  h('conv:delete', (id) => db.deleteConversation(id));
+  h('conv:patch', (id, patch) => db.patchConversation(id, patch));
+  h('conv:search', (text) => db.searchConversations(text));
+
+  h('memory:list', () => db.listMemories());
+  h('memory:add', (text) => db.addMemory(text, 'user', 'fact'));
+  h('memory:update', (id, text) => db.updateMemory(id, text));
+  h('memory:delete', (id) => db.deleteMemory(id));
+  h('memory:clear', () => db.clearMemories());
+  h('artifacts:list', () => db.listArtifacts());
+  h('artifacts:get', (id) => db.getArtifact(id));
+  h('artifacts:save', (a) => db.saveArtifact(a));
+  h('artifacts:delete', (id) => db.deleteArtifact(id));
+  h('export:save', (o) => exporter.save(win, o));
+  h('art:preview', (html) => exporter.setPreview(html));
+  h('brain:title', (o) => brain.title(o));
+  h('brain:memories', (o) => brain.memories(o));
+  h('brain:style', (o) => brain.style(o));
 
   h('models:catalog', () => models.catalog());
   h('models:installed', () => models.installed());
@@ -143,6 +163,8 @@ function registerIpc() {
 
 app.whenReady().then(async () => {
   store.init();
+  try { db.init(); } catch (e) { console.error('db init failed', e); }
+  exporter.handleProtocol();
   await providers.migrate();
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
@@ -168,4 +190,4 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => { if (!isMac) app.quit(); });
 app.on('activate', () => { if (win) desktop.showMain(); else createWindow(); });
 app.on('before-quit', () => { engine.stop(); });
-app.on('will-quit', () => { engine.stop(); });
+app.on('will-quit', () => { engine.stop(); db.close(); });
