@@ -11,7 +11,11 @@ const DEFAULTS = {
   selectedModel: null,         // { backend:'local', id } | { backend:'provider', provider, model }
   providers: { enabled: false, list: [] }, // external providers (OpenAI, Anthropic, Ollama, LM Studio…)
   hfToken: '',
-  engine: { ctx: 8192, gpuLayers: -1, threads: 0 }, // -1 = auto (all on GPU)
+  engine: { ctx: 8192, gpuLayers: -1, threads: 0, flashAttn: 'auto', kvType: 'f16', cpuMoe: 'auto', idleMinutes: 30, energy: 'auto', multiModel: true }, // gpuLayers -1 = auto
+  modelProfiles: {},           // per-model overrides: ctx, gpuLayers, threads, kvType, preload, idleMinutes, gen…
+  libraries: [], defaultLibrary: 'default',
+  downloads: { maxConcurrent: 1, limitMBps: 0 },
+  localApi: { enabled: false, port: 11500, key: '', lan: false },
   gen: { temperature: 0.7, topP: 0.95, maxTokens: 4096, systemPrompt: '' },
   autoUpdate: true,
   devMode: true,               // internal builds: banner + devtools

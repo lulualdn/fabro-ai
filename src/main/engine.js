@@ -1,6 +1,7 @@
 // Built-in inference engine: llama.cpp `llama-server`, downloaded for the
 // user's hardware (CUDA / Vulkan / Metal / CPU) and kept up to date.
-const { app } = require('electron');
+const { app, powerMonitor } = require('electron');
+const os = require('os');
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
@@ -10,6 +11,7 @@ const extractZip = require('extract-zip');
 const system = require('./system');
 const { downloadFile } = require('./download');
 const store = require('./store');
+const memory = require('./memory');
 
 // Errors carry a stable code the UI turns into a readable card with actions.
 class EngineError extends Error {
@@ -26,7 +28,8 @@ let emit = () => {};
 const state = { status: 'idle', version: null, variant: null, model: null, port: null, progress: null, error: null };
 function set(p) { Object.assign(state, p); emit({ ...state }); }
 
-let proc = null, running = null, starting = null, logTail = [], busy = false;
+const starting = new Map();
+let logTail = [], busy = false;
 
 async function readMeta() {
   try { const m = JSON.parse(await fsp.readFile(metaFile(), 'utf8')); return fs.existsSync(m.bin) ? m : null; }
@@ -77,7 +80,8 @@ async function pickBuilds(skip = []) {
   let netDown = false, rateLimited = false;
   const out = [];
   try {
-    const releases = await apiReleases();
+    const bad = new Set(((store.getSettings().engine || {}).badTags) || []);
+    const releases = (await apiReleases()).filter((r) => !bad.has(r.tag_name));
     for (const c of cands) {
       for (const rel of releases) {
         const asset = (rel.assets || []).find((x) => c.re.test(x.name));
@@ -97,7 +101,8 @@ async function pickBuilds(skip = []) {
   }
 
   try {
-    const tags = await feedTags();
+    const badT = new Set(((store.getSettings().engine || {}).badTags) || []);
+    const tags = (await feedTags()).filter((t) => !badT.has(t));
     for (const c of cands) {
       found: for (const tag of tags) {
         for (const name of c.names(tag)) {
@@ -236,12 +241,16 @@ async function install({ skip = [] } = {}) {
     for (const b of builds) {
       set({ status: 'installing', progress: 0, build: b.pick.id });
       try {
+        const old = await readMeta();
         const meta = await installOne(b);
-        await fsp.writeFile(metaFile(), JSON.stringify(meta, null, 2));
+        // Keep the previous working build for one-click / automatic rollback.
+        if (old && old.dir !== meta.dir && fs.existsSync(old.bin)) { const { prev, ...o } = old; meta.prev = o; }
+        await writeMeta(meta);
+        const keep = new Set([meta.dir, meta.prev && meta.prev.dir].filter(Boolean));
         for (const e of await fsp.readdir(root(), { withFileTypes: true })) {
-          if (e.isDirectory() && path.join(root(), e.name) !== meta.dir) await fsp.rm(path.join(root(), e.name), { recursive: true, force: true }).catch(() => {});
+          if (e.isDirectory() && !keep.has(path.join(root(), e.name))) await fsp.rm(path.join(root(), e.name), { recursive: true, force: true }).catch(() => {});
         }
-        set({ status: running ? 'ready' : 'idle', version: meta.tag, variant: meta.variant, progress: null, error: null, errorCode: null });
+        set({ status: instances.size ? 'ready' : 'idle', version: meta.tag, variant: meta.variant, prevVersion: meta.prev ? meta.prev.tag : null, progress: null, error: null, errorCode: null });
         return meta;
       } catch (e) {
         last = e; tried.push(`${b.pick.id}: ${e.code || ''} ${e.message}`);
@@ -268,121 +277,280 @@ function freePort() {
   });
 }
 
-async function launch(meta, model, o, key) {
-  const port = await freePort();
-  const ngl = o.gpuLayers < 0 ? 999 : o.gpuLayers;
-  const args = ['-m', model.path, '--host', '127.0.0.1', '--port', String(port),
-    '-c', String(o.ctx || 8192), '-ngl', String(ngl), '--jinja', '-np', '1'];
-  if (o.threads > 0) args.push('-t', String(o.threads));
-  if (model.mmproj && fs.existsSync(model.mmproj)) args.push('--mmproj', model.mmproj);
+// ───────────────────────────── options ─────────────────────────────
+// Effective options = global engine settings ⊕ the model's own profile.
+function optionsFor(model) {
+  const s = store.getSettings();
+  const prof = (s.modelProfiles || {})[model.id] || {};
+  const o = { ...DEFAULT_OPTS, ...(s.engine || {}) };
+  for (const k of Object.keys(DEFAULT_OPTS)) if (prof[k] !== undefined && prof[k] !== null && prof[k] !== '') o[k] = prof[k];
+  o.preload = prof.preload || 'demand';
+  o.idleMinutes = prof.idleMinutes ?? (s.engine || {}).idleMinutes ?? DEFAULT_OPTS.idleMinutes;
+  return o;
+}
+const DEFAULT_OPTS = { ctx: 8192, gpuLayers: -1, threads: 0, flashAttn: 'auto', kvType: 'f16', cpuMoe: 'auto', idleMinutes: 30 };
 
+function energyMode() {
+  const e = (store.getSettings().engine || {}).energy || 'auto';
+  if (e !== 'auto') return e;
+  try { return powerMonitor.isOnBatteryPower() ? 'eco' : 'balanced'; } catch { return 'balanced'; }
+}
+const PRIORITY = () => ({ performance: os.constants.priority.PRIORITY_ABOVE_NORMAL, balanced: os.constants.priority.PRIORITY_NORMAL, eco: os.constants.priority.PRIORITY_BELOW_NORMAL });
+function applyPriority(inst) { try { if (inst.proc && inst.proc.pid) os.setPriority(inst.proc.pid, PRIORITY()[energyMode()]); } catch {} }
+
+function argsFor(model, o, pl, port) {
+  const args = ['-m', model.path, '--host', '127.0.0.1', '--port', String(port), '-c', String(pl.ctx), '--jinja', '-np', '1',
+    '-ngl', String(pl.ngl), '--cache-reuse', '256'];
+  if (pl.cpuMoe) args.push('--cpu-moe');
+  const fa = o.flashAttn || 'auto';
+  args.push('-fa', fa);
+  if (o.kvType && o.kvType !== 'f16') args.push('-ctk', o.kvType, '-ctv', o.kvType);
+  const mode = energyMode();
+  const physical = Math.max(1, Math.round(os.cpus().length / 2));
+  const threads = o.threads > 0 ? o.threads : mode === 'eco' ? Math.max(2, Math.floor(physical / 2)) : 0;
+  if (threads > 0) args.push('-t', String(threads));
+  if (mode === 'eco') args.push('--poll', '0');
+  if (model.mmproj && fs.existsSync(model.mmproj)) args.push('--mmproj', model.mmproj);
+  return args;
+}
+
+// ───────────────────────────── instances ─────────────────────────────
+// key → { key, model, opts, plan, port, proc, status, lastUsed, busy, startedAt }
+const instances = new Map();
+const keyFor = (model, o) => JSON.stringify([model.path, o.ctx, o.gpuLayers, o.threads, o.flashAttn, o.kvType, o.cpuMoe, o.variant]);
+
+function loadedList() {
+  return [...instances.values()].map((i) => ({
+    id: i.model.id, name: i.model.name, port: i.port, status: i.status, mode: i.plan && i.plan.mode,
+    vramGB: i.plan && i.plan.vramGB, ramGB: i.plan && i.plan.ramGB, lastUsed: i.lastUsed, busy: i.busy, pinned: i.opts.preload === 'always', pid: i.proc && i.proc.pid,
+  }));
+}
+function publish(extra = {}) {
+  const ready = [...instances.values()].filter((i) => i.status === 'ready').sort((a, b) => b.lastUsed - a.lastUsed);
+  const loading = [...instances.values()].find((i) => i.status === 'loading');
+  const base = loading ? { status: 'loading', model: loading.model.name }
+    : ready.length ? { status: 'ready', model: ready[0].model.name, port: ready[0].port }
+    : state.status === 'error' || state.status === 'installing' ? {} : { status: 'idle', model: null, port: null };
+  set({ ...base, ...extra, loaded: loadedList(), energy: energyMode() });
+}
+
+async function launch(meta, model, o, key, pl) {
+  const port = await freePort();
+  const args = argsFor(model, o, pl, port);
   const binDir = path.dirname(meta.bin);
   const env = binEnv(meta.bin, meta.dir);
   if (!fs.existsSync(model.path)) throw new EngineError('MODEL_FILE', 'The model file is missing (moved or deleted?)', model.path);
 
-  set({ status: 'loading', model: model.name, error: null });
-  logTail = [];
+  const inst = { key, model, opts: o, plan: pl, port, proc: null, status: 'loading', lastUsed: Date.now(), busy: 0, startedAt: Date.now(), log: [] };
+  instances.set(key, inst);
+  publish({ error: null, errorCode: null });
   const p = spawn(meta.bin, args, { cwd: binDir, env, windowsHide: true });
-  proc = p;
-  const onData = (d) => String(d).split(/\r?\n/).forEach((l) => { if (l.trim()) { logTail.push(l); if (logTail.length > 120) logTail.shift(); } });
+  inst.proc = p;
+  applyPriority(inst);
+  const onData = (d) => String(d).split(/\r?\n/).forEach((l) => {
+    if (!l.trim()) return;
+    inst.log.push(l); if (inst.log.length > 200) inst.log.shift();
+    logTail.push(`[${model.name}] ${l}`); if (logTail.length > 400) logTail.shift();
+  });
   p.stdout.on('data', onData);
   p.stderr.on('data', onData);
   let exited = false;
-  p.on('error', (e) => { exited = true; logTail.push(String(e)); });
+  p.on('error', (e) => { exited = true; inst.log.push(String(e)); });
   p.on('exit', () => {
     exited = true;
-    if (proc === p) { proc = null; running = null; if (state.status === 'ready') set({ status: 'idle', model: null, port: null }); }
+    if (instances.get(key) === inst && inst.status === 'ready') { instances.delete(key); publish(); }
   });
 
   const t0 = Date.now();
-  while (Date.now() - t0 < 240000) {
+  while (Date.now() - t0 < 300000) {
     if (exited) {
-      const log = logTail.join('\n');
-      if (/out of memory|failed to allocate|cudaMalloc|ErrorOutOfDeviceMemory|unable to allocate/i.test(log)) throw new EngineError('OUT_OF_MEMORY', 'Not enough memory to load this model', logTail.slice(-8).join('\n'));
-      if (/failed to (load|read) model|invalid magic|gguf/i.test(log)) throw new EngineError('MODEL_FILE', 'The model file could not be read', logTail.slice(-8).join('\n'));
-      throw new EngineError('START_FAILED', 'The engine stopped while loading the model', logTail.slice(-8).join('\n') || 'Engine exited');
+      instances.delete(key);
+      const log = inst.log.join('\n');
+      const tailTxt = inst.log.slice(-10).join('\n');
+      if (/out of memory|failed to allocate|cudaMalloc|ErrorOutOfDeviceMemory|unable to allocate|insufficient memory/i.test(log)) throw new EngineError('OUT_OF_MEMORY', 'Not enough memory to load this model', tailTxt);
+      if (/failed to (load|read) model|invalid magic|unknown model architecture/i.test(log)) throw new EngineError(/unknown model architecture/i.test(log) ? 'ARCH' : 'MODEL_FILE', 'The engine can\'t read this model', tailTxt);
+      if (/invalid argument|unknown argument|error: unrecognized/i.test(log)) throw new EngineError('BAD_ARGS', 'The engine rejected an option', tailTxt);
+      throw new EngineError('START_FAILED', 'The engine stopped while loading the model', tailTxt || 'Engine exited');
     }
     try {
       const r = await fetch(`http://127.0.0.1:${port}/health`);
       if (r.ok) {
-        running = { key, port, model };
-        set({ status: 'ready', port, model: model.name, version: meta.tag, variant: meta.variant });
-        return running;
+        inst.status = 'ready'; inst.lastUsed = Date.now();
+        publish({ version: meta.tag, variant: meta.variant, error: null, errorCode: null });
+        return inst;
       }
     } catch { /* not up yet */ }
-    await sleep(350);
+    await sleep(300);
   }
-  p.kill();
-  throw new EngineError('TIMEOUT', 'Loading the model took too long', logTail.slice(-8).join('\n'));
+  try { p.kill(); } catch {}
+  instances.delete(key);
+  throw new EngineError('TIMEOUT', 'Loading the model took too long', inst.log.slice(-8).join('\n'));
 }
 
-// Make sure the given model is loaded and serving. Returns { port }.
-async function ensure(model, opts) {
-  const key = JSON.stringify([model.path, opts.ctx, opts.gpuLayers, opts.threads, opts.variant]);
-  if (running && running.key === key && proc) return running;
-  if (starting && starting.key === key) return starting.promise;
+async function stopInstance(inst) {
+  instances.delete(inst.key);
+  const p = inst.proc;
+  if (p && p.exitCode === null) {
+    await new Promise((resolve) => {
+      const t = setTimeout(() => { try { p.kill('SIGKILL'); } catch {} resolve(); }, 3000);
+      p.once('exit', () => { clearTimeout(t); resolve(); });
+      try { p.kill(); } catch { resolve(); }
+    });
+  }
+  publish();
+}
+
+// Free memory for `need` by unloading least-recently-used idle models.
+async function makeRoom(pl, keepKey) {
+  const specs = await system.getSpecs();
+  const multi = (store.getSettings().engine || {}).multiModel !== false;
+  const others = [...instances.values()].filter((i) => i.key !== keepKey);
+  if (!multi) { for (const i of others) await stopInstance(i); return; }
+  const used = () => [...instances.values()].filter((i) => i.key !== keepKey).reduce((a, i) => ({ v: a.v + (i.plan?.vramGB || 0), r: a.r + (i.plan?.ramGB || 0) }), { v: 0, r: 0 });
+  const over = () => {
+    const u = used();
+    if (specs.unified) return u.v + pl.vramGB > specs.gpuBudgetGB;
+    return u.v + pl.vramGB > (specs.gpuBudgetGB || 0) + 0.01 && pl.vramGB > 0 || u.r + pl.ramGB > specs.ramGB * 0.8;
+  };
+  const victims = others.filter((i) => i.busy === 0).sort((a, b) => (a.opts.preload === 'always') - (b.opts.preload === 'always') || a.lastUsed - b.lastUsed);
+  while (over() && victims.length) await stopInstance(victims.shift());
+}
+
+// Make sure the model is loaded and serving. Returns { port, key }.
+async function ensure(model, overrides = {}) {
+  const o = { ...optionsFor(model), ...overrides };
+  const key = keyFor(model, o);
+  const have = instances.get(key);
+  if (have && have.status === 'ready' && have.proc && have.proc.exitCode === null) { have.lastUsed = Date.now(); return have; }
+  if (starting.has(key)) return starting.get(key);
+  // Same model with other options → replace it.
+  for (const i of [...instances.values()]) if (i.model.path === model.path && i.key !== key && i.busy === 0) await stopInstance(i);
+
   const promise = (async () => {
-    await stop();
+    const specs = await system.getSpecs();
     let meta = await ensureInstalled();
-    if (opts.variant === 'cpu' && meta.variant !== 'cpu') meta = await install();
-    const gpu = meta.variant !== 'cpu' && opts.gpuLayers !== 0;
-    try { return await launch(meta, model, opts, key); }
-    catch (e1) {
-      if (['MODEL_FILE'].includes(e1.code)) { fail(e1); throw e1; }
-      // Out of GPU memory: offload fewer layers, then smaller context.
+    if (o.variant === 'cpu' && meta.variant !== 'cpu') meta = await install();
+    const cpuOnly = meta.variant === 'cpu';
+    const pl = memory.plan(model, o, cpuOnly ? { ...specs, accel: 'cpu', gpuBudgetGB: 0 } : specs);
+    await makeRoom(pl, key);
+    const gpu = !cpuOnly && pl.ngl !== 0;
+    try {
+      const inst = await launch(meta, model, o, key, pl);
+      if (!meta.verified) { meta.verified = true; await writeMeta(meta); }
+      return inst;
+    } catch (e1) {
+      if (['MODEL_FILE', 'ARCH'].includes(e1.code)) { fail(e1); throw e1; }
+      if (e1.code === 'BAD_ARGS') { // older/newer engine without an option: retry with the safest set
+        try { return await launch(meta, model, { ...o, flashAttn: 'auto', kvType: 'f16' }, key, { ...pl, cpuMoe: false }); } catch {}
+      }
+      // Out of memory: offload fewer layers, then a smaller context.
       if (e1.code === 'OUT_OF_MEMORY' && gpu) {
-        for (const ngl of [24, 12, 0]) {
-          try { return await launch(meta, model, { ...opts, gpuLayers: ngl }, key); } catch (e) { if (e.code !== 'OUT_OF_MEMORY') break; }
+        const steps = [Math.floor(pl.layers * 0.6), Math.floor(pl.layers * 0.3), 0].filter((n) => n < (pl.ngl > 900 ? pl.layers + 1 : pl.ngl));
+        for (const ngl of steps) {
+          try { return await launch(meta, model, o, key, { ...pl, ngl, cpuMoe: false, mode: ngl ? 'split' : 'cpu' }); } catch (e) { if (e.code !== 'OUT_OF_MEMORY') break; }
         }
-        if ((opts.ctx || 8192) > 4096) { try { return await launch(meta, model, { ...opts, gpuLayers: 0, ctx: 4096 }, key); } catch {} }
+        if (pl.ctx > 4096) { try { return await launch(meta, model, o, key, { ...pl, ngl: 0, ctx: 4096, cpuMoe: false, mode: 'cpu' }); } catch {} }
         fail(e1); throw e1;
+      }
+      // A freshly updated build that never loaded a model: roll back to the previous one.
+      if (!meta.verified && meta.prev && fs.existsSync(meta.prev.bin)) {
+        try {
+          const back = await rollback(`auto: ${e1.code}`);
+          const inst = await launch(back, model, o, key, pl);
+          return inst;
+        } catch { /* keep going */ }
       }
       // GPU build misbehaves: same build on CPU, then the next build.
       if (gpu) {
-        try { return await launch(meta, model, { ...opts, gpuLayers: 0 }, key); } catch { /* next build */ }
-        try { meta = await install({ skip: [meta.build || meta.variant] }); return await launch(meta, model, opts, key); }
+        try { return await launch(meta, model, o, key, { ...pl, ngl: 0, cpuMoe: false, mode: 'cpu' }); } catch { /* next build */ }
+        try { meta = await install({ skip: [meta.build || meta.variant] }); return await launch(meta, model, o, key, memory.plan(model, o, meta.variant === 'cpu' ? { ...specs, accel: 'cpu', gpuBudgetGB: 0 } : specs)); }
         catch (e2) { fail(e2); throw e2; }
       }
       fail(e1); throw e1;
     }
   })();
-  starting = { key, promise };
-  try { return await promise; } finally { starting = null; }
+  starting.set(key, promise);
+  try { return await promise; } finally { starting.delete(key); }
 }
-function fail(e) { set({ status: 'error', error: e.message, errorCode: e.code || 'UNKNOWN', errorDetail: e.detail || '' }); }
+function fail(e) { set({ status: 'error', error: e.message, errorCode: e.code || 'UNKNOWN', errorDetail: e.detail || '', loaded: loadedList() }); }
 
-async function stop() {
-  const p = proc;
-  if (!p) return;
-  proc = null; running = null;
-  await new Promise((resolve) => {
-    const t = setTimeout(() => { try { p.kill('SIGKILL'); } catch {} resolve(); }, 3000);
-    p.once('exit', () => { clearTimeout(t); resolve(); });
-    try { p.kill(); } catch { resolve(); }
-  });
-  set({ status: 'idle', model: null, port: null });
+// Request accounting: busy models are never evicted, and idle timers start after the answer.
+function acquire(inst) { inst.busy++; inst.lastUsed = Date.now(); }
+function release(inst) { inst.busy = Math.max(0, inst.busy - 1); inst.lastUsed = Date.now(); publish(); }
+
+async function stop(id) {
+  const list = [...instances.values()].filter((i) => !id || i.model.id === id);
+  await Promise.all(list.map(stopInstance));
+  if (!id) publish({ status: 'idle' });
 }
 
-// Auto-update the engine when idle.
+// Unload idle models after their timeout (0 = never). Preload "always" models are kept.
+function idleSweep() {
+  const now = Date.now();
+  for (const i of instances.values()) {
+    if (i.status !== 'ready' || i.busy || i.opts.preload === 'always') continue;
+    const m = Number(i.opts.idleMinutes);
+    if (m > 0 && now - i.lastUsed > m * 60000) stopInstance(i);
+  }
+}
+
+// Load "at startup" / "always in memory" models once the app is up.
+async function preloadAll(listLocal) {
+  const s = store.getSettings();
+  const profiles = s.modelProfiles || {};
+  const ids = Object.keys(profiles).filter((id) => ['startup', 'always'].includes(profiles[id].preload));
+  if (!ids.length || !(await readMeta())) return;
+  for (const m of (await listLocal()).filter((x) => ids.includes(x.id))) {
+    try { await ensure(m); } catch { /* reported via status */ }
+  }
+}
+
+// ───────────────────────────── rollback & updates ─────────────────────────────
+async function writeMeta(meta) { await fsp.writeFile(metaFile(), JSON.stringify(meta, null, 2)); }
+
+async function rollback(reason = 'manual') {
+  const meta = await readMeta();
+  if (!meta || !meta.prev || !fs.existsSync(meta.prev.bin)) throw new EngineError('NO_ROLLBACK', 'No previous engine version to go back to');
+  await stop();
+  const bad = new Set(((store.getSettings().engine || {}).badTags) || []);
+  bad.add(meta.tag);
+  await store.setSettings({ engine: { badTags: [...bad].slice(-10) } });
+  const back = { ...meta.prev, verified: true, prev: null, rolledBackFrom: meta.tag, rollbackReason: reason };
+  await writeMeta(back);
+  await fsp.rm(meta.dir, { recursive: true, force: true }).catch(() => {});
+  set({ version: back.tag, variant: back.variant, error: null, errorCode: null, prevVersion: null });
+  return back;
+}
+
+// Auto-update the engine when nothing is loaded.
 async function checkUpdate() {
-  if (busy || proc) return { updated: false, reason: 'busy' };
+  if (busy || instances.size) return { updated: false, reason: 'busy' };
   const meta = await readMeta();
   if (!meta) return { updated: false, reason: 'not-installed' };
   const builds = await pickBuilds();
   const same = builds.find((b) => b.pick.id === meta.build) || builds[0];
   if (!same || same.tag === meta.tag) return { updated: false, version: meta.tag };
   const m = await install();
-  return { updated: true, version: m.tag };
+  return { updated: true, version: m.tag, from: meta.tag };
 }
 
 async function init(emitter) {
   emit = emitter;
   await fsp.mkdir(root(), { recursive: true });
   const meta = await readMeta();
-  if (meta) set({ version: meta.tag, variant: meta.variant });
+  if (meta) set({ version: meta.tag, variant: meta.variant, prevVersion: meta.prev ? meta.prev.tag : null });
+  setInterval(idleSweep, 30000).unref();
+  try {
+    powerMonitor.on('on-battery', () => { for (const i of instances.values()) applyPriority(i); publish(); });
+    powerMonitor.on('on-ac', () => { for (const i of instances.values()) applyPriority(i); publish(); });
+  } catch {}
 }
 
-const getStatus = () => ({ ...state, log: logTail.slice(-40) });
-const diagnostics = async () => ({ state: { ...state }, log: logTail.slice(-60), meta: await readMeta(), specs: await system.getSpecs() });
+function setEnergy() { for (const i of instances.values()) applyPriority(i); publish(); }
 
-module.exports = { init, ensure, stop, install, checkUpdate, getStatus, diagnostics, EngineError };
+const getStatus = () => ({ ...state, loaded: loadedList(), energy: energyMode(), log: logTail.slice(-60) });
+const diagnostics = async () => ({ state: { ...state }, loaded: loadedList(), log: logTail.slice(-80), meta: await readMeta(), specs: await system.getSpecs() });
+const logs = () => logTail.slice();
+function find(id) { return [...instances.values()].find((i) => i.model.id === id && i.status === 'ready') || null; }
+
+module.exports = { init, ensure, acquire, release, stop, install, checkUpdate, rollback, getStatus, diagnostics, logs, preloadAll, setEnergy, optionsFor, find, EngineError };

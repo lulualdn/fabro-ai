@@ -692,7 +692,8 @@ function openModelMenu(anchor) {
 
 // ───────────────────────────── Settings overlay ─────────────────────────────
 const TABS = [
-  { id: 'general', icon: 'sliders' }, { id: 'models', icon: 'box' }, { id: 'engine', icon: 'zap' }, { id: 'providers', icon: 'cloud' },
+  { id: 'general', icon: 'sliders' }, { id: 'models', icon: 'box' }, { id: 'engine', icon: 'zap' }, { id: 'storage', icon: 'archive' }, { id: 'providers', icon: 'cloud' },
+  { id: 'usage', icon: 'chart' },
   { id: 'shortcut', icon: 'key' },
   { id: 'generation', icon: 'edit' }, { id: 'system', icon: 'cpu' }, { id: 'about', icon: 'info' },
 ];
@@ -703,10 +704,13 @@ async function openSettings(tab = 'general') {
   renderSettings();
   if (tab === 'models' && !S.catalog) { S.catalog = await api.models.catalog(); renderSettings(); }
   if (tab === 'providers') loadProviders();
+  if (tab === 'models' || tab === 'storage') loadModelExtras();
+  if (tab === 'engine') startMonitor(); else stopMonitor();
+  if (tab === 'usage') loadUsage();
   if (tab === 'shortcut') loadHotkeyStatus();
 }
 function closeSettings() {
-  S.settingsTab = null; S._lastTab = null;
+  S.settingsTab = null; S._lastTab = null; stopMonitor();
   const o = $('.overlay');
   if (o) { o.classList.add('closing'); setTimeout(() => { $('#overlay-root').innerHTML = ''; $('#prompt')?.focus(); }, 160); }
 }
@@ -754,27 +758,9 @@ function settingsBody(tab) {
   if (tab === 'models') return modelsTab();
   if (tab === 'providers') return providersTab();
   if (tab === 'shortcut') return shortcutTab();
-  if (tab === 'engine') {
-    const e = S.engine;
-    const ctxOpts = [2048, 4096, 8192, 16384, 32768, 65536, 131072].map((n) => `<option value="${n}" ${st.engine.ctx === n ? 'selected' : ''}>${n / 1024}K tokens</option>`).join('');
-    const gl = st.engine.gpuLayers;
-    return `
-      <div class="eng-card st-${e.status}">
-        <span class="dot"></span>
-        <div><b>${esc(t('engine_' + (e.status === 'stopping' ? 'idle' : e.status), { p: Math.round((e.progress || 0) * 100) }))}</b>
-        <small>llama.cpp ${esc(e.version || '—')}${e.variant ? ' · ' + esc(e.variant.toUpperCase()) : ''}${e.model ? ' · ' + esc(e.model) : ''}</small>
-        </div>
-        <div class="grow"></div>
-        ${e.status === 'ready' ? `<button class="btn sm" data-action="engine-stop">${icon('power', 14)} ${esc(t('unload'))}</button>` : ''}
-        <button class="btn sm" data-action="engine-update">${icon('refresh', 14)} ${esc(t('checkUpdates'))}</button>
-      </div>
-      ${e.status === 'error' ? errorCard({ code: e.errorCode, message: e.error, detail: e.errorDetail }, 'engine') : ''}
-      ${row(t('engineVariant'), seg('engine.variant', (st.engine || {}).variant || 'auto', [['auto', t('auto')], ['cpu', t('cpuOnly')]]), t('engineVariantHint'))}
-      ${row(t('contextLength'), `<select class="input" data-input="engine.ctx" data-type="int">${ctxOpts}</select>`, t('contextHint'))}
-      ${row(t('gpuLayers'), `<div class="range-wrap"><input type="range" min="-1" max="99" step="1" value="${gl}" data-input="engine.gpuLayers" data-type="int"><span class="rv">${gl < 0 ? t('auto') : gl}</span></div>`, t('gpuLayersHint'))}
-      ${row(t('threads'), `<input class="input sm" type="number" min="0" max="256" value="${st.engine.threads}" data-input="engine.threads" data-type="int">`, t('threadsHint'))}
-      <p class="muted small st-foot">${icon('info', 13)} ${esc(t('engineOnlyNote'))} <button class="link-btn" data-action="settings-tab" data-tab="providers">${esc(t('tab_providers'))}</button></p>`;
-  }
+  if (tab === 'engine') return engineTab();
+  if (tab === 'storage') return storageTab();
+  if (tab === 'usage') return usageTab();
   if (tab === 'generation') {
     const g = st.gen;
     const range = (k, min, max, step, v) => `<div class="range-wrap"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-input="gen.${k}" data-type="float"><span class="rv">${v}</span></div>`;
@@ -812,48 +798,6 @@ function updaterText() {
 }
 
 const FIT_ORDER = { great: 0, good: 1, ok: 2, 'needs-gpu': 3, 'too-big': 4 };
-function modelsTab() {
-  const loc = S.installed.local;
-  const mine = loc.map((m) => `<div class="m-row">
-      <div class="m-ico">${icon('box', 18)}</div>
-      <div class="m-text"><b>${esc(m.name)}</b><small>${esc(m.repo)} · ${esc(m.quant || '')} · ${fmtBytes(m.sizeBytes)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></div>
-      ${sameRef({ backend: 'local', id: m.id }, S.settings.selectedModel) ? `<span class="chip">${esc(t('active'))}</span>` : `<button class="btn sm" data-action="pick-model" data-ref="${esc(JSON.stringify({ backend: 'local', id: m.id }))}">${esc(t('use'))}</button>`}
-      <button class="icon-btn sm" data-action="model-delete" data-id="${esc(m.id)}" title="${esc(t('delete'))}">${icon('trash', 16)}</button>
-    </div>`).join('');
-  const provRows = (S.provModels || []).length ? `<button class="m-row link-row" data-action="settings-tab" data-tab="providers">
-      <div class="m-ico">${icon('cloud', 18)}</div><div class="m-text"><b>${esc(t('provModelsCount', { n: S.provModels.length }))}</b><small>${esc([...new Set(S.provModels.map((m) => m.providerName))].join(' · '))}</small></div>${icon('right', 16)}</button>` : '';
-
-  const cat = S.catalog;
-  const catHtml = !cat ? `<div class="muted">${esc(t('detecting'))}</div>` : [...cat.items].sort((a, b) => (b.id === cat.recommended) - (a.id === cat.recommended) || (FIT_ORDER[a.fit] ?? 9) - (FIT_ORDER[b.fit] ?? 9) || b.sizeGB - a.sizeGB).map((m) => {
-    const dl = Object.values(S.downloads).find((d) => d.repo === m.repo && d.status === 'downloading');
-    return `<div class="cat-card ${m.blocked ? 'dim' : ''}">
-      <div class="cc-top"><b>${esc(m.name)}</b>${m.id === cat.recommended ? `<span class="chip accent">${esc(t('recommended'))}</span>` : ''}</div>
-      <div class="cc-meta">${esc(m.by)} · ${esc(m.params)} · ≈ ${m.sizeGB} GB</div>
-      <div class="cc-tags">${m.blocked ? '' : `<span class="fit fit-${m.fit}">${esc(t('fit_' + m.fit))}</span>`}${m.tags.map((x) => `<span class="tag">${esc(t('tag_' + x))}</span>`).join('')}</div>
-      <div class="cc-act">${m.installed ? `<span class="muted small">${icon('check', 14)} ${esc(t('installed'))}</span>` : dl ? renderProgress(dl) : m.blocked ? `<span class="blocked">${icon('lock', 14)} ${esc(t('fitWhy_' + m.fit))}</span>` : `<button class="btn sm" data-action="dl-catalog" data-id="${m.id}">${icon('download', 14)} ${esc(t('download'))}</button>`}</div>
-    </div>`;
-  }).join('');
-
-  const sr = S.search;
-  let searchHtml = '';
-  if (sr.loading) searchHtml = `<div class="muted small">${esc(t('searching'))}</div>`;
-  else if (sr.results) {
-    searchHtml = sr.results.length ? sr.results.map((r) => `<div class="sr-item ${sr.repo === r.repo ? 'open' : ''}">
-        <button class="sr-head" data-action="sr-open" data-repo="${esc(r.repo)}">${icon(sr.repo === r.repo ? 'down' : 'right', 15)}<b>${esc(r.repo)}</b><span class="muted small">${icon('download', 12)} ${fmtNum(r.downloads)}</span></button>
-        ${sr.repo === r.repo ? renderRepoFiles() : ''}
-      </div>`).join('') : `<div class="muted small">${esc(t('noResults'))}</div>`;
-  }
-
-  return `
-    <div class="st-sec">${esc(t('yourModels'))}</div>
-    ${mine || provRows ? mine + provRows : `<div class="empty-note">${esc(t('noModelsYet'))}</div>`}
-    <div class="st-sec">${esc(t('recommendedFor'))} <span class="muted small">${S.specs ? esc(specLine()) : ''}</span></div>
-    <div class="cat-grid">${catHtml}</div>
-    <div class="st-sec">${esc(t('searchHF'))}</div>
-    <form class="search-row" data-form="hf-search">${icon('search', 16)}<input class="input bare" name="q" value="${esc(sr.q)}" placeholder="${esc(t('searchPh'))}"><button class="btn sm" type="submit">${esc(t('search'))}</button></form>
-    <div class="sr-list">${searchHtml}</div>`;
-}
-
 function specLine() {
   const sp = S.specs; const g = sp.gpus[0];
   return [g ? g.name + (g.vramGB ? ` ${g.vramGB} GB` : '') : 'CPU', `${sp.ramGB} GB RAM`].join(' · ');
@@ -942,7 +886,7 @@ function generate(opts = {}) {
   S.streaming = { reqId, msg, quick: !!opts.quick };
   const first = S.conv.messages.length <= 2;
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
-  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: S.settings.gen });
+  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: S.settings.gen, meta: { convId: S.conv.id, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {
@@ -1074,16 +1018,19 @@ const actions = {
     el.disabled = true;
     try { await api.models.download({ repo: m.repo, catalogId: m.id }); }
     catch (e) { toast(dlErr(e), 'err'); el.disabled = false; }
+    if (S.settingsTab === 'models') renderSettings();
   },
   'dl-file': async (el) => {
     try { await api.models.download({ repo: el.dataset.repo, file: el.dataset.file }); } catch (e) { toast(dlErr(e), 'err'); }
   },
   'dl-cancel': (el) => api.models.cancel(el.dataset.id),
   'model-delete': async (el) => {
-    if (!confirm(t('confirmDelete'))) return;
-    if (S.settings.selectedModel && S.settings.selectedModel.id === el.dataset.id) { await api.engine.stop(); await saveSettings({ selectedModel: null }); }
+    const m = S.installed.local.find((x) => x.id === el.dataset.id);
+    if (!confirm(t(m && m.imported ? 'confirmRemoveImport' : 'confirmDelete'))) return;
+    if (S.settings.selectedModel && S.settings.selectedModel.id === el.dataset.id) await saveSettings({ selectedModel: null });
     await api.models.delete(el.dataset.id);
-    await refreshModels(); S.catalog = await api.models.catalog();
+    S.modelOpen = null;
+    await refreshModels(); S.catalog = await api.models.catalog(); if (typeof loadModelExtras === 'function') loadModelExtras();
     renderSettings(); renderSidebar(); renderView();
   },
   'sr-open': async (el) => {
@@ -1133,6 +1080,7 @@ function dlErr(e) {
   const m = String(e && e.message || e);
   if (/NEEDS_GPU/.test(m)) return t('fitWhy_needs-gpu');
   if (/TOO_BIG/.test(m)) return t('fitWhy_too-big');
+  if (/NO_SPACE/.test(m)) return t('noSpace');
   return m.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
 
@@ -1147,7 +1095,10 @@ async function applySetting(key, value) {
   if (key === 'devMode') { applyDevMode(); applyTheme(); }
   if (key === 'userName') { _greet.key = ''; renderSidebar(); renderView(); }
   if (key === 'language') { S.lang = resolveLang(); document.documentElement.lang = S.lang; renderSidebar(); renderView(); }
-  if (key === 'closeToTray' || key.startsWith('hotkey')) { if (key.startsWith('hotkey')) S.hotkeyStatus = await api.hotkey.apply(); }
+  if (key.startsWith('hotkey')) S.hotkeyStatus = await api.hotkey.apply();
+  if (key.startsWith('localApi')) S.localApiStatus = await api.localApi.apply();
+  if (key === 'engine.energy') api.engine.energy();
+  if (key.startsWith('engine.') && typeof refreshPlans === 'function') refreshPlans();
   renderSettings();
 }
 
@@ -1225,20 +1176,24 @@ api.on('engine:status', (s) => {
   if (!wasReady && s.status === 'ready') { document.body.classList.add('engine-pop'); setTimeout(() => document.body.classList.remove('engine-pop'), 900); }
   if (document.activeElement?.id !== 'sb-q') renderSidebar();
   const sc = $('.setup-card'); if (sc && S.catalog) sc.outerHTML = renderSetupCard();
-  if (S.settingsTab === 'engine') renderSettings();
+  if (S.settingsTab === 'engine' || (S.settingsTab === 'models' && S.modelOpen)) renderSettings();
 });
 const refreshAfterDl = debounce(async () => {
   await refreshModels(); S.catalog = await api.models.catalog();
   renderSidebar(); if (S.mode === 'chat' && (!S.conv || !S.conv.messages.length)) renderView(); renderSettings();
 }, 200);
 api.on('models:progress', (p) => {
+  if (p.kind) return; // move / verify progress → models-ui.js
   S.downloads[p.id] = p;
   if (p.status === 'done') { toast(t('downloadDone', { name: p.model?.name || '' })); delete S.downloads[p.id]; refreshAfterDl(); return; }
   if (p.status === 'error') { toast(`${t('downloadFailed')}: ${p.error}`, 'err'); delete S.downloads[p.id]; refreshAfterDl(); return; }
   if (p.status === 'cancelled') { delete S.downloads[p.id]; refreshAfterDl(); return; }
   // cheap in-place progress update
   const els = $$(`[data-dl="${CSS.escape(p.id)}"]`);
+  const rowEl = $(`[data-dl-row="${CSS.escape(p.id)}"]`);
+  if (rowEl && typeof dlRow === 'function') rowEl.outerHTML = dlRow(p);
   if (els.length) els.forEach((el) => { el.outerHTML = renderProgress(p); });
+  if (rowEl || els.length) return;
   else { if (S.settingsTab === 'models') renderSettings(); if (!S.conv || !S.conv.messages.length) { const sc = $('.setup-card'); if (sc) sc.outerHTML = renderSetupCard(); } }
 });
 api.on('updater:status', (u) => { const was = S.updater.state; S.updater = u; if (u.state === 'ready' && was !== 'ready') maybeShowUpdate(); renderTopbar(); if (S.settingsTab === 'general') renderSettings(); });

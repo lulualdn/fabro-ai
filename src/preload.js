@@ -10,8 +10,17 @@ contextBridge.exposeInMainWorld('api', {
   models: {
     catalog: i('models:catalog'), installed: i('models:installed'), search: i('models:search'),
     files: i('models:files'), download: i('models:download'), cancel: i('models:cancel'), delete: i('models:delete'),
+    pause: i('models:pause'), resume: i('models:resume'), rename: i('models:rename'), verify: i('models:verify'), move: i('models:move'),
+    plans: i('models:plans'), libraries: i('models:libraries'), addLibrary: i('models:addLibrary'), removeLibrary: i('models:removeLibrary'),
+    defaultLibrary: i('models:defaultLibrary'), scanImports: i('models:scanImports'), import: i('models:import'), profile: i('models:profile'),
   },
-  engine: { status: i('engine:status'), update: i('engine:update'), reinstall: i('engine:reinstall'), stop: i('engine:stop'), diagnostics: i('engine:diagnostics') },
+  monitor: { sample: i('monitor:sample') },
+  usage: { summary: i('usage:summary'), conv: i('usage:conv'), clear: i('usage:clear') },
+  localApi: { status: i('localapi:status'), apply: i('localapi:apply'), models: i('localapi:models') },
+  engine: {
+    status: i('engine:status'), update: i('engine:update'), reinstall: i('engine:reinstall'), stop: i('engine:stop'), diagnostics: i('engine:diagnostics'),
+    load: i('engine:load'), rollback: i('engine:rollback'), logs: i('engine:logs'), energy: i('engine:energy'),
+  },
   chat: { send: i('chat:send'), abort: i('chat:abort') },
   providers: {
     view: i('providers:view'), detect: i('providers:detect'), add: i('providers:add'), update: i('providers:update'),
@@ -26,10 +35,10 @@ contextBridge.exposeInMainWorld('api', {
   notify: i('app:notify'), quit: i('app:quit'),
   updater: { check: i('updater:check'), install: i('updater:install') },
   modes: { install: i('modes:install') },
-  shell: { open: i('shell:open') },
+  shell: { open: i('shell:open'), reveal: i('shell:reveal') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

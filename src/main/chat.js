@@ -5,6 +5,7 @@ const store = require('./store');
 const engine = require('./engine');
 const models = require('./models');
 const providers = require('./providers');
+const usage = require('./usage');
 
 const active = new Map();
 
@@ -16,8 +17,9 @@ async function resolveBackend(ref, emit) {
   const m = await models.getLocal(ref.id);
   if (!m) throw Object.assign(new Error('NO_MODEL'), { code: 'NO_MODEL' });
   emit({ type: 'status', status: 'loading' });
-  const r = await engine.ensure(m, s.engine);
-  return { kind: 'local', protocol: 'openai', base: `http://127.0.0.1:${r.port}/v1`, headers: { 'Content-Type': 'application/json' }, model: m.name };
+  const inst = await engine.ensure(m);
+  const prof = (s.modelProfiles || {})[m.id] || {};
+  return { kind: 'local', protocol: 'openai', base: `http://127.0.0.1:${inst.port}/v1`, headers: { 'Content-Type': 'application/json' }, model: m.name, inst, gen: prof.gen || null };
 }
 
 // SSE line reader shared by both protocols.
@@ -120,7 +122,7 @@ async function streamAnthropic(be, messages, params, out, signal, acc) {
 }
 
 // ───────────────────────────── main entry ─────────────────────────────
-async function send({ reqId, model, messages, params = {} }, emit) {
+async function send({ reqId, model, messages, params = {}, meta = {} }, emit) {
   const ctrl = new AbortController();
   active.set(reqId, ctrl);
   const out = (ev) => emit({ reqId, ...ev });
@@ -130,8 +132,11 @@ async function send({ reqId, model, messages, params = {} }, emit) {
     usage: null, timings: null,
     push(type, text) { tFirst = tFirst || Date.now(); if (type === 'token') chars += text.length; out({ type, text }); },
   };
+  let be = null;
   try {
-    const be = await resolveBackend(model, out);
+    be = await resolveBackend(model, out);
+    if (be.gen) params = { ...params, ...Object.fromEntries(Object.entries(be.gen).filter(([, v]) => v !== null && v !== '' && v !== undefined)) };
+    if (be.inst) engine.acquire(be.inst);
     out({ type: 'status', status: 'generating', backend: be.kind === 'local' ? 'local' : be.provider.kind });
     if (be.protocol === 'anthropic') await streamAnthropic(be, messages, params, out, ctrl.signal, acc);
     else await streamOpenAI(be, messages, params, out, ctrl.signal, acc);
@@ -146,6 +151,7 @@ async function send({ reqId, model, messages, params = {} }, emit) {
       backend: be.kind === 'local' ? 'local' : be.provider.kind,
     };
     out({ type: 'done', stats });
+    usage.record({ model: meta.modelLabel || (be.kind === 'local' ? be.model : `${be.provider.name} · ${be.model}`), backend: stats.backend, convId: meta.convId, prompt: stats.promptTokens || 0, completion: stats.completionTokens || 0 });
   } catch (e) {
     if (ctrl.signal.aborted) out({ type: 'done', aborted: true, stats: { totalMs: Date.now() - t0 } });
     else {
@@ -154,6 +160,7 @@ async function send({ reqId, model, messages, params = {} }, emit) {
     }
   } finally {
     active.delete(reqId);
+    if (be && be.inst) engine.release(be.inst);
   }
 }
 

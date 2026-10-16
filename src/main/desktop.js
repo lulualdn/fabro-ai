@@ -14,10 +14,10 @@ let mainState = { convId: null, title: '' };   // reported by the main renderer
 let hotkeyStatus = { ok: true, registered: [] };
 
 const L = {
-  en: { open: 'Open Fabro', newChat: 'New chat', quick: 'Quick bar', quit: 'Quit Fabro', hintT: 'Fabro is still running', hintB: 'It stays in the tray so your models stay ready. Right-click the icon to quit.' },
-  fr: { open: 'Ouvrir Fabro', newChat: 'Nouvelle conversation', quick: 'Barre rapide', quit: 'Quitter Fabro', hintT: 'Fabro tourne toujours', hintB: 'Il reste dans la zone de notification pour garder vos modèles prêts. Clic droit sur l’icône pour quitter.' },
-  es: { open: 'Abrir Fabro', newChat: 'Nuevo chat', quick: 'Barra rápida', quit: 'Salir de Fabro', hintT: 'Fabro sigue en marcha', hintB: 'Se queda en la bandeja para tener tus modelos listos. Clic derecho en el icono para salir.' },
-  de: { open: 'Fabro öffnen', newChat: 'Neuer Chat', quick: 'Schnellleiste', quit: 'Fabro beenden', hintT: 'Fabro läuft weiter', hintB: 'Es bleibt im Infobereich, damit deine Modelle bereit sind. Rechtsklick auf das Symbol zum Beenden.' },
+  en: { engUpdT: 'Engine updated', engUpdB: 'llama.cpp {v} is installed. Nothing to restart.', open: 'Open Fabro', newChat: 'New chat', quick: 'Quick bar', quit: 'Quit Fabro', hintT: 'Fabro is still running', hintB: 'It stays in the tray so your models stay ready. Right-click the icon to quit.' },
+  fr: { engUpdT: 'Moteur mis à jour', engUpdB: 'llama.cpp {v} est installé. Rien à redémarrer.', open: 'Ouvrir Fabro', newChat: 'Nouvelle conversation', quick: 'Barre rapide', quit: 'Quitter Fabro', hintT: 'Fabro tourne toujours', hintB: 'Il reste dans la zone de notification pour garder vos modèles prêts. Clic droit sur l’icône pour quitter.' },
+  es: { engUpdT: 'Motor actualizado', engUpdB: 'llama.cpp {v} instalado. No hace falta reiniciar.', open: 'Abrir Fabro', newChat: 'Nuevo chat', quick: 'Barra rápida', quit: 'Salir de Fabro', hintT: 'Fabro sigue en marcha', hintB: 'Se queda en la bandeja para tener tus modelos listos. Clic derecho en el icono para salir.' },
+  de: { engUpdT: 'Engine aktualisiert', engUpdB: 'llama.cpp {v} ist installiert. Kein Neustart nötig.', open: 'Fabro öffnen', newChat: 'Neuer Chat', quick: 'Schnellleiste', quit: 'Fabro beenden', hintT: 'Fabro läuft weiter', hintB: 'Es bleibt im Infobereich, damit deine Modelle bereit sind. Rechtsklick auf das Symbol zum Beenden.' },
 };
 function lang() {
   const s = store.getSettings().language;
@@ -175,4 +175,4 @@ function init(getMainWindow, ipc) {
 // chat events also stream into the quick bar
 function forward(ch, data) { if (quick && !quick.isDestroyed()) quick.webContents.send(ch, data); }
 
-module.exports = { init, attachMain, showMain, forward, isQuitting: () => quitting, setQuitting: () => { quitting = true; } };
+module.exports = { init, attachMain, showMain, forward, notify, tr: (k) => tr(k), isQuitting: () => quitting, setQuitting: () => { quitting = true; } };

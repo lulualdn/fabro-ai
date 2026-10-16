@@ -53,6 +53,38 @@ const fail = (m) => { console.log(`::error title=engine-smoke ${process.platform
     note(`chat ok in ${Date.now() - t0} ms, ${tps ? tps.toFixed(1) + ' tok/s' : ''}: ${String(text).replace(/\s+/g, ' ').slice(0, 120)}`);
   } catch (e) {
     fail(`chat ${e.code || ''}: ${e.message} | ${String(e.detail || '').replace(/\n/g, ' / ').slice(0, 900)}`);
+    await engine.stop();
+    return;
+  }
+
+  // v1 engine features: import without copy, profiles (KV q8_0), two models loaded at once, local API.
+  try {
+    const models = require('../src/main/models');
+    const localapi = require('../src/main/localapi');
+    models.init(() => {});
+    const twin = path.join(tmp, 'twin', 'Qwen3-0.6B-twin.gguf');
+    fs.mkdirSync(path.dirname(twin), { recursive: true });
+    try { fs.linkSync(model, twin); } catch { fs.copyFileSync(model, twin); }
+    const found = await models.scanImports(path.dirname(twin));
+    const [a] = await models.importModels([{ path: model, name: 'Qwen A', source: 'folder' }]);
+    const [b] = await models.importModels(found);
+    if (!a || !b) throw new Error('import failed');
+    await store.setSettings({ modelProfiles: { [b.id]: { kvType: 'q8_0', ctx: 4096 } }, engine: { multiModel: true } });
+    const ia = await engine.ensure(a); const ib = await engine.ensure(b);
+    const loaded = engine.getStatus().loaded;
+    note(`multi-model: ${loaded.length} loaded (${loaded.map((l) => `${l.name}:${l.mode}`).join(', ')}), ports ${ia.port}/${ib.port}`);
+    if (loaded.length !== 2) fail('expected 2 models loaded');
+    await store.setSettings({ localApi: { enabled: true, port: 11599 } });
+    await localapi.init(() => {});
+    const list = await (await fetch('http://127.0.0.1:11599/v1/models')).json();
+    const id = list.data.find((m) => m.id.includes('twin')).id;
+    const r = await (await fetch('http://127.0.0.1:11599/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: id, messages: [{ role: 'user', content: 'Say OK. /no_think' }], max_tokens: 16 }) })).json();
+    const txt = r.choices && r.choices[0].message.content;
+    note(`local API: ${list.data.length} models, ${id} → ${String(txt).replace(/\s+/g, ' ').slice(0, 60)}`);
+    if (!txt) fail('local API returned no text: ' + JSON.stringify(r).slice(0, 300));
+    await store.setSettings({ localApi: { enabled: false } }); await localapi.apply();
+  } catch (e) {
+    fail(`v1 features ${e.code || ''}: ${e.message} | ${String(e.detail || '').slice(0, 600)}`);
   } finally {
     await engine.stop();
   }

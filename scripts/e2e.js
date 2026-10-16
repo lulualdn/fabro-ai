@@ -28,12 +28,30 @@ const srv = http.createServer((req, res) => {
 });
 
 const step = (m) => console.log('•', m);
+
+// Minimal valid GGUF (header + metadata, no tensors) so the model UI has something real to read.
+function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, emb = 4096, ctx = 32768, experts = 0, name = 'Test Model', pad = 0 } = {}) {
+  const parts = [];
+  const u32 = (n) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
+  const u64 = (n) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(n)); return b; };
+  const str = (s) => Buffer.concat([u64(Buffer.byteLength(s)), Buffer.from(s)]);
+  const kvs = [['general.architecture', 8, str(arch)], ['general.name', 8, str(name)], ['general.file_type', 4, u32(15)],
+    [`${arch}.block_count`, 4, u32(layers)], [`${arch}.attention.head_count`, 4, u32(heads)], [`${arch}.attention.head_count_kv`, 4, u32(headsKv)],
+    [`${arch}.embedding_length`, 4, u32(emb)], [`${arch}.context_length`, 4, u32(ctx)], ...(experts ? [[`${arch}.expert_count`, 4, u32(experts)]] : [])];
+  parts.push(Buffer.from('GGUF'), u32(3), u64(0), u64(kvs.length));
+  for (const [k, t, v] of kvs) parts.push(str(k), u32(t), v);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, Buffer.concat([...parts, Buffer.alloc(pad)]));
+}
 (async () => {
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${srv.address().port}/v1`;
   const app = await electron.launch({ executablePath: require('electron'), args: [path.join(__dirname, '..'), `--user-data-dir=${userData}`, '--no-sandbox'], env: { ...process.env, FABRO_E2E: '1' } });
   const errors = [];
   const win = await app.firstWindow();
+  global.__fail = async () => { try { await win.screenshot({ path: `${shots}/FAIL.png` }); console.log('page errors:', errors, await win.evaluate(() => (document.querySelector('.pf-error') || {}).textContent)); } catch {} };
+  app.process().stdout.on('data', (d) => process.env.E2E_VERBOSE && process.stdout.write(d));
+  app.process().stderr.on('data', (d) => { const s = String(d); if (/Error|error:/.test(s) && !/ERROR:|dbus|Gtk|libva|viz|gpu/i.test(s)) console.log('[main]', s.trim().slice(0, 400)); });
   win.on('pageerror', (e) => errors.push('main: ' + e.message));
   await win.setViewportSize({ width: 1280, height: 820 }).catch(() => {});
   await win.waitForSelector('.greet', { timeout: 20000 });
@@ -102,6 +120,54 @@ const step = (m) => console.log('•', m);
   assert.match(await quick.textContent('#q-target'), /Nouvelle/);
   await quick.keyboard.press('Escape');
 
+  // ── Wave 2: models (import + per-model sheet), storage, engine, usage ──
+  const fx = path.join(userData, 'fixtures');
+  fakeGguf(path.join(fx, 'Mistral-7B-Instruct-Q4_K_M.gguf'), { name: 'Mistral 7B', pad: 1 << 20 });
+  fakeGguf(path.join(fx, 'moe', 'Qwen3-30B-A3B-Q4_K_M.gguf'), { arch: 'qwen3moe', name: 'Qwen3 30B A3B', layers: 48, heads: 32, headsKv: 4, emb: 2048, experts: 128, pad: 1 << 20 });
+  await win.evaluate(async (dir) => {
+    await api.models.import([{ path: dir + '/Mistral-7B-Instruct-Q4_K_M.gguf', name: 'Mistral 7B', source: 'folder' }, { path: dir + '/moe/Qwen3-30B-A3B-Q4_K_M.gguf', name: 'Qwen3 30B A3B', source: 'lmstudio' }]);
+    await refreshModels();
+  }, fx);
+  await win.keyboard.press('Control+,');
+  await win.click('.st-tab[data-tab=models]');
+  await win.waitForSelector('.m-card');
+  await win.waitForTimeout(600);
+  await win.click('.m-card .m-row >> nth=0');
+  await win.waitForSelector('.m-sheet');
+  await win.waitForTimeout(400);
+  step('models + sheet'); await win.screenshot({ path: `${shots}/11-model-sheet.png` });
+  await win.selectOption('.m-sheet select[data-key=ctx]', '32768');
+  await win.waitForTimeout(700);
+  assert.strictEqual(await win.evaluate(() => Object.values(S.settings.modelProfiles).some((p) => p && p.ctx === 32768)), true, 'profile saved');
+  await win.click('.m-sheet [data-action=prof-set][data-key=kvType][data-value=q8_0]');
+  await win.waitForTimeout(500);
+  await win.click('.m-card .m-row >> nth=1');
+  await win.waitForTimeout(600);
+  step('moe sheet'); await win.screenshot({ path: `${shots}/12-moe-sheet.png` });
+  assert.ok(await win.$('.m-sheet [data-key=cpuMoe]'), 'MoE option shown for MoE models');
+  await win.click('.st-tab[data-tab=storage]');
+  await win.waitForSelector('.lib-row');
+  step('storage'); await win.screenshot({ path: `${shots}/13-storage.png` });
+  await win.click('.st-tab[data-tab=engine]');
+  await win.waitForSelector('#mon .meter');
+  await win.click('[data-action=set][data-key="localApi.enabled"]');
+  await win.waitForSelector('.api-box.ok', { timeout: 5000 });
+  const apiModels = await (await fetch('http://127.0.0.1:11500/v1/models')).json();
+  assert.ok(apiModels.data.some((m) => m.id.includes('fake-model-large')) && apiModels.data.some((m) => m.id.includes('mistral')), 'local API lists local + provider models');
+  const apiChat = await (await fetch('http://127.0.0.1:11500/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: apiModels.data.find((m) => m.id.includes('fake-model-large')).id, messages: [{ role: 'user', content: 'hi' }] }) })).json();
+  assert.match(apiChat.choices[0].message.content, /une réponse/);
+  await win.waitForTimeout(500);
+  step('engine'); await win.screenshot({ path: `${shots}/14-engine.png` });
+  await win.evaluate(() => document.querySelector('.st-content').scrollTo(0, 99999));
+  await win.waitForTimeout(300);
+  step('engine bottom'); await win.screenshot({ path: `${shots}/15-engine-bottom.png` });
+  await win.click('.st-tab[data-tab=usage]');
+  await win.waitForSelector('.u-kpis');
+  await win.waitForTimeout(800);
+  step('usage'); await win.screenshot({ path: `${shots}/16-usage.png` });
+  assert.ok(await win.evaluate(() => S.usage.total.requests >= 3), 'usage recorded (2 chats + API)');
+  await win.click('[data-action=close-settings]');
+
   // Close → tray (window hidden, app alive)
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('quick.html')).close());
   await win.waitForTimeout(500);
@@ -113,4 +179,4 @@ const step = (m) => console.log('•', m);
   await app.evaluate(({ app }) => app.quit());
   srv.close();
   console.log('e2e: all passed →', shots);
-})().catch(async (e) => { console.error(e); process.exit(1); });
+})().catch(async (e) => { console.error(e); if (global.__fail) await global.__fail(); process.exit(1); });
