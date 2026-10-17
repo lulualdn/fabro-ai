@@ -44,6 +44,24 @@ fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpda
   assert.match(r3.content, /page\(s\)/); assert.ok(r3._img);
   const bad = await run('edit_artifact', { artifact: artId, edits: [{ old_text: 'introuvable', new_text: 'x' }] });
   assert.match(bad.error, /not found/);
+  // tools Fabro asked for: selectors, conditional wait, element screenshot, image download, pause
+  const http = require('http');
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAMgAAADIAQMAAACXljzdAAAABlBMVEX/XkL///+GqyxSAAAAG0lEQVRYw+3BMQEAAADCoPVPbQ0PoAAAAAAAAPgaM7AAAWxCH4oAAAAASUVORK5CYII=', 'base64');
+  const srv = http.createServer((q, r) => { if (q.url.startsWith('/img')) { r.writeHead(200, { 'Content-Type': 'image/svg+xml' }); return r.end('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><circle cx="100" cy="100" r="90" fill="#ff5e42"/></svg>'); }
+    r.writeHead(200, { 'Content-Type': 'text/html' }); r.end('<title>T</title><img alt="Logo rouge" src="/img.svg" width="200" height="200"><input id="q"><button id="go" onclick="setTimeout(()=>{const d=document.createElement(\'p\');d.id=\'done\';d.textContent=\'OK \'+document.getElementById(\'q\').value;document.body.append(d)},800)">Go</button>'); });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  await run('browser_open', { url: `http://127.0.0.1:${srv.address().port}/` });
+  await run('browser_type', { selector: '#q', text: 'fabro' });
+  await run('browser_click', { selector: '#go' });
+  const w = await run('browser_wait', { selector: '#done', seconds: 10 });
+  assert.match(w.content, /OK fabro/, 'selector click/type + wait for an element');
+  const shotEl = await run('browser_screenshot', { selector: '#done' });
+  assert.ok(shotEl._img && /#done/.test(shotEl.content), 'element screenshot');
+  const dl = await run('browser_download_images', { folder: docs, min_size: 50 });
+  assert.match(dl.content, /Saved 1 image/, dl.content);
+  const p = await run('wait', { seconds: 0.5 }); assert.match(p.content, /Waited/);
+  srv.close();
+  console.log('• browser tools with selectors, wait, element screenshot, image download: ok');
   console.log('layout-test: all passed →', out);
   await app.evaluate(({ app }) => app.quit()).catch(() => {});
   process.exit(0);

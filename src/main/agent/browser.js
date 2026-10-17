@@ -210,6 +210,17 @@ function pressKey(combo) {
 }
 const isSecretField = (i) => i && (i.type === 'password' || /password|current-password|new-password|cc-|one-time-code/.test(i.autocomplete) || /pass(word)?|mdp|cvv|cvc|card/.test(i.name));
 
+// CSS selector → an element id usable by the other tools (the element is tagged like browser_read does).
+async function idFor(selector) {
+  const r = await ensure().webContents.executeJavaScript(`(() => { let el; try { el = document.querySelector(${JSON.stringify(String(selector))}); } catch { return 'bad'; } if (!el) return null;
+    el.scrollIntoView({ block: 'center', inline: 'center' });
+    if (!el.dataset.fabroId) { window.__fabroSel = (window.__fabroSel || 9000) + 1; el.dataset.fabroId = String(window.__fabroSel); } return +el.dataset.fabroId; })()`, true);
+  if (r === 'bad') throw new Error(`Invalid CSS selector: ${selector}`);
+  if (r == null) throw new Error(`No element matches ${selector}`);
+  await wait(120);
+  return r;
+}
+const withSel = async (a) => { if (a.selector && a.id == null) a.id = await idFor(a.selector); return a; };
 async function shot() {
   const wc = ensure().webContents;
   let img = await wc.capturePage();
@@ -274,11 +285,11 @@ agent.register({ ...common, name: 'browser_find', risk: 'read', categoryCore: tr
     return { content: r.length ? `${r.length} match(es):\n${r.map((h, i) => `${i + 1}. …${h}…`).join('\n')}` : 'Not found on this page.', view: { kind: 'find', n: r.length } };
   } });
 agent.register({ ...common, name: 'browser_click', risk: 'net', categoryCore: true,
-  description: 'Click an element by its [id] from browser_read (or at x,y in the viewport). Purchases, sending, publishing, deleting or downloading always ask the user first.',
-  parameters: { type: 'object', properties: { id: { type: 'integer' }, x: { type: 'number' }, y: { type: 'number' } } },
+  description: 'Click an element by its [id] from browser_read or a CSS `selector` (or at x,y in the viewport). Purchases, sending, publishing, deleting or downloading always ask the user first.',
+  parameters: { type: 'object', properties: { id: { type: 'integer' }, selector: { type: 'string', description: 'CSS selector, instead of id' }, x: { type: 'number' }, y: { type: 'number' } } },
   summarize: (a) => (a.id != null ? `#${a.id}` : `${a.x},${a.y}`),
-  async guard(a) { if (a.id == null) return null; const i = await elementInfo(a.id); if (!i) return { refuse: `element ${a.id} not found — call browser_read again` }; return agent.SENSITIVE.test(i.label) || (i.type === 'submit' && i.form) ? { confirm: `click « ${i.label || i.tag} »` } : null; },
-  async run(a, ctx) {
+  async guard(a) { await withSel(a); if (a.id == null) return null; const i = await elementInfo(a.id); if (!i) return { refuse: `element ${a.id} not found — call browser_read again` }; return agent.SENSITIVE.test(i.label) || (i.type === 'submit' && i.form) ? { confirm: `click « ${i.label || i.tag} »` } : null; },
+  async run(a, ctx) { await withSel(a);
     blockIfUser();
     let x = a.x, y = a.y, label = '';
     if (a.id != null) { const i = await elementInfo(a.id); if (!i) throw new Error(`Element ${a.id} not found — call browser_read again`); x = i.x; y = i.y; label = i.label; }
@@ -291,11 +302,11 @@ agent.register({ ...common, name: 'browser_click', risk: 'net', categoryCore: tr
     return r;
   } });
 agent.register({ ...common, name: 'browser_type', risk: 'net', categoryCore: true,
-  description: 'Type text into a field by [id] (clears it first unless append=true). Set submit=true to press Enter after. Never used for passwords or card numbers: the user types those themselves.',
-  parameters: { type: 'object', properties: { id: { type: 'integer' }, text: { type: 'string' }, append: { type: 'boolean' }, submit: { type: 'boolean' } }, required: ['id', 'text'] },
+  description: 'Type text into a field by [id] or CSS `selector` (clears it first unless append=true). Set submit=true to press Enter after. Never used for passwords or card numbers: the user types those themselves.',
+  parameters: { type: 'object', properties: { id: { type: 'integer' }, selector: { type: 'string', description: 'CSS selector, instead of id' }, text: { type: 'string' }, append: { type: 'boolean' }, submit: { type: 'boolean' } }, required: ['text'] },
   summarize: (a) => `#${a.id}: ${String(a.text).slice(0, 80)}`,
-  async guard(a) { const i = await elementInfo(a.id); if (!i) return { refuse: `element ${a.id} not found — call browser_read again` }; if (isSecretField(i)) return { refuse: 'Fabro never types passwords, codes or card numbers. Ask the user to type it in the browser panel themselves.' }; return a.submit && agent.SENSITIVE.test(i.label) ? { confirm: 'submit' } : null; },
-  async run(a) {
+  async guard(a) { await withSel(a); const i = await elementInfo(a.id); if (!i) return { refuse: `element ${a.id} not found — call browser_read again` }; if (isSecretField(i)) return { refuse: 'Fabro never types passwords, codes or card numbers. Ask the user to type it in the browser panel themselves.' }; return a.submit && agent.SENSITIVE.test(i.label) ? { confirm: 'submit' } : null; },
+  async run(a) { await withSel(a);
     blockIfUser();
     const wc = ensure().webContents;
     const i = await elementInfo(a.id); if (!i) throw new Error('Element not found');
@@ -308,9 +319,9 @@ agent.register({ ...common, name: 'browser_type', risk: 'net', categoryCore: tru
   } });
 agent.register({ ...common, name: 'browser_select', risk: 'net', categoryCore: true,
   description: 'Choose an option in a <select> by [id], by its visible text or value.',
-  parameters: { type: 'object', properties: { id: { type: 'integer' }, option: { type: 'string' } }, required: ['id', 'option'] },
+  parameters: { type: 'object', properties: { id: { type: 'integer' }, selector: { type: 'string', description: 'CSS selector, instead of id' }, option: { type: 'string' } }, required: ['option'] },
   summarize: (a) => `#${a.id}: ${a.option}`,
-  async run(a) {
+  async run(a) { await withSel(a);
     blockIfUser();
     const ok = await ensure().webContents.executeJavaScript(`(() => { const el = document.querySelector('[data-fabro-id="${Number(a.id)}"]'); if (!el || el.tagName !== 'SELECT') return 'not a select';
       const o = ${JSON.stringify(String(a.option).toLowerCase())}; const opt = [...el.options].find((x) => x.text.trim().toLowerCase() === o || x.value.toLowerCase() === o) || [...el.options].find((x) => x.text.toLowerCase().includes(o));
@@ -320,9 +331,9 @@ agent.register({ ...common, name: 'browser_select', risk: 'net', categoryCore: t
   } });
 agent.register({ ...common, name: 'browser_key', risk: 'net', categoryCore: true,
   description: 'Press a key or shortcut in the page: Enter, Tab, Escape, ArrowDown, PageDown, Ctrl+A…',
-  parameters: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] },
+  parameters: { type: 'object', properties: { key: { type: 'string' }, selector: { type: 'string', description: 'Focus this element first (CSS selector)' } }, required: ['key'] },
   summarize: (a) => a.key,
-  async run(a) { blockIfUser(); pressKey(a.key); await settle(ensure().webContents, 8000); return { content: `Pressed ${a.key}. Call browser_read to see the result.`, view: { kind: 'key', key: a.key } }; } });
+  async run(a) { if (a.selector) { const id = await idFor(a.selector); await ensure().webContents.executeJavaScript(`document.querySelector('[data-fabro-id="${id}"]').focus()`, true).catch(() => {}); } blockIfUser(); pressKey(a.key); await settle(ensure().webContents, 8000); return { content: `Pressed ${a.key}. Call browser_read to see the result.`, view: { kind: 'key', key: a.key } }; } });
 agent.register({ ...common, name: 'browser_scroll', risk: 'read', categoryCore: true,
   description: 'Scroll the page: direction down/up (by about one screen, or `amount` in pixels), or to an element [id].',
   parameters: { type: 'object', properties: { direction: { type: 'string', enum: ['down', 'up', 'top', 'bottom'] }, amount: { type: 'integer' }, id: { type: 'integer' } } },
@@ -337,11 +348,16 @@ agent.register({ ...common, name: 'browser_scroll', risk: 'read', categoryCore: 
     return read();
   } });
 agent.register({ ...common, name: 'browser_wait', risk: 'read', categoryCore: true,
-  description: 'Wait until some text appears on the page (or for `seconds`), e.g. after a search or a slow load.',
-  parameters: { type: 'object', properties: { text: { type: 'string' }, seconds: { type: 'number' } } },
-  summarize: (a) => a.text || `${a.seconds || 2} s`,
+  description: 'Wait for a condition: some `text` appears, or an element (`selector`) appears or disappears (`state`: visible | hidden); or just `seconds`. Use it after slow loads, uploads, searches.',
+  parameters: { type: 'object', properties: { text: { type: 'string' }, selector: { type: 'string' }, state: { type: 'string', enum: ['visible', 'hidden'] }, seconds: { type: 'number', description: 'Timeout (max 60)' } } },
+  summarize: (a) => a.text || (a.selector ? `${a.selector} ${a.state || 'visible'}` : `${a.seconds || 2} s`),
   async run(a) {
-    const wc = ensure().webContents; const t0 = Date.now(); const lim = Math.min(30, a.seconds || (a.text ? 15 : 2)) * 1000;
+    const wc = ensure().webContents; const t0 = Date.now(); const lim = Math.min(60, a.seconds || (a.text || a.selector ? 15 : 2)) * 1000;
+    if (a.selector) {
+      const want = a.state === 'hidden' ? 'false' : 'true', q = JSON.stringify(String(a.selector));
+      while (Date.now() - t0 < lim) { const v = await wc.executeJavaScript(`(() => { let el; try { el = document.querySelector(${q}); } catch { return 'bad'; } if (!el) return false; const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; })()`, true).catch(() => false); if (v === 'bad') throw new Error('Invalid CSS selector'); if (String(v) === want) return read(); await wait(300); }
+      const r = await read(); r.content = `${a.selector} still ${a.state === 'hidden' ? 'visible' : 'not visible'} after ${lim / 1000} s.\n` + r.content; return r;
+    }
     if (!a.text) { await wait(lim); return read(); }
     const q = JSON.stringify(String(a.text).toLowerCase());
     while (Date.now() - t0 < lim) { if (await wc.executeJavaScript(`document.body && document.body.innerText.toLowerCase().includes(${q})`, true).catch(() => false)) return read(); await wait(400); }
@@ -364,9 +380,18 @@ agent.register({ ...common, name: 'browser_zoom', risk: 'read',
   summarize: (a) => `${Math.round(a.factor * 100)} %`,
   async run(a) { ensure().webContents.setZoomFactor(Math.max(0.3, Math.min(3, a.factor))); publish(); return { content: `Zoom ${Math.round(a.factor * 100)} %`, view: { kind: 'zoom' } }; } });
 agent.register({ ...common, name: 'browser_screenshot', risk: 'read', categoryCore: true,
-  description: 'Take a screenshot of the visible page (for layouts, images, canvases). Only useful with models that see images.',
-  parameters: { type: 'object', properties: {} }, summarize: () => state().url || '',
-  async run() { const image = await shot(); return { content: 'Screenshot of the current page attached.', image, view: { kind: 'screenshot', image } }; } });
+  description: 'Take a screenshot of the visible page, or of one element (`selector`), to check a layout, a component or a result visually. Only useful with models that see images.',
+  parameters: { type: 'object', properties: { selector: { type: 'string', description: 'Only this element (CSS selector)' } } }, summarize: (a) => a.selector || state().url || '',
+  async run(a = {}) {
+    if (a.selector) {
+      const id = await idFor(a.selector); const wc = ensure().webContents;
+      const r = await wc.executeJavaScript(`(() => { const b = document.querySelector('[data-fabro-id="${id}"]').getBoundingClientRect(); return { x: Math.max(0, Math.floor(b.x)), y: Math.max(0, Math.floor(b.y)), width: Math.ceil(b.width), height: Math.ceil(b.height) }; })()`, true);
+      if (!r.width || !r.height) throw new Error(`${a.selector} is not visible`);
+      const img = await wc.capturePage(r); const image = 'data:image/png;base64,' + img.toPNG().toString('base64');
+      return { content: `Screenshot of ${a.selector} (${r.width}×${r.height}) attached.`, image, view: { kind: 'screenshot', image } };
+    }
+    const image = await shot(); return { content: 'Screenshot of the current page attached.', image, view: { kind: 'screenshot', image } };
+  } });
 agent.register({ ...common, name: 'browser_back', risk: 'read', categoryCore: true,
   description: 'Go back (or forward=true) in the browser history.', parameters: { type: 'object', properties: { forward: { type: 'boolean' } } },
   summarize: (a) => (a.forward ? '→' : '←'),
@@ -406,4 +431,4 @@ async function control(action, arg) {
   return state();
 }
 
-module.exports = { init, setBounds, state, control };
+module.exports = { init, setBounds, state, control, current: () => cur() };

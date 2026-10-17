@@ -55,7 +55,15 @@ function stepLabel(st) {
     case 'browser_key': return k('key', { k: a.key });
     case 'browser_scroll': return k('scroll');
     case 'browser_zoom': return k('zoom', { z: Math.round((a.factor || 1) * 100) });
-    case 'browser_screenshot': return k('shot');
+    case 'browser_screenshot': return a.selector ? `${k('shot')} · ${a.selector}` : k('shot');
+    case 'create_pdf': return `PDF · ${a.title || ''}`;
+    case 'inspect_document': return `👁 ${a.artifact || base(a.path || '')}`;
+    case 'read_artifact': return `${a.artifact || ''}`;
+    case 'edit_artifact': return `✎ ${a.artifact || ''} · ${(a.edits || []).length}`;
+    case 'generate_speech': return `🔊 ${a.title || String(a.text || '').slice(0, 50)}`;
+    case 'browser_download_images': return `⬇ ${a.selector || 'images'}`;
+    case 'import_files': return `📥 ${a.why || ''}`;
+    case 'wait': return `⏳ ${a.seconds || 1} s${a.reason ? ' · ' + a.reason : ''}`;
     case 'browser_back': return k('back');
     case 'browser_script': return k('script');
     default: if (st.name.startsWith('mcp__')) { const [, srv, tool] = st.name.split('__'); return `${srv} · ${tool}`; } return st.name;
@@ -101,7 +109,12 @@ function stepDetail(st) {
     return `<div class="file-chip" data-action="reveal-path" data-path="${esc(v.path)}">${icon('file', 13)}<span>${esc(v.path)}</span>${v.add != null ? `<b class="add">+${v.add}</b><b class="del">−${v.del}</b>` : ''}</div>
       ${v.before != null ? `<details class="diff"><summary>${esc(t('ag_diff'))}</summary><pre>${esc(v.before).split('\n').map((l) => `<span class="dl">- ${l}</span>`).join('\n')}\n${esc(v.after).split('\n').map((l) => `<span class="al">+ ${l}</span>`).join('\n')}</pre></details>` : ''}`;
   }
-  if (st.name === 'create_document' && v.path) {
+  if (st.name === 'generate_speech' && v.path) {
+    return `<div class="doc-chip">${icon('waveform', 16)}<span><b>${esc(base(v.path))}</b><small>${esc(v.seconds || 0)} s · ${esc(v.voice || '')}</small></span>
+      <audio controls preload="none" src="${esc('file://' + encodeURI(v.path.replace(/\\/g, '/')).replace(/^file:\/\/(?!\/)/, 'file:///'))}"></audio>
+      <button class="icon-btn sm" data-action="reveal-path" data-path="${esc(v.path)}" title="${esc(t('ag_reveal'))}">${icon('folder', 15)}</button></div>`;
+  }
+  if (['create_document', 'create_pdf', 'edit_artifact', 'inspect_document'].includes(st.name) && v.path) {
     return `<div class="doc-chip">${icon('file', 16)}<span><b>${esc(base(v.path))}</b><small>${esc(v.path)}</small></span>
       <button class="btn sm" data-action="open-path" data-path="${esc(v.path)}">${esc(t('open'))}</button>
       <button class="icon-btn sm" data-action="reveal-path" data-path="${esc(v.path)}" title="${esc(t('ag_reveal'))}">${icon('folder', 15)}</button>

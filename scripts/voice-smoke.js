@@ -47,6 +47,19 @@ const srv = http.createServer((req, res) => {
   assert.match(direct.text, /capitale/i);
   const audio = await win.evaluate(async () => (await api.voice.tts('Bonjour, je suis Fabro.')).length);
   assert.ok(audio > 20000, 'tts returns audio');
+  // generate_speech tool: long text → one MP3 and one WAV file
+  const sp = await app.evaluate(async (_e, root) => {
+    const agent = process.mainModule.require(root + '/src/main/agent/index.js');
+    const ctx = { convId: 'v', emit: () => {}, grants: new Set(), onAbort: () => {}, needDeps: async () => true };
+    const t = 'Bonjour ! Ceci est un message vocal généré par Fabro. ' + 'Il est assez long pour être découpé en plusieurs morceaux. '.repeat(20);
+    const a = await agent.get('generate_speech').run({ text: t, voice: 'fr', title: 'Message test' }, ctx);
+    const b = await agent.get('generate_speech').run({ text: 'Hello from Fabro.', voice: 'en', format: 'wav', title: 'Hello' }, ctx);
+    const fs = process.mainModule.require('fs');
+    return { a: a.view, b: b.view, sa: fs.statSync(a.view.path).size, head: fs.readFileSync(a.view.path).subarray(0, 3).toString('hex'), sb: fs.statSync(b.view.path).size };
+  }, path.join(__dirname, '..'));
+  console.log('• generate_speech:', sp.a.path, sp.a.seconds + ' s', sp.sa + ' bytes;', sp.b.path, sp.sb + ' bytes');
+  assert.ok(sp.a.seconds > 20 && sp.sa > 50000 && /^(494433|fffb|fff3|fff2)/.test(sp.head), 'MP3 written');
+  assert.ok(sp.b.format === 'wav' && sp.sb > 10000, 'WAV written');
   // Voice mode through the fake microphone.
   await win.click('[data-action=voice-mode]');
   await win.waitForSelector('#vx', { timeout: 5000 });

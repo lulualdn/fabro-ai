@@ -15,7 +15,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/extras');
 const browser = require('./agent/browser');
 const skills = require('./agent/skills');
 const python = require('./agent/python');
