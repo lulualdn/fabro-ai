@@ -1,10 +1,74 @@
 [
  {
+  "tag": "v0.1.26",
+  "date": "2026-10-17T22:30:14Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.26",
+  "prerelease": false,
+  "body": "Fabro Anywhere avec l'interface de l'app, fichiers visibles et téléchargeables; mode développeur désactivé\n\n- Anywhere : même rendu que l'app (réflexion animée, résumé des outils repliable, chaque étape avec son résultat : sources, sorties de commandes, plan, sous-agents, captures, modifications)\n- Fichiers créés par l'IA : aperçu (image, PDF, audio, texte) ou téléchargement sur le téléphone (RPC file.get, limité aux fichiers de la conversation)\n- Citations cliquables et sources citées, markdown dans les messages de l'utilisateur\n- Mise en page différente : tablette/ordinateur façon app (barre latérale fine, colonne centrée), téléphone avec tiroir\n- Mode développeur désactivé par défaut (et désactivé une fois pour les installations existantes)",
+  "assets": [
+   {
+    "name": "Fabro-0.1.26-arm64-mac.zip",
+    "size": 139654606,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/Fabro-0.1.26-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.26-arm64-mac.zip.blockmap",
+    "size": 146036,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/Fabro-0.1.26-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.26-arm64.dmg",
+    "size": 140226861,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/Fabro-0.1.26-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.26-arm64.dmg.blockmap",
+    "size": 146726,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/Fabro-0.1.26-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.26.AppImage",
+    "size": 136848809,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/Fabro-0.1.26.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.26.exe",
+    "size": 118725274,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/Fabro-Setup-0.1.26.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.26.exe.blockmap",
+    "size": 123553,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/Fabro-Setup-0.1.26.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.26/latest.yml"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.25",
   "date": "2026-10-17T22:25:25Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.25",
   "prerelease": false,
-  "body": "Accueil par l'hélice, Gemma 4 E4B par défaut, mises à jour via l'installateur Fabro\n\n- Premier démarrage : l'hélice pose quelques questions (ton prénom, le nom de l'IA, pour quoi, style de réponse, thème)\n- Le nom choisi pour l'IA est utilisé dans ses instructions\n- Gemma 4 E4B recommandé et présélectionné (app + installateur) quand le PC peut le faire tourner\n- Windows : les mises à jour passent par l'installateur Fabro (interface perso, installation silencieuse, relance)\n- Réglages sauvegardés à côté (settings.json.bak) et restaurés s'ils manquent ou sont abîmés\n- scripts/trailer-capture.js : captures propres de l'app pour la bande-annonce\n",
+  "body": "Accueil par l'hélice, Gemma 4 E4B par défaut, mises à jour via l'installateur Fabro\n\n- Premier démarrage : l'hélice pose quelques questions (ton prénom, le nom de l'IA, pour quoi, style de réponse, thème)\n- Le nom choisi pour l'IA est utilisé dans ses instructions\n- Gemma 4 E4B recommandé et présélectionné (app + installateur) quand le PC peut le faire tourner\n- Windows : les mises à jour passent par l'installateur Fabro (interface perso, installation silencieuse, relance)\n- Réglages sauvegardés à côté (settings.json.bak) et restaurés s'ils manquent ou sont abîmés\n- scripts/trailer-capture.js : captures propres de l'app pour la bande-annonce",
   "assets": [
    {
     "name": "Fabro-0.1.25-arm64-mac.zip",
@@ -30,6 +94,11 @@
     "name": "Fabro-0.1.25.AppImage",
     "size": 136848855,
     "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-0.1.25.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-Installer.exe"
    },
    {
     "name": "Fabro-Setup-0.1.25.exe",

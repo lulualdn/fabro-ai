@@ -764,9 +764,11 @@
   function mainView() {
     return `<div class="shell ${S.drawer ? 'drawer-open' : ''}">
       <aside class="drawer" aria-label="${esc(t('chats'))}">
-        <div class="d-head">${logo(26)}<b>Fabro</b><span class="grow"></span><button class="icon-btn" data-act="settings" aria-label="${esc(t('settings'))}">${ic('gear')}</button></div>
-        <button class="btn primary new-chat" data-act="new">${ic('plus', 18)} ${esc(t('newChat'))}</button>
+        <div class="d-head">${logo(24)}<b>Fabro</b><span class="grow"></span><button class="icon-btn sm" data-act="drawer-close" aria-label="${esc(t('close'))}">${ic('x', 18)}</button></div>
+        <button class="nav-it new" data-act="new"><span class="nv-plus">${ic('plus', 14)}</span>${esc(t('newChat'))}</button>
+        <button class="nav-it" data-act="settings">${ic('gear', 18)}${esc(t('settings'))}</button>
         <nav class="d-list" data-h="${esc(t('recents'))}">${convList()}</nav>
+        <button class="d-pc" data-act="model" id="d-pc"></button>
       </aside>
       <div class="scrim" data-act="drawer-close"></div>
       <section class="main">
@@ -793,7 +795,10 @@
     const st = S.conn.state;
     const label = st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : S.settings.model === 'phone' || (localInfo() && S.settings.localFallback) ? t('phoneModel') : t('offlineShort');
     const c = curConv();
+    const mn = $('.main'); if (mn) mn.classList.toggle('home', !c && !(S.cur && S.metas.some((m) => m.id === S.cur)));
+    const pc = $('#d-pc'); if (pc) pc.innerHTML = `<span class="pc-dot ${st}"></span><span class="pc-txt"><b>${esc(S.link ? S.link.pcName || 'PC' : t('guestMode'))}</b><small>${esc(S.link ? label : modelLabel())}</small></span>`;
     el.innerHTML = `<button class="icon-btn" data-act="drawer" aria-label="${esc(t('chats'))}">${ic('menu')}</button>
+      <span class="top-title">${esc(c ? c.title || t('untitled') : '')}</span>
       <button class="pc-chip" data-act="model">
         <span class="pc-dot ${st}"></span>
         <span class="pc-txt"><b>${esc(modelLabel())}</b><small>${esc(S.link ? `${S.link.pcName || 'PC'} · ${label}` : t('guestMode'))}</small></span>
@@ -811,7 +816,7 @@
     if (!c) {
       const meta = S.cur && S.metas.find((m) => m.id === S.cur);
       if (meta) return `<div class="empty">${logo(48)}<p>${esc(session ? t('loading') : t('notDownloaded'))}</p></div>`;
-      return `<div class="empty">${logo(64, 'spin-in')}<h2>${esc(t('hello'))}</h2><p class="muted">${esc(S.link ? t('helloSub', { n: S.link.pcName || 'PC' }) : '')}</p>
+      return `<div class="empty"><h2 class="greet">${logo(34, 'spin-in')} ${esc(t('hello'))}</h2><p class="muted">${esc(S.link ? t('helloSub', { n: S.link.pcName || 'PC' }) : '')}</p>
         <div class="sugs">${[t('sug1'), t('sug2'), t('sug3')].map((s) => `<button class="sug" data-act="sug">${esc(s)}</button>`).join('')}</div></div>`;
     }
     const path = A.pathOf(c);
@@ -864,6 +869,7 @@
           <label class="icon-btn ${vision ? '' : 'dim'}" aria-label="${esc(t('addPhoto'))}">${ic('photo')}<input type="file" accept="image/*" multiple hidden id="photo-in"></label>
           <button type="button" class="chip ${c && c.agent || (!c && S.settings.agent) ? 'on' : ''}" data-act="agent">${ic('agent', 16)} ${esc(t('agent'))}</button>
           <span class="grow"></span>
+          <button type="button" class="model-pill" data-act="model">${esc(modelLabel())} <span class="chev">⌄</span></button>
           <button type="button" class="icon-btn ${S.dictating ? 'rec' : ''}" data-act="dictate" aria-label="${esc(t('dictate'))}">${ic('mic')}</button>
           ${running ? `<button type="button" class="send stop" data-act="stop" aria-label="${esc(t('stop'))}">${ic('stop', 18)}</button>` : `<button type="submit" class="send" aria-label="${esc(t('send'))}">${ic('send', 20)}</button>`}
         </div>
