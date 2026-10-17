@@ -18,7 +18,7 @@ const DEFAULTS = {
   localApi: { enabled: false, port: 11500, key: '', lan: false },
   gen: { temperature: 0.7, topP: 0.95, maxTokens: 4096, systemPrompt: '', reasoning: 'auto' },
   autoUpdate: true,
-  devMode: true,               // internal builds: banner + devtools
+  devMode: false,              // banner + devtools (opt-in since the public release)
   installedModes: ['chat'],
   closeToTray: true,           // the window's close button hides Fabro in the tray
   trayHintShown: false,
@@ -64,6 +64,8 @@ function init() {
   const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
   try { settings = merge(DEFAULTS, read(settingsFile())); try { fs.copyFileSync(settingsFile(), bak); } catch {} }
   catch { try { settings = merge(DEFAULTS, read(bak)); fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2)); } catch { settings = merge(DEFAULTS, {}); } }
+  // Public release: developer mode is turned off once for everyone (it can be turned back on in Settings).
+  if (!settings.devModeReleased) { settings.devMode = false; settings.devModeReleased = true; try { fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2)); } catch {} }
 }
 
 const getSettings = () => settings;

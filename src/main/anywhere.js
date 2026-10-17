@@ -140,7 +140,8 @@ async function configure(patch) {
 }
 
 // ───────────────────────────── conversations ─────────────────────────────
-const trimView = (v) => { if (!v || typeof v !== 'object') return v; const o = { ...v }; for (const k of Object.keys(o)) if (typeof o[k] === 'string' && o[k].length > 4000) o[k] = o[k].slice(0, 4000) + '…'; return o; };
+// Screenshots and generated images go to the phone too (up to ~350 kB each); other long strings are cut.
+const trimView = (v, imgMax = 350000) => { if (!v || typeof v !== 'object') return v; const o = { ...v }; for (const k of Object.keys(o)) { if (typeof o[k] !== 'string') continue; if (/^data:image\//.test(o[k])) { if (o[k].length > imgMax) delete o[k]; } else if (o[k].length > 4000) o[k] = o[k].slice(0, 4000) + '…'; } if (Array.isArray(o.sources)) o.sources = o.sources.slice(0, 10); return o; };
 function forPhone(c) {
   if (!c) return c;
   const nodes = A.nodesOf(c).map(({ steps, ...n }) => ({ ...n, steps: (steps || []).map((s) => ({ id: s.id, name: s.name, status: s.status, parent: s.parent, args: s.args && JSON.stringify(s.args).length < 1500 ? s.args : undefined, view: trimView(s.view) })) }));
@@ -321,6 +322,13 @@ async function handle(deviceId, method, p = {}) {
       const a = db.getArtifact(String(p.id || '')); if (!a) throw new Error('Artifact not found');
       const last = a.versions[a.versions.length - 1] || {};
       return { id: a.id, type: a.type, title: a.title, content: String(last.content || '').slice(0, 400000), versions: a.versions.length, pdf: !!(a.pdf && a.pdf.file && fs.existsSync(a.pdf.file)) };
+    }
+    case 'file.get': {
+      // only a file that appears in this conversation (made or used by the AI) can be fetched
+      const file = String(p.path || ''); const c = p.convId && await require('./store').getConversation(String(p.convId)).catch(() => null);
+      if (!file || !c || !JSON.stringify(c).includes(JSON.stringify(file).slice(1, -1))) throw new Error('File not available');
+      const st = fs.statSync(file); if (!st.isFile()) throw new Error('Not a file'); if (st.size > 25e6) throw new Error('File too large to send (25 MB max)');
+      return { name: path.basename(file), size: st.size, data: fs.readFileSync(file).toString('base64') };
     }
     case 'doc.pdf': {
       const a = db.getArtifact(String(p.id || '')); if (!a || !a.pdf || !a.pdf.file || !fs.existsSync(a.pdf.file)) throw new Error('PDF not found');

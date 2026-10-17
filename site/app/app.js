@@ -658,6 +658,7 @@
     photo: '<path d="M4 7h3l2-2.5h6L17 7h3v12H4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><circle cx="12" cy="13" r="3.6" stroke="currentColor" stroke-width="2" fill="none"/>',
     gear: '<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1l.4 2.5h4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="none"/>',
     x: '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+    download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
     trash: '<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>',
     back: '<path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
     pc: '<rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
@@ -670,6 +671,34 @@
   };
   const ic = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n] || ''}</svg>`;
   const logo = (s = 28, cls = '') => `<svg class="logo ${cls}" width="${s}" height="${s}" viewBox="0 0 100 100" aria-hidden="true">${markPath ? `<path class="prop" fill-rule="evenodd" d="${markPath}"/>` : '<circle class="prop" cx="50" cy="50" r="30"/>'}</svg>`;
+
+  setTimeout(() => FAS.init({ esc, t, md, ic }));
+  // files the AI made on the PC: fetched on demand, shown here or saved on the phone
+  const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', txt: 'text/plain', md: 'text/markdown', csv: 'text/csv', json: 'application/json', html: 'text/html', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
+  async function getFile(path) {
+    if (!session) throw new Error(t('pcAway'));
+    toast(t('loading'));
+    const r = await rpc('file.get', { convId: S.cur, path }, 180000);
+    const ext = (r.name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+    return { name: r.name, ext, blob: new Blob([A.unb64u(r.data.replace(/\+/g, '-').replace(/\//g, '_'))], { type: MIME[ext] || 'application/octet-stream' }) };
+  }
+  function saveBlob(f) { const url = URL.createObjectURL(f.blob); const a = document.createElement('a'); a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); }
+  async function viewFile(path) {
+    try {
+      const f = await getFile(path); const url = URL.createObjectURL(f.blob);
+      let body;
+      if (/^image\//.test(f.blob.type)) body = `<img class="fv-img" src="${url}" alt="">`;
+      else if (/^audio\//.test(f.blob.type)) body = `<div class="fv-audio">${logo(64)}<audio controls autoplay src="${url}"></audio></div>`;
+      else if (f.ext === 'pdf') body = `<iframe class="art-frame" src="${url}" title="${esc(f.name)}"></iframe>`;
+      else if (/^text\/|json/.test(f.blob.type)) { const tx = await f.blob.text(); body = f.ext === 'md' ? `<div class="doc md">${md(tx)}</div>` : `<pre class="art-code">${esc(tx.slice(0, 300000))}</pre>`; }
+      else body = `<div class="fv-none"><p>${esc(t('noPreview'))}</p><button class="btn primary" data-act="fv-dl">${ic('download', 18)} ${esc(t('saveFile'))}</button></div>`;
+      S.fv = f;
+      const el = document.createElement('div'); el.className = 'av'; el.id = 'av';
+      el.innerHTML = `<header><button class="icon-btn" data-act="art-close" aria-label="${esc(t('close'))}">${ic('back')}</button><div class="av-t"><b>${esc(f.name)}</b><small>${esc(fmtSize(f.blob.size))}</small></div><button class="icon-btn" data-act="fv-dl" aria-label="${esc(t('saveFile'))}">${ic('download')}</button></header><div class="av-body ${f.ext === 'pdf' ? 'html' : ''}">${body}</div>`;
+      $('#av') && $('#av').remove(); document.body.appendChild(el);
+    } catch (e) { toast(e.message, 'err'); }
+  }
+  const fmtSize = (n) => n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB';
 
   function md(text) {
     try { return DOMPurify.sanitize(marked.parse(String(text || ''), { breaks: true, gfm: true }), { FORBID_TAGS: ['style', 'iframe', 'form', 'input'], FORBID_ATTR: ['style'] }); } catch { return esc(text); }
@@ -737,7 +766,7 @@
       <aside class="drawer" aria-label="${esc(t('chats'))}">
         <div class="d-head">${logo(26)}<b>Fabro</b><span class="grow"></span><button class="icon-btn" data-act="settings" aria-label="${esc(t('settings'))}">${ic('gear')}</button></div>
         <button class="btn primary new-chat" data-act="new">${ic('plus', 18)} ${esc(t('newChat'))}</button>
-        <nav class="d-list">${convList()}</nav>
+        <nav class="d-list" data-h="${esc(t('recents'))}">${convList()}</nav>
       </aside>
       <div class="scrim" data-act="drawer-close"></div>
       <section class="main">
@@ -792,18 +821,20 @@
     if (m.role === 'user') {
       const imgs = (m.attachments || []).filter((a) => a.kind === 'image' && a.data).map((a) => `<img src="${esc(a.data)}" alt="${esc(a.name || '')}" class="att-img">`).join('');
       const files = (m.attachments || []).filter((a) => a.kind !== 'image').map((a) => `<span class="att-file">${esc(a.name || 'file')}</span>`).join('');
-      return `<div class="msg user" id="m-${esc(m.id)}">${imgs || files ? `<div class="atts">${imgs}${files}</div>` : ''}${m.content ? `<div class="bubble">${esc(m.content)}</div>` : ''}${queued(m.id) ? `<div class="queued">${esc(t('queued'))}</div>` : ''}</div>`;
+      return `<div class="msg user" id="m-${esc(m.id)}">${imgs || files ? `<div class="atts">${imgs}${files}</div>` : ''}${m.content ? `<div class="bubble md">${md(m.content)}</div>` : ''}${queued(m.id) ? `<div class="queued">${esc(t('queued'))}</div>` : ''}</div>`;
     }
     return `<div class="msg ai" id="m-${esc(m.id)}">${aiInner(m)}</div>`;
   }
   function aiInner(m) {
     const steps = (m.steps || []).filter((s) => !s.parent);
     const asks = [...S.asks.values()].filter((a) => a.runId === m.runId || (m.pending && a.convId === S.cur));
-    return `${m.reasoning ? `<details class="think"><summary>${esc(t('thinking'))}</summary><div>${esc(m.reasoning)}</div></details>` : ''}
-      ${steps.length ? `<div class="steps">${steps.map((s) => `<span class="step ${s.status}">${s.status === 'running' ? '<i class="pulse"></i>' : s.status === 'error' ? '⚠' : '✓'} ${esc(toolName(s.name))}</span>`).join('')}</div>` : ''}
+    const cites = FAS.sourceMap(m);
+    return `${FAS.think(m, m.pending && !m.content)}
+      ${steps.length ? FAS.steps(m) : ''}
       ${asks.map((a) => `<div class="ask"><b>${esc(t('askTitle'))}</b><p>${esc(a.summary || a.tool || '')}</p>${a.detail ? `<pre>${esc(String(a.detail).slice(0, 600))}</pre>` : ''}<div class="ask-btns"><button class="btn primary sm" data-act="ask" data-id="${esc(a.id)}" data-v="once">${esc(t('allow'))}</button><button class="btn sm" data-act="ask" data-id="${esc(a.id)}" data-v="deny">${esc(t('deny'))}</button></div></div>`).join('')}
-      <div class="md">${m.content ? splitArt(m.content).map((g) => g.kind === 'text' ? md(g.text) : `<button class="art-card" data-act="art" data-node="${esc(m.id)}" data-i="${g.i}"><span class="art-ic">${ART_ICON[g.type] || '📄'}</span><span><b>${esc(g.title || t('untitled'))}</b><small>${esc(g.open ? t('writing') : t('art_' + g.type))}</small></span></button>`).join('') : m.pending ? `<span class="typing">${logo(22, 'spin')}</span>` : ''}</div>
+      <div class="md">${m.content ? splitArt(m.content).map((g) => g.kind === 'text' ? FAS.linkCites(md(g.text), cites) : `<button class="art-card" data-act="art" data-node="${esc(m.id)}" data-i="${g.i}"><span class="art-ic">${ART_ICON[g.type] || '📄'}</span><span><b>${esc(g.title || t('untitled'))}</b><small>${esc(g.open ? t('writing') : t('art_' + g.type))}</small></span></button>`).join('') : m.pending ? `<span class="typing">${logo(22, 'spin')}</span>` : ''}</div>
       ${(m.steps || []).filter((s2) => s2.view && s2.view.artifactId).map((s2) => `<button class="art-card" data-act="art-id" data-id="${esc(s2.view.artifactId)}"><span class="art-ic">${s2.view.format === 'pdf' ? '📕' : '📄'}</span><span><b>${esc(s2.view.title || t('untitled'))}</b><small>${esc(s2.view.format === 'pdf' ? 'PDF' + (s2.view.pages ? ' · ' + s2.view.pages + ' p.' : '') : t('art_markdown'))}</small></span></button>`).join('')}
+      ${FAS.cited(m)}
       ${m.error ? `<div class="err">⚠ ${esc(m.error)}</div>` : ''}
       ${!m.pending ? `<div class="meta">${esc(m.model || '')}</div>` : ''}`;
   }
@@ -877,7 +908,7 @@
         : loc.status === 'unsupported' ? `<p class="err small">${esc(t('noWebgpu'))}</p>`
         : lm ? `<div class="set-row"><span>${esc(lm.name)} <small class="muted">${esc(lm.size)}</small></span><button class="btn sm" data-act="local-rm">${ic('trash', 15)} ${esc(t('remove'))}</button></div>
                <div class="set-row"><span>${esc(t('localFallback'))}</span><button class="switch ${S.settings.localFallback ? 'on' : ''}" data-act="local-fallback" role="switch" aria-checked="${!!S.settings.localFallback}"><i></i></button></div>`
-        : LOCAL_MODELS.map((m) => `<button class="opt" data-act="local-get" data-id="${m.id}"><span class="opt-ic">${ic('phone', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc(m.size)} · ${esc(t('download'))}</small></span></button>`).join('')}
+        : LOCAL_MODELS.map((m) => `<button class="opt" data-act="local-get" data-id="${m.id}"><span class="opt-ic">${ic('phone', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc(m.size)} · ${esc(t('saveFile'))}</small></span></button>`).join('')}
       ${loc.status === 'error' ? `<p class="err small">${esc(loc.text)}</p>` : ''}
       <h3>${esc(t('display'))}</h3>
       <div class="set-row"><span>${esc(t('language'))}</span><select class="input sm" data-change="lang">${['auto', ...LANGS].map((l) => `<option value="${l}" ${S.settings.lang === l ? 'selected' : ''}>${l === 'auto' ? t('auto') : { en: 'English', fr: 'Français', es: 'Español', de: 'Deutsch' }[l]}</option>`).join('')}</select></div>
@@ -938,6 +969,10 @@
     reconnect: () => { retryN = 0; connect(true); },
     art: (el) => { const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.node); const g = n && splitArt(n.content).filter((x) => x.kind === 'artifact')[+el.dataset.i]; if (g) { const ref = (n.artifacts || [])[+el.dataset.i]; openArt({ ...g, refId: ref && ref.id }); if (ref && ref.id && session) rpc('artifact.get', { id: ref.id }).then((a) => { if (S.art && S.art.refId === ref.id) openArt({ ...a, body: a.content, refId: ref.id, type: artType(a.type, a.content) }); }).catch(() => {}); } },
     'art-id': (el) => openArtById(el.dataset.id),
+    'file-view': (el) => viewFile(el.dataset.path),
+    'file-dl': async (el) => { try { saveBlob(await getFile(el.dataset.path)); } catch (e) { toast(e.message, 'err'); } },
+    'fv-dl': () => { if (S.fv) saveBlob(S.fv); },
+    'img-view': (el) => { const v = document.createElement('div'); v.className = 'av'; v.id = 'av'; v.innerHTML = `<header><button class="icon-btn" data-act="art-close" aria-label="${esc(t('close'))}">${ic('back')}</button><span class="grow"></span></header><div class="av-body"><img class="fv-img" src="${esc(el.getAttribute('src'))}" alt=""></div>`; $('#av') && $('#av').remove(); document.body.appendChild(v); },
     'art-close': () => { S.art = null; $('#av') && $('#av').remove(); },
     'art-pdf': () => { if (S.art && S.art.id) openPdf(S.art.id); },
     'voice-install': async () => { if (!session) return; S.voiceInstalling = true; paintVoice(); try { const st = await rpc('voice.install', { lang }, 20 * 60000); S.conn.info.voice = { ready: !!(st.runtime && st.whisperReady), voice: st.voice }; toast(t('voiceReady')); } catch (e) { toast(e.message, 'err'); } S.voiceInstalling = false; if (S.voice) { closeVoice(); openVoice(); } },

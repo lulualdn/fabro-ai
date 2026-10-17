@@ -1,10 +1,261 @@
 [
  {
+  "tag": "v0.1.25",
+  "date": "2026-10-17T22:25:25Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.25",
+  "prerelease": false,
+  "body": "Accueil par l'hélice, Gemma 4 E4B par défaut, mises à jour via l'installateur Fabro\n\n- Premier démarrage : l'hélice pose quelques questions (ton prénom, le nom de l'IA, pour quoi, style de réponse, thème)\n- Le nom choisi pour l'IA est utilisé dans ses instructions\n- Gemma 4 E4B recommandé et présélectionné (app + installateur) quand le PC peut le faire tourner\n- Windows : les mises à jour passent par l'installateur Fabro (interface perso, installation silencieuse, relance)\n- Réglages sauvegardés à côté (settings.json.bak) et restaurés s'ils manquent ou sont abîmés\n- scripts/trailer-capture.js : captures propres de l'app pour la bande-annonce\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.25-arm64-mac.zip",
+    "size": 139654174,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-0.1.25-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.25-arm64-mac.zip.blockmap",
+    "size": 146084,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-0.1.25-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.25-arm64.dmg",
+    "size": 140226367,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-0.1.25-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.25-arm64.dmg.blockmap",
+    "size": 146716,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-0.1.25-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.25.AppImage",
+    "size": 136848855,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-0.1.25.AppImage"
+   },
+   {
+    "name": "Fabro-Setup-0.1.25.exe",
+    "size": 118724811,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-Setup-0.1.25.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.25.exe.blockmap",
+    "size": 123679,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/Fabro-Setup-0.1.25.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.25/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.24",
+  "date": "2026-10-17T21:54:09Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.24",
+  "prerelease": false,
+  "body": "Réflexion en direct avec un dégradé lumineux qui traverse le texte\n\n- « Réflexion… » + la dernière pensée sur une ligne, avec un reflet qui se déplace (façon ChatGPT)\n- Le bloc reste replié pendant la réflexion; s'il est ouvert, il le reste",
+  "assets": [
+   {
+    "name": "Fabro-0.1.24-arm64-mac.zip",
+    "size": 139648813,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/Fabro-0.1.24-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.24-arm64-mac.zip.blockmap",
+    "size": 146087,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/Fabro-0.1.24-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.24-arm64.dmg",
+    "size": 140219875,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/Fabro-0.1.24-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.24-arm64.dmg.blockmap",
+    "size": 148110,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/Fabro-0.1.24-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.24.AppImage",
+    "size": 136844234,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/Fabro-0.1.24.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.24.exe",
+    "size": 118721489,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/Fabro-Setup-0.1.24.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.24.exe.blockmap",
+    "size": 123629,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/Fabro-Setup-0.1.24.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.24/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.23",
+  "date": "2026-10-17T21:33:39Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.23",
+  "prerelease": false,
+  "body": "Tous fichiers + bac à sable, sources numérotées, résumé des outils, markdown utilisateur, précisions pendant la réponse\n\n- Pièces jointes de tout type (Word, PDF, audio…) copiées dans l'espace de travail, avec taille, pages, vignette et aperçu\n- convert_file (texte, transcription, pages en images), pdf_find_text, pdf_edit (modifier en gardant la mise en page)\n- Captures prises par l'IA affichées dans la conversation\n- Gros collage → texte-colle.txt\n- Markdown rendu aussi dans les messages de l'utilisateur\n- Sources numérotées sur toute la réponse, citations cliquables, liste des sources citées\n- Plusieurs outils → une ligne de résumé repliable\n- Précisions envoyées pendant la génération, intégrées au prochain tour sans interrompre",
+  "assets": [
+   {
+    "name": "Fabro-0.1.23-arm64-mac.zip",
+    "size": 139648179,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/Fabro-0.1.23-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.23-arm64-mac.zip.blockmap",
+    "size": 145714,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/Fabro-0.1.23-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.23-arm64.dmg",
+    "size": 140219232,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/Fabro-0.1.23-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.23-arm64.dmg.blockmap",
+    "size": 148074,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/Fabro-0.1.23-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.23.AppImage",
+    "size": 136844205,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/Fabro-0.1.23.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.23.exe",
+    "size": 118721399,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/Fabro-Setup-0.1.23.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.23.exe.blockmap",
+    "size": 123699,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/Fabro-Setup-0.1.23.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.23/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.22",
+  "date": "2026-10-17T17:54:49Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.22",
+  "prerelease": false,
+  "body": "Fabro Anywhere — computer voices on the phone, artifacts, web, no-account mode\n\n- Voice on the phone: the computer's Piper voice is generated on the PC and played on the phone (one unlocked audio element, works on iOS); the computer's voice can be installed from the phone\n- Artifacts on the phone, read only: documents, slides, web pages, drawings, code; documents and PDFs made by tools open from the conversation (PDF downloaded from the computer)\n- The same app in a desktop browser: calmer wide layout, pairing by typed code\n- No-account mode: use Fabro Anywhere with the WebGPU model only, without any computer; pair later\n- Website: Anywhere page mentions voices, documents and the no-account mode\n- E2E: artifact viewer, desktop-width layout, guest mode",
+  "assets": [
+   {
+    "name": "Fabro-0.1.22-arm64-mac.zip",
+    "size": 134911457,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/Fabro-0.1.22-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.22-arm64-mac.zip.blockmap",
+    "size": 140614,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/Fabro-0.1.22-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.22-arm64.dmg",
+    "size": 135475038,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/Fabro-0.1.22-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.22-arm64.dmg.blockmap",
+    "size": 143984,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/Fabro-0.1.22-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.22.AppImage",
+    "size": 132008838,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/Fabro-0.1.22.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.22.exe",
+    "size": 116117954,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/Fabro-Setup-0.1.22.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.22.exe.blockmap",
+    "size": 121142,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/Fabro-Setup-0.1.22.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.22/latest.yml"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.21",
   "date": "2026-10-17T17:51:05Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.21",
   "prerelease": false,
-  "body": "The tools Fabro asked for, and speech generation\n\n- Browser: click, type, select and press keys on CSS selectors; wait for an element to appear or disappear (or for text); screenshot of a single element; download the images of a page\n- wait: pause for a while (uploads, builds, external processes) then continue\n- import_files: the user picks files (PDF, DOCX, ZIP…) — copied to Documents/Fabro/Imports, ZIPs unpacked, text extracted for the AI\n- generate_speech: text → MP3 or WAV with the local Piper voices (any length, voice by name or language)\n- Step cards for the new tools (audio player, PDF chips)\n- Tests: browser selectors / wait / element screenshot / image download; speech files in the voice test\n",
+  "body": "The tools Fabro asked for, and speech generation\n\n- Browser: click, type, select and press keys on CSS selectors; wait for an element to appear or disappear (or for text); screenshot of a single element; download the images of a page\n- wait: pause for a while (uploads, builds, external processes) then continue\n- import_files: the user picks files (PDF, DOCX, ZIP…) — copied to Documents/Fabro/Imports, ZIPs unpacked, text extracted for the AI\n- generate_speech: text → MP3 or WAV with the local Piper voices (any length, voice by name or language)\n- Step cards for the new tools (audio player, PDF chips)\n- Tests: browser selectors / wait / element screenshot / image download; speech files in the voice test",
   "assets": [
    {
     "name": "Fabro-0.1.21-arm64-mac.zip",
@@ -30,6 +281,11 @@
     "name": "Fabro-0.1.21.AppImage",
     "size": 132004778,
     "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-0.1.21.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-Installer.exe"
    },
    {
     "name": "Fabro-Setup-0.1.21.exe",
