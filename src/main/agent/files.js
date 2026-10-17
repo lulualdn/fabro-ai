@@ -181,4 +181,4 @@ async function docxText(p) {
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 
-module.exports = { resolvePath, access, allowed, defaultOut, lineDiff, touched, inside };
+module.exports = { resolvePath, access, allowed, defaultOut, lineDiff, touched, inside, docxText };

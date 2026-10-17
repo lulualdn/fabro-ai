@@ -290,7 +290,22 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     let toolSchemas = buildTools();
     out({ type: 'tools_info', count: toolSchemas.length, tokens: agent.estTokens(toolSchemas) });
     const msgs = messages.slice();
-    const setSystem = (text) => { const sys = msgs.find((m) => m.role === 'system'); if (sys) sys.content = text; else msgs.unshift({ role: 'system', content: text }); };
+    // Projects: instructions + files (whole when small, else the best passages for this question).
+    if (meta.project && !parent) {
+      try {
+        const ctx = await require('./rag').context(meta.project, userText);
+        if (ctx) {
+          const p = ctx.project;
+          const sec = [`# Project: ${p.name}`, p.description ? p.description : '', p.instructions ? `## Project instructions (follow them)\n${p.instructions}` : '',
+            p.files.length ? `## Project files (${p.files.length}): ${p.files.map((f) => f.name).join(', ')}\n${ctx.full ? 'Full content below.' : 'Most relevant excerpts for this message below; use project_search to look for anything else in these files.'}\n${ctx.files}\nCite file names when you use them.` : ''].filter(Boolean).join('\n\n');
+          const sys = msgs.find((m) => m.role === 'system');
+          if (sys) sys.content = `${sys.content}\n\n${sec}`; else msgs.unshift({ role: 'system', content: sec });
+          if (!ctx.full && p.files.length) { params = { ...params, tools: [...new Set([...(params.tools || []), 'project_search'])] }; toolSchemas = buildTools(); }
+          out({ type: 'project_ctx', files: p.files.length, full: ctx.full });
+        }
+      } catch {}
+    }
+    const setSystem = (text) => { const sys = msgs.find((m) => m.role === 'system'); const keep = sys && (sys.content.match(/\n\n# Project: [\s\S]*$/) || [''])[0]; if (sys) sys.content = text + keep; else msgs.unshift({ role: 'system', content: text }); };
     if (parent) setSystem(agentSystem(params.agentPrompt || 'You are Fabro, an AI agent running on the user\'s computer.', codeCtx) + SUB_NOTE);
     else if (agentMode && params.agentPrompt) setSystem(agentSystem(params.agentPrompt, codeCtx));
     const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
@@ -366,7 +381,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         try {
           if (tools.CHAT_TOOLS[c.name]) {
             if (!(params.tools || []).includes(c.name)) throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
-            result = await tools.run(c.name, args, { needDeps: parent ? (dep) => parent.needDeps(c.id, dep) : (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) });
+            result = await tools.run(c.name, args, { project: meta.project, needDeps: parent ? (dep) => parent.needDeps(c.id, dep) : (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) });
           } else if (agent.get(c.name) && params.agent !== false) {
             result = await runAgentTool(c, args);
           } else throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });

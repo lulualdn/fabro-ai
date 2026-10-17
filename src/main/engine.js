@@ -299,6 +299,12 @@ const PRIORITY = () => ({ performance: os.constants.priority.PRIORITY_ABOVE_NORM
 function applyPriority(inst) { try { if (inst.proc && inst.proc.pid) os.setPriority(inst.proc.pid, PRIORITY()[energyMode()]); } catch {} }
 
 function argsFor(model, o, pl, port) {
+  // Embedding / reranking servers (Projects semantic search): small, batch-friendly, no chat template.
+  if (o.role === 'embed' || o.role === 'rerank') {
+    const a = ['-m', model.path, '--host', '127.0.0.1', '--port', String(port), '-c', String(pl.ctx), '-ngl', String(pl.ngl), '-b', '2048', '-ub', '2048', '-np', '1', o.role === 'embed' ? '--embedding' : '--reranking'];
+    if (energyMode() === 'eco') a.push('--poll', '0');
+    return a;
+  }
   const args = ['-m', model.path, '--host', '127.0.0.1', '--port', String(port), '-c', String(pl.ctx), '--jinja', '-np', '1',
     '-ngl', String(pl.ngl), '--cache-reuse', '256'];
   if (pl.cpuMoe) args.push('--cpu-moe');
@@ -317,7 +323,7 @@ function argsFor(model, o, pl, port) {
 // ───────────────────────────── instances ─────────────────────────────
 // key → { key, model, opts, plan, port, proc, status, lastUsed, busy, startedAt }
 const instances = new Map();
-const keyFor = (model, o) => JSON.stringify([model.path, o.ctx, o.gpuLayers, o.threads, o.flashAttn, o.kvType, o.cpuMoe, o.variant]);
+const keyFor = (model, o) => JSON.stringify([model.path, o.ctx, o.gpuLayers, o.threads, o.flashAttn, o.kvType, o.cpuMoe, o.variant, o.role || 'chat']);
 
 function loadedList() {
   return [...instances.values()].map((i) => ({

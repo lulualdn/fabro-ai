@@ -47,6 +47,7 @@ const srv = http.createServer((req, res) => {
         if (toolsDone.length === 3) return call1('update_plan', P('done', 'done', 'done'));
         return one('Synthèse : deux sous-agents ont couvert les moteurs locaux et les interfaces.');
       }
+      if (/# Project: Potager/.test(sys)) return one(/Réponds comme un jardinier/.test(sys) && /Arroser les tomates le soir/.test(sys) ? 'D’après notes.md : arrosez les tomates le soir. 🌱' : 'Pas de contexte projet.');
       if (/# Code session/.test(sys) && /corrige le bug/i.test(ut)) {
         if (toolsDone.length === 0) return call1('read_file', { path: 'src/math.js' });
         if (toolsDone.length === 1) return call1('edit_file', { path: 'src/math.js', old_text: 'return a - b;', new_text: 'return a + b;' });
@@ -395,6 +396,31 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   const subSteps = await win.evaluate(() => S.conv.messages.at(-1).steps.filter((s) => s.parent).length);
   assert.strictEqual(subSteps, 2, 'each sub-agent searched once');
   step('subagents done'); await win.screenshot({ path: `${shots}/31c-subagents-done.png` });
+  // ── Projects: create, instructions, files, chat with project context ──
+  await win.click('[data-action=mode][data-mode=projects]');
+  await win.waitForSelector('.prj-empty', { timeout: 8000 });
+  await win.click('.prj-empty [data-action=prj-new]');
+  await win.fill('.prj-form [name=name]', 'Potager');
+  await win.fill('.prj-form [name=description]', 'Mon jardin de légumes');
+  await win.click('.prj-form [type=submit]');
+  await win.waitForSelector('.prj-view', { timeout: 8000 });
+  await win.click('[data-action=prj-edit-instr]');
+  await win.fill('[name=instr]', 'Réponds comme un jardinier.');
+  await win.click('[data-form=prj-instr] [type=submit]');
+  await win.evaluate(async () => { S.prj.current = await api.projects.addText(S.prj.current.id, 'notes.md', '# Tomates\nArroser les tomates le soir, jamais en plein soleil.'); renderView(); });
+  await win.waitForFunction(() => document.querySelector('.prj-file.indexed'), null, { timeout: 10000 });
+  await win.waitForTimeout(400);
+  step('project'); await win.screenshot({ path: `${shots}/33a-project.png` });
+  await win.fill('#prompt', 'Quand arroser ?');
+  await win.keyboard.press('Enter');
+  await win.waitForFunction(() => /arrosez les tomates le soir/.test(S.conv && S.conv.messages.at(-1).content || '') && !document.querySelector('.msg.assistant.pending'), null, { timeout: 15000 });
+  assert.ok(await win.$('.prj-chip'), 'project chip in the top bar');
+  step('project chat'); await win.screenshot({ path: `${shots}/33b-project-chat.png` });
+  await win.waitForTimeout(700); // conversation saved
+  await win.click('.prj-chip');
+  await win.waitForSelector('.prj-chat', { timeout: 8000 });
+  assert.strictEqual(await win.$$eval('.prj-chat', (x) => x.length), 1, 'conversation listed in the project');
+
   // ── Code mode: project, session, edit card, tests, diff, editor, git, undo ──
   win.on('dialog', (d) => d.accept());
   await win.click('[data-action=mode][data-mode=code]');

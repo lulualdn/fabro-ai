@@ -23,6 +23,7 @@ const mcp = require('./agent/mcp');
 const searxng = require('./searxng');
 const tools = require('./tools');
 const code = require('./code');
+const rag = require('./rag');
 const S = () => store.getSettings();
 exporter.registerScheme();
 
@@ -181,6 +182,25 @@ function registerIpc() {
     throw new Error('Unknown dependency');
   });
   h('deps:remove', (dep) => { if (dep === 'searxng') return searxng.remove(); throw new Error('Unknown dependency'); });
+  // Projects
+  h('projects:list', () => db.listProjects());
+  h('projects:get', (id) => db.getProject(id));
+  h('projects:save', (p) => db.saveProject({ ...p, id: p.id || 'prj-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }));
+  h('projects:delete', (id) => rag.removeProject(id));
+  h('projects:addFiles', async (id, paths) => {
+    if (!paths || !paths.length) {
+      const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Documents', extensions: ['pdf', 'docx', 'xlsx', 'pptx', 'odt', 'txt', 'md', 'csv', 'json', 'html', 'htm', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'rb', 'php', 'lua', 'luau', 'css', 'xml', 'yml', 'yaml', 'toml', 'sql', 'tex', 'srt'] }, { name: '*', extensions: ['*'] }] });
+      if (r.canceled) return db.getProject(id);
+      paths = r.filePaths;
+    }
+    return rag.addFiles(id, paths);
+  });
+  h('projects:addText', (id, name, text) => rag.addText(id, name, text));
+  h('projects:removeFile', (id, fileId) => rag.removeFile(id, fileId));
+  h('projects:search', (id, q) => rag.search(id, q, 8));
+  h('projects:ragStatus', () => rag.status());
+  h('projects:reindex', (id) => rag.embedProject(id));
+
   // Code mode
   h('code:open', async () => {
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });
@@ -251,6 +271,7 @@ app.whenReady().then(async () => {
   browser.init(win, send);
   mcp.init(send);
   code.init(send);
+  rag.init(send);
   desktop.init(() => win, (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a)));
   if (process.argv.includes('--hidden')) win.once('ready-to-show', () => win.hide());
   system.getSpecs(); // warm cache

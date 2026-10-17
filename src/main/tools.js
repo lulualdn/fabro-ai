@@ -15,6 +15,10 @@ const CHAT_TOOLS = {
       time_range: { type: 'string', enum: ['day', 'week', 'month', 'year'], description: 'Optional: only recent results' },
     }, required: ['query'] },
   },
+  project_search: {
+    description: 'Search the files of the current project (keywords and meaning). Returns the most relevant passages with their file names.',
+    parameters: { type: 'object', properties: { query: { type: 'string', description: 'What to look for' } }, required: ['query'] },
+  },
   fetch_url: {
     description: 'Read a web page or call a public JSON API (GET). Returns the readable text or JSON. Use it to open a search result or a URL the user gave.',
     parameters: { type: 'object', properties: { url: { type: 'string', description: 'Absolute http(s) URL' } }, required: ['url'] },
@@ -146,6 +150,11 @@ async function run(name, args, ctx = {}) {
     const { engine, results } = r;
     const content = formatResults(r);
     return { content, view: { kind: 'search', query: args.query, engine, sources: results.map((x) => ({ title: x.title, url: x.url, snippet: x.snippet })) } };
+  }
+  if (name === 'project_search') {
+    if (!ctx.project) throw new Error('No project');
+    const r = await require('./rag').search(ctx.project, String(args.query || ''), 8);
+    return { content: r.results.length ? r.results.map((x, i) => `[${i + 1}] ${x.file}\n${x.text}`).join('\n\n') : 'Nothing found in the project files.', view: { kind: 'project_search', query: args.query, n: r.results.length, semantic: r.semantic, files: [...new Set(r.results.map((x) => x.file))] } };
   }
   if (name === 'fetch_url') {
     const page = await fetchUrl(String(args.url || ''));

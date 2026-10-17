@@ -21,6 +21,8 @@ const CATALOG = [
   { id: 'gpt-oss-20b', name: 'gpt-oss 20B', by: 'OpenAI', repo: 'ggml-org/gpt-oss-20b-GGUF', quant: 'MXFP4', params: '20B · MoE', sizeGB: 12.1, moe: true, tags: ['chat', 'reasoning', 'tools'] },
   { id: 'gemma-4-26b-a4b', name: 'Gemma 4 26B A4B', by: 'Google', repo: 'unsloth/gemma-4-26B-A4B-it-GGUF', params: '26B · MoE', sizeGB: 16.0, moe: true, tags: ['chat', 'vision', 'tools'] },
   { id: 'qwen3.8-27b', name: 'Qwen3.8 27B', by: 'Qwen', repo: 'unsloth/Qwen3.8-27B-GGUF', params: '27B', sizeGB: 16.5, tags: ['chat', 'reasoning', 'tools'] },
+  { id: 'embeddinggemma-300m', name: 'EmbeddingGemma 300M', by: 'Google', repo: 'ggml-org/embeddinggemma-300M-GGUF', quant: 'Q8_0', params: '300M', sizeGB: 0.33, tags: ['embedding'], role: 'embed' },
+  { id: 'qwen3-reranker-0.6b', name: 'Qwen3 Reranker 0.6B', by: 'Qwen', repo: 'ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF', quant: 'Q8_0', params: '0.6B', sizeGB: 0.64, tags: ['rerank'], role: 'rerank' },
   { id: 'qwen2.5-coder-7b', name: 'Qwen2.5 Coder 7B', by: 'Qwen', repo: 'unsloth/Qwen2.5-Coder-7B-Instruct-GGUF', params: '7B', sizeGB: 4.7, tags: ['code', 'tools'] },
   { id: 'qwen3-coder-30b', name: 'Qwen3 Coder 30B A3B', by: 'Qwen', repo: 'unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF', params: '30B · MoE', sizeGB: 18.6, moe: true, tags: ['code', 'tools'] },
   { id: 'qwen3.6-35b-a3b', name: 'Qwen3.6 35B A3B', by: 'Qwen', repo: 'unsloth/Qwen3.6-35B-A3B-GGUF', params: '35B · MoE', sizeGB: 21.0, moe: true, tags: ['chat', 'vision', 'reasoning', 'tools'] },
@@ -293,6 +295,7 @@ async function run(d) {
     const entry = {
       id: d.id, repo, file: d.file, quant: v.quant || (shape && shape.fileType) || '', catalogId: d.catalogId || null,
       name: (CATALOG.find((c) => c.id === d.catalogId) || {}).name || prettyName(repo, v.quant),
+      role: (CATALOG.find((c) => c.id === d.catalogId) || {}).role || roleOf(repo, shape),
       path: paths[0], parts: paths.slice(0, v.parts.length), mmproj: v.mmproj ? paths[paths.length - 1] : null,
       sizeBytes: v.size, vision: !!v.mmproj, addedAt: Date.now(), library: lib.id, source: 'hf',
       sha256: Object.fromEntries(Object.entries(v.sha || {}).map(([k, h]) => [path.basename(k), h])), verifiedAt: Date.now(), verifyOk: true,
@@ -459,6 +462,7 @@ async function importModels(list) {
       id, name: c.name || shape.name || path.basename(c.path), file: path.basename(c.path), quant: shape.fileType || '', path: c.path, parts,
       mmproj: c.mmproj || null, vision: !!c.mmproj, sizeBytes: parts.reduce((n, p) => { try { return n + fs.statSync(p).size; } catch { return n; } }, 0),
       addedAt: Date.now(), imported: true, source: c.source || 'folder', arch: shape.arch, moe: shape.moe, ctxTrain: shape.ctxTrain,
+      role: roleOf(c.name || path.basename(c.path), shape),
     };
     idx.push(entry); added.push(entry);
   }
@@ -488,6 +492,13 @@ async function rename(id, name) {
   return true;
 }
 
+// Embedding / reranker models are not chat models.
+function roleOf(name, shape) {
+  const n = String(name || '').toLowerCase(); const a = String((shape && shape.arch) || '').toLowerCase();
+  if (/rerank/.test(n)) return 'rerank';
+  if (/embed|bge-|e5-|gte-|nomic|minilm|jina-emb/.test(n) || /^(bert|nomic-bert|jina-bert|gemma-embedding|t5encoder)/.test(a)) return 'embed';
+  return null;
+}
 async function getLocal(id) { return (await listLocal()).find((m) => m.id === id) || null; }
 
 async function installed() {

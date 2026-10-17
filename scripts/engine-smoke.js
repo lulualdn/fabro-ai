@@ -83,6 +83,23 @@ const fail = (m) => { console.log(`::error title=engine-smoke ${process.platform
     note(`local API: ${list.data.length} models, ${id} → ${String(txt).replace(/\s+/g, ' ').slice(0, 60)}`);
     if (!txt) fail('local API returned no text: ' + JSON.stringify(r).slice(0, 300));
     await store.setSettings({ localApi: { enabled: false } }); await localapi.apply();
+
+    // Projects: semantic search with a local embedding model (EmbeddingGemma) + keyword fusion.
+    const emb = path.join(tmp, 'embeddinggemma-300M-Q8_0.gguf');
+    await downloadFile('https://huggingface.co/ggml-org/embeddinggemma-300M-GGUF/resolve/main/embeddinggemma-300M-Q8_0.gguf?download=true', emb);
+    const [e] = await models.importModels([{ path: emb, name: 'EmbeddingGemma 300M', source: 'folder' }]);
+    if (!e || e.role !== 'embed') throw new Error('embedding model role not detected: ' + JSON.stringify(e && { role: e.role, arch: e.arch }));
+    const db = require('../src/main/db'); db.init();
+    const rag = require('../src/main/rag'); rag.init(() => {});
+    db.saveProject({ id: 'p1', name: 'Smoke' });
+    await rag.addText('p1', 'animaux.md', 'Le chat dort sur le canapé toute la journée.\n\n' + 'x '.repeat(10) + '\n\n');
+    await rag.addText('p1', 'voitures.md', 'La voiture électrique se recharge la nuit dans le garage.');
+    await rag.addText('p1', 'cuisine.md', 'Pour la pâte à crêpes, mélanger la farine, les œufs et le lait.');
+    for (let i = 0; i < 300 && (db.listProjectFiles('p1').some((f) => f.status !== 'indexed') || db.chunksWithoutVec('p1', e.id).length); i++) await new Promise((r) => setTimeout(r, 200));
+    const t1 = Date.now();
+    const s1 = await rag.search('p1', 'où se repose le félin ?', 3); // no shared keyword: needs meaning
+    note(`semantic search ${s1.semantic ? 'on' : 'OFF'} in ${Date.now() - t1} ms → ${s1.results.map((r) => r.file).join(', ')}`);
+    if (!s1.semantic || s1.results[0].file !== 'animaux.md') fail('semantic search did not find the right file: ' + JSON.stringify(s1.results.map((r) => r.file)));
   } catch (e) {
     fail(`v1 features ${e.code || ''}: ${e.message} | ${String(e.detail || '').slice(0, 600)}`);
   } finally {

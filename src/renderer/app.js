@@ -30,7 +30,7 @@ const MODES = [            // workspaces (top toggle). Agent is automatic inside
   { id: 'code', icon: 'code' },
 ];
 const PAGES = [            // sidebar destinations
-  { id: 'projects', icon: 'folder', locked: true },
+  { id: 'projects', icon: 'folder' },
   { id: 'artifacts', icon: 'shapes' },
   { id: 'tasks', icon: 'tasks' },
   { id: 'custom', icon: 'brush' },
@@ -144,7 +144,7 @@ function md(text, prefix) {
 
 // ───────────────────────────── Models helpers ─────────────────────────────
 function allModels() {
-  const l = S.installed.local.map((m) => ({ ref: { backend: 'local', id: m.id }, label: m.name, sub: `${m.quant || 'GGUF'} · ${fmtBytes(m.sizeBytes)}`, vision: m.vision, src: 'local' }));
+  const l = S.installed.local.filter((m) => !m.role).map((m) => ({ ref: { backend: 'local', id: m.id }, label: m.name, sub: `${m.quant || 'GGUF'} · ${fmtBytes(m.sizeBytes)}`, vision: m.vision, src: 'local' }));
   const p = (S.provModels || []).map((m) => ({ ref: m.ref, label: m.label, sub: [m.providerName, m.params, m.quant].filter(Boolean).join(' · '), vision: m.vision, src: m.provider, provider: m.providerName, kind: m.kind, remote: !m.local }));
   return [...l, ...p];
 }
@@ -282,6 +282,7 @@ function renderTopbar() {
       ${S.settings.sidebarCollapsed ? '' : ''}
       <span class="tb-title">${esc(title)}</span>
       ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="chip agent-chip" data-action="open-workspace" title="${esc(t('ws_title'))}">${icon('agent', 13)} ${esc(t('agentBadge'))}</button>` : ''}
+      ${S.mode === 'chat' && S.conv && S.conv.project ? `<button class="chip prj-chip" data-action="open-project" data-id="${esc(S.conv.project)}">${icon('folder', 13)} ${esc(((S.prj.list || []).find((p) => p.id === S.conv.project) || S.prj.current || {}).name || t('nav_projects'))}</button>` : ''}
       ${S.mode === 'chat' && ((S.conv && S.conv.ephemeral) || (!S.conv && S.ephemeralNext)) ? `<span class="chip ghost-chip">${icon('eyeOff', 13)} ${esc(t('ephemeralBadge'))}</span>` : ''}
     </div>
     <div class="tb-right">
@@ -347,8 +348,9 @@ function renderView() {
   }
   if (S.mode !== 'chat') {
     v.className = 'view';
-    v.innerHTML = S.mode === 'custom' ? renderCustomPage() : S.mode === 'artifacts' && typeof renderArtifactsPage === 'function' ? renderArtifactsPage() : ['code', 'projects'].includes(S.mode) ? renderLockedMode(S.mode) : renderSoon(S.mode);
+    v.innerHTML = S.mode === 'custom' ? renderCustomPage() : S.mode === 'artifacts' && typeof renderArtifactsPage === 'function' ? renderArtifactsPage() : S.mode === 'projects' ? renderProjectsPage() : renderSoon(S.mode);
     if (S.mode === 'custom') bindCustomPage();
+    if (S.mode === 'projects') afterProjectsRender();
     return;
   }
   const empty = !S.conv || !S.conv.messages.length;
@@ -868,6 +870,7 @@ function renderRepoFiles() {
 function newConv() {
   const c = { id: uid(), title: '', mode: 'chat', nodes: [], leafId: null, messages: [], createdAt: Date.now(), updatedAt: Date.now(), ephemeral: !!S.ephemeralNext };
   if (S.mode === 'code' && S.cx.root) { c.mode = 'code'; c.code = { root: S.cx.root }; c.agent = true; c.ephemeral = false; }
+  if (S.mode === 'projects' && S.prj.current) { c.project = S.prj.current.id; c.ephemeral = false; }
   S.ephemeralNext = false;
   return c;
 }
@@ -883,6 +886,7 @@ const persist = debounce(async () => {
 async function openConv(id) {
   if (S.streaming) return;
   try { S.conv = treeify(await api.conv.get(id)); } catch { toast(t('loadFailed'), 'err'); return; }
+  if (S.conv.project && !S.prj.list) api.projects.list().then((l) => { S.prj.list = l; renderTopbar(); });
   if (S.conv.code && S.conv.code.root) {
     S.mode = 'code'; S.code.clear(); navTo('code', id);
     if (S.cx.root !== S.conv.code.root) await cxOpen(S.conv.code.root, { keepConv: true });
@@ -925,6 +929,7 @@ async function sendPrompt(textOverride, opts = {}) {
   if (!text && !S.pending.length) return;
   if (!currentModel()) { toast(t('noModel'), 'err'); openSettings('models'); return; }
   if (!S.conv) S.conv = newConv();
+  if (S.mode === 'projects') { S.mode = 'chat'; navTo('chat', S.conv.id); }
   const atts = S.pending.splice(0);
   if (ta) { ta.value = ''; ta.style.height = 'auto'; }
   addNode({ id: uid(), role: 'user', content: text, attachments: atts, createdAt: Date.now() });
@@ -942,7 +947,7 @@ function generate(opts = {}) {
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
   const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
-  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? undefined : r, tools: chatTools(), agentMode: !!S.conv.agent || !!S.conv.code, agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? undefined : r, tools: chatTools(), agentMode: !!S.conv.agent || !!S.conv.code, agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {
@@ -989,7 +994,7 @@ const actions = {
     renderSidebar(); renderTopbar();
   },
   'new-chat': newChat,
-  'mode': (el) => { S.mode = el.dataset.mode; if (S.conv && !!S.conv.code !== (S.mode === 'code')) S.conv = null; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); vt(() => { renderSidebar(); renderView(); }); },
+  'mode': (el) => { S.mode = el.dataset.mode; if (S.mode === 'projects') { S.prj.current = null; S.prj.list = null; } if (S.conv && !!S.conv.code !== (S.mode === 'code')) S.conv = null; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); vt(() => { renderSidebar(); renderView(); }); },
   'hist-back': () => histGo(-1),
   'hist-fwd': () => histGo(1),
   'toggle-more': () => { S.moreOpen = !S.moreOpen; renderSidebar(); },

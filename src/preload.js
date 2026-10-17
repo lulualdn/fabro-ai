@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const i = (ch) => (...a) => ipcRenderer.invoke(ch, ...a);
 
@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('api', {
   browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
   deps: { status: i('deps:status'), install: i('deps:install'), remove: i('deps:remove') },
   search: { test: i('search:test') },
+  projects: {
+    list: i('projects:list'), get: i('projects:get'), save: i('projects:save'), delete: i('projects:delete'), addFiles: i('projects:addFiles'), addText: i('projects:addText'),
+    removeFile: i('projects:removeFile'), search: i('projects:search'), ragStatus: i('projects:ragStatus'), reindex: i('projects:reindex'),
+    pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
+  },
   code: {
     open: i('code:open'), info: i('code:info'), close: i('code:close'), recent: i('code:recent'), tree: i('code:tree'), status: i('code:status'),
     read: i('code:read'), write: i('code:write'), diff: i('code:diff'), changes: i('code:changes'), revert: i('code:revert'),
@@ -53,7 +58,7 @@ contextBridge.exposeInMainWorld('api', {
   shell: { open: i('shell:open'), reveal: i('shell:reveal'), openPath: i('shell:openPath') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

@@ -155,6 +155,23 @@ function run(payload, answers) {
   assert.ok(!fs.existsSync(path.join(proj, 'sub', 'b.txt')), 'undo removes created files');
   assert.ok(code.problems('src/app.ts(12,5): error TS2322: Type string is not assignable\nsrc/x.js:3:7: warning no-unused-vars').length === 2, 'problems parsed');
   const ts = code.testSummary('Tests: 1 failed, 4 passed, 5 total', 1); assert.strictEqual(ts.passed, 4); assert.strictEqual(ts.failed, 1);
+
+  // Projects knowledge: extraction (PDF), chunking, keyword search, context for the model.
+  const db = require('../src/main/db'); db.init();
+  const rag = require('../src/main/rag'); rag.init(() => {});
+  const pr = db.saveProject({ id: 'prj-t', name: 'Jardin', instructions: 'Réponds en jardinier.' });
+  const pdf = path.join(__dirname, 'fixtures', 'sample.pdf');
+  assert.match(await rag.extract(pdf), /chiffre secret est 4242/, 'PDF text extracted');
+  assert.ok(rag.chunk('a'.repeat(5000)).length >= 4, 'long text chunked');
+  await rag.addFiles(pr.id, [pdf]);
+  await rag.addText(pr.id, 'notes.md', '# Tomates\nArroser les tomates le soir, jamais en plein soleil.\n\n' + 'Lorem ipsum dolor. '.repeat(1500) + '\n\nLes courgettes aiment le compost bien mûr.');
+  for (let i = 0; i < 50 && db.listProjectFiles(pr.id).some((f) => f.status !== 'indexed'); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(db.listProjectFiles(pr.id).every((f) => f.status === 'indexed'), 'files indexed: ' + JSON.stringify(db.listProjectFiles(pr.id)));
+  const sr = await rag.search(pr.id, 'quand arroser les tomates ?', 3);
+  assert.match(sr.results[0].text, /Arroser les tomates/, 'keyword search finds the passage');
+  assert.strictEqual(sr.semantic, false);
+  const cx = await rag.context(pr.id, 'courgettes compost');
+  assert.ok(!cx.full && /courgettes/.test(cx.files), 'large project → relevant excerpts');
   console.log('agent-test: all passed');
   srv.close(); process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
