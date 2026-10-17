@@ -127,7 +127,15 @@ async function repoFiles(repo) {
 }
 
 async function readIndex() { try { return JSON.parse(await fsp.readFile(indexFile(), 'utf8')); } catch { return []; } }
-async function writeIndex(list) { await fsp.mkdir(modelsDir(), { recursive: true }); await store.writeJSON(indexFile(), list); }
+async function writeIndex(list) {
+  await fsp.mkdir(modelsDir(), { recursive: true }); await store.writeJSON(indexFile(), list);
+  // For the Windows uninstaller ("also delete my data"): Fabro-made model folders outside the app data.
+  try {
+    const ud = app.getPath('userData');
+    const dirs = [...new Set(list.filter((m) => !m.imported && m.path).map((m) => path.dirname(m.path)))].filter((d) => path.relative(ud, d).startsWith('..') && /__/.test(path.basename(d)));
+    await fsp.writeFile(path.join(ud, 'uninstall-paths.txt'), dirs.join('\r\n') + (dirs.length ? '\r\n' : ''), 'utf8');
+  } catch {}
+}
 
 async function listLocal() {
   return (await readIndex()).filter((m) => fs.existsSync(m.path));

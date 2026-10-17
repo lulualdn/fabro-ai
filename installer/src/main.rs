@@ -33,6 +33,7 @@ enum UserEvent {
     Launch,
     Open(String),
     Fetch,
+    Detect,
     Install(Value),
 }
 
@@ -190,8 +191,34 @@ fn desktop_dir() -> Option<PathBuf> {
 #[cfg(not(windows))]
 fn desktop_dir() -> Option<PathBuf> { None }
 
+// ───────────────────────────── hardware ─────────────────────────────
+
+/// GPUs (name + real VRAM from the driver registry), RAM and fixed drives with free space.
+#[cfg(windows)]
+fn detect_hw() -> Value {
+    use std::os::windows::process::CommandExt;
+    let ps = r#"$ErrorActionPreference='SilentlyContinue'
+$g=@(); Get-ItemProperty 'HKLM:\SYSTEM\ControlSet001\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0*' | ForEach-Object { if ($_.DriverDesc) { $m=$_.'HardwareInformation.qwMemorySize'; if (-not $m) { $m=$_.'HardwareInformation.MemorySize' }; if ($m -is [byte[]]) { $m=[BitConverter]::ToUInt32($m,0) }; $g+=@{name=$_.DriverDesc; vram=[uint64]$m} } }
+$ram=(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
+$d=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object { @{name=$_.DeviceID; free=[uint64]$_.FreeSpace; size=[uint64]$_.Size} })
+@{gpus=$g; ram=[uint64]$ram; drives=$d} | ConvertTo-Json -Depth 4 -Compress"#;
+    let out = std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", ps])
+        .creation_flags(0x08000000).output();
+    let mut v: Value = out.ok().and_then(|o| serde_json::from_slice(&o.stdout).ok()).unwrap_or_else(|| json!({}));
+    // nvidia-smi knows the exact VRAM of NVIDIA cards.
+    if let Ok(o) = std::process::Command::new("nvidia-smi").args(["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]).creation_flags(0x08000000).output() {
+        let txt = String::from_utf8_lossy(&o.stdout).to_string();
+        let nv: Vec<Value> = txt.lines().filter_map(|l| { let mut p = l.split(','); Some(json!({ "name": p.next()?.trim(), "vramMB": p.next()?.trim().parse::<u64>().ok()? })) }).collect();
+        if !nv.is_empty() { v["nvidia"] = json!(nv); }
+    }
+    v["appdata"] = json!(std::env::var("APPDATA").unwrap_or_default());
+    v
+}
+#[cfg(not(windows))]
+fn detect_hw() -> Value { json!({ "gpus": [], "ram": 0, "drives": [] }) }
+
 /// Seed first-run choices into the app's settings (merges, never overwrites existing values).
-fn seed_settings(lang: &str, providers: bool) {
+fn seed_settings(lang: &str, providers: bool, first: &Value) {
     let Some(appdata) = std::env::var_os("APPDATA") else { return };
     let dir = PathBuf::from(appdata).join("Fabro");
     let file = dir.join("settings.json");
@@ -201,6 +228,21 @@ fn seed_settings(lang: &str, providers: bool) {
     if providers {
         let p = obj.entry("providers").or_insert(json!({ "list": [] }));
         if let Some(p) = p.as_object_mut() { p.insert("enabled".into(), json!(true)); }
+    }
+    // First model chosen in the installer: the app downloads it on first start, into the chosen disk.
+    if let Some(m) = first.as_object() {
+        if let Some(lib) = m.get("library").and_then(|l| l.as_object()) {
+            if lib.get("id").and_then(|x| x.as_str()) != Some("default") {
+                let libs = obj.entry("libraries").or_insert(json!([]));
+                if let Some(arr) = libs.as_array_mut() {
+                    let id = lib.get("id").cloned().unwrap_or(json!("lib-install"));
+                    if !arr.iter().any(|x| x.get("id") == Some(&id)) { arr.push(json!(lib)); }
+                    let _ = std::fs::create_dir_all(lib.get("path").and_then(|p| p.as_str()).unwrap_or(""));
+                }
+                obj.insert("defaultLibrary".into(), lib.get("id").cloned().unwrap_or(json!("default")));
+            }
+        }
+        if m.get("catalogId").and_then(|x| x.as_str()).is_some() { obj.insert("firstModel".into(), json!(m)); }
     }
     let _ = std::fs::create_dir_all(&dir);
     let _ = std::fs::write(file, serde_json::to_string_pretty(&s).unwrap());
@@ -244,7 +286,7 @@ fn install(r: &Release, opts: &Value, js: &dyn Fn(Value)) -> Result<PathBuf, Fai
     }
 
     js(json!({ "type": "phase", "i": 2 }));
-    seed_settings(opts["lang"].as_str().unwrap_or("en"), opts["providers"] == json!(true));
+    seed_settings(opts["lang"].as_str().unwrap_or("en"), opts["providers"] == json!(true), &opts["firstModel"]);
     run_setup(&pkg, &dir)?;
 
     js(json!({ "type": "phase", "i": 3 }));
@@ -333,6 +375,7 @@ fn main() {
                 "launch" => UserEvent::Launch,
                 "open" => UserEvent::Open(m["url"].as_str().unwrap_or("").into()),
                 "fetch" => UserEvent::Fetch,
+                "detect" => UserEvent::Detect,
                 "install" => UserEvent::Install(m),
                 _ => return,
             };
@@ -396,6 +439,10 @@ fn main() {
                 UserEvent::Launch => {
                     if let Some(e) = &exe { launch(e); }
                     *flow = ControlFlow::Exit;
+                }
+                UserEvent::Detect => {
+                    let p = proxy.clone();
+                    std::thread::spawn(move || { let hw = detect_hw(); send(&p, json!({ "type": "hw", "hw": hw })); });
                 }
                 UserEvent::Fetch => {
                     let p = proxy.clone();

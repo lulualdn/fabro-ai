@@ -88,6 +88,27 @@ h1 { margin: 18px 0 6px; font: 500 34px/1.1 var(--serif); letter-spacing: -.02em
 .check b { font-weight: 600; display: block; font-size: 13.5px; }
 .check small { color: var(--muted); font-size: 12px; }
 
+/* first model */
+.panel.wide { max-width: 600px; gap: 7px; margin-top: -18px; }
+.panel.wide h2 { margin: 0 0 2px; font-size: 22px; }
+#s-model { padding-bottom: 28px; } #s-model .actions { margin-top: 16px; }
+body:has(#s-model.on) .foot { opacity: 0; }
+.hw { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 12.5px; color: var(--text-2); margin: -2px 0 4px; }
+.hw .pill b { color: var(--text); font-weight: 600; }
+.mlist { display: grid; gap: 6px; }
+.mopt { display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--border); cursor: pointer; transition: border-color .15s, background .15s, transform .18s var(--spring); text-align: left; width: 100%; color: inherit; }
+.mopt:hover { border-color: var(--border-2); background: rgba(255,255,255,.05); }
+.mopt.sel { border-color: var(--accent); background: rgba(255,94,66,.08); }
+.mopt .dot { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border-2); flex: none; display: grid; place-items: center; }
+.mopt.sel .dot { border-color: var(--accent); } .mopt.sel .dot::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.mopt .mt { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; } .mopt b { font-size: 13.5px; } .mopt small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.mopt .fit { font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: rgba(76,195,138,.12); color: var(--ok); white-space: nowrap; }
+.mopt .fit.ok { background: rgba(255,255,255,.06); color: var(--text-2); }
+.mopt.later b { font-weight: 500; color: var(--text-2); }
+select.input { appearance: none; font-family: var(--sans); cursor: pointer; }
+.hint.warn { color: var(--err); }
+.on .mopt { animation: rise .5s var(--ease) both; } .on .mopt:nth-child(2) { animation-delay: .04s; } .on .mopt:nth-child(3) { animation-delay: .08s; } .on .mopt:nth-child(4) { animation-delay: .12s; }
+
 /* progress */
 .spinner { width: 92px; height: 92px; filter: drop-shadow(0 10px 30px rgba(255, 94, 66, .4)); }
 .spinner .spin { transform-origin: 50px 50px; animation: spin .42s linear infinite; }
@@ -170,6 +191,22 @@ h1 { margin: 18px 0 6px; font: 500 34px/1.1 var(--serif); letter-spacing: -.02em
     </div>
   </section>
 
+  <!-- 2b · First model -->
+  <section class="step" id="s-model">
+    <div class="panel wide">
+      <h2 data-t="modelTitle"></h2>
+      <div class="hw" id="hw"><span class="pill" data-t="detecting"></span></div>
+      <div class="mlist" id="mlist"></div>
+      <span class="lbl" data-t="modelDisk"></span>
+      <div class="field"><select class="input" id="disk"></select></div>
+      <span class="hint" id="disk-hint"></span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="mback" data-t="back"></button>
+      <button class="btn primary" id="go3"></button>
+    </div>
+  </section>
+
   <!-- 3 · Installing -->
   <section class="step" id="s-run">
     <svg class="spinner" viewBox="0 0 100 100"><g class="spin" fill="#ff5e42">{{TRAIL}}</g></svg>
@@ -201,33 +238,94 @@ h1 { margin: 18px 0 6px; font: 500 34px/1.1 var(--serif); letter-spacing: -.02em
 
 <script>
 const I = {
-  en: { providers: 'External providers', providersHint: 'Also use OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Welcome to Fabro', welcomeUpd: 'A new Fabro is here', tagline: 'Runs on your machine. Takes you anywhere.', install: 'Install Fabro', update: 'Update Fabro', options: 'Options', optsTitle: 'Make it yours',
+  en: { modelTitle: 'Your first AI model', detecting: 'Looking at your computer…', modelDisk: 'Where to store models', later: 'Choose later', laterHint: 'Pick a model inside Fabro.', fit_great: 'Fast here', fit_good: 'Runs well', fit_ok: 'Runs', engineGpu: 'Engine: {e}', engineCpu: 'Engine: processor (no suitable GPU)', ram: 'RAM {n} GB', free: '{n} GB free', noSpace: 'Not enough space on this disk for this model ({n} GB).', diskDefault: '{d} — with Fabro\'s data', diskOther: '{d} — {p}', dlAfter: 'The model downloads when Fabro starts (≈ {n} GB).', installWith: 'Install', providers: 'External providers', providersHint: 'Also use OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Welcome to Fabro', welcomeUpd: 'A new Fabro is here', tagline: 'Runs on your machine. Takes you anywhere.', install: 'Install Fabro', update: 'Update Fabro', options: 'Options', optsTitle: 'Make it yours',
     location: 'Install location', browse: 'Browse…', locationHint: 'No admin rights needed. Fabro installs for you only.', desktop: 'Desktop shortcut', desktopHint: 'Start Fabro from your desktop.', launchAfter: 'Launch when done', launchHint: 'Open Fabro right after installing.',
     back: 'Back', checking: 'Looking for the latest version…', latest: 'Latest', installed: 'Installed', size: '{s}', ph_dl: 'Downloading Fabro', ph_verify: 'Checking the package', ph_install: 'Installing', ph_finish: 'Final touches', speed: '{s}/s', left: '{t} left',
     doneTitle: 'Fabro is ready', doneUpd: 'Fabro {v} is ready', doneSub: 'Lift off, locally.', liftoff: 'Lift off', closeBtn: 'Close',
     retry: 'Try again', manual: 'Download page', e_NETWORK_t: 'Can’t reach the internet', e_NETWORK_b: 'Check your connection, then try again.', e_INTEGRITY_t: 'The download was damaged', e_INTEGRITY_b: 'It didn’t pass the integrity check. Trying again usually fixes it.', e_INSTALL_t: 'Installation didn’t finish', e_INSTALL_b: 'Close Fabro if it’s open, then try again.', e_DISK_t: 'Can’t write to this folder', e_DISK_b: 'Pick another location or free up some space.', e_UNKNOWN_t: 'Something went wrong', e_UNKNOWN_b: 'Try again. If it keeps happening, use the download page.',
     foot: 'UF Studios · Internal build' },
-  fr: { providers: 'Fournisseurs externes', providersHint: 'Utiliser aussi OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Bienvenue dans Fabro', welcomeUpd: 'Un nouveau Fabro est arrivé', tagline: 'Tourne sur votre machine. Vous emmène partout.', install: 'Installer Fabro', update: 'Mettre à jour Fabro', options: 'Options', optsTitle: 'À votre façon',
+  fr: { modelTitle: 'Votre premier modèle d’IA', detecting: 'Analyse de votre ordinateur…', modelDisk: 'Où ranger les modèles', later: 'Choisir plus tard', laterHint: 'Choisissez un modèle dans Fabro.', fit_great: 'Rapide ici', fit_good: 'Tourne bien', fit_ok: 'Tourne', engineGpu: 'Moteur : {e}', engineCpu: 'Moteur : processeur (pas de carte graphique adaptée)', ram: 'RAM {n} Go', free: '{n} Go libres', noSpace: 'Pas assez de place sur ce disque pour ce modèle ({n} Go).', diskDefault: '{d} — avec les données de Fabro', diskOther: '{d} — {p}', dlAfter: 'Le modèle se télécharge au démarrage de Fabro (≈ {n} Go).', installWith: 'Installer', providers: 'Fournisseurs externes', providersHint: 'Utiliser aussi OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Bienvenue dans Fabro', welcomeUpd: 'Un nouveau Fabro est arrivé', tagline: 'Tourne sur votre machine. Vous emmène partout.', install: 'Installer Fabro', update: 'Mettre à jour Fabro', options: 'Options', optsTitle: 'À votre façon',
     location: 'Emplacement', browse: 'Parcourir…', locationHint: 'Aucun droit administrateur requis. Installé pour vous uniquement.', desktop: 'Raccourci sur le bureau', desktopHint: 'Lancez Fabro depuis votre bureau.', launchAfter: 'Lancer à la fin', launchHint: 'Ouvrir Fabro juste après l’installation.',
     back: 'Retour', checking: 'Recherche de la dernière version…', latest: 'Dernière version', installed: 'Installée', size: '{s}', ph_dl: 'Téléchargement de Fabro', ph_verify: 'Vérification du paquet', ph_install: 'Installation', ph_finish: 'Dernières retouches', speed: '{s}/s', left: 'encore {t}',
     doneTitle: 'Fabro est prêt', doneUpd: 'Fabro {v} est prêt', doneSub: 'Lift off, locally.', liftoff: 'Décoller', closeBtn: 'Fermer',
     retry: 'Réessayer', manual: 'Page de téléchargement', e_NETWORK_t: 'Pas de connexion Internet', e_NETWORK_b: 'Vérifiez votre connexion puis réessayez.', e_INTEGRITY_t: 'Le téléchargement est endommagé', e_INTEGRITY_b: 'Il n’a pas passé la vérification d’intégrité. Réessayer suffit en général.', e_INSTALL_t: 'L’installation n’a pas abouti', e_INSTALL_b: 'Fermez Fabro s’il est ouvert, puis réessayez.', e_DISK_t: 'Impossible d’écrire dans ce dossier', e_DISK_b: 'Choisissez un autre emplacement ou libérez de l’espace.', e_UNKNOWN_t: 'Un problème est survenu', e_UNKNOWN_b: 'Réessayez. Si ça continue, utilisez la page de téléchargement.',
     foot: 'UF Studios · Build interne' },
-  es: { providers: 'Proveedores externos', providersHint: 'Usar también OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Bienvenido a Fabro', welcomeUpd: 'Hay un nuevo Fabro', tagline: 'Funciona en tu equipo. Te lleva a todas partes.', install: 'Instalar Fabro', update: 'Actualizar Fabro', options: 'Opciones', optsTitle: 'A tu manera',
+  es: { modelTitle: 'Tu primer modelo de IA', detecting: 'Analizando tu equipo…', modelDisk: 'Dónde guardar los modelos', later: 'Elegir más tarde', laterHint: 'Elige un modelo dentro de Fabro.', fit_great: 'Rápido aquí', fit_good: 'Va bien', fit_ok: 'Funciona', engineGpu: 'Motor: {e}', engineCpu: 'Motor: procesador', ram: 'RAM {n} GB', free: '{n} GB libres', noSpace: 'No hay espacio suficiente en este disco ({n} GB).', diskDefault: '{d} — con los datos de Fabro', diskOther: '{d} — {p}', dlAfter: 'El modelo se descarga al abrir Fabro (≈ {n} GB).', installWith: 'Instalar', providers: 'Proveedores externos', providersHint: 'Usar también OpenAI, Claude, Grok, Gemini, Ollama, LM Studio…', welcome: 'Bienvenido a Fabro', welcomeUpd: 'Hay un nuevo Fabro', tagline: 'Funciona en tu equipo. Te lleva a todas partes.', install: 'Instalar Fabro', update: 'Actualizar Fabro', options: 'Opciones', optsTitle: 'A tu manera',
     location: 'Ubicación', browse: 'Examinar…', locationHint: 'No requiere permisos de administrador.', desktop: 'Acceso directo en el escritorio', desktopHint: 'Abre Fabro desde el escritorio.', launchAfter: 'Abrir al terminar', launchHint: 'Abrir Fabro justo después.',
     back: 'Atrás', checking: 'Buscando la última versión…', latest: 'Última', installed: 'Instalada', size: '{s}', ph_dl: 'Descargando Fabro', ph_verify: 'Comprobando el paquete', ph_install: 'Instalando', ph_finish: 'Últimos detalles', speed: '{s}/s', left: 'quedan {t}',
     doneTitle: 'Fabro está listo', doneUpd: 'Fabro {v} está listo', doneSub: 'Lift off, locally.', liftoff: 'Despegar', closeBtn: 'Cerrar',
     retry: 'Reintentar', manual: 'Página de descarga', e_NETWORK_t: 'Sin conexión a Internet', e_NETWORK_b: 'Comprueba tu conexión y vuelve a intentarlo.', e_INTEGRITY_t: 'La descarga está dañada', e_INTEGRITY_b: 'No pasó la verificación. Reintentar suele bastar.', e_INSTALL_t: 'La instalación no terminó', e_INSTALL_b: 'Cierra Fabro si está abierto y reinténtalo.', e_DISK_t: 'No se puede escribir aquí', e_DISK_b: 'Elige otra ubicación o libera espacio.', e_UNKNOWN_t: 'Algo salió mal', e_UNKNOWN_b: 'Reinténtalo o usa la página de descarga.',
     foot: 'UF Studios · Build interno' },
-  de: { providers: 'Externe Anbieter', providersHint: 'Auch OpenAI, Claude, Grok, Gemini, Ollama, LM Studio nutzen…', welcome: 'Willkommen bei Fabro', welcomeUpd: 'Ein neues Fabro ist da', tagline: 'Läuft auf deinem Rechner. Bringt dich überallhin.', install: 'Fabro installieren', update: 'Fabro aktualisieren', options: 'Optionen', optsTitle: 'Ganz nach dir',
+  de: { modelTitle: 'Dein erstes KI-Modell', detecting: 'Dein Computer wird analysiert…', modelDisk: 'Speicherort der Modelle', later: 'Später wählen', laterHint: 'Wähle ein Modell in Fabro.', fit_great: 'Schnell hier', fit_good: 'Läuft gut', fit_ok: 'Läuft', engineGpu: 'Engine: {e}', engineCpu: 'Engine: Prozessor', ram: 'RAM {n} GB', free: '{n} GB frei', noSpace: 'Nicht genug Platz auf diesem Laufwerk ({n} GB).', diskDefault: '{d} — bei Fabros Daten', diskOther: '{d} — {p}', dlAfter: 'Das Modell wird beim Start von Fabro geladen (≈ {n} GB).', installWith: 'Installieren', providers: 'Externe Anbieter', providersHint: 'Auch OpenAI, Claude, Grok, Gemini, Ollama, LM Studio nutzen…', welcome: 'Willkommen bei Fabro', welcomeUpd: 'Ein neues Fabro ist da', tagline: 'Läuft auf deinem Rechner. Bringt dich überallhin.', install: 'Fabro installieren', update: 'Fabro aktualisieren', options: 'Optionen', optsTitle: 'Ganz nach dir',
     location: 'Speicherort', browse: 'Durchsuchen…', locationHint: 'Keine Administratorrechte nötig.', desktop: 'Desktop-Verknüpfung', desktopHint: 'Fabro vom Desktop starten.', launchAfter: 'Danach starten', launchHint: 'Fabro direkt nach der Installation öffnen.',
     back: 'Zurück', checking: 'Suche nach der neuesten Version…', latest: 'Neueste', installed: 'Installiert', size: '{s}', ph_dl: 'Fabro wird geladen', ph_verify: 'Paket wird geprüft', ph_install: 'Wird installiert', ph_finish: 'Letzter Schliff', speed: '{s}/s', left: 'noch {t}',
     doneTitle: 'Fabro ist bereit', doneUpd: 'Fabro {v} ist bereit', doneSub: 'Lift off, locally.', liftoff: 'Abheben', closeBtn: 'Schließen',
     retry: 'Erneut versuchen', manual: 'Downloadseite', e_NETWORK_t: 'Keine Internetverbindung', e_NETWORK_b: 'Prüfe deine Verbindung und versuche es erneut.', e_INTEGRITY_t: 'Download beschädigt', e_INTEGRITY_b: 'Integritätsprüfung fehlgeschlagen. Erneut versuchen hilft meist.', e_INSTALL_t: 'Installation nicht abgeschlossen', e_INSTALL_b: 'Schließe Fabro, falls offen, und versuche es erneut.', e_DISK_t: 'Ordner nicht beschreibbar', e_DISK_b: 'Wähle einen anderen Ort oder schaffe Platz.', e_UNKNOWN_t: 'Etwas ist schiefgelaufen', e_UNKNOWN_b: 'Versuche es erneut oder nutze die Downloadseite.',
     foot: 'UF Studios · Interner Build' },
 };
+// Same curated models and fit rules as the app (src/main/models.js): ids and repos must match.
+const CATALOG = [
+  { id: 'qwen3.5-0.8b', name: 'Qwen3.5 0.8B', repo: 'ggml-org/Qwen3.5-0.8B-GGUF', sizeGB: 0.6, tags: 'fast' },
+  { id: 'gemma-4-e2b', name: 'Gemma 4 E2B', repo: 'unsloth/gemma-4-E2B-it-GGUF', sizeGB: 3.1, tags: 'vision' },
+  { id: 'qwen3.5-4b', name: 'Qwen3.5 4B', repo: 'unsloth/Qwen3.5-4B-GGUF', sizeGB: 2.7, tags: 'vision · reasoning' },
+  { id: 'gemma-4-e4b', name: 'Gemma 4 E4B', repo: 'unsloth/gemma-4-E4B-it-GGUF', sizeGB: 5.0, tags: 'vision' },
+  { id: 'qwen3.5-9b', name: 'Qwen3.5 9B', repo: 'unsloth/Qwen3.5-9B-GGUF', sizeGB: 5.7, tags: 'vision · reasoning' },
+  { id: 'gemma-4-12b', name: 'Gemma 4 12B', repo: 'unsloth/gemma-4-12b-it-GGUF', sizeGB: 7.5, tags: 'vision' },
+  { id: 'gpt-oss-20b', name: 'gpt-oss 20B', repo: 'ggml-org/gpt-oss-20b-GGUF', sizeGB: 12.1, moe: true, tags: 'reasoning · tools' },
+  { id: 'gemma-4-26b-a4b', name: 'Gemma 4 26B A4B', repo: 'unsloth/gemma-4-26B-A4B-it-GGUF', sizeGB: 16.0, moe: true, tags: 'vision · tools' },
+  { id: 'qwen3.6-35b-a3b', name: 'Qwen3.6 35B A3B', repo: 'unsloth/Qwen3.6-35B-A3B-GGUF', sizeGB: 21.0, moe: true, tags: 'vision · reasoning · tools' },
+];
+function specsFrom(hw) {
+  const ramGB = (hw.ram || 0) / 2 ** 30;
+  const nv = (hw.nvidia || []).sort((a, b) => b.vramMB - a.vramMB)[0];
+  const gpus = (hw.gpus || []).map((g) => ({ name: g.name, vramGB: (g.vram || 0) / 2 ** 30 }));
+  const dedicated = gpus.filter((g) => /radeon|arc|rx\s?\d/i.test(g.name) && g.vramGB >= 2.5).sort((a, b) => b.vramGB - a.vramGB)[0];
+  let accel = 'cpu', gpuBudgetGB = 0, gpu = null;
+  if (nv && nv.vramMB / 1024 >= 2.5) { accel = 'CUDA'; gpu = { name: nv.name, vramGB: nv.vramMB / 1024 }; gpuBudgetGB = gpu.vramGB * 0.92; }
+  else if (dedicated) { accel = 'Vulkan'; gpu = dedicated; gpuBudgetGB = dedicated.vramGB * 0.85; }
+  return { ramGB, accel, gpu, gpuBudgetGB, ramBudgetGB: ramGB * 0.6 };
+}
+function fitFor(m, sp) {
+  const need = m.sizeGB * 1.12 + 0.8, g = sp.gpuBudgetGB, r = sp.ramBudgetGB;
+  if (g && need <= g) return 'great';
+  if (g && need <= g + r) return m.moe ? 'good' : 'ok';
+  if (!g) { if (need > r) return null; if (!m.moe && m.sizeGB > 5.5) return null; return m.sizeGB <= 3.5 || m.moe ? 'good' : 'ok'; }
+  return null;
+}
+function renderModels() {
+  const hw = S.hw; if (!hw) return;
+  const sp = specsFrom(hw); S.specs = sp;
+  $('#hw').innerHTML = [sp.gpu ? `<span class="pill"><b>${sp.gpu.name}</b> · ${sp.gpu.vramGB.toFixed(0)} GB</span>` : '', `<span class="pill">${t('ram', { n: Math.round(sp.ramGB) })}</span>`,
+    `<span class="pill accent">${sp.accel === 'cpu' ? t('engineCpu') : t('engineGpu', { e: sp.accel })}</span>`].join('');
+  const rank = { great: 3, good: 2, ok: 1 };
+  const ok = CATALOG.map((m) => ({ ...m, fit: fitFor(m, sp) })).filter((m) => m.fit);
+  const best = [...ok].sort((a, b) => rank[b.fit] - rank[a.fit] || b.sizeGB - a.sizeGB);
+  const pick = [best.find((m) => m.fit === 'great' || m.fit === 'good') || best[0], ...best].filter(Boolean);
+  const list = [...new Map(pick.map((m) => [m.id, m])).values()].slice(0, 3);
+  if (S.model === undefined) S.model = list[0] ? list[0].id : null;
+  $('#mlist').innerHTML = list.map((m) => `<button class="mopt ${S.model === m.id ? 'sel' : ''}" data-m="${m.id}"><span class="dot"></span><span class="mt"><b>${m.name}</b><small>${m.tags} · ≈ ${m.sizeGB} GB</small></span><span class="fit ${m.fit === 'great' ? '' : 'ok'}">${t('fit_' + m.fit)}</span></button>`).join('')
+    + `<button class="mopt later ${S.model === null ? 'sel' : ''}" data-m=""><span class="dot"></span><span class="mt"><b>${t('later')}</b><small>${t('laterHint')}</small></span></button>`;
+  const drives = (hw.drives || []).filter((d) => d.free > 0);
+  const cur = $('#disk').value;
+  $('#disk').innerHTML = drives.map((d, i) => `<option value="${d.name}">${i === 0 || /^c:/i.test(d.name) ? t('diskDefault', { d: d.name }) : t('diskOther', { d: d.name, p: d.name + '\\Fabro\\Models' })} · ${t('free', { n: (d.free / 1e9).toFixed(0) })}</option>`).join('');
+  if (cur) $('#disk').value = cur; else { const big = [...drives].sort((a, b) => b.free - a.free)[0]; const sys = drives.find((d) => /^c:/i.test(d.name)); $('#disk').value = (sys && sys.free > 60e9 ? sys : big || sys || {}).name || ''; }
+  diskHint();
+}
+function diskHint() {
+  const m = CATALOG.find((x) => x.id === S.model); const d = ((S.hw && S.hw.drives) || []).find((x) => x.name === $('#disk').value);
+  const h = $('#disk-hint'); h.classList.remove('warn');
+  if (!m) { h.textContent = ''; $('#go3').disabled = false; return; }
+  if (d && d.free < (m.sizeGB + 2) * 1e9) { h.textContent = t('noSpace', { n: m.sizeGB }); h.classList.add('warn'); $('#go3').disabled = true; return; }
+  h.textContent = t('dlAfter', { n: m.sizeGB }); $('#go3').disabled = false;
+}
+function firstModel() {
+  const m = CATALOG.find((x) => x.id === S.model); if (!m) return null;
+  const drive = $('#disk').value; const sys = /^c:/i.test(drive) || !drive;
+  const library = sys ? { id: 'default' } : { id: 'lib-' + drive.replace(/\W/g, '').toLowerCase(), name: drive + ' Fabro', path: drive + '\\Fabro\\Models' };
+  return { catalogId: m.id, repo: m.repo, name: m.name, library };
+}
 const $ = (s) => document.querySelector(s);
-const S = { lang: 'en', step: 's-welcome', release: null, installed: null, dir: '', busy: false, lastErr: null };
+const S = { lang: 'en', step: 's-welcome', release: null, installed: null, dir: '', busy: false, lastErr: null, hw: null, model: undefined };
 const send = (cmd, data = {}) => window.ipc.postMessage(JSON.stringify({ cmd, ...data }));
 const t = (k, v = {}) => String((I[S.lang] || I.en)[k] ?? I.en[k] ?? k).replace(/\{(\w+)\}/g, (_, x) => v[x] ?? '');
 const fmt = (b) => b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(0, Math.round(b / 1e3)) + ' KB';
@@ -240,6 +338,8 @@ function paint() {
   $('#s-welcome h1').textContent = t(upd ? 'welcomeUpd' : 'welcome');
   $('#go').textContent = t(upd ? 'update' : 'install');
   $('#go2').textContent = t(upd ? 'update' : 'install');
+  $('#go3').textContent = t('install');
+  renderModels();
   $('#go').disabled = !S.release;
   const r = S.release;
   $('#w-meta').innerHTML = !r ? `<span class="pill">${t('checking')}</span>` :
@@ -251,7 +351,7 @@ function paint() {
   if (S.lastErr) showErr(S.lastErr, true);
 }
 function go(id) {
-  const order = ['s-welcome', 's-opts', 's-run', 's-done', 's-err'];
+  const order = ['s-welcome', 's-opts', 's-model', 's-run', 's-done', 's-err'];
   const back = order.indexOf(id) < order.indexOf(S.step);
   document.querySelectorAll('.step').forEach((s) => { s.classList.remove('left'); if (s.id !== id && s.classList.contains('on')) { s.classList.remove('on'); if (!back) s.classList.add('left'); } });
   const n = $('#' + id); if (back) { n.classList.add('left'); void n.offsetWidth; n.classList.remove('left'); }
@@ -280,10 +380,12 @@ function confetti() {
     box.appendChild(el);
   }
 }
+// Fresh installs choose their first model; updates go straight to installing.
+function next() { if (S.installed) start(); else { go('s-model'); renderModels(); } }
 function start() {
   if (S.busy || !S.release) return;
   S.busy = true; S.lastErr = null; go('s-run'); setPhase(0); $('#fill').style.width = '0%';
-  send('install', { dir: $('#dir').value.trim() || S.dir, desktop: $('#desk').checked, providers: $('#prov').checked, launch: $('#launch').checked, lang: S.lang });
+  send('install', { dir: $('#dir').value.trim() || S.dir, desktop: $('#desk').checked, providers: $('#prov').checked, launch: $('#launch').checked, lang: S.lang, firstModel: S.installed ? null : firstModel() });
 }
 
 // Rust → page
@@ -292,9 +394,10 @@ window.__fabro = (m) => {
     S.lang = I[m.lang] ? m.lang : 'en'; $('#lang').value = S.lang;
     S.installed = m.installed; S.dir = (m.installed && m.installed.location) || m.defaultDir; $('#dir').value = S.dir;
     $('#dir').disabled = $('#browse').disabled = !!m.installed;
-    paint(); send('fetch');
+    paint(); send('fetch'); if (!m.installed) send('detect');
   } else if (m.type === 'release') { S.release = m; paint(); if (m.autostart) start(); }
   else if (m.type === 'dir') { $('#dir').value = m.dir; }
+  else if (m.type === 'hw') { S.hw = m.hw; renderModels(); }
   else if (m.type === 'progress') {
     const p = m.total ? m.done / m.total : 0; $('#fill').style.width = (p * 100).toFixed(1) + '%';
     $('#pl').textContent = m.total ? `${fmt(m.done)} / ${fmt(m.total)}` : fmt(m.done);
@@ -311,14 +414,19 @@ document.addEventListener('click', (e) => {
 $('#drag').addEventListener('mousedown', (e) => { if (e.button === 0) send('drag'); });
 document.querySelector('.bar .brand').addEventListener('mousedown', (e) => { if (e.button === 0) send('drag'); });
 $('#lang').addEventListener('change', (e) => { S.lang = e.target.value; paint(); });
-$('#go').onclick = start; $('#go2').onclick = start;
+$('#go').onclick = next; $('#go2').onclick = next; $('#go3').onclick = start;
+$('#mback').onclick = () => go('s-welcome');
+$('#mlist').addEventListener('click', (e) => { const b = e.target.closest('.mopt'); if (!b) return; S.model = b.dataset.m || null; renderModels(); });
+$('#disk').addEventListener('change', diskHint);
 $('#to-opts').onclick = () => go('s-opts'); $('#back').onclick = () => go('s-welcome');
 $('#browse').onclick = () => send('browse', { dir: $('#dir').value });
 $('#liftoff').onclick = () => send('launch');
 $('#retry').onclick = () => { if (!S.release) { go('s-welcome'); send('fetch'); } else start(); };
 $('#manual').onclick = () => send('open', { url: 'https://github.com/lulualdn/fabro-ai/releases/latest' });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && S.step === 's-welcome') start();
+  if (e.key === 'Enter' && S.step === 's-welcome') next();
+  if (e.key === 'Enter' && S.step === 's-model' && !$('#go3').disabled) start();
+  if (e.key === 'Escape' && S.step === 's-model') go('s-welcome');
   if (e.key === 'Enter' && S.step === 's-done') send('launch');
   if (e.key === 'Escape' && S.step === 's-opts') go('s-welcome');
 });

@@ -282,6 +282,15 @@ app.whenReady().then(async () => {
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
   models.init((p) => send('models:progress', p));
+  // First model chosen in the Windows installer: start its download once, into the chosen disk.
+  const fm = S().firstModel;
+  if (fm && fm.catalogId) {
+    (async () => {
+      const inst = await models.installed();
+      if (!inst.local.length && !inst.downloads.length) await models.download({ repo: fm.repo, catalogId: fm.catalogId, library: fm.library && fm.library.id !== 'default' ? fm.library.id : undefined });
+      await store.setSettings({ firstModel: null });
+    })().catch((e) => console.error('first model', e));
+  }
   await engine.init((s) => send('engine:status', s));
   localapi.init((st) => send('localapi:status', st)).catch(() => {});
   setTimeout(() => engine.preloadAll(async () => (await models.installed()).local).catch(() => {}), 2500);
