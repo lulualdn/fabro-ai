@@ -10,10 +10,24 @@ const allowed = () => ((store.getSettings().agent || {}).folders || []).map((f) 
 function inside(p, root) { const r = path.relative(root, p); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)); }
 function resolvePath(p, ctx) {
   if (!p) throw new Error('path is required');
-  let x = String(p).replace(/^~(?=$|[\\/])/, os.homedir());
+  let x = String(p).trim().replace(/^["']|["']$/g, '').replace(/^~(?=$|[\\/])/, os.homedir());
   const roots = allowed();
   if (!path.isAbsolute(x)) x = path.join((ctx && ctx.projectRoot) || roots[0] || defaultOut(), x);
-  return path.resolve(x);
+  return fixCase(path.resolve(x));
+}
+// Models often get the case of a folder name wrong ("Documents/fabro"): use the real folder when one
+// matches ignoring case (Linux; Windows and macOS are case-insensitive anyway).
+function fixCase(p) {
+  if (process.platform !== 'linux' || fs.existsSync(p)) return p;
+  const parts = p.split(path.sep); let cur = parts[0] || path.sep;
+  for (let i = 1; i < parts.length; i++) {
+    const next = path.join(cur, parts[i]);
+    if (fs.existsSync(next)) { cur = next; continue; }
+    let match = null; try { match = fs.readdirSync(cur).find((e) => e.toLowerCase() === parts[i].toLowerCase()); } catch {}
+    if (!match) return path.join(cur, ...parts.slice(i));
+    cur = path.join(cur, match);
+  }
+  return cur;
 }
 const defaultOut = () => path.join(os.homedir(), 'Documents', 'Fabro');
 const BLOCKED = /([\\/]\.ssh|[\\/]\.gnupg|[\\/]\.aws|[\\/]AppData[\\/]Roaming[\\/]Microsoft[\\/]Credentials|[\\/]Library[\\/]Keychains|[\\/]\.config[\\/]gh|\.env$|id_rsa|id_ed25519|\.kdbx$)/i;
@@ -82,7 +96,9 @@ agent.register({
     }
     let lines = text.split('\n');
     const from = Math.max(1, a.from_line || 1), to = Math.min(lines.length, a.to_line || Math.min(lines.length, from + 1999));
-    const body = lines.slice(from - 1, to).map((l, i) => `${String(from + i).padStart(5)}│${l}`).join('\n');
+    // Line numbers only help on long files (small models tend to copy them into edits).
+    const numbered = lines.length > 60 || a.from_line || a.to_line;
+    const body = lines.slice(from - 1, to).map((l, i) => (numbered ? `${String(from + i).padStart(5)}│${l}` : l)).join('\n');
     touched(ctx, p, 'read');
     return { content: `${p} (lines ${from}-${to} of ${lines.length})\n${body}`, view: { kind: 'file', path: p, lines: lines.length, from, to } };
   },
@@ -94,6 +110,7 @@ agent.register({
   parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] },
   summarize: (a) => `${a.path} (${String(a.content || '').split('\n').length} lines)`,
   async run(a, ctx) {
+    if (!String(a.content ?? '').trim()) throw Object.assign(new Error('content is empty. Write the real, complete content of the file in `content` (read the source files first if you need them).'), { code: 'BAD_ARGS' });
     const p = resolvePath(a.path, ctx); await access(p, ctx, true); await checkpoint(ctx, p);
     const before = fs.existsSync(p) ? await fsp.readFile(p, 'utf8').catch(() => null) : null;
     await fsp.mkdir(path.dirname(p), { recursive: true });
@@ -112,8 +129,12 @@ agent.register({
   async run(a, ctx) {
     const p = resolvePath(a.path, ctx); await access(p, ctx, true); await checkpoint(ctx, p);
     const src = await fsp.readFile(p, 'utf8');
+    const unNumber = (x) => String(x ?? '').split('\n').map((l) => l.replace(/^\s*\d+│/, '')).join('\n');
+    if (!src.includes(a.old_text) && src.includes(unNumber(a.old_text))) { a.old_text = unNumber(a.old_text); a.new_text = unNumber(a.new_text); }
+    if (a.old_text === a.new_text) throw Object.assign(new Error('old_text and new_text are identical: nothing would change. Put the new text in new_text (or use write_file to rewrite the whole file).'), { code: 'BAD_ARGS' });
+    if (!String(a.old_text).length) throw Object.assign(new Error('old_text is empty. Copy the exact existing text to replace, or use write_file for a new/whole file.'), { code: 'BAD_ARGS' });
     const n = src.split(a.old_text).length - 1;
-    if (n === 0) throw new Error('old_text not found — read the file again and copy the exact text');
+    if (n === 0) throw new Error(src.trim() ? 'old_text not found — read the file again and copy the exact text (without line numbers)' : 'The file is empty, so there is nothing to replace: use write_file with the full content instead.');
     if (n > 1) throw new Error(`old_text appears ${n} times — include more context`);
     const next = src.replace(a.old_text, a.new_text);
     await fsp.writeFile(p, next, 'utf8');

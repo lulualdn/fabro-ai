@@ -18,7 +18,7 @@ function shellFor(kind) {
 agent.register({
   name: 'run_command', category: 'shell', risk: 'exec', core: true,
   description: `Run a terminal command in a folder and get its output (exit code, stdout, stderr). ${process.platform === 'win32' ? 'Windows: PowerShell by default.' : 'Uses bash.'} Use for builds, tests, git, package managers, scripts. Not interactive: never run commands that wait for input.`,
-  parameters: { type: 'object', properties: { command: { type: 'string' }, cwd: { type: 'string', description: 'Folder to run in (in Code mode: defaults to the project, relative paths are inside it)' }, timeout_s: { type: 'integer', description: 'Default 120, max 900' }, shell: { type: 'string', enum: ['auto', 'powershell', 'cmd', 'bash'] } }, required: ['command'] },
+  parameters: { type: 'object', properties: { command: { type: 'string' }, cwd: { type: 'string', description: 'Folder to run in (default: the project in Code mode, else Documents/Fabro)' }, timeout_s: { type: 'integer', description: 'Default 120, max 900' }, shell: { type: 'string', enum: ['auto', 'powershell', 'cmd', 'bash'] } }, required: ['command'] },
   summarize: (a) => `${a.command}${a.cwd ? `\n📁 ${a.cwd}` : ''}`,
   guard: (a, ctx) => {
     if (DANGER.test(a.command || '')) return { confirm: 'danger_command' };
@@ -33,8 +33,8 @@ agent.register({
     return null;
   },
   async run(a, ctx) {
-    if (!a.cwd && !ctx.projectRoot) throw new Error('cwd is required');
-    const cwd = files.resolvePath(a.cwd || '.', ctx);
+    const cwd = a.cwd ? files.resolvePath(a.cwd, ctx) : ctx.projectRoot || files.defaultOut();
+    require('fs').mkdirSync(cwd, { recursive: true });
     await files.access(cwd, ctx, true);
     const [bin, pre] = shellFor(a.shell || 'auto');
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !SECRET_ENV.test(k) && !/^ELECTRON_/.test(k)));

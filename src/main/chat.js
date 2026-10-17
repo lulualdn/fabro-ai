@@ -10,6 +10,7 @@ const tools = require('./tools');
 const agent = require('./agent');
 const skills = require('./agent/skills');
 const code = require('./code');
+const prompts = require('./prompts');
 
 // ───────────────────────────── permissions & dependencies (asked in the UI) ─────────────────────────────
 const waiting = new Map(); // `${reqId}:${callId}` → resolve
@@ -54,14 +55,6 @@ function codeSection(c) {
     Object.values(cmd).some((v) => v && v !== 'unknown') ? `Project commands (${cmd.kind}): ${['test', 'lint', 'build', 'run'].filter((k) => cmd[k]).map((k) => `${k}: \`${cmd[k]}\``).join(' · ')}` : '',
     c.branch ? `Git branch: ${c.branch}. Commit only when the user asks (git_commit).` : 'Not a git repository.',
     ins ? `# Project instructions (${ins.file}) — follow them\n${ins.text}` : '',
-  ].filter(Boolean).join('\n\n');
-}
-function agentSystem(base, c) {
-  const os = require('os');
-  const folders = ((store.getSettings().agent || {}).folders || []);
-  return [base, skills.promptSection(),
-    `Computer: ${process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux'} · home ${os.homedir()} · default output folder ${require('path').join(os.homedir(), 'Documents', 'Fabro')}`,
-    c ? codeSection(c) : folders.length ? `Folders the user already allowed: ${folders.join(', ')}` : 'No folder allowed yet: using a folder shows the user a permission request.',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -159,9 +152,21 @@ async function completeOpenAI(be, messages, params, signal, acc, tools) {
     }
   });
   let toolCalls = calls.filter((c) => c && c.name).map((c, i) => ({ ...c, id: c.id || `call_${Date.now().toString(36)}_${i}` }));
-  if (!toolCalls.length && acc.fallback && /<tool_call>/.test(content)) {
-    const parsed = parseToolCalls(content);
-    if (parsed.calls.length) { acc.push('retract', parsed.raw); content = parsed.rest; toolCalls = parsed.calls; }
+  // Thinking that leaked into the answer (<think>…</think> with reasoning off, or a stray </think>).
+  if (/<\/think>/.test(content)) {
+    const i = content.lastIndexOf('</think>');
+    const thought = content.slice(0, i).replace(/<think>/g, '').trim();
+    acc.push('retract', content.slice(0, i + 8));
+    if (thought) acc.push('reasoning', thought);
+    content = content.slice(i + 8).replace(/^\s+/, '');
+  }
+  // No native call but a call written as text (any common format): run it anyway.
+  if (!toolCalls.length && content) {
+    const known = (tools || []).map((x) => x.function.name);
+    if (known.length && known.some((n) => content.includes(n))) {
+      const parsed = parseToolCalls(content, known);
+      if (parsed.calls.length) { for (const raw of parsed.raws) acc.push('retract', raw); content = parsed.rest; toolCalls = parsed.calls; acc.textCalls = (acc.textCalls || 0) + 1; }
+    }
   }
   return { content, toolCalls };
 }
@@ -175,13 +180,43 @@ function withToolPrompt(messages, tools) {
   if (sys) sys.content = String(sys.content) + add; else out.unshift({ role: 'system', content: add.trim() });
   return out.map((m) => m.role === 'tool' ? { role: 'user', content: `Tool result:\n${m.content}` } : m.tool_calls ? { role: 'assistant', content: (m.content || '') + m.tool_calls.map((c) => `\n<tool_call>{"name":"${c.function.name}","arguments":${c.function.arguments}}</tool_call>`).join('') } : m);
 }
-function parseToolCalls(text) {
-  const calls = []; let raw = '';
-  for (const m of text.matchAll(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/g)) {
-    raw += m[0];
-    try { const j = JSON.parse(m[1]); if (j.name) calls.push({ id: `fb_${Date.now().toString(36)}_${calls.length}`, name: j.name, args: JSON.stringify(j.arguments || j.parameters || {}) }); } catch {}
+// Tool calls written as text. Many models (especially local ones) emit them in their own format instead of
+// the native field — or when native calling is off. We accept the common formats, only for known tools:
+//   <tool_call>{json}</tool_call> (Hermes/Qwen) · <function=name>{json}|<parameter=k>v</parameter></function> (Qwen3-Coder)
+//   [TOOL_CALLS][{…}] (Mistral) · <|python_tag|>{…} (Llama 3) · ```json {"name","arguments"} ``` · a bare JSON call.
+function parseToolCalls(text, known = null) {
+  const calls = []; const raws = [];
+  const ok = (name) => name && (!known || known.includes(name));
+  const push = (name, args, raw) => {
+    if (!ok(name)) return false;
+    calls.push({ id: `fb_${Date.now().toString(36)}_${calls.length}`, name, args: typeof args === 'string' ? args : JSON.stringify(args || {}) });
+    raws.push(raw); return true;
+  };
+  const fromJson = (j, raw) => {
+    if (Array.isArray(j)) { let any = false; for (const x of j) any = fromJson(x, raw) || any; return any; }
+    if (!j || typeof j !== 'object') return false;
+    const f = j.function && typeof j.function === 'object' ? j.function : j;
+    let args = f.arguments ?? f.parameters ?? f.args ?? f.input ?? {};
+    if (typeof args === 'string') { try { args = JSON.parse(args); } catch { /* keep string */ } }
+    return push(f.name || j.tool || j.tool_name, args, raw);
+  };
+  const tryJson = (str, raw) => { try { return fromJson(JSON.parse(str), raw); } catch { const fixed = String(str).trim().replace(/,\s*([}\]])/g, '$1'); try { return fromJson(JSON.parse(fixed), raw); } catch { return false; } } };
+  let t = String(text || '');
+  for (const m of t.matchAll(/<tool_call>\s*([\s\S]*?)\s*(?:<\/tool_call>|$)/g)) tryJson(m[1], m[0]);
+  for (const m of t.matchAll(/<function=([\w.-]+)>\s*([\s\S]*?)\s*(?:<\/function>|$)/g)) {
+    const body = m[2].trim();
+    if (body.startsWith('{')) { try { push(m[1], JSON.parse(body), m[0]); continue; } catch {} }
+    const params = {}; for (const p of body.matchAll(/<parameter=([\w.-]+)>\s*([\s\S]*?)\s*<\/parameter>/g)) { let v = p[2]; try { v = JSON.parse(v); } catch {} params[p[1]] = v; }
+    push(m[1], params, m[0]);
   }
-  return { calls, raw, rest: text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim() };
+  for (const m of t.matchAll(/\[TOOL_CALLS\]\s*(\[[\s\S]*\]|\{[\s\S]*\})/g)) tryJson(m[1], m[0]);
+  for (const m of t.matchAll(/<\|python_tag\|>\s*(\{[\s\S]*\})/g)) tryJson(m[1], m[0]);
+  if (!calls.length) for (const m of t.matchAll(/```(?:json|tool_call|tool|function)?\s*\n?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```/g)) {
+    if (/"name"\s*:/.test(m[1]) && /"(arguments|parameters|args|input)"\s*:/.test(m[1])) tryJson(m[1], m[0]);
+  }
+  if (!calls.length) { const b = t.trim(); if (/^\{[\s\S]*\}$/.test(b) && /"name"\s*:/.test(b) && /"(arguments|parameters)"\s*:/.test(b)) tryJson(b, t); }
+  let rest = t; for (const r of raws) rest = rest.replace(r, '');
+  return { calls, raw: raws.join(''), raws, rest: rest.replace(/<\/?tool_call>/g, '').trim() };
 }
 
 // ───────────────────────────── Anthropic Messages API ─────────────────────────────
@@ -251,6 +286,32 @@ async function completeAnthropic(be, messages, params, signal, acc, tools) {
   return { content, toolCalls: Object.values(blocks) };
 }
 
+// ───────────────────────────── context budget ─────────────────────────────
+// Long agent runs overflow small context windows: shorten old tool results first, then drop the oldest
+// exchanges (the system prompt, the first request and the recent steps are always kept).
+const estTok = (x) => Math.ceil((typeof x === 'string' ? x : JSON.stringify(x || '')).length / 3.3);
+function compact(msgs, schemas, be, ratio = 0.72) {
+  const ctx = (be.inst && be.inst.plan && be.inst.plan.ctx) || (be.kind === 'local' ? 8192 : 120000);
+  const budget = Math.floor(ctx * ratio) - estTok(schemas);
+  const total = () => msgs.reduce((n, m) => n + estTok(m.content) + (m.tool_calls ? estTok(m.tool_calls) : 0) + 4, 0);
+  if (total() <= budget) return false;
+  const toolIdx = msgs.map((m, i) => (m.role === 'tool' ? i : -1)).filter((i) => i >= 0);
+  for (const i of toolIdx.slice(0, -3)) {
+    const c = String(msgs[i].content || '');
+    if (c.length > 700) msgs[i].content = c.slice(0, 500) + `\n… [${c.length - 500} characters removed to save memory — call the tool again if you need them]`;
+    if (total() <= budget) return true;
+  }
+  const firstUser = msgs.findIndex((m) => m.role === 'user');
+  while (total() > budget) {
+    // drop the oldest assistant(+its tool results) block after the first user message
+    const i = msgs.findIndex((m, k) => k > firstUser && m.role === 'assistant');
+    if (i < 0 || i >= msgs.length - 4) break;
+    let j = i + 1; while (j < msgs.length && msgs[j].role === 'tool') j++;
+    msgs.splice(i, j - i, ...(msgs[i - 1] && msgs[i - 1].content === '[earlier steps removed]' ? [] : [{ role: 'user', content: '[earlier steps removed]' }]));
+  }
+  return true;
+}
+
 // ───────────────────────────── main entry ─────────────────────────────
 async function send({ reqId, model, messages, params = {}, meta = {} }, emit, parent = null) {
   const ctrl = new AbortController();
@@ -306,8 +367,14 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       } catch {}
     }
     const setSystem = (text) => { const sys = msgs.find((m) => m.role === 'system'); const keep = sys && (sys.content.match(/\n\n# Project: [\s\S]*$/) || [''])[0]; if (sys) sys.content = text + keep; else msgs.unshift({ role: 'system', content: text }); };
-    if (parent) setSystem(agentSystem(params.agentPrompt || 'You are Fabro, an AI agent running on the user\'s computer.', codeCtx) + SUB_NOTE);
-    else if (agentMode && params.agentPrompt) setSystem(agentSystem(params.agentPrompt, codeCtx));
+    // Dynamic agent prompt: the exact tools sent this turn, a strict work loop, honesty + recovery rules.
+    const folders = ((store.getSettings().agent || {}).folders || []);
+    const sysAgent = () => prompts.agentPrompt({ base: params.agentPrompt || '', schemas: toolSchemas, codeSection: codeCtx ? codeSection(codeCtx) : '', folders, skillsSection: skills.promptSection(), sub: !!parent, fallback: !!acc.fallback, defaultOut: require('./agent/files').defaultOut() }) + (params.voiceMode && !parent ? '\n\n' + prompts.VOICE : '') + (parent ? SUB_NOTE : '');
+    const toolSig = () => toolSchemas.map((x) => x.function.name).join(',');
+    let promptSig = '';
+    const applyAgentPrompt = () => { setSystem(sysAgent()); promptSig = toolSig(); };
+    if (parent || agentMode) applyAgentPrompt();
+    else if (toolSchemas.length) { const sys = msgs.find((m) => m.role === 'system'); const sec = prompts.chatToolsSection(toolSchemas) + (params.voiceMode ? '\n\n' + prompts.VOICE : ''); if (sys) sys.content = sys.content.replace(/(\n\n# Project: [\s\S]*)?$/, (tail) => `\n\n${sec}${tail || ''}`); else msgs.unshift({ role: 'system', content: sec }); }
     const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
@@ -350,35 +417,63 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     };
     let steps = 0;
     const maxSteps = () => (parent ? 30 : agentMode ? 60 : 12);
+    // Runtime guards: a model that gives up, claims work it didn't do, or stops mid-plan is sent back to work.
+    const turnTools = []; let lastError = null; let lastPlan = null; let nudges = 0; const guardUsed = {}; const failCount = new Map();
     for (;;) {
-      const r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas);
-      if (!r.toolCalls.length || steps >= maxSteps()) break;
+      compact(msgs, toolSchemas, be);
+      let r;
+      try { r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas); }
+      catch (e) {
+        // The local engine crashed or restarted mid-task (out of memory, update…): reload it and retry once.
+        if (ctrl.signal.aborted || be.kind !== 'local' || !/fetch failed|ECONNREFUSED|ECONNRESET|socket hang up/i.test(e.message) || acc.engineRetry) throw e;
+        acc.engineRetry = true;
+        out({ type: 'status', status: 'loading' });
+        engine.release(be.inst);
+        const m = await models.getLocal(model.id); const inst = await engine.ensure(m);
+        be.inst = inst; be.base = `http://127.0.0.1:${inst.port}/v1`; engine.acquire(inst);
+        compact(msgs, toolSchemas, be, 0.5);
+        r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas);
+      }
+      if (!r.toolCalls.length) {
+        const nudge = nudges < 3 && !ctrl.signal.aborted && !(acc.noTools && !acc.fallback) && steps < maxSteps()
+          ? prompts.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText }) : null;
+        if (!nudge) break;
+        nudges++;
+        if (r.content) { msgs.push({ role: 'assistant', content: r.content }); out({ type: 'retract', text: r.content }); }
+        msgs.push({ role: 'user', content: nudge });
+        out({ type: 'guard', text: nudge });
+        continue;
+      }
+      if (steps >= maxSteps()) break;
       steps++;
       msgs.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' } })) });
       // Sub-agent calls of the same turn run in parallel; everything else runs in order.
       const subCalls = r.toolCalls.filter((c) => c.name === 'run_subagent' && !parent);
       const pre = new Map();
       if (subCalls.length > 1) {
-        if (!agentMode) { agentMode = true; out({ type: 'agent_switch', tool: 'run_subagent' }); if (params.agentPrompt) setSystem(agentSystem(params.agentPrompt, codeCtx)); }
+        if (!agentMode) { agentMode = true; out({ type: 'agent_switch', tool: 'run_subagent' }); applyAgentPrompt(); }
         await Promise.all(subCalls.map(async (c) => {
           let args = {}; try { args = JSON.parse(c.args || '{}'); } catch {}
           out({ type: 'tool_start', id: c.id, name: c.name, args, agent: true });
-          try { const res = await runAgentTool(c, args); pre.set(c.id, res); out({ type: 'tool_end', id: c.id, name: c.name, view: res.view, refused: res.refused }); }
+          try { const res = await runAgentTool(c, args); pre.set(c.id, res); turnTools.push({ name: c.name, ok: !res.refused }); out({ type: 'tool_end', id: c.id, name: c.name, view: res.view, refused: res.refused }); }
           catch (e) { if (ctrl.signal.aborted) throw e; pre.set(c.id, { content: `Error: ${e.message}` }); out({ type: 'tool_end', id: c.id, name: c.name, error: e.message, code: e.code }); }
         }));
       }
       for (const c of r.toolCalls) {
         if (pre.has(c.id)) { msgs.push({ role: 'tool', tool_call_id: c.id, content: pre.get(c.id).content }); continue; }
-        let args = {}; try { args = JSON.parse(c.args || '{}'); } catch {}
+        let args = {}, badArgs = null; try { args = JSON.parse(c.args || '{}'); if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('arguments must be a JSON object'); } catch (e) { args = {}; badArgs = e.message; }
         // Calling any tool other than search / fetch / image switches the conversation to agent mode.
         if (!agentMode && agent.isAgentTool(c.name) && params.agent !== false) {
           agentMode = true;
           out({ type: 'agent_switch', tool: c.name });
-          if (params.agentPrompt) setSystem(agentSystem(params.agentPrompt, codeCtx));
+          applyAgentPrompt();
         }
         out({ type: 'tool_start', id: c.id, name: c.name, args, agent: agent.isAgentTool(c.name) });
         let result;
         try {
+          const known = toolSchemas.map((x) => x.function.name);
+          if (!known.includes(c.name) && !agent.get(c.name) && !tools.CHAT_TOOLS[c.name]) throw Object.assign(new Error(`There is no tool named "${c.name}". Available tools: ${known.join(', ')}. Call one of these.`), { code: 'UNKNOWN_TOOL' });
+          if (badArgs) { const sc = toolSchemas.find((x) => x.function.name === c.name); throw Object.assign(new Error(`Your arguments for ${c.name} were not valid JSON (${badArgs}). Call it again with a JSON object matching: ${JSON.stringify((sc && sc.function.parameters) || {}).slice(0, 800)}`), { code: 'BAD_ARGS' }); }
           if (tools.CHAT_TOOLS[c.name]) {
             if (!(params.tools || []).includes(c.name)) throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
             result = await tools.run(c.name, args, { project: meta.project, needDeps: parent ? (dep) => parent.needDeps(c.id, dep) : (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) });
@@ -386,10 +481,17 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
             result = await runAgentTool(c, args);
           } else throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
           out({ type: 'tool_end', id: c.id, name: c.name, view: result.view, refused: result.refused });
+          turnTools.push({ name: c.name, ok: !result.refused, sig: c.name + ':' + (c.args || '') }); lastError = null;
+          const same = turnTools.slice(-3).filter((x) => x.sig === c.name + ':' + (c.args || '')).length;
+          if (same >= 3 && typeof result.content === 'string') result.content += '\n\n[Fabro runtime] You made this exact call 3 times in a row and got the same result. Stop repeating it: use what you already have, or do the next step of the task.';
+          if (c.name === 'update_plan' && Array.isArray(args.steps)) lastPlan = args.steps;
         } catch (e) {
           if (ctrl.signal.aborted) throw e;
-          result = { content: `Error: ${e.message}` };
+          const sig = c.name + ':' + (c.args || '');
+          const nFail = (failCount.get(sig) || 0) + 1; failCount.set(sig, nFail);
+          result = { content: `Error: ${e.message}\n${nFail >= 2 ? `(This exact call failed ${nFail} times. Do NOT repeat it: change the arguments or use another tool/approach.)` : '(Fix the cause and try again, or try another approach. Don\'t invent a result.)'}` };
           out({ type: 'tool_end', id: c.id, name: c.name, error: e.message, code: e.code });
+          turnTools.push({ name: c.name, ok: false }); lastError = { name: c.name, error: e.message };
         }
         msgs.push({ role: 'tool', tool_call_id: c.id, content: result.content });
         if (result.image) {
@@ -397,7 +499,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           else msgs[msgs.length - 1].content += '\n(An image was produced but this model cannot see images.)';
         }
       }
-      if (agentMode) toolSchemas = buildTools();
+      if (agentMode) { toolSchemas = buildTools(); if (toolSig() !== promptSig) applyAgentPrompt(); }
       out({ type: 'tool_round' });
     }
     const elapsed = (Date.now() - (tFirst || t0)) / 1000;

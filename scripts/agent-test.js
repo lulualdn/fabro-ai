@@ -20,6 +20,18 @@ const srv = http.createServer((req, res) => {
   let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
     if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'm' }] }));
     const body = JSON.parse(b);
+    if (mode === 'giveup') {
+      const nudged = body.messages.some((m) => m.role === 'user' && /\[Fabro runtime\]/.test(m.content || ''));
+      const doneN = body.messages.filter((m) => m.role === 'tool').length;
+      seen.push({ sys: body.messages[0].content, tools: (body.tools || []).map((t) => t.function.name) });
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      const w = (d) => res.write(`data: ${JSON.stringify({ choices: [{ delta: d }] })}\n\n`);
+      if (!nudged) w({ content: 'Désolé, je ne peux pas accéder à vos fichiers.' });
+      else if (doneN === 0) w({ tool_calls: [{ index: 0, id: 'g0', function: { name: 'list_dir', arguments: '{bad json' } }] });
+      else if (doneN === 1) w({ tool_calls: [{ index: 0, id: 'g1', function: { name: 'list_dir', arguments: JSON.stringify({ path: work }) } }] });
+      else w({ content: 'Voici vos fichiers.' });
+      return res.end('data: [DONE]\n\n');
+    }
     if (mode === 'sub') {
       const sys = body.messages[0].content || ''; const doneN = body.messages.filter((m) => m.role === 'tool').length;
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -129,6 +141,34 @@ function run(payload, answers) {
   assert.strictEqual(subEnds.length, 2); assert.match(subEnds[0].view.report, /Rapport: tâche/);
   assert.match(ev.filter((e) => e.type === 'token').map((e) => e.text).join(''), /Fini: Plan updated.*Rapport: tâche A ok \| Rapport: tâche B ok/);
   assert.ok(ev.every((e) => e.reqId === 'a4'), 'all events carry the parent reqId');
+
+  // Guards: a model that says it "can't" is sent back to work; bad JSON gets a precise error; the
+  // agent prompt lists the exact tools sent.
+  mode = 'giveup'; seen.length = 0;
+  ev = await run({ reqId: 'a5', model: ref, messages: [{ role: 'user', content: 'liste mes fichiers' }], params: { agentMode: true, agentPrompt: 'The user\'s name is Lulu.' }, meta: {} }, () => 'once');
+  assert.ok(ev.some((e) => e.type === 'guard'), 'give-up detected');
+  assert.ok(ev.some((e) => e.type === 'retract' && /ne peux pas/.test(e.text)), 'give-up text retracted');
+  const bad = ev.find((e) => e.type === 'tool_end' && e.code === 'BAD_ARGS');
+  assert.ok(bad && /not valid JSON/.test(bad.error), 'bad JSON explained');
+  assert.strictEqual(ev.filter((e) => e.type === 'token').map((e) => e.text).join('').replace('Désolé, je ne peux pas accéder à vos fichiers.', ''), 'Voici vos fichiers.');
+  assert.match(seen[0].sys, /## Your tools right now/); assert.match(seen[0].sys, /- list_dir\(path\)/); assert.match(seen[0].sys, /never say you "can't access"/i);
+  assert.match(seen[0].sys, /The user's name is Lulu/);
+
+  // Tool calls written as text, in the formats local models actually use.
+  const K = ['list_dir', 'read_file'];
+  const pc = (x) => chat.parseToolCalls(x, K).calls.map((c) => [c.name, JSON.parse(c.args)]);
+  assert.deepStrictEqual(pc('<tool_call>{"name":"list_dir","arguments":{"path":"~"}}</tool_call>'), [['list_dir', { path: '~' }]]);
+  assert.deepStrictEqual(pc('ok <function=read_file><parameter=path>/a.txt</parameter></function>'), [['read_file', { path: '/a.txt' }]]);
+  assert.deepStrictEqual(pc('[TOOL_CALLS][{"name":"list_dir","arguments":{"path":"/"}}]'), [['list_dir', { path: '/' }]]);
+  assert.deepStrictEqual(pc('<|python_tag|>{"name": "list_dir", "parameters": {"path": "/x"}}'), [['list_dir', { path: '/x' }]]);
+  assert.deepStrictEqual(pc('Je regarde :\n```json\n{"name": "read_file", "arguments": {"path": "b.md",}}\n```'), [['read_file', { path: 'b.md' }]]);
+  assert.deepStrictEqual(pc('{"name":"list_dir","arguments":{"path":"."}}'), [['list_dir', { path: '.' }]]);
+  assert.deepStrictEqual(pc('```json\n{"name":"rm_rf","arguments":{}}\n```'), [], 'unknown tools are not run');
+  assert.deepStrictEqual(pc('Le JSON {"name": "x"} est un exemple.'), []);
+  const prompts = require('../src/main/prompts');
+  const g = prompts.guard({ text: 'Voici comment faire : ouvrez le dossier puis…', schemas: [{ function: { name: 'list_dir' } }], turnTools: [], lastError: null, plan: null, used: {}, agentMode: true, userText: 'Range mes téléchargements' });
+  assert.match(g, /start doing it now/, 'action request answered with text → nudged');
+  assert.strictEqual(prompts.guard({ text: 'Bonjour ! Comment puis-je aider ?', schemas: [{ function: { name: 'list_dir' } }], turnTools: [], used: {}, agentMode: true, userText: 'salut' }), null, 'small talk is left alone');
 
   // Code mode: project-relative paths, accept-edits policy, sandboxed commands, checkpoints + undo.
   const code = require('../src/main/code');

@@ -15,6 +15,16 @@ const CHAT_TOOLS = {
       time_range: { type: 'string', enum: ['day', 'week', 'month', 'year'], description: 'Optional: only recent results' },
     }, required: ['query'] },
   },
+  show_on_scene: {
+    description: 'Voice mode: show something on the screen while you talk — pictures found on the web (images query), a video (video query or YouTube URL), a web page (url), or your own drawing/diagram/page (svg or html you write). Replaces what is shown.',
+    parameters: { type: 'object', properties: {
+      kind: { type: 'string', enum: ['images', 'video', 'web', 'svg', 'html'] },
+      query: { type: 'string', description: 'For images / video: what to search' },
+      url: { type: 'string', description: 'For web / video: the address' },
+      content: { type: 'string', description: 'For svg / html: the full markup' },
+      title: { type: 'string', description: 'Short caption' },
+    }, required: ['kind'] },
+  },
   project_search: {
     description: 'Search the files of the current project (keywords and meaning). Returns the most relevant passages with their file names.',
     parameters: { type: 'object', properties: { query: { type: 'string', description: 'What to look for' } }, required: ['query'] },
@@ -132,6 +142,31 @@ async function fetchUrl(url) {
   return { url, status: r.status, title: url, text: `(${type || 'binary'} content, ${n} bytes — not readable as text)` };
 }
 
+// Voice-mode scene: images / video from SearXNG, a page, or markup the model wrote.
+const ytEmbed = (u) => { const m = String(u).match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/); return m ? `https://www.youtube-nocookie.com/embed/${m[1]}?autoplay=1` : null; };
+async function showOnScene(a, ctx) {
+  const kind = a.kind; let items = [];
+  if (kind === 'images' || kind === 'video') {
+    if (kind === 'video' && a.url) items = [{ type: 'video', url: a.url, embed: ytEmbed(a.url) || a.url, title: a.title }];
+    else {
+      const s = store.getSettings().search || {};
+      if (!searxng.installed() && !s.searxngUrl) throw new Error('Image and video search need SearXNG (Settings → Agent → Web search)');
+      const r = await searxng.search(String(a.query || a.title || ''), s, { category: kind === 'images' ? 'images' : 'videos', limit: kind === 'images' ? 12 : 6 });
+      items = kind === 'images'
+        ? r.results.filter((x) => x.img && /^https?:/.test(x.img)).slice(0, 4).map((x) => ({ type: 'image', url: x.img, title: x.title, source: x.url }))
+        : r.results.map((x) => ({ type: 'video', url: x.url, embed: ytEmbed(x.url), title: x.title })).filter((x) => x.embed).slice(0, 1);
+    }
+  } else if (kind === 'web') {
+    if (!/^https?:\/\//i.test(a.url || '')) throw new Error('web needs an absolute http(s) url');
+    items = [{ type: 'web', url: a.url, title: a.title }];
+  } else if (kind === 'svg' || kind === 'html') {
+    if (!a.content) throw new Error(`${kind} needs content`);
+    items = [{ type: kind, content: String(a.content).slice(0, 200000), title: a.title }];
+  } else throw new Error('kind must be images, video, web, svg or html');
+  if (!items.length) return { content: `Nothing found to show for "${a.query}". Tell the user, or try another query.`, view: { kind: 'scene', items: [] } };
+  return { content: `Now showing on screen: ${items.map((x) => x.title || x.type).join(' · ')}. Talk about it naturally; don't read URLs aloud.`, view: { kind: 'scene', items } };
+}
+
 // Runs one tool call. Returns { content (for the model), view (for the UI) }.
 function formatResults(r) {
   const head = [
@@ -151,6 +186,7 @@ async function run(name, args, ctx = {}) {
     const content = formatResults(r);
     return { content, view: { kind: 'search', query: args.query, engine, sources: results.map((x) => ({ title: x.title, url: x.url, snippet: x.snippet })) } };
   }
+  if (name === 'show_on_scene') return showOnScene(args, ctx);
   if (name === 'project_search') {
     if (!ctx.project) throw new Error('No project');
     const r = await require('./rag').search(ctx.project, String(args.query || ''), 8);

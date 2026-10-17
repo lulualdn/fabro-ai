@@ -270,8 +270,14 @@ Object.assign(actions, {
   },
 });
 
+// User context for the agent prompt (agent rules and the live tool list are built in the main process).
 function agentPrompt() {
-  return t('sysAgent', { date: new Date().toLocaleDateString(S.lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), name: (typeof userFirstName === 'function' && userFirstName()) || '' })
-    + ((S.settings.memory || {}).enabled !== false && S.memories && S.memories.length && !(S.conv && S.conv.ephemeral) ? `\n\n${t('sysMemory')}\n${S.memories.slice(0, 30).map((m) => `- ${m.text}`).join('\n')}` : '')
-    + ((S.settings.gen.systemPrompt || '').trim() ? `\n\n${S.settings.gen.systemPrompt.trim()}` : '');
+  const name = (typeof userFirstName === 'function' && userFirstName()) || '';
+  return [
+    name ? `The user's name is ${name}.` : '',
+    `Interface language: ${S.lang}. Today: ${new Date().toLocaleDateString(S.lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`,
+    (S.settings.memory || {}).enabled !== false && S.memories && S.memories.length && !(S.conv && S.conv.ephemeral) ? `${t('sysMemory')}\n${S.memories.slice(0, 30).map((m) => `- ${m.text}`).join('\n')}` : '',
+    stylePrompt(),
+    (S.settings.gen.systemPrompt || '').trim(),
+  ].filter(Boolean).join('\n\n');
 }

@@ -9,7 +9,7 @@ function unregisterWhere(fn) { for (const [k, t] of registry) if (fn(t)) registr
 const get = (name) => registry.get(name);
 const all = () => [...registry.values()];
 
-const CHAT_TOOL_NAMES = new Set(['web_search', 'fetch_url', 'generate_image', 'project_search']);
+const CHAT_TOOL_NAMES = new Set(['web_search', 'fetch_url', 'generate_image', 'project_search', 'show_on_scene']);
 const isAgentTool = (name) => registry.has(name) && !CHAT_TOOL_NAMES.has(name);
 
 function schema(t) { return { type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }; }

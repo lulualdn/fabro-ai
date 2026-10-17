@@ -336,10 +336,12 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.fill('#prompt', 'Une page web avec un compteur');
   await win.keyboard.press('Enter');
   await win.waitForSelector('.viewer iframe.art-frame', { timeout: 15000 });
+  await win.waitForFunction(() => !document.querySelector('.msg.assistant.pending'), null, { timeout: 15000 });
+  await win.waitForTimeout(800); // the viewer re-renders once the artifact is saved
   const frame = await (await win.$('.viewer iframe.art-frame')).contentFrame();
   await frame.waitForSelector('button');
   await frame.click('button'); await frame.click('button');
-  assert.strictEqual(await frame.textContent('#n'), '2', 'html artifact runs its scripts in the sandbox');
+  await frame.waitForFunction(() => document.querySelector('#n').textContent === '2', null, { timeout: 5000 });
   step('html artifact'); await win.screenshot({ path: `${shots}/27-html.png` });
   await win.click('[data-action=viewer-close]');
   await win.click('.nav-item[data-mode=artifacts]');

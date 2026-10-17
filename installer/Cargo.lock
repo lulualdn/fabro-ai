@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "fabro-installer"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "base64",
  "native-tls",

@@ -55,3 +55,17 @@ jobs:
       - name: SearXNG + agent browser (Windows)
         if: runner.os == 'Windows'
         run: node scripts/search-smoke.js
+
+  agent-real:
+    # A real 4B model on Fabro's own engine must use its tools (reads, writes, runs) — not refuse or invent.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Agent with Qwen3.5 4B (CPU)
+        run: node scripts/agent-real.js
