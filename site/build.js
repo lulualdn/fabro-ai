@@ -12,7 +12,7 @@ const ROOT = path.join(__dirname, '..');
 const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist');
 const REPO = 'lulualdn/fabro-ai';
-const SITE_URL = process.env.SITE_URL || 'https://fabro-local-ai.netlify.app';
+const SITE_URL = process.env.SITE_URL || 'https://fabro.ufstudios.eu';
 
 const ctx = { window: {} }; vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(SRC, 'i18n.js'), 'utf8'), ctx);

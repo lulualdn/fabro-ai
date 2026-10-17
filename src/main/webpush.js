@@ -31,7 +31,7 @@ function vapidKeys() {
   const jwk = privateKey.export({ format: 'jwk' });
   return { privateJwk: jwk, publicKey: b64u(Buffer.concat([Buffer.from([4]), unb64u(jwk.x), unb64u(jwk.y)])) };
 }
-function vapidHeader(endpoint, keys, subject = 'https://fabro-local-ai.netlify.app') {
+function vapidHeader(endpoint, keys, subject = 'https://fabro.ufstudios.eu') {
   const head = b64u(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
   const claims = b64u(JSON.stringify({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: subject }));
   const key = crypto.createPrivateKey({ key: keys.privateJwk, format: 'jwk' });

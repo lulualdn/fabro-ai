@@ -12,7 +12,7 @@ const chat = require('./chat');
 const webpush = require('./webpush');
 const A = require('../anywhere/core.js');
 
-const SITE = 'https://fabro-local-ai.netlify.app';
+const SITE = 'https://fabro.ufstudios.eu';
 const APP_URL = `${SITE}/app/`;
 const file = () => path.join(app.getPath('userData'), 'anywhere.json');
 const cfg = () => store.getSettings().anywhere || {};

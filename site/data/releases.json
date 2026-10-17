@@ -1,5 +1,69 @@
 [
  {
+  "tag": "v0.1.18",
+  "date": "2026-10-17T17:15:33Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.18",
+  "prerelease": false,
+  "body": "Fabro Anywhere — your computer's AI on your phone\n\n- Phone app (installable PWA at /app/ on the website, EN/FR/ES/DE, light/dark): pairs by reading the computer's circular code with the camera (or typing it), conversations offline in IndexedDB, messages queued while the computer is away, two-way sync with conflict-free merging, streaming answers, photos to vision models, agent permission prompts, dictation and hands-free voice mode (computer's Whisper/Piper, else the phone's own speech), notifications, and a small model on the phone (WebLLM, WebGPU)\n- Circular pairing code: data rings of arcs around the propeller, Reed-Solomon protected, revealed by a circular sweep; read from camera frames in a worker (rotation, tilt, blur, both themes)\n- Security: P-256 keys exchanged at pairing (proofs over the code's secret), AES-GCM end to end; public MQTT relays only put devices in touch (or carry ciphertext as a fallback); direct WebRTC channel when possible; your own relay supported (scripts/mqtt-relay.js)\n- Computer: Settings › Fabro Anywhere (pair, rename, remove phones, relays, TURN), hidden network window, phone runs use the desktop's prompt/tools/model, Web Push sent straight to the phone's push service (RFC 8291/8292), agent-task notifications, removed phones are told so\n- Tests: core, code reading, and a full computer ↔ phone run (fake camera, local relay) in CI\n- Website: Anywhere page with the phone app, privacy section for Anywhere",
+  "assets": [
+   {
+    "name": "Fabro-0.1.18-arm64-mac.zip",
+    "size": 134734194,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/Fabro-0.1.18-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.18-arm64-mac.zip.blockmap",
+    "size": 139873,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/Fabro-0.1.18-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.18-arm64.dmg",
+    "size": 135332058,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/Fabro-0.1.18-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.18-arm64.dmg.blockmap",
+    "size": 142111,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/Fabro-0.1.18-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.18.AppImage",
+    "size": 131853069,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/Fabro-0.1.18.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.18.exe",
+    "size": 115900228,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/Fabro-Setup-0.1.18.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.18.exe.blockmap",
+    "size": 120887,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/Fabro-Setup-0.1.18.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.18/latest.yml"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.17",
   "date": "2026-10-17T12:37:13Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.17",
