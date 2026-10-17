@@ -55,3 +55,7 @@ Run the workflow manually (Actions › Build & release › Run workflow) to get 
 ## Website
 
 `site/` holds the Fabro website (home, feature pages, "Can my PC run it?", privacy, changelog, legal), in English, French, Spanish and German with light/dark themes. `node site/build.js` writes static pages to `site/dist`. The model list comes from the installer, the changelog from GitHub Releases. `netlify.toml` lets Netlify build it with no dependencies.
+
+## Fabro Anywhere (phone)
+
+The phone app is a PWA in `site/app/` (served at `/app/` on the website). It pairs with the desktop by reading the circular code shown in Settings › Fabro Anywhere (`src/anywhere/core.js` draws and reads it, with Reed-Solomon correction). Phone and computer share P-256 keys; every message is AES-GCM encrypted end to end. They meet through public MQTT-over-WebSocket relays (or your own: `node scripts/mqtt-relay.js`, behind wss://), then switch to a direct WebRTC data channel when possible. The computer side runs in a hidden window (`src/anywhere/peer.*`) and `src/main/anywhere.js` (runs, sync, voice, Web Push sent straight to the phone's push service). Tests: `scripts/anywhere-test.js`, `scripts/ringcode-test.js`, `scripts/anywhere-e2e.js`.

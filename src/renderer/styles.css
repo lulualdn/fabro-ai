@@ -1366,3 +1366,38 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 html.reduce-motion::view-transition-group(*), html.reduce-motion::view-transition-old(*), html.reduce-motion::view-transition-new(*) { animation: none !important; }
 @media (forced-colors: active) { .send, .btn.primary { forced-color-adjust: none; } :focus-visible { outline: 2px solid CanvasText; } }
+
+/* ───────── Fabro Anywhere ───────── */
+.aw-hero { display: flex; align-items: center; gap: 18px; padding: 18px 20px; border-radius: var(--r-lg); background: linear-gradient(135deg, var(--accent-soft), transparent 70%), var(--elev-2); border: 1px solid var(--border); margin-bottom: 8px; }
+.aw-hero-txt { flex: 1; display: grid; gap: 12px; justify-items: start; }
+.aw-hero-txt p { margin: 0; color: var(--text-2); line-height: 1.5; }
+.aw-hero-pic { flex: none; opacity: .95; }
+.aw-devs { display: grid; gap: 8px; margin-top: 8px; }
+.aw-dev { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r); background: var(--elev); }
+.aw-dev-ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.aw-dev-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.aw-dev-main small { color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.aw-state { font-weight: 600; font-size: 11.5px; padding: 1px 8px; border-radius: 99px; background: var(--hover); color: var(--muted); }
+.aw-state.direct { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.aw-state.relay { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.aw-relays { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.aw-relay { font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); }
+.aw-relay.up { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.aw-relay.down { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, transparent); }
+.aw-check { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.aw-field { display: grid; gap: 6px; margin-top: 12px; }
+.aw-field > span { font-weight: 600; font-size: 13px; }
+.aw-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.modal.aw-pair { width: min(560px, calc(100vw - 32px)); max-height: min(720px, calc(100vh - 48px)); }
+.modal.aw-pair h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 19px; }
+.aw-pair-grid { display: grid; justify-items: center; gap: 14px; overflow: auto; }
+.aw-code { width: min(340px, 70vw); aspect-ratio: 1; display: grid; place-items: center; padding: 14px; border-radius: 28px; background: var(--elev-2); border: 1px solid var(--border); }
+.aw-code svg { width: 100%; height: 100%; }
+.aw-code.expired { opacity: .9; }
+.aw-steps { margin: 0; padding-left: 22px; display: grid; gap: 6px; color: var(--text-2); align-self: stretch; }
+.aw-steps b { color: var(--text); margin-left: 4px; }
+.aw-text { align-self: stretch; font-size: 13px; color: var(--muted); }
+.aw-text summary { cursor: pointer; }
+.aw-text code { display: block; margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--code-bg); font-size: 15px; letter-spacing: .04em; text-align: center; user-select: all; word-break: break-all; }
+.aw-done { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 18px 0; color: var(--ok); }
+.aw-done h2 { color: var(--text); }

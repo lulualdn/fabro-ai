@@ -36,6 +36,35 @@ jobs:
           path: e2e-shots
           if-no-files-found: ignore
 
+  anywhere:
+    # Fabro Anywhere: crypto, the circular code read from camera-like pictures, and the real app paired with
+    # the phone app (mobile Chrome, fake camera) through a local relay: chat, sync, photo, push, queue, revoke.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Core (Reed-Solomon, code, pairing, sessions, merge, Web Push)
+        run: node scripts/anywhere-test.js
+      - name: Circular code read back from pictures
+        run: node scripts/ringcode-test.js
+      - name: Computer ↔ phone end to end
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          xvfb-run -a -s "-screen 0 1440x900x24" node scripts/anywhere-e2e.js anywhere-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: anywhere-screenshots
+          path: anywhere-shots
+          if-no-files-found: ignore
+
   search:
     # Private SearXNG installed by Fabro itself + the agent browser on real websites.
     strategy:

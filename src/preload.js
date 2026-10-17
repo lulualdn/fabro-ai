@@ -60,9 +60,10 @@ contextBridge.exposeInMainWorld('api', {
   updater: { check: i('updater:check'), install: i('updater:install') },
   modes: { install: i('modes:install') },
   shell: { open: i('shell:open'), reveal: i('shell:reveal'), openPath: i('shell:openPath') },
+  anywhere: { status: i('anywhere:status'), pairStart: i('anywhere:pairStart'), pairStop: i('anywhere:pairStop'), revoke: i('anywhere:revoke'), rename: i('anywhere:rename'), configure: i('anywhere:configure'), reply: i('anywhere:reply') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

@@ -4,7 +4,7 @@
   "date": "2026-10-17T12:37:13Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.17",
   "prerelease": false,
-  "body": "Fabro website\n\n- Website in site/: home \"Lift off, locally.\" with the animated propeller and app screenshots, feature pages (Chat, Agent, Code, Voice, Anywhere), \"Can my PC run it?\" (graphics card + RAM → recommended models, same catalog and fit rules as the installer), privacy, changelog from GitHub Releases, legal notice with third-party licences\n- Smart download: detects Windows / macOS / Linux and links the right file of the latest release (Fabro-Installer.exe, .dmg, .AppImage), with the other platforms one click away\n- English by default, French / Spanish / German from the browser language or the switcher; light / dark theme with the app's colours; works without JavaScript; no cookies or trackers\n- Static build (node site/build.js), netlify.toml, built in CI; release notes are now written from the release commit message\n- Images: when a Metal / Vulkan driver fails on large buffers, retry with the text encoder and VAE on the processor\n",
+  "body": "Fabro website\n\n- Website in site/: home \"Lift off, locally.\" with the animated propeller and app screenshots, feature pages (Chat, Agent, Code, Voice, Anywhere), \"Can my PC run it?\" (graphics card + RAM → recommended models, same catalog and fit rules as the installer), privacy, changelog from GitHub Releases, legal notice with third-party licences\n- Smart download: detects Windows / macOS / Linux and links the right file of the latest release (Fabro-Installer.exe, .dmg, .AppImage), with the other platforms one click away\n- English by default, French / Spanish / German from the browser language or the switcher; light / dark theme with the app's colours; works without JavaScript; no cookies or trackers\n- Static build (node site/build.js), netlify.toml, built in CI; release notes are now written from the release commit message\n- Images: when a Metal / Vulkan driver fails on large buffers, retry with the text encoder and VAE on the processor",
   "assets": [
    {
     "name": "Fabro-0.1.17-arm64-mac.zip",
@@ -17,14 +17,49 @@
     "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/Fabro-0.1.17-arm64-mac.zip.blockmap"
    },
    {
+    "name": "Fabro-0.1.17-arm64.dmg",
+    "size": 135287165,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/Fabro-0.1.17-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.17-arm64.dmg.blockmap",
+    "size": 143184,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/Fabro-0.1.17-arm64.dmg.blockmap"
+   },
+   {
     "name": "Fabro-0.1.17.AppImage",
     "size": 131820244,
     "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/Fabro-0.1.17.AppImage"
    },
    {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.17.exe",
+    "size": 115873787,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/Fabro-Setup-0.1.17.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.17.exe.blockmap",
+    "size": 120943,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/Fabro-Setup-0.1.17.exe.blockmap"
+   },
+   {
     "name": "latest-linux.yml",
     "size": 365,
     "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.17/latest.yml"
    }
   ]
  },

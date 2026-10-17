@@ -21,10 +21,18 @@ document.body.prepend(skip);
 const NATIVE = /^(BUTTON|A|INPUT|SELECT|TEXTAREA|SUMMARY|OPTION|LABEL)$/;
 function enhance(root) {
   for (const el of root.querySelectorAll('[data-action]')) {
+    // backdrops close on click; Escape does the same from the keyboard, so they stay out of the tab order
+    if (/overlay|backdrop|pop-backdrop/.test(el.className) || /-bg$|^close-pop$/.test(el.dataset.action)) continue;
     if (!NATIVE.test(el.tagName) && !el.hasAttribute('tabindex')) { el.tabIndex = 0; if (!el.getAttribute('role')) el.setAttribute('role', 'button'); }
     if (!el.getAttribute('aria-label') && el.title && !el.textContent.trim()) el.setAttribute('aria-label', el.title);
   }
   for (const el of root.querySelectorAll('button.icon-btn:not([aria-label])')) if (el.title) el.setAttribute('aria-label', el.title);
+  // settings rows: switches and fields take the row's label as their name
+  for (const r of root.querySelectorAll('.st-row')) {
+    const name = (r.querySelector('.st-label > span') || {}).textContent;
+    if (!name) continue;
+    for (const c of r.querySelectorAll('.st-control button.switch:not([aria-label]), .st-control input:not([aria-label]):not([type=hidden]), .st-control select:not([aria-label]), .st-control textarea:not([aria-label])')) if (!c.labels || !c.labels.length) c.setAttribute('aria-label', name.trim());
+  }
 }
 let enhT = 0;
 new MutationObserver(() => { if (enhT) return; enhT = requestAnimationFrame(() => { enhT = 0; enhance(document.body); }); }).observe(document.body, { childList: true, subtree: true });

@@ -100,6 +100,7 @@ function layout({ page, file, desc, body, scripts = '' }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(EN[page + '_title'])}</title>
 <meta name="description" content="${esc(desc)}">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src https://api.github.com">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#12161d" media="(prefers-color-scheme: dark)">
@@ -204,14 +205,15 @@ function home() {
 </section>` });
 }
 
-function feature(file, key, heroImg, blocks) {
+const phoneShot = (name, eager) => `<div class="phone-shot">${shot(name, { cls: 'bare', eager })}</div>`;
+function feature(file, key, heroImg, blocks, extraCta = '') {
   return layout({ page: key, file, desc: EN[key + '_lead'].replace(/<[^>]+>/g, ''), body: `
 <section class="fhero">
   <div class="wrap">
     ${T(key + '_kicker', 'div', 'class="kicker"')}
     <h1 data-i="${key}_h1">${EN[key + '_h1']}</h1>
     ${T(key + '_lead', 'p', 'class="lead"')}
-    <div style="margin-top:30px">${dlBlock('', false)}</div>
+    <div style="margin-top:30px">${dlBlock('', false)}${extraCta}</div>
     ${heroImg ? `<div class="shot-hero">${heroImg}</div>` : ''}
   </div>
 </section>
@@ -266,6 +268,7 @@ function privacy() {
   ${T('priv_h1', 'h1')}${T('priv_lead', 'p', 'class="lead"')}
   ${T('priv_stays_h', 'h2')}${T('priv_stays', 'ul')}
   ${T('priv_goes_h', 'h2')}${T('priv_goes', 'ul')}
+  ${T('priv_any_h', 'h2')}${T('priv_any', 'ul')}
   ${T('priv_crash_h', 'h2')}${T('priv_crash', 'p')}
   ${T('priv_site_h', 'h2')}${T('priv_site', 'p')}
   ${T('priv_contact', 'p', 'style="margin-top:36px"')}
@@ -307,6 +310,7 @@ function legal() {
     ['electron-updater', 'https://github.com/electron-userland/electron-builder', 'Updates', 'MIT'],
     ['extract-zip', 'https://github.com/max-mapper/extract-zip', 'Archives', 'BSD-2-Clause'],
     ['wry & tao', 'https://github.com/tauri-apps/wry', 'Windows installer', 'MIT / Apache-2.0'],
+    ['WebLLM', 'https://github.com/mlc-ai/web-llm', 'Phone model (Fabro Anywhere)', 'Apache-2.0'],
   ];
   return layout({ page: 'legal', file: 'legal', desc: EN.legal_pub.replace(/<[^>]+>/g, ''), body: `
 <article class="prose">
@@ -318,6 +322,19 @@ function legal() {
   ${T('legal_oss_h', 'h2')}${T('legal_oss', 'p')}
   <div class="lic">${OSS.map(([n, u, what, lic]) => `<div><a href="${u}">${n}</a><span>${what}</span><em>${lic}</em></div>`).join('')}</div>
 </article>` });
+}
+
+// ───────── phone app (site/app → dist/app) ─────────
+function buildApp() {
+  const src = path.join(__dirname, 'app'), out = path.join(OUT, 'app');
+  const copy = (from, to) => { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(from, to); };
+  const walk = (d, rel = '') => { for (const e of fs.readdirSync(path.join(d, rel), { withFileTypes: true })) { const r = path.join(rel, e.name); if (e.isDirectory()) walk(d, r); else copy(path.join(d, r), path.join(out, r)); } };
+  walk(src);
+  copy(path.join(ROOT, 'src', 'anywhere', 'core.js'), path.join(out, 'core.js'));
+  // the service worker's cache name follows the app's content, so phones pick up new versions
+  const h = require('crypto').createHash('sha256');
+  for (const f of ['index.html', 'app.js', 'app.css', 'i18n.js', 'core.js', 'theme.js', 'scan-worker.js']) h.update(fs.readFileSync(path.join(out, f)));
+  const sw = path.join(out, 'sw.js'); fs.writeFileSync(sw, fs.readFileSync(sw, 'utf8').replace('__VERSION__', h.digest('hex').slice(0, 12)));
 }
 
 // ───────── build ─────────
@@ -334,7 +351,10 @@ function legal() {
     agent: feature('agent', 'agent', shot('31c-subagents-done', { eager: true }), [[1, shot('31b-subagents')], [2, shot('31-agent-browser')], [3, shot('29-agent-perm')], [4, shot('30-agent-done')]]),
     code: feature('code', 'code', shot('34-code-session', { eager: true }), [[1, shot('35-code-diff')], [2, shot('37-code-terminal')], [3, shot('36-code-editor')], [4, shot('33-code-welcome')]]),
     voice: feature('voice', 'voice', shot('voice', { eager: true }), [[1, illus('microphone', true)], [2, illus('speaker-wave', true)], [3, illus('presentation-chart-bar')], [4, illus('pencil-square')]]),
-    anywhere: feature('anywhere', 'any', null, [[1, `<div class="quickbar">${shot('09-quick', { cls: 'bare' })}</div>`], [2, shot('10-quick-answer', { cls: 'bare' })], [3, `<div class="phone">${mark}</div>`, 'soon']]),
+    anywhere: feature('anywhere', 'any', `<div class="duo">${shot('pc-pair', { eager: true })}${phoneShot('phone-chat', true)}</div>`,
+      [[3, phoneShot('phone-welcome'), 'soon'], [4, phoneShot('phone-chat')], [5, phoneShot('phone-queued')], [6, phoneShot('phone-paired')],
+       [1, `<div class="quickbar">${shot('09-quick', { cls: 'bare' })}</div>`], [2, shot('10-quick-answer', { cls: 'bare' })]],
+      `<p style="margin-top:14px"><a class="btn ghost" href="app/">${icon('arrow-right', '20/solid')}${T('any_open')}</a></p>`),
     'can-i-run': canIRun(cat),
     privacy: privacy(),
     changelog: changelog(rel),
@@ -344,6 +364,8 @@ function legal() {
   fs.writeFileSync(path.join(OUT, '404.html'), pages.index.replace('<main id="main">', '<main id="main"><p style="text-align:center;padding-top:40px;color:var(--muted)">404</p>'));
   fs.writeFileSync(path.join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
   fs.writeFileSync(path.join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Object.keys(pages).map((f) => `<url><loc>${SITE_URL}/${f === 'index' ? '' : f + '.html'}</loc></url>`).join('')}</urlset>\n`);
-  fs.writeFileSync(path.join(OUT, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: interest-cohort=()\n  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src https://api.github.com; frame-ancestors 'none'\n/img/*\n  Cache-Control: public, max-age=604800\n`);
+  // Each page carries its own Content-Security-Policy (<meta>): the phone app needs relays, WebGPU models…
+  fs.writeFileSync(path.join(OUT, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n/img/*\n  Cache-Control: public, max-age=604800\n/app/sw.js\n  Cache-Control: no-cache\n  Service-Worker-Allowed: /app/\n/app/manifest.webmanifest\n  Content-Type: application/manifest+json\n`);
+  buildApp();
   console.log(`site: ${Object.keys(pages).length} pages, ${rel.length} releases, ${cat.length} models → ${path.relative(ROOT, OUT)}`);
 })().catch((e) => { console.error(e); process.exit(1); });

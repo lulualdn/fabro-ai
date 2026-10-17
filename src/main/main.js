@@ -28,11 +28,29 @@ const voice = require('./voice');
 const images = require('./images');
 const crash = require('./crash');
 const runtime = require('./runtime');
+const anywhere = require('./anywhere');
 const S = () => store.getSettings();
 exporter.registerScheme();
+// Fabro Anywhere: let phones on the same network reach the computer directly (real local addresses
+// instead of obfuscated .local names in WebRTC candidates).
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 
 let win = null;
-const send = (ch, data) => { if (win && !win.isDestroyed()) win.webContents.send(ch, data); if (ch === 'chat:event') desktop.forward(ch, data); };
+const agentReqs = new Map(); // desktop requests that used tools → notify paired phones when they finish in the background
+const send = (ch, data) => {
+  if (win && !win.isDestroyed()) win.webContents.send(ch, data);
+  if (ch === 'chat:event') {
+    desktop.forward(ch, data);
+    if (data.type === 'tool_start' && !data.parent) agentReqs.set(data.reqId, (agentReqs.get(data.reqId) || 0) + 1);
+    if ((data.type === 'done' || data.type === 'error') && agentReqs.has(data.reqId)) {
+      const n = agentReqs.get(data.reqId); agentReqs.delete(data.reqId);
+      if (n >= 2 && data.type === 'done' && win && !win.isDestroyed() && (!win.isVisible() || !win.isFocused())) {
+        win.webContents.executeJavaScript('S.conv ? JSON.stringify({ id: S.conv.id, title: S.conv.title }) : null', true)
+          .then((j) => { const c = j ? JSON.parse(j) : {}; anywhere.desktopAgentDone({ title: c.title || 'Fabro', convId: c.id }); }).catch(() => {});
+      }
+    }
+  }
+};
 const isMac = process.platform === 'darwin';
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -89,8 +107,8 @@ function registerIpc() {
 
   h('conv:list', (o) => db.listConversations(o || {}));
   h('conv:get', (id) => db.getConversation(id));
-  h('conv:save', (c) => db.saveConversation(c));
-  h('conv:delete', (id) => db.deleteConversation(id));
+  h('conv:save', (c) => db.saveConversation(anywhere.mergeOnSave(c)));
+  h('conv:delete', (id) => { anywhere.tombstone(id); return db.deleteConversation(id); });
   h('conv:patch', (id, patch) => db.patchConversation(id, patch));
   h('conv:search', (text) => db.searchConversations(text));
 
@@ -202,6 +220,26 @@ function registerIpc() {
   h('images:install', (preset) => images.install((p) => send('deps:progress', { dep: 'images', p }), preset));
 
   // Voice
+  // Fabro Anywhere (phones)
+  h('anywhere:status', () => anywhere.status());
+  h('anywhere:pairStart', () => anywhere.pairStart());
+  h('anywhere:pairStop', () => anywhere.pairStop());
+  h('anywhere:revoke', (id) => anywhere.revoke(id));
+  h('anywhere:rename', (id, name) => anywhere.rename(id, name));
+  h('anywhere:configure', (patch) => anywhere.configure(patch || {}));
+  const asks = new Map();
+  h('anywhere:reply', (id, value) => { const r = asks.get(id); if (r) { asks.delete(id); r(value); } return true; });
+  anywhere.init({
+    emit: (ch, d) => send(ch, d),
+    ask: (name) => new Promise((resolve) => {
+      if (!win || win.isDestroyed()) return resolve(null);
+      const id = Math.random().toString(36).slice(2);
+      asks.set(id, resolve);
+      win.webContents.send('anywhere:ask', { id, name });
+      setTimeout(() => { if (asks.delete(id)) resolve(null); }, 2000);
+    }),
+  });
+
   h('voice:status', () => voice.status());
   h('voice:install', () => voice.install((p) => send('deps:progress', { dep: 'voice', p }), { lang: S().language && S().language !== 'auto' ? S().language : app.getLocale().slice(0, 2) }));
   h('voice:stt', (wav, o) => voice.stt(wav, o));

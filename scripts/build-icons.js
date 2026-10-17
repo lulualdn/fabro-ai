@@ -32,7 +32,7 @@ const MAP = {
   fileXls: 'ph:file-xls-fill', filePpt: 'ph:file-ppt-fill', diff: 'ph:git-diff-fill', commit: 'ph:git-commit-fill',
   pending: 'ph:circle-dashed-fill', done: 'ph:check-circle-fill', sparkle: 'ph:sparkle-fill', folderOpen: 'ph:folder-open-fill',
   fileCode: 'ph:file-code-fill', bug: 'ph:bug-fill', flask: 'ph:flask-fill', plan: 'ph:list-checks-fill', home: 'ph:house-fill',
-  bulb: 'hero:light-bulb',
+  bulb: 'hero:light-bulb', phone: 'hero:device-phone-mobile', qr: 'hero:qr-code',
 };
 
 const out = {};
