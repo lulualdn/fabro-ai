@@ -1443,3 +1443,17 @@ html.reduce-motion::view-transition-group(*), html.reduce-motion::view-transitio
 .precision .pr-l { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
 .precision .md > :first-child { margin-top: 0; } .precision .md > :last-child { margin-bottom: 0; }
 .steps-outs { display: flex; flex-direction: column; gap: 6px; margin: -4px 0 12px; }
+/* thinking, ChatGPT-like: a light gradient travelling through the text */
+.shimmer {
+  background: linear-gradient(100deg, var(--muted) 0%, var(--muted) 38%, var(--text) 48%, color-mix(in srgb, var(--accent) 70%, var(--text)) 52%, var(--muted) 62%, var(--muted) 100%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 2.2s linear infinite;
+}
+@keyframes shimmer { from { background-position: 125% 0; } to { background-position: -125% 0; } }
+@media (prefers-reduced-motion: reduce) { .shimmer { animation-duration: 6s; } }
+.think.live { border-color: transparent; background: transparent; }
+.think.live summary { padding: 4px 2px; font-weight: 500; }
+.think.live summary > svg:first-child { color: var(--muted); }
+.think-last { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; font-size: 13px; }
+.think.live[open] .think-last { display: none; }
+.msg.pending .think.live:not([open]) summary span { animation: shimmer 2.2s linear infinite; }

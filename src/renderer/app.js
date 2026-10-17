@@ -468,8 +468,11 @@ function renderThinking(m) {
   const live = m.pending && !m.content;
   const secs = m.thinkStart ? Math.max(1, Math.round(((m.thinkEnd || Date.now()) - m.thinkStart) / 1000)) : null;
   const label = live ? t('thinking') : secs ? t('thoughtFor', { s: secs }) : t('thoughts');
-  return `<details class="think" ${live ? 'open' : ''}>
-    <summary>${icon('brain', 15)}<span>${esc(label)}</span>${icon('down', 14, 'chev')}</summary>
+  // live: one line with a moving light gradient through the text (label + the latest thought), opened on demand
+  const last = live ? (m.reasoning.trim().split(/\n+/).pop() || '').replace(/[*#_`>]/g, '').slice(-140) : '';
+  const open = live ? !!(S.thinkOpen && S.thinkOpen[m.id]) : false;
+  return `<details class="think ${live ? 'live' : ''}" data-id="${m.id}" ${open ? 'open' : ''}>
+    <summary>${icon('brain', 15)}<span class="${live ? 'shimmer' : ''}">${esc(label)}</span>${last ? `<span class="think-last shimmer">${esc(last)}</span>` : ''}${icon('down', 14, 'chev')}</summary>
     <div class="think-body">${esc(m.reasoning)}</div>
   </details>`;
 }
@@ -1254,6 +1257,8 @@ async function applySetting(key, value) {
 }
 
 // ───────────────────────────── Global events ─────────────────────────────
+// remember a live thinking block the user opened (it is re-rendered on every token)
+document.addEventListener('toggle', (e) => { const d = e.target; if (d.matches && d.matches('details.think.live')) (S.thinkOpen ||= {})[d.dataset.id] = d.open; }, true);
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) { return; }
