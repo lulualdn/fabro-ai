@@ -1,0 +1,182 @@
+{
+"01-welcome-dark.webp": [
+1280,
+820
+],
+"01-welcome-light.webp": [
+1280,
+820
+],
+"08-chat-dark.webp": [
+1280,
+820
+],
+"08-chat-light.webp": [
+1280,
+820
+],
+"09-quick-dark.webp": [
+760,
+108
+],
+"09-quick-light.webp": [
+760,
+108
+],
+"10-quick-answer-dark.webp": [
+760,
+266
+],
+"10-quick-answer-light.webp": [
+760,
+266
+],
+"11-model-sheet-dark.webp": [
+1280,
+820
+],
+"11-model-sheet-light.webp": [
+1280,
+820
+],
+"14-engine-dark.webp": [
+1280,
+820
+],
+"14-engine-light.webp": [
+1280,
+820
+],
+"20-reasoning-dark.webp": [
+1280,
+820
+],
+"20-reasoning-light.webp": [
+1280,
+820
+],
+"24-art-doc-dark.webp": [
+1280,
+820
+],
+"24-art-doc-light.webp": [
+1280,
+820
+],
+"26-slides-dark.webp": [
+1280,
+820
+],
+"26-slides-light.webp": [
+1280,
+820
+],
+"29-agent-perm-dark.webp": [
+1280,
+820
+],
+"29-agent-perm-light.webp": [
+1280,
+820
+],
+"30-agent-done-dark.webp": [
+1280,
+820
+],
+"30-agent-done-light.webp": [
+1280,
+820
+],
+"31-agent-browser-dark.webp": [
+1280,
+820
+],
+"31-agent-browser-light.webp": [
+1280,
+820
+],
+"31b-subagents-dark.webp": [
+1280,
+820
+],
+"31b-subagents-light.webp": [
+1280,
+820
+],
+"31c-subagents-done-dark.webp": [
+1280,
+820
+],
+"31c-subagents-done-light.webp": [
+1280,
+820
+],
+"33-code-welcome-dark.webp": [
+1280,
+820
+],
+"33-code-welcome-light.webp": [
+1280,
+820
+],
+"33b-project-chat-dark.webp": [
+1280,
+820
+],
+"33b-project-chat-light.webp": [
+1280,
+820
+],
+"34-code-session-dark.webp": [
+1280,
+820
+],
+"34-code-session-light.webp": [
+1280,
+820
+],
+"35-code-diff-dark.webp": [
+1280,
+820
+],
+"35-code-diff-light.webp": [
+1280,
+820
+],
+"36-code-editor-dark.webp": [
+1280,
+820
+],
+"36-code-editor-light.webp": [
+1280,
+820
+],
+"37-code-terminal-dark.webp": [
+1280,
+820
+],
+"37-code-terminal-light.webp": [
+1280,
+820
+],
+"chat-search-dark.webp": [
+800,
+233
+],
+"chat-search-light.webp": [
+800,
+233
+],
+"chat-think-dark.webp": [
+720,
+428
+],
+"chat-think-light.webp": [
+720,
+428
+],
+"voice-light.webp": [
+1280,
+791
+]
+}

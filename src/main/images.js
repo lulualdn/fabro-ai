@@ -144,8 +144,8 @@ async function generate({ prompt, negative, aspect = 'square', seed, steps }, { 
   if (sp.accel === 'cpu') args.push('-t', String(Math.max(2, Math.round(os.cpus().length / 2))));
   const t0 = Date.now();
   let log = '';
-  const code = await new Promise((resolve) => {
-    const proc = spawn(bin, args, { cwd: path.dirname(bin), windowsHide: true });
+  const run = (argv) => new Promise((resolve) => {
+    const proc = spawn(bin, argv, { cwd: path.dirname(bin), windowsHide: true });
     if (signal) signal.addEventListener('abort', () => { try { proc.kill(); } catch {} }, { once: true });
     const on = (d) => {
       const s = String(d); log = (log + s).slice(-6000);
@@ -156,6 +156,14 @@ async function generate({ prompt, negative, aspect = 'square', seed, steps }, { 
     proc.on('error', (e) => { log += String(e.message); resolve(-1); });
     proc.on('close', resolve);
   });
+  let code = await run(args);
+  // Some Metal / Vulkan drivers (virtual GPUs, older cards) fail on large buffers: retry once with the text
+  // encoder and the VAE on the processor, which needs far less video memory.
+  if (code !== 0 && !(signal && signal.aborted) && /metal|vulkan|buffer is nil|out of memory|ErrorOutOfDeviceMemory/i.test(log) && !args.includes('--vae-on-cpu')) {
+    log = ''; try { fs.rmSync(out, { force: true }); } catch {}
+    args.push('--vae-on-cpu', '--clip-on-cpu');
+    code = await run(args);
+  }
   if (code !== 0 || !fs.existsSync(out)) {
     const tail = log.split('\n').filter((l) => /error|fail|out of memory|cuda|vulkan/i.test(l)).slice(-4).join(' | ') || log.slice(-400);
     throw Object.assign(new Error(signal && signal.aborted ? 'Stopped' : `Image generation failed: ${tail}`), { code: 'IMAGES_FAILED' });

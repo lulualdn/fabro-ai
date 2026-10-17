@@ -1,0 +1,1065 @@
+[
+ {
+  "tag": "v0.1.16",
+  "date": "2026-10-17T12:10:33Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.16",
+  "prerelease": false,
+  "body": "Accessibility, separate tool runtime, opt-in crash reports\n\n- Accessibility: every clickable element reachable and usable with the keyboard, icon buttons named, menus with arrow keys / Home / End / Escape (focus returns to the opener), dialogs trap focus, skip link to the message box, visible focus rings, screen-reader announcements (answer done, errors, permission requests), in-app 'Reduce animations' (also follows the system), forced colours; e2e runs axe-core (WCAG 2 A/AA): no violations\n- Tool runtime: commands from tools (terminal, Python, tests, lint, git, Code terminal) run in a separate Electron utility process, restarted automatically; permissions stay in the main process\n- Crash reports: nothing collected or sent by default; opt-in keeps reports locally and offers a pre-filled GitHub issue the user reviews and sends (home paths masked)\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.16-arm64-mac.zip",
+    "size": 134702737,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/Fabro-0.1.16-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.16-arm64-mac.zip.blockmap",
+    "size": 139981,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/Fabro-0.1.16-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.16-arm64.dmg",
+    "size": 135287139,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/Fabro-0.1.16-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.16-arm64.dmg.blockmap",
+    "size": 143308,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/Fabro-0.1.16-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.16.AppImage",
+    "size": 131820277,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/Fabro-0.1.16.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.16.exe",
+    "size": 115873466,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/Fabro-Setup-0.1.16.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.16.exe.blockmap",
+    "size": 120851,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/Fabro-Setup-0.1.16.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.16/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.15",
+  "date": "2026-10-17T12:00:47Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.15",
+  "prerelease": false,
+  "body": "Installer picks the engine and the first model; clean uninstall\n\n- Installer detects the hardware (GPU + real VRAM from the driver / nvidia-smi, RAM, disks) and shows the engine it will use (CUDA / Vulkan / processor)\n- New step 'Your first AI model': the 3 best models for this PC (same catalogue and fit rules as the app) or 'choose later', and the disk to store models on (free space checked)\n- The choice is seeded in settings: Fabro starts the download on first launch, into that disk (a new model library when it isn't the system disk)\n- Uninstaller asks whether to also delete conversations, settings, memories and downloaded models (never during updates or silent uninstalls); the app keeps the list of its model folders for it\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.15-arm64-mac.zip",
+    "size": 134697032,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/Fabro-0.1.15-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.15-arm64-mac.zip.blockmap",
+    "size": 140588,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/Fabro-0.1.15-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.15-arm64.dmg",
+    "size": 135271360,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/Fabro-0.1.15-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.15-arm64.dmg.blockmap",
+    "size": 142715,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/Fabro-0.1.15-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.15.AppImage",
+    "size": 131812005,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/Fabro-0.1.15.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.15.exe",
+    "size": 115868362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/Fabro-Setup-0.1.15.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.15.exe.blockmap",
+    "size": 121124,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/Fabro-Setup-0.1.15.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.15/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.14",
+  "date": "2026-10-17T11:51:32Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.14",
+  "prerelease": false,
+  "body": "Local image creation with stable-diffusion.cpp\n\n- stable-diffusion.cpp release build picked per computer (CUDA 12 + cudart / Vulkan / Metal / CPU)\n- Two models: SD Turbo (2 GB, 512 px, works on CPU) and Z-Image Turbo (6.7 GB, 1024 px, GPU 6 GB+), recommended from the hardware; installed from Settings or on first use (dependency card)\n- generate_image tool in chat: aspect ratios, seed, negative prompt; live progress, shimmer placeholder, image card (open, show in folder, zoom); saved in Documents/Fabro/Images\n- Release lookup falls back to the GitHub release page when the API is rate-limited\n- CI: real image generated on Linux, Windows and macOS\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.14-arm64-mac.zip",
+    "size": 134696687,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/Fabro-0.1.14-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.14-arm64-mac.zip.blockmap",
+    "size": 140120,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/Fabro-0.1.14-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.14-arm64.dmg",
+    "size": 135271076,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/Fabro-0.1.14-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.14-arm64.dmg.blockmap",
+    "size": 142793,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/Fabro-0.1.14-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.14.AppImage",
+    "size": 131812172,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/Fabro-0.1.14.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.14.exe",
+    "size": 115867624,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/Fabro-Setup-0.1.14.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.14.exe.blockmap",
+    "size": 121054,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/Fabro-Setup-0.1.14.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.14/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.13",
+  "date": "2026-10-17T11:42:43Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.13",
+  "prerelease": false,
+  "body": "Local voice — dictation and voice mode with scene\n\n- Voice stack installed on demand in its own venv: Whisper (faster-whisper, CTranslate2 int8) for speech to text, Piper for speech; curated FR/EN/ES/DE voices; models from Hugging Face\n- Dictation: mic button in the composer, ends on silence\n- Voice mode: live conversation with voice activity detection, interruption (speak or Space), subtitles, voice picker, mute; answers spoken sentence by sentence while they stream\n- Scene: show_on_scene tool shows web images / videos (SearXNG), pages, or SVG/HTML the AI draws\n- Fabro propeller spins slowly when listening, faster when thinking, fastest and pulsing when speaking\n- Microphone permission for the app page only; CSP allows https images/frames for the scene\n- CI: voice smoke test on Linux and Windows (real install, fake microphone, spoken question)\n- Tests updated for the tools section of chat prompts; agent-real regex fixed\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.13-arm64-mac.zip",
+    "size": 134691448,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/Fabro-0.1.13-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.13-arm64-mac.zip.blockmap",
+    "size": 140695,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/Fabro-0.1.13-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.13-arm64.dmg",
+    "size": 135279057,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/Fabro-0.1.13-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.13-arm64.dmg.blockmap",
+    "size": 142479,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/Fabro-0.1.13-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.13.AppImage",
+    "size": 131804090,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/Fabro-0.1.13.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.13.exe",
+    "size": 115864807,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/Fabro-Setup-0.1.13.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.13.exe.blockmap",
+    "size": 120991,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/Fabro-Setup-0.1.13.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.13/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.12",
+  "date": "2026-10-17T11:36:15Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.12",
+  "prerelease": false,
+  "body": "Agents that actually act, with any model\n\n- Dynamic agent system prompt built per turn: the exact tools sent (name, args, purpose), a strict work loop, a worked example, truthfulness rules (never 'I can't access', never invent results), error recovery, safety; chat mode gets a tools section too; sub-agents and Code mode included\n- Runtime guards: a model that refuses, claims undone work, announces a step and stops, answers an action request with text only, returns nothing, or leaves its plan unfinished is sent back to work\n- Tool calls written as text are executed: <tool_call>, <function=…>, [TOOL_CALLS], <|python_tag|>, fenced JSON, bare JSON — known tools only, text retracted from the answer\n- Precise errors: unknown tool (lists the real ones), invalid JSON (shows the schema), empty write, no-op edit, repeated failing call, repeated identical call\n- Context budget: old tool results shortened, oldest steps dropped before the window overflows; local engine crash mid-task → reload and retry once\n- Leaked </think> moved to reasoning; folder-name case fixed on Linux; read_file numbers lines only on long files; edit_file strips copied line numbers; run_command defaults to Documents/Fabro\n- CI: real Qwen3.5 4B agent test on Fabro's engine\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.12-arm64-mac.zip",
+    "size": 134689025,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/Fabro-0.1.12-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.12-arm64-mac.zip.blockmap",
+    "size": 140254,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/Fabro-0.1.12-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.12-arm64.dmg",
+    "size": 135269170,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/Fabro-0.1.12-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.12-arm64.dmg.blockmap",
+    "size": 142205,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/Fabro-0.1.12-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.12.AppImage",
+    "size": 131804096,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/Fabro-0.1.12.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.12.exe",
+    "size": 115862915,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/Fabro-Setup-0.1.12.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.12.exe.blockmap",
+    "size": 121005,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/Fabro-Setup-0.1.12.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.12/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.11",
+  "date": "2026-10-17T00:37:50Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.11",
+  "prerelease": false,
+  "body": "Projects with instructions, shared files and local semantic search\n\n- Projects page: create, describe, instructions, files (drop or pick), project chats\n- Files indexed locally: PDF (pdf.js), DOCX/XLSX/PPTX/ODT, HTML, text and code; chunked\n- Hybrid search: SQLite FTS5 keywords + EmbeddingGemma vectors (fusion), optional Qwen3 reranker\n- Small projects are given whole to the model; large ones get the best passages + project_search tool\n- Engine: embedding / reranking servers; embedding models kept out of the chat model list\n- Engine smoke test checks semantic search on Windows, macOS and Linux\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.11-arm64-mac.zip",
+    "size": 134670591,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/Fabro-0.1.11-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.11-arm64-mac.zip.blockmap",
+    "size": 140288,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/Fabro-0.1.11-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.11-arm64.dmg",
+    "size": 135249335,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/Fabro-0.1.11-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.11-arm64.dmg.blockmap",
+    "size": 141747,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/Fabro-0.1.11-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.11.AppImage",
+    "size": 131783281,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/Fabro-0.1.11.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.11.exe",
+    "size": 115847436,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/Fabro-Setup-0.1.11.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.11.exe.blockmap",
+    "size": 121232,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/Fabro-Setup-0.1.11.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.11/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.10",
+  "date": "2026-10-17T00:24:53Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.10",
+  "prerelease": false,
+  "body": "Code mode V1\n\n- Open a project folder: explorer with git badges, recent projects, code sessions per project\n- Agent always on in code sessions, scoped to the project (relative paths, commands run there)\n- Permissions per project: ask before acting / accept edits / auto, 'always for this project'\n- Sandbox: commands outside the project folder or touching outside paths ask first\n- Modified-file cards (+/-), Diff / File / Preview viewer, editor with highlighting and line numbers\n- Terminal panel: Terminal, Tests (summary + failures) and Problems tabs; run_tests / run_lint tools\n- Git: branches, commit, discard, history, undo last commit; MinGit installed on demand on Windows\n- Undo an agent turn (checkpoints), project instructions (FABRO.md / AGENTS.md / CLAUDE.md)\n- Qwen3 Coder / Qwen2.5 Coder recommended in Code mode\n- SearXNG runs on Windows (pwd shim)\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.10-arm64-mac.zip",
+    "size": 130990868,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/Fabro-0.1.10-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.10-arm64-mac.zip.blockmap",
+    "size": 136046,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/Fabro-0.1.10-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.10-arm64.dmg",
+    "size": 131577503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/Fabro-0.1.10-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.10-arm64.dmg.blockmap",
+    "size": 137562,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/Fabro-0.1.10-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.10.AppImage",
+    "size": 128044676,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/Fabro-0.1.10.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.10.exe",
+    "size": 113335763,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/Fabro-Setup-0.1.10.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.10.exe.blockmap",
+    "size": 118803,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/Fabro-Setup-0.1.10.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.10/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.9",
+  "date": "2026-10-17T00:07:12Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.9",
+  "prerelease": false,
+  "body": "Sub-agents, session panel, SearXNG search, AI browser with tabs\n\n- Sub-agents: run_subagent delegates self-contained work to nested agent runs (parallel when called together, steps nested in the UI, permissions asked in place)\n- update_plan tool + session panel (Progression / Sorties / Utilisés dans cette session)\n- SearXNG: private instance installed on demand (Python venv), or your own instance; DuckDuckGo fallback; categories, time range, answers and infobox\n- Agent browser: tabs, browser_search, browser_extract (readable Markdown), find, select, wait; ad/tracker blocking and cookie banners refused automatically\n- Code-mode backend (project tree, git, terminal, tests/lint parsing)\n- Fix: skipped view transitions no longer throw when the window is hidden\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.9-arm64-mac.zip",
+    "size": 130966933,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/Fabro-0.1.9-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.9-arm64-mac.zip.blockmap",
+    "size": 135992,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/Fabro-0.1.9-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.9-arm64.dmg",
+    "size": 131549675,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/Fabro-0.1.9-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.9-arm64.dmg.blockmap",
+    "size": 137894,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/Fabro-0.1.9-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.9.AppImage",
+    "size": 128024329,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/Fabro-0.1.9.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.9.exe",
+    "size": 113318010,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/Fabro-Setup-0.1.9.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.9.exe.blockmap",
+    "size": 118902,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/Fabro-Setup-0.1.9.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.9/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.8",
+  "date": "2026-10-16T23:43:34Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.8",
+  "prerelease": false,
+  "body": "Agent V1 — automatic agent mode, files, terminal, built-in browser, documents, Python, MCP, skills, permissions\n\n- Calling any tool other than web search / fetch switches the conversation to agent mode: badge, agent system prompt, the in-flight call continues; workspace panel with steps, live browser and changed files\n- Tools: list/read/write/edit/delete/search files in allowed folders; run_command (PowerShell/bash, live output, secrets stripped from env); create_document (DOCX, PDF, slides PDF, XLSX, CSV, MD, HTML, also saved as artifacts); run_python with a private Python installed on demand ('Installer les dépendances' card); load_skill (Claude-compatible SKILL.md folders, ~/.claude/skills found automatically)\n- Built-in browser: isolated WebContentsView (own session), visible live, take/give back control; open, read (interactive elements with ids), click, type, keys, scroll, zoom, screenshot (sent to vision models), back, script\n- MCP client: stdio + Streamable HTTP with OAuth (dynamic registration, PKCE), import from Claude Desktop config; tools selected by relevance with a token gauge\n- Permissions per tool (always / ask / never) and per folder; guardrails: purchases, sending, publishing, deleting, downloads and risky commands always confirm; passwords and card fields are never typed; credential folders are never readable; tool output wrapped as untrusted data\n- Models without native tool calling fall back to <tool_call> JSON parsing\n- Tests: agent runtime test + e2e covering permissions, files, docx, browser password guard and an MCP server\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.8-arm64-mac.zip",
+    "size": 130937813,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/Fabro-0.1.8-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.8-arm64-mac.zip.blockmap",
+    "size": 136038,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/Fabro-0.1.8-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.8-arm64.dmg",
+    "size": 131513823,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/Fabro-0.1.8-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.8-arm64.dmg.blockmap",
+    "size": 137265,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/Fabro-0.1.8-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.8.AppImage",
+    "size": 127991470,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/Fabro-0.1.8.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.8.exe",
+    "size": 113296107,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/Fabro-Setup-0.1.8.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.8.exe.blockmap",
+    "size": 118714,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/Fabro-Setup-0.1.8.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.8/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.7",
+  "date": "2026-10-16T20:15:31Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.7",
+  "prerelease": false,
+  "body": "Chat V1 — web search & fetch tools, branches, thinking control, styles, memory, ephemeral chats, editable artifacts, SQLite\n\nChat\n- Tool loop for OpenAI-compatible and Anthropic APIs; chat tools: web search (DuckDuckGo, Brave, Ducky) and fetch_url; steps and cited sources shown in the answer; models without tool support fall back automatically\n- Thinking control in the composer (auto / off / low / medium / high) for llama.cpp, OpenAI-style and Claude\n- Edit any message → new branch; regenerate keeps the old answer; ‹ 2/3 › navigation between versions\n- Response styles (concise, explanatory, formal) and custom styles learned from a writing sample\n- Memory: durable facts extracted in the background, editable and deletable, injected into the prompt\n- Ephemeral chats (never saved, no memory); AI conversation titles; system notification when an answer finishes in the background\n- Artifacts: documents, slides, web pages, SVG and code as cards; side panel with preview/source, rich editing of text and colors, slide themes and presenter mode, versions with restore; export to DOCX, PDF, HTML, MD, SVG; HTML runs in a sandboxed fabro-art:// iframe; gallery page\n- Personalization page: name, custom instructions, styles, memory\nArchitecture\n- SQLite (node:sqlite) for conversations with FTS5 full-text search in the sidebar, memories and artifacts; JSON conversations imported on first run\nFixes: composer text could reappear after very fast answers; settings re-renders no longer wipe forms being typed;\nboot waits for every renderer script.\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.7-arm64-mac.zip",
+    "size": 130899596,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/Fabro-0.1.7-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.7-arm64-mac.zip.blockmap",
+    "size": 136129,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/Fabro-0.1.7-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.7-arm64.dmg",
+    "size": 131475046,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/Fabro-0.1.7-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.7-arm64.dmg.blockmap",
+    "size": 137065,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/Fabro-0.1.7-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.7.AppImage",
+    "size": 127950519,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/Fabro-0.1.7.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.7.exe",
+    "size": 113266813,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/Fabro-Setup-0.1.7.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.7.exe.blockmap",
+    "size": 118582,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/Fabro-Setup-0.1.7.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.7/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.6",
+  "date": "2026-10-16T19:49:35Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.6",
+  "prerelease": false,
+  "body": "Engine V1 — multi-model pool, per-model profiles, memory planner, storage, local API\n\nEngine\n- Several models loaded at once; least-recently-used idle model unloaded when memory is full\n- Per-model profiles: context, GPU layers, threads, KV cache (F16/Q8/Q4), flash attention, MoE experts in RAM, preload (on demand / at startup / always), idle unload, generation overrides\n- Memory planner from GGUF metadata: VRAM/RAM estimate before loading and automatic GPU/RAM split\n- Prompt cache reuse, flash attention auto, --cpu-moe for MoE models that don't fit the GPU\n- Power modes (auto battery saver), process priority; automatic + one-click rollback to the previous engine build\n- Resource monitor (VRAM, GPU load/temp, RAM, CPU, per-model memory), readable logs, token usage history\n- Local OpenAI-compatible API (models from the engine and providers), optional key and LAN access\n- Discreet notification when only the engine updates\nModels & storage\n- Model libraries on any disk, move models between disks, import from Ollama / LM Studio / folders without copying\n- Download queue with pause/resume, parallel limit, speed limit, free-space check; SHA-256 verification after download and on demand\nTests: engine smoke covers import + KV profile + two models + local API; e2e covers the new tabs.\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.6-arm64-mac.zip",
+    "size": 130864484,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/Fabro-0.1.6-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.6-arm64-mac.zip.blockmap",
+    "size": 136087,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/Fabro-0.1.6-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.6-arm64.dmg",
+    "size": 131469889,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/Fabro-0.1.6-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.6-arm64.dmg.blockmap",
+    "size": 137688,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/Fabro-0.1.6-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.6.AppImage",
+    "size": 127913604,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/Fabro-0.1.6.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1185280,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.6.exe",
+    "size": 113239088,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/Fabro-Setup-0.1.6.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.6.exe.blockmap",
+    "size": 118845,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/Fabro-Setup-0.1.6.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.6/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.5",
+  "date": "2026-10-16T19:33:51Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.5",
+  "prerelease": false,
+  "body": "External providers, tray, AI hotkey + quick bar\n\n- Providers layer separate from the built-in llama.cpp engine: OpenAI, Anthropic (native Messages API), xAI Grok, Gemini, Mistral, DeepSeek, Groq, OpenRouter, Together, Cerebras, Perplexity, any OpenAI-compatible server; Ollama and LM Studio detected and connected in one click\n- API keys encrypted with the OS keychain (safeStorage) in secrets.json, never sent to the renderer\n- Legacy Ollama settings migrated; selectedModel no longer deep-merged\n- Close button hides to tray; tray menu; start at login (hidden); system notifications\n- Global AI shortcut (Ctrl+Win+Space, Copilot key) opens a quick bar that continues the current conversation or starts a new one (Tab), streams the answer, opens in Fabro\n- Installer: optional 'external providers' on first install\n- Tests: offline provider adapter tests + Electron/Playwright end-to-end UI test in CI\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.5-arm64-mac.zip",
+    "size": 130833526,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/Fabro-0.1.5-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.5-arm64-mac.zip.blockmap",
+    "size": 135905,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/Fabro-0.1.5-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.5-arm64.dmg",
+    "size": 131420159,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/Fabro-0.1.5-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.5-arm64.dmg.blockmap",
+    "size": 137812,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/Fabro-0.1.5-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.5.AppImage",
+    "size": 127880897,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/Fabro-0.1.5.AppImage"
+   },
+   {
+    "name": "Fabro-Setup-0.1.5.exe",
+    "size": 113214576,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/Fabro-Setup-0.1.5.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.5.exe.blockmap",
+    "size": 118905,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/Fabro-Setup-0.1.5.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.5/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.4",
+  "date": "2026-10-16T18:51:43Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.4",
+  "prerelease": false,
+  "body": "Standalone Fabro-Installer.exe (Rust + WebView2) with its own UI\n\n- Fetches latest.yml, downloads with live progress, verifies SHA-512, silent NSIS install, launches Fabro\n- Update mode when Fabro is already installed; classic NSIS fallback without WebView2\n- CI builds the installer and attaches it to the release\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.4-arm64-mac.zip",
+    "size": 130710204,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/Fabro-0.1.4-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.4-arm64-mac.zip.blockmap",
+    "size": 135860,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/Fabro-0.1.4-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.4-arm64.dmg",
+    "size": 131305914,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/Fabro-0.1.4-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.4-arm64.dmg.blockmap",
+    "size": 138010,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/Fabro-0.1.4-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.4.AppImage",
+    "size": 127761919,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/Fabro-0.1.4.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1180160,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.4.exe",
+    "size": 113135241,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/Fabro-Setup-0.1.4.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.4.exe.blockmap",
+    "size": 118701,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/Fabro-Setup-0.1.4.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.4/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.3",
+  "date": "2026-10-16T16:45:24Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.3",
+  "prerelease": false,
+  "body": "Engine download works without the GitHub API\n\n- Keep pre-releases (llama.cpp may flag them), only skip drafts\n- If the API fails or lists nothing usable, read tags from the public releases Atom feed and probe the predictable download URLs (CUDA 12.4 / 13.x, Vulkan, CPU)\n- Error message now says why each source failed\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.3-arm64-mac.zip",
+    "size": 130199652,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/Fabro-0.1.3-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.3-arm64-mac.zip.blockmap",
+    "size": 135323,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/Fabro-0.1.3-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.3-arm64.dmg",
+    "size": 130279501,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/Fabro-0.1.3-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.3-arm64.dmg.blockmap",
+    "size": 136040,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/Fabro-0.1.3-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.3.AppImage",
+    "size": 127499443,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/Fabro-0.1.3.AppImage"
+   },
+   {
+    "name": "Fabro-Setup-0.1.3.exe",
+    "size": 113028999,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/Fabro-Setup-0.1.3.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.3.exe.blockmap",
+    "size": 118760,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/Fabro-Setup-0.1.3.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.3/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.2",
+  "date": "2026-10-16T16:39:06Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.2",
+  "prerelease": false,
+  "body": "Fix 'No compatible engine build'\n\nllama.cpp publishes a release before its binaries are uploaded, so /releases/latest\ncan have no assets. Walk the 10 most recent releases and take the first one that\ncarries a build for this machine. Prefer CUDA 12 over 13 (older drivers), clearer\nerror with platform/arch/accel, explicit GitHub rate-limit message.\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.2-arm64-mac.zip",
+    "size": 130199070,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/Fabro-0.1.2-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.2-arm64-mac.zip.blockmap",
+    "size": 135349,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/Fabro-0.1.2-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.2-arm64.dmg",
+    "size": 130278933,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/Fabro-0.1.2-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.2-arm64.dmg.blockmap",
+    "size": 136014,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/Fabro-0.1.2-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.2.AppImage",
+    "size": 127499402,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/Fabro-0.1.2.AppImage"
+   },
+   {
+    "name": "Fabro-Setup-0.1.2.exe",
+    "size": 113028650,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/Fabro-Setup-0.1.2.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.2.exe.blockmap",
+    "size": 118672,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/Fabro-Setup-0.1.2.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.2/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.1",
+  "date": "2026-10-16T16:30:29Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.1",
+  "prerelease": false,
+  "body": "Motion system + faster, more visible propeller loader\n\n- Propeller loader: faster spin, readable blades with motion-blur trail and glow, larger\n- Hero propeller spins in on the welcome screen\n- View transitions between views, slide on back/forward, circular reveal on theme switch\n- Message entrance, streaming caret, send-button launch, press/hover feedback\n- Boot stagger, settings tab transitions, shimmering progress bars, engine-ready pop\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.1-arm64-mac.zip",
+    "size": 130198702,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/Fabro-0.1.1-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.1-arm64-mac.zip.blockmap",
+    "size": 135375,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/Fabro-0.1.1-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.1-arm64.dmg",
+    "size": 130278458,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/Fabro-0.1.1-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.1-arm64.dmg.blockmap",
+    "size": 135861,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/Fabro-0.1.1-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.1.AppImage",
+    "size": 127499616,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/Fabro-0.1.1.AppImage"
+   },
+   {
+    "name": "Fabro-Setup-0.1.1.exe",
+    "size": 113027496,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/Fabro-Setup-0.1.1.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.1.exe.blockmap",
+    "size": 118644,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/Fabro-Setup-0.1.1.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.1/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.0",
+  "date": "2026-10-16T16:03:58Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.0",
+  "prerelease": false,
+  "body": "Fabro v0.1.0 — base app (UI + chat), local engine, models, dev mode, release workflow\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.0-arm64-mac.zip",
+    "size": 130196582,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/Fabro-0.1.0-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.0-arm64-mac.zip.blockmap",
+    "size": 135265,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/Fabro-0.1.0-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.0-arm64.dmg",
+    "size": 130277344,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/Fabro-0.1.0-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.0-arm64.dmg.blockmap",
+    "size": 136562,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/Fabro-0.1.0-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.0.AppImage",
+    "size": 127495539,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/Fabro-0.1.0.AppImage"
+   },
+   {
+    "name": "Fabro-Setup-0.1.0.exe",
+    "size": 113025597,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/Fabro-Setup-0.1.0.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.0.exe.blockmap",
+    "size": 118569,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/Fabro-Setup-0.1.0.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 362,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 339,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.0/latest.yml"
+   }
+  ]
+ }
+]

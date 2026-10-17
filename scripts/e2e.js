@@ -121,6 +121,8 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   win.on('pageerror', (e) => errors.push('main: ' + e.message));
   await win.setViewportSize({ width: 1280, height: 820 }).catch(() => {});
   await win.waitForSelector('.greet', { timeout: 20000 });
+  // Clean screenshots for the website: E2E_CLEAN=1 hides the internal banner, E2E_THEME=dark|light.
+  if (process.env.E2E_CLEAN) await win.evaluate(async (th) => { await applySetting('devMode', false); if (th) await applySetting('theme', th); }, process.env.E2E_THEME || '');
   await win.waitForTimeout(1200);
   step('welcome'); await win.screenshot({ path: `${shots}/01-welcome.png` });
   assert.match(await win.textContent('.greet'), /Lulu/);

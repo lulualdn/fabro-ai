@@ -51,3 +51,7 @@ Anglais par défaut, détection auto de la langue système. Incluses : en, fr, e
 
 Every push to `main` builds the installers (Actions artifacts). A commit whose message contains `[release]` (or a pushed `v*` tag) makes GitHub Actions build Windows (`Fabro-Setup-x.y.z.exe`), macOS and Linux installers and publishes them in a Release, which the in-app auto-updater reads.
 Run the workflow manually (Actions › Build & release › Run workflow) to get the installers as artifacts without publishing.
+
+## Website
+
+`site/` holds the Fabro website (home, feature pages, "Can my PC run it?", privacy, changelog, legal), in English, French, Spanish and German with light/dark themes. `node site/build.js` writes static pages to `site/dist`. The model list comes from the installer, the changelog from GitHub Releases. `netlify.toml` lets Netlify build it with no dependencies.

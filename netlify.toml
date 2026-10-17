@@ -1,0 +1,8 @@
+# Website (site/): static pages built by site/build.js — no dependencies to install.
+[build]
+  base = "site"
+  command = "node build.js"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"

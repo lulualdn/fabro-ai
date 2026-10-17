@@ -65,3 +65,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "v$(node -p "require('./package.json').version")" installer/target/release/Fabro-Installer.exe --clobber
+      - name: Release notes from the commit message
+        if: startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v="v$(node -p "require('./package.json').version")"
+          if [ -z "$(gh release view "$v" --json body -q .body)" ]; then node scripts/release-notes.js > notes.md && gh release edit "$v" --notes-file notes.md; fi
