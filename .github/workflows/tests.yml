@@ -120,7 +120,9 @@ jobs:
       - run: node scripts/images-smoke.js
         env:
           SHOTS: .
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Linux exercises the no-API path (release page), the others use the API with the CI token.
+          FABRO_GH_PAGE_ONLY: ${{ runner.os == 'Linux' && '1' || '' }}
+          GITHUB_TOKEN: ${{ runner.os != 'Linux' && secrets.GITHUB_TOKEN || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

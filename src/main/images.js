@@ -75,10 +75,20 @@ function findBin(dir) {
   const walk = (d, depth) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isFile() && want.test(e.name)) return f; if (e.isDirectory() && depth < 4) { const r = walk(f, depth + 1); if (r) return r; } } return null; };
   return walk(dir, 0);
 }
+// Latest release with its assets: the GitHub API, or the release page when the API is rate-limited (403/429).
+async function latestRelease(repo) {
+  const h = { 'User-Agent': 'Fabro', Accept: 'application/vnd.github+json', ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}) };
+  const r = process.env.FABRO_GH_PAGE_ONLY ? null : await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: h }).catch(() => null);
+  if (r && r.ok) return r.json();
+  const page = await fetch(`https://github.com/${repo}/releases/latest`, { headers: { 'User-Agent': 'Fabro' }, redirect: 'follow' });
+  const tag = decodeURIComponent((page.url.match(/\/releases\/tag\/([^/?#]+)/) || [])[1] || '');
+  if (!tag) throw new Error(`GitHub ${r ? r.status : 'unreachable'}`);
+  const html = await (await fetch(`https://github.com/${repo}/releases/expanded_assets/${encodeURIComponent(tag)}`, { headers: { 'User-Agent': 'Fabro' } })).text();
+  const names = [...new Set([...html.matchAll(/\/releases\/download\/[^/"]+\/([^"?]+)"/g)].map((m) => decodeURIComponent(m[1])))];
+  return { tag_name: tag, assets: names.map((name) => ({ name, browser_download_url: `https://github.com/${repo}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(name)}` })) };
+}
 async function installEngine(onProgress = () => {}) {
-  const r = await fetch('https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest', { headers: { 'User-Agent': 'Fabro', Accept: 'application/vnd.github+json' } });
-  if (!r.ok) throw new Error(`GitHub ${r.status}`);
-  const rel = await r.json();
+  const rel = await latestRelease('leejet/stable-diffusion.cpp');
   const { a, extra } = await pickAsset(rel);
   const dir = path.join(root(), rel.tag_name); fs.mkdirSync(dir, { recursive: true });
   for (const [i, asset] of [a, extra].filter(Boolean).entries()) {
