@@ -216,6 +216,10 @@ function y4m(rgba, w, h, file) {
   await phone.setViewportSize({ width: 1280, height: 800 });
   await wait(400);
   await phone.screenshot({ path: path.join(shots, 'web-desktop.png') });
+  await phone.click('[data-act=new]'); await wait(400);
+  await phone.screenshot({ path: path.join(shots, 'web-home.png') });
+  assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no horizontal scroll (desktop)');
+  await phone.click('.d-item'); await wait(300);
   await phone.setViewportSize({ width: 390, height: 844 });
 
   // ── the computer goes away: the message waits, then goes ──

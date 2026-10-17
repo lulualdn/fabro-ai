@@ -658,6 +658,7 @@
     photo: '<path d="M4 7h3l2-2.5h6L17 7h3v12H4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><circle cx="12" cy="13" r="3.6" stroke="currentColor" stroke-width="2" fill="none"/>',
     gear: '<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1l.4 2.5h4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="none"/>',
     x: '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+    search: '<circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M15.5 15.5l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
     download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
     trash: '<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>',
     back: '<path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
@@ -765,6 +766,7 @@
     return `<div class="shell ${S.drawer ? 'drawer-open' : ''}">
       <aside class="drawer" aria-label="${esc(t('chats'))}">
         <div class="d-head">${logo(24)}<b>Fabro</b><span class="grow"></span><button class="icon-btn sm" data-act="drawer-close" aria-label="${esc(t('close'))}">${ic('x', 18)}</button></div>
+        <label class="d-search">${ic('search', 16)}<input id="d-q" placeholder="${esc(t('search'))}" autocomplete="off"></label>
         <button class="nav-it new" data-act="new"><span class="nv-plus">${ic('plus', 14)}</span>${esc(t('newChat'))}</button>
         <button class="nav-it" data-act="settings">${ic('gear', 18)}${esc(t('settings'))}</button>
         <nav class="d-list" data-h="${esc(t('recents'))}">${convList()}</nav>
@@ -785,7 +787,7 @@
     return [...map.values()].filter((c) => !S.tombstones.includes(c.id)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   }
   function convList() {
-    const list = allConvs();
+    const q = (S.q || '').toLowerCase(); const list = allConvs().filter((c) => !q || (c.title || '').toLowerCase().includes(q));
     if (!list.length) return `<p class="muted pad">${esc(t('noChats'))}</p>`;
     return list.slice(0, 300).map((c) => `<button class="d-item ${c.id === S.cur ? 'on' : ''}" data-act="open" data-id="${esc(c.id)}">
       ${c.agent ? `<span class="d-ic">${ic('agent', 15)}</span>` : ''}<span class="d-t">${esc(c.title || t('untitled'))}</span>${c.dirty ? '<span class="dot" title=""></span>' : ''}</button>`).join('');
@@ -796,7 +798,7 @@
     const label = st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : S.settings.model === 'phone' || (localInfo() && S.settings.localFallback) ? t('phoneModel') : t('offlineShort');
     const c = curConv();
     const mn = $('.main'); if (mn) mn.classList.toggle('home', !c && !(S.cur && S.metas.some((m) => m.id === S.cur)));
-    const pc = $('#d-pc'); if (pc) pc.innerHTML = `<span class="pc-dot ${st}"></span><span class="pc-txt"><b>${esc(S.link ? S.link.pcName || 'PC' : t('guestMode'))}</b><small>${esc(S.link ? label : modelLabel())}</small></span>`;
+    const pc = $('#d-pc'); if (pc) pc.innerHTML = `<span class="av">${ic('pc', 16)}<i class="pc-dot ${st}"></i></span><span class="pc-txt"><b>${esc(S.link ? S.link.pcName || 'PC' : t('guestMode'))}</b><small>${esc(modelLabel())} · ${esc(label)}</small></span><span class="chev">⌄</span>`;
     el.innerHTML = `<button class="icon-btn" data-act="drawer" aria-label="${esc(t('chats'))}">${ic('menu')}</button>
       <span class="top-title">${esc(c ? c.title || t('untitled') : '')}</span>
       <button class="pc-chip" data-act="model">
@@ -817,7 +819,7 @@
       const meta = S.cur && S.metas.find((m) => m.id === S.cur);
       if (meta) return `<div class="empty">${logo(48)}<p>${esc(session ? t('loading') : t('notDownloaded'))}</p></div>`;
       return `<div class="empty"><h2 class="greet">${logo(34, 'spin-in')} ${esc(t('hello'))}</h2><p class="muted">${esc(S.link ? t('helloSub', { n: S.link.pcName || 'PC' }) : '')}</p>
-        <div class="sugs">${[t('sug1'), t('sug2'), t('sug3')].map((s) => `<button class="sug" data-act="sug">${esc(s)}</button>`).join('')}</div></div>`;
+</div>`;
     }
     const path = A.pathOf(c);
     return `<div class="msgs">${path.map(msgHtml).join('')}</div>`;
@@ -866,14 +868,16 @@
       <form class="composer" data-form="send">
         <textarea id="prompt" rows="1" placeholder="${esc(ph)}" aria-label="${esc(t('placeholder'))}">${esc(kept)}</textarea>
         <div class="c-row">
-          <label class="icon-btn ${vision ? '' : 'dim'}" aria-label="${esc(t('addPhoto'))}">${ic('photo')}<input type="file" accept="image/*" multiple hidden id="photo-in"></label>
+          <label class="icon-btn c-plus ${vision ? '' : 'dim'}" aria-label="${esc(t('addPhoto'))}">${ic('plus', 18)}<input type="file" accept="image/*" multiple hidden id="photo-in"></label>
           <button type="button" class="chip ${c && c.agent || (!c && S.settings.agent) ? 'on' : ''}" data-act="agent">${ic('agent', 16)} ${esc(t('agent'))}</button>
           <span class="grow"></span>
           <button type="button" class="model-pill" data-act="model">${esc(modelLabel())} <span class="chev">⌄</span></button>
+          <button type="button" class="icon-btn c-voice" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave', 18)}</button>
           <button type="button" class="icon-btn ${S.dictating ? 'rec' : ''}" data-act="dictate" aria-label="${esc(t('dictate'))}">${ic('mic')}</button>
           ${running ? `<button type="button" class="send stop" data-act="stop" aria-label="${esc(t('stop'))}">${ic('stop', 18)}</button>` : `<button type="submit" class="send" aria-label="${esc(t('send'))}">${ic('send', 20)}</button>`}
         </div>
-      </form>`;
+      </form>
+      ${!c && !S.cur ? `<div class="sugs">${[t('sug1'), t('sug2'), t('sug3')].map((x) => `<button class="sug" data-act="sug">${esc(x)}</button>`).join('')}</div>` : ''}`;
     const ta = $('#prompt'); fit(ta);
   }
   const fit = (ta) => { if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 180) + 'px'; };
@@ -1007,7 +1011,7 @@
     if (f.dataset.form === 'send') { const ta = $('#prompt'); const v = ta.value; if (busy(curConv())) return; send(v, S.atts.slice()); }
     if (f.dataset.form === 'code') { A.parseTextCode($('#code-in').value).then((d) => { if (d) pairWith(d); else toast(t('badCode'), 'err'); }); }
   });
-  document.addEventListener('input', (e) => { if (e.target.id === 'prompt') { S.draft = e.target.value; fit(e.target); } });
+  document.addEventListener('input', (e) => { if (e.target.id === 'd-q') { S.q = e.target.value; const l = $('.d-list'); if (l) l.innerHTML = convList(); return; } if (e.target.id === 'prompt') { S.draft = e.target.value; fit(e.target); } });
   document.addEventListener('keydown', (e) => {
     if (e.target.id === 'prompt' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); e.target.form.requestSubmit(); }
     if (e.key === 'Escape') { if ($('#av')) acts['art-close'](); else if (S.voice) closeVoice(); else if (S.sheet) { S.sheet = null; renderSheet(); } }

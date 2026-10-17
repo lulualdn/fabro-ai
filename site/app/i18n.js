@@ -118,3 +118,4 @@ Object.assign(FA_I18N.fr, { sum_search1: 'recherché 1 fois', sum_searchn: 'rech
   view: 'Voir', saveFile: 'Télécharger', changes: 'Modifications', thoughts: 'Réflexion', sources: 'Sources', sourcesCited: 'Sources citées', noPreview: 'Pas d’aperçu pour ce fichier.', recents: 'Récents' });
 Object.assign(FA_I18N.es, { view: 'Ver', saveFile: 'Descargar', sources: 'Fuentes', sourcesCited: 'Fuentes citadas', recents: 'Recientes' });
 Object.assign(FA_I18N.de, { view: 'Ansehen', saveFile: 'Herunterladen', sources: 'Quellen', sourcesCited: 'Zitierte Quellen', recents: 'Zuletzt' });
+Object.assign(FA_I18N.en, { search: 'Search' }); Object.assign(FA_I18N.fr, { search: 'Rechercher' }); Object.assign(FA_I18N.es, { search: 'Buscar' }); Object.assign(FA_I18N.de, { search: 'Suchen' });

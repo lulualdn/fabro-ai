@@ -353,3 +353,30 @@ html, body { overflow-x: hidden; }
   .top > .icon-btn[data-act="voice"] { margin-left: auto; }
   .greet { font-size: 36px; }
 }
+
+/* ── same as the PC app (floating sidebar card, serif greeting, chip composer) ── */
+.d-search { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 11px; border: 1px solid var(--border); background: var(--elev-2); color: var(--muted); margin: 0 0 6px; }
+.d-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: 14px; color: var(--text); }
+.d-pc { border-top: 0; margin-top: 4px; }
+.d-pc .av { position: relative; width: 32px; height: 32px; border-radius: 50%; background: var(--text); color: var(--bg); display: grid; place-items: center; flex: none; }
+.d-pc .av .pc-dot { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border: 2px solid var(--panel); box-shadow: none; }
+.d-pc .pc-txt { flex: 1; } .d-pc .chev { color: var(--muted); }
+.composer .icon-btn { width: 34px; height: 34px; border-radius: 10px; }
+.c-plus { border: 1px solid var(--border); }
+.composer .chip { height: 32px; border-radius: 99px; font-weight: 500; }
+.composer .send { width: 34px; height: 34px; border-radius: 10px; }
+.sugs { margin: 14px auto 0; max-width: 760px; }
+.sug { background: none; border: 1px solid var(--border); color: var(--text-2); }
+.sug:hover { background: var(--hover); color: var(--text); }
+.greet { font-family: var(--serif); font-weight: 400; letter-spacing: -.01em; justify-content: center; }
+@media (min-width: 820px) {
+  .shell { padding: 10px; gap: 0; background: var(--bg); }
+  .drawer { border: 1px solid var(--border); border-radius: 18px; background: var(--panel); height: auto; padding: 12px 10px 10px; }
+  .d-head { padding: 2px 6px 10px; }
+  .main { padding: 0 6px; }
+  .main.home .composer, .main.home .banner { max-width: 720px; }
+  .greet { font-size: 42px; margin-bottom: 18px; }
+  .main.home .empty p.muted { display: none; }
+}
+@media (max-width: 819px) { .composer .c-voice { display: none; } }
+@media (min-width: 820px) { .top > .icon-btn[data-act="voice"] { display: none; } .main.home .top { position: absolute; } }
