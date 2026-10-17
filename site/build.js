@@ -12,7 +12,7 @@ const ROOT = path.join(__dirname, '..');
 const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist');
 const REPO = 'lulualdn/fabro-ai';
-const SITE_URL = process.env.SITE_URL || 'https://fabro-ai.netlify.app';
+const SITE_URL = process.env.SITE_URL || 'https://fabro-local-ai.netlify.app';
 
 const ctx = { window: {} }; vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(SRC, 'i18n.js'), 'utf8'), ctx);
@@ -30,10 +30,10 @@ function catalog() {
 }
 function notesFromGit(tag) {
   try {
-    const sha = execFileSync('git', ['log', '--format=%H', '-1', `--grep=^${tag.replace(/\./g, '\\.')}:`], { cwd: ROOT, encoding: 'utf8' }).trim()
-      || (tag === 'v0.1.0' ? execFileSync('git', ['log', '--format=%H', '-1', '--grep=^Fabro v0.1.0'], { cwd: ROOT, encoding: 'utf8' }).trim() : '');
+    const sha = execFileSync('git', ['log', '--format=%H', '-1', `--grep=^${tag.replace(/\./g, '\\.')}:`], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+      || (tag === 'v0.1.0' ? execFileSync('git', ['log', '--format=%H', '-1', '--grep=^Fabro v0.1.0'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() : '');
     if (!sha) return '';
-    return execFileSync('node', [path.join(ROOT, 'scripts/release-notes.js'), sha], { cwd: ROOT, encoding: 'utf8' });
+    return execFileSync('node', [path.join(ROOT, 'scripts/release-notes.js'), sha], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   } catch { return ''; }
 }
 async function releases() {
