@@ -230,10 +230,15 @@ function openStyleMenu(anchor) {
 }
 
 // ───────────────────────────── System prompt ─────────────────────────────
+// The name the user gave their assistant during onboarding.
+const aiName = () => ((S.settings && S.settings.aiName) || '').trim();
+function aiNameLine() { const n = aiName(); return n && n.toLowerCase() !== 'fabro' ? `The user named you "${n}". That is your name: introduce yourself as ${n} (you run inside the Fabro app).` : ''; }
 function systemPrompt() {
   const parts = [t('sysDefault', { date: new Date().toLocaleDateString(S.lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) })];
   const name = typeof userFirstName === 'function' ? userFirstName() : '';
   if (name) parts.push(t('sysName', { n: name }));
+  if (aiNameLine()) parts.push(aiNameLine());
+  if (useForLine()) parts.push(useForLine());
   const tools = chatTools();
   if (tools.length) parts.push(t('sysTools'));
   parts.push(t('sysArtifacts'));
@@ -351,6 +356,7 @@ function agentPrompt() {
   const name = (typeof userFirstName === 'function' && userFirstName()) || '';
   return [
     name ? `The user's name is ${name}.` : '',
+    aiNameLine(), useForLine(),
     `Interface language: ${S.lang}. Today: ${new Date().toLocaleDateString(S.lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`,
     (S.settings.memory || {}).enabled !== false && S.memories && S.memories.length && !(S.conv && S.conv.ephemeral) ? `${t('sysMemory')}\n${S.memories.slice(0, 30).map((m) => `- ${m.text}`).join('\n')}` : '',
     stylePrompt(),

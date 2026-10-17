@@ -96,7 +96,7 @@ function registerIpc() {
   const h = (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a));
 
   h('app:info', () => ({
-    version: app.getVersion(), platform: process.platform, packaged: app.isPackaged,
+    version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, e2e: !!process.env.FABRO_E2E,
     locale: app.getLocale(), systemLanguages: app.getPreferredSystemLanguages(),
     userName: (() => { try { return require('os').userInfo().username; } catch { return ''; } })(),
     lanIp: (() => { try { return Object.values(require('os').networkInterfaces()).flat().find((i) => i && i.family === 'IPv4' && !i.internal)?.address || ''; } catch { return ''; } })(),

@@ -59,8 +59,11 @@ async function writeJSON(file, data) {
 
 function init() {
   fs.mkdirSync(convDir(), { recursive: true });
-  try { settings = merge(DEFAULTS, JSON.parse(fs.readFileSync(settingsFile(), 'utf8'))); }
-  catch { settings = merge(DEFAULTS, {}); }
+  // Settings survive updates: a copy is kept beside them and used if the file is missing or damaged.
+  const bak = settingsFile() + '.bak';
+  const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+  try { settings = merge(DEFAULTS, read(settingsFile())); try { fs.copyFileSync(settingsFile(), bak); } catch {} }
+  catch { try { settings = merge(DEFAULTS, read(bak)); fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2)); } catch { settings = merge(DEFAULTS, {}); } }
 }
 
 const getSettings = () => settings;

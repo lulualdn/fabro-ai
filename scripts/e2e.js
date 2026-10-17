@@ -132,6 +132,24 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.waitForTimeout(1200);
   step('welcome'); await win.screenshot({ path: `${shots}/01-welcome.png` });
   assert.match(await win.textContent('.greet'), /Lulu/);
+  // onboarding: the propeller asks a few questions (skipped in tests unless forced)
+  await win.evaluate(() => { ONB.i = 0; ONB.a = {}; renderOnboarding(); });
+  await win.click('.onb [data-action=onb-next]', { timeout: 8000 });
+  await win.waitForSelector('#onb-in'); await win.waitForFunction(() => document.querySelector('.onb-ans').style.opacity === '1');
+  await win.fill('#onb-in', 'Lulu'); await win.keyboard.press('Enter');
+  await win.waitForFunction(() => document.querySelector('.onb-ans').style.opacity === '1' && /Lulu/.test(document.querySelector('.onb-q').textContent));
+  await win.fill('#onb-in', 'Nova');
+  step('onboarding'); await win.screenshot({ path: `${shots}/01b-onboarding.png` });
+  await win.keyboard.press('Enter');
+  await win.click('.onb-chip[data-v=code]', { timeout: 8000 }); await win.click('.onb [data-action=onb-next]');
+  await win.click('.onb-chip[data-v=concise]', { timeout: 8000 });
+  await win.click('.onb-chip[data-v=light]', { timeout: 8000 });
+  await win.click('.onb [data-action=onb-finish]', { timeout: 8000 });
+  await win.waitForFunction(() => !document.getElementById('onb'));
+  const ob = await win.evaluate(() => ({ s: S.settings, sys: systemPrompt() }));
+  assert.ok(ob.s.onboarded && ob.s.aiName === 'Nova' && ob.s.activeStyle === 'concise' && ob.s.useFor.includes('code'), 'onboarding saved');
+  assert.match(ob.sys, /named you "Nova"/);
+  await win.evaluate(() => saveSettings({ activeStyle: 'default', aiName: '', useFor: [] }));
 
   // Providers tab
   await win.keyboard.press('Control+,');
@@ -410,7 +428,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   assert.match(bstate.url, /\/login$/);
   step('agent browser'); await win.screenshot({ path: `${shots}/31-agent-browser.png` });
   const typed = await app.evaluate(async ({ webContents }) => { const wc = webContents.getAllWebContents().find((w) => /\/login$/.test(w.getURL())); return wc && wc.executeJavaScript('[document.querySelector("[name=user]").value, document.querySelector("[name=pw]").value]'); });
-  assert.deepStrictEqual(typed, ['lulu', ''], 'only the username was typed');
+  assert.deepStrictEqual(typed, ['lulu', ''], 'only the username was typed: ' + JSON.stringify(typed));
   // Plan + parallel sub-agents, shown in the session panel
   await win.fill('#prompt', 'Fais un dossier de veille');
   await win.keyboard.press('Enter');

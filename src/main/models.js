@@ -54,6 +54,7 @@ function fitFor(sizeGB, specs, moe = false) {
   return 'too-big';
 }
 
+const DEFAULT_MODEL = 'gemma-4-e4b';
 async function catalog() {
   const specs = await system.getSpecs();
   const installed = await listLocal();
@@ -69,7 +70,9 @@ async function catalog() {
   const usable = general.filter((m) => !m.blocked);
   const best = [...usable].sort((a, b) => rank[b.fit] - rank[a.fit] || b.sizeGB - a.sizeGB)
     .find((m) => m.fit === 'great' || m.fit === 'good') || usable[0] || null;
-  return { items, recommended: best && best.id, specs };
+  // Gemma 4 E4B is Fabro's default model whenever this computer can run it.
+  const def = usable.find((m) => m.id === DEFAULT_MODEL && m.fit !== 'too-big');
+  return { items, recommended: (def || best || {}).id || null, specs };
 }
 
 // ---- Hugging Face -------------------------------------------------------

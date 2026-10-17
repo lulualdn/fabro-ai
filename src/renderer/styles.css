@@ -1457,3 +1457,30 @@ html.reduce-motion::view-transition-group(*), html.reduce-motion::view-transitio
 .think-last { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; font-size: 13px; }
 .think.live[open] .think-last { display: none; }
 .msg.pending .think.live:not([open]) summary span { animation: shimmer 2.2s linear infinite; }
+
+/* onboarding: the propeller asks a few questions */
+.onb { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(14px); animation: rise .35s var(--ease) both; }
+.onb.out { opacity: 0; transform: scale(1.02); transition: opacity .35s, transform .35s; }
+.onb-card { position: relative; width: min(560px, calc(100vw - 32px)); display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; padding: 28px 8px 18px; }
+.onb-prop .logo { filter: drop-shadow(0 10px 30px color-mix(in srgb, var(--accent) 35%, transparent)); }
+.onb-prop.talking .logo { animation: onb-spin 1.1s linear infinite; }
+.onb-prop:not(.talking) .logo { animation: onb-spin 9s linear infinite; }
+@keyframes onb-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .onb-prop .logo { animation: none !important; } }
+.onb-bubble { position: relative; min-height: 64px; max-width: 480px; padding: 14px 18px; border-radius: 18px; background: var(--elev); border: 1px solid var(--border); font-size: 17px; line-height: 1.45; color: var(--text); font-family: var(--serif, inherit); }
+.onb-bubble::before { content: ''; position: absolute; top: -7px; left: 50%; width: 12px; height: 12px; background: var(--elev); border-left: 1px solid var(--border); border-top: 1px solid var(--border); transform: translateX(-50%) rotate(45deg); }
+.onb-ans { display: flex; flex-direction: column; align-items: center; gap: 12px; transition: opacity .25s; width: 100%; }
+.onb-form { display: flex; gap: 8px; width: min(380px, 100%); }
+.onb-form .input { flex: 1; height: 40px; font-size: 15px; }
+.onb-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.onb-chip { height: 36px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--border); background: var(--elev); color: var(--text-2); font-size: 14px; transition: background .15s, color .15s, border-color .15s; }
+.onb-chip:hover { background: var(--hover); color: var(--text); }
+.onb-chip.sel { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); color: var(--accent); }
+.onb-chip.ghost { height: 30px; font-size: 13px; background: none; }
+.onb-next { min-width: 140px; height: 40px; }
+.onb-dots { display: flex; gap: 6px; margin-top: 6px; }
+.onb-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: width .2s, background .2s; }
+.onb-dots i.done { background: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.onb-dots i.on { width: 18px; border-radius: 4px; background: var(--accent); }
+.onb-skip { position: absolute; top: 0; right: 4px; color: var(--muted); font-size: 13px; }
+.onb-skip:hover { color: var(--text); }

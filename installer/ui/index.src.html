@@ -300,7 +300,8 @@ function renderModels() {
   const rank = { great: 3, good: 2, ok: 1 };
   const ok = CATALOG.map((m) => ({ ...m, fit: fitFor(m, sp) })).filter((m) => m.fit);
   const best = [...ok].sort((a, b) => rank[b.fit] - rank[a.fit] || b.sizeGB - a.sizeGB);
-  const pick = [best.find((m) => m.fit === 'great' || m.fit === 'good') || best[0], ...best].filter(Boolean);
+  // Gemma 4 E4B by default when it runs here
+  const pick = [ok.find((m) => m.id === 'gemma-4-e4b'), best.find((m) => m.fit === 'great' || m.fit === 'good') || best[0], ...best].filter(Boolean);
   const list = [...new Map(pick.map((m) => [m.id, m])).values()].slice(0, 3);
   if (S.model === undefined) S.model = list[0] ? list[0].id : null;
   $('#mlist').innerHTML = list.map((m) => `<button class="mopt ${S.model === m.id ? 'sel' : ''}" data-m="${m.id}"><span class="dot"></span><span class="mt"><b>${m.name}</b><small>${m.tags} · ≈ ${m.sizeGB} GB</small></span><span class="fit ${m.fit === 'great' ? '' : 'ok'}">${t('fit_' + m.fit)}</span></button>`).join('')

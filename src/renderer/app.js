@@ -1371,4 +1371,5 @@ window.addEventListener('DOMContentLoaded', async function boot() {
   S.specs = await api.system.specs();
   S.catalog = await api.models.catalog();
   if (!allModels().length && S.mode === 'chat' && !S.conv) renderView();
+  if (needsOnboarding()) renderOnboarding();
 });
