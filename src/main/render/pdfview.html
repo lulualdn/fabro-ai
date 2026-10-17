@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>render</title></head>
+<body>
+<script type="module">
+// Renders PDF pages to images (pdf.js) and builds a contact sheet, so the AI can look at a document.
+import * as pdfjs from '../../../node_modules/pdfjs-dist/legacy/build/pdf.mjs';
+pdfjs.GlobalWorkerOptions.workerSrc = new URL('../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs', import.meta.url).href;
+window.renderPdf = async (b64, maxPages = 8, pageWidth = 520) => {
+  const bin = atob(b64); const data = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+  const doc = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
+  const n = doc.numPages, shown = Math.min(n, maxPages), pages = [], blank = [];
+  for (let i = 1; i <= shown; i++) {
+    const page = await doc.getPage(i);
+    const vp0 = page.getViewport({ scale: 1 }); const vp = page.getViewport({ scale: pageWidth / vp0.width });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: g, viewport: vp }).promise;
+    // nearly empty page?
+    const d = g.getImageData(0, 0, c.width, c.height).data; let ink = 0; for (let k = 0; k < d.length; k += 16) if (d[k] < 235 || d[k + 1] < 235 || d[k + 2] < 235) ink++;
+    if (ink / (d.length / 16) < 0.004) blank.push(i);
+    pages.push(c);
+  }
+  const cols = shown <= 1 ? 1 : shown <= 4 ? 2 : 3, gap = 16;
+  const W = cols * pageWidth + (cols + 1) * gap, rows = Math.ceil(shown / cols), H0 = Math.max(...pages.map((p) => p.height));
+  const sheet = document.createElement('canvas'); sheet.width = W; sheet.height = rows * (H0 + gap + 18) + gap;
+  const s = sheet.getContext('2d'); s.fillStyle = '#d9d6cf'; s.fillRect(0, 0, sheet.width, sheet.height);
+  s.font = '600 13px sans-serif'; s.fillStyle = '#333';
+  pages.forEach((p, i) => { const x = gap + (i % cols) * (pageWidth + gap), y = gap + Math.floor(i / cols) * (H0 + gap + 18); s.fillText(`Page ${i + 1}`, x, y + 12); s.drawImage(p, x, y + 18); });
+  return { pages: n, shown, blank, sheet: sheet.toDataURL('image/jpeg', 0.82), first: pages[0] ? pages[0].toDataURL('image/png') : null };
+};
+window.ready = true;
+</script>
+</body></html>

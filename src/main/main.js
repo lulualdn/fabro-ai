@@ -15,7 +15,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout');
 const browser = require('./agent/browser');
 const skills = require('./agent/skills');
 const python = require('./agent/python');
@@ -119,7 +119,7 @@ function registerIpc() {
   h('memory:clear', () => db.clearMemories());
   h('artifacts:list', () => db.listArtifacts());
   h('artifacts:get', (id) => db.getArtifact(id));
-  h('artifacts:save', (a) => db.saveArtifact(a));
+  h('artifacts:save', async (a) => { const saved = db.saveArtifact(a); if (saved && saved.pdf && saved.pdf.file) { try { await require('./agent/layout').buildPdf(db.getArtifact(saved.id), null); } catch (e) { console.error('pdf rebuild', e); } } return saved; });
   h('artifacts:delete', (id) => db.deleteArtifact(id));
   h('export:save', (o) => exporter.save(win, o));
   h('art:preview', (html) => exporter.setPreview(html));

@@ -349,3 +349,14 @@ function bindArtEditor() {
 }
 
 document.addEventListener('input', (e) => { if (e.target.id === 'art-q') { S.artQuery = e.target.value; const pos = e.target.selectionStart; renderView(); const n = $('#art-q'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } } });
+
+// The AI edited an artifact (edit_artifact): refresh it if it's open.
+{
+  const _onChatArt = onChatEvent;
+  onChatEvent = function (ev) {
+    _onChatArt(ev);
+    if (ev && ev.type === 'artifact_updated' && S.viewer && S.viewer.type === 'artifact' && S.viewer.id === ev.id && !S.viewer.editing) {
+      api.artifacts.get(ev.id).then((a) => { if (!a) return; S.artCache[a.id] = a; S.viewer.v = a.versions.length - 1; renderViewer(); }).catch(() => {});
+    }
+  };
+}
