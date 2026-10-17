@@ -27,6 +27,12 @@ const MAP = {
   pause: 'hero:pause', table: 'hero:table-cells', chart: 'hero:chart-bar', language: 'hero:language',
   shield: 'hero:shield-check', eye: 'hero:eye', eyeOff: 'hero:eye-slash', calendar: 'hero:calendar-days',
   archive: 'hero:archive-box', slides: 'hero:presentation-chart-bar', rocket: 'hero:rocket-launch',
+  git: 'ph:git-branch-fill', subagent: 'ph:users-three-fill', tree: 'ph:tree-structure-fill', tabs: 'ph:browsers-fill',
+  plug: 'ph:plugs-connected-fill', fileZip: 'ph:file-zip-fill', filePdf: 'ph:file-pdf-fill', fileDoc: 'ph:file-doc-fill',
+  fileXls: 'ph:file-xls-fill', filePpt: 'ph:file-ppt-fill', diff: 'ph:git-diff-fill', commit: 'ph:git-commit-fill',
+  pending: 'ph:circle-dashed-fill', done: 'ph:check-circle-fill', sparkle: 'ph:sparkle-fill', folderOpen: 'ph:folder-open-fill',
+  fileCode: 'ph:file-code-fill', bug: 'ph:bug-fill', flask: 'ph:flask-fill', plan: 'ph:list-checks-fill', home: 'ph:house-fill',
+  bulb: 'hero:light-bulb',
 };
 
 const out = {};

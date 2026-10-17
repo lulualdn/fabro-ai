@@ -91,4 +91,4 @@ agent.register({
   },
 });
 
-module.exports = { install, deps, installed };
+module.exports = { install, deps, installed, pyPath: pyBin };

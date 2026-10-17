@@ -15,11 +15,15 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan');
 const browser = require('./agent/browser');
 const skills = require('./agent/skills');
 const python = require('./agent/python');
 const mcp = require('./agent/mcp');
+const searxng = require('./searxng');
+const tools = require('./tools');
+const code = require('./code');
+const S = () => store.getSettings();
 exporter.registerScheme();
 
 let win = null;
@@ -168,8 +172,16 @@ function registerIpc() {
   h('browser:bounds', (b) => browser.setBounds(b));
   h('browser:control', (action, arg) => browser.control(action, arg));
   h('browser:state', () => browser.state());
-  h('deps:status', () => python.deps());
-  h('deps:install', async (dep) => { if (dep === 'python') return python.install((p) => send('deps:progress', { dep, p })); throw new Error('Unknown dependency'); });
+  h('deps:status', async () => ({ ...python.deps(), searxng: searxng.status(), git: (await code.deps()).git }));
+  h('deps:install', async (dep) => {
+    const prog = (p) => send('deps:progress', { dep, p });
+    if (dep === 'python') return python.install(prog);
+    if (dep === 'searxng') { const r = await searxng.install(prog); await store.setSettings({ search: { searxngDeclined: false } }); searxng.start(S().lang).catch(() => {}); return r; }
+    if (dep === 'git') return code.install(prog);
+    throw new Error('Unknown dependency');
+  });
+  h('deps:remove', (dep) => { if (dep === 'searxng') return searxng.remove(); throw new Error('Unknown dependency'); });
+  h('search:test', async (q) => tools.webSearch(q || 'Fabro AI', {}));
   h('mcp:view', () => mcp.view());
   h('mcp:add', (cfg) => mcp.add(cfg));
   h('mcp:remove', (id) => mcp.remove(id));
@@ -199,6 +211,9 @@ function registerIpc() {
 
 app.whenReady().then(async () => {
   store.init();
+  searxng.configure({ deps: process.env.FABRO_DEPS || path.join(app.getPath('userData'), 'deps'), python: async (prog) => { await python.install((p) => prog(p * 0.3)); return python.pyPath(); } });
+  // 0.1.9: SearXNG becomes the default search engine (DuckDuckGo stays the fallback).
+  if (!(S().search || {}).v2) await store.setSettings({ search: { engine: (S().search || {}).engine === 'duckduckgo' ? 'searxng' : (S().search || {}).engine, v2: true } });
   try { db.init(); } catch (e) { console.error('db init failed', e); }
   exporter.handleProtocol();
   await providers.migrate();
@@ -227,5 +242,5 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => { if (!isMac) app.quit(); });
 app.on('activate', () => { if (win) desktop.showMain(); else createWindow(); });
-app.on('before-quit', () => { engine.stop(); });
+app.on('before-quit', () => { engine.stop(); searxng.stop(); });
 app.on('will-quit', () => { engine.stop(); mcp.stopAll(); db.close(); });

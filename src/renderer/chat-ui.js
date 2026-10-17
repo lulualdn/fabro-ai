@@ -54,8 +54,14 @@ function branchNav(m) {
 const fav = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
 function renderSteps(m) {
   if (!m.steps || !m.steps.length) return '';
-  const items = m.steps.map((st) => {
+  const items = m.steps.filter((st) => !st.parent).map((st) => {
     if (!['web_search', 'fetch_url'].includes(st.name) && typeof renderAgentStep === 'function') return renderAgentStep(st, m);
+    return renderChatStep(st);
+  }).join('');
+  return `<div class="steps">${items}</div>`;
+}
+function renderChatStep(st) {
+  {
     const run = st.status === 'running';
     const ico = st.name === 'web_search' ? 'search' : 'globe';
     let label;
@@ -67,8 +73,7 @@ function renderSteps(m) {
       <span class="step-label">${esc(label)}${st.error ? ` — <em>${esc(st.error)}</em>` : ''}</span>
       ${srcs}
     </div>`;
-  }).join('');
-  return `<div class="steps">${items}</div>`;
+  }
 }
 // Sources the answer cited ([1], [2]) as chips under the text.
 function citedSources(m) {

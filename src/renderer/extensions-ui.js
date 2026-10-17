@@ -20,6 +20,10 @@ function agentTab() {
   const skills = S.skills || [];
   const py = (S.deps || {}).python || {};
   const add = S.mcpAdd;
+  const srch = S.settings.search || {}; const br = S.settings.browser || {}; const sx = (S.deps || {}).searxng || {};
+  const depBtn = (dep, ok) => ok ? `<span class="chip ok">${icon('check', 13)} ${esc(t('installed'))}</span>`
+    : S.depsBusy === dep ? `<span class="muted small">${spinner(14)} ${Math.round((S.depsP || 0) * 100)} %</span>`
+    : `<button class="btn sm" data-action="deps-now" data-dep="${dep}" ${S.depsBusy ? 'disabled' : ''}>${icon('download', 14)} ${esc(t('installDeps'))}</button>`;
   return `
     ${row(t('agentEnable'), toggle('agent.enabled', ag.enabled !== false), t('agentEnableHint'))}
     <div class="st-sec">${esc(t('agFolders'))}<span class="grow"></span><button class="btn sm" data-action="ag-folder-add">${icon('plus', 14)} ${esc(t('libAdd'))}</button></div>
@@ -33,7 +37,24 @@ function agentTab() {
 
     <div class="st-sec">${esc(t('agDeps'))}</div>
     <div class="lib-row"><div class="m-ico">${icon('code', 17)}</div><div class="m-text"><b>Python 3.12</b><small>${esc(py.installed ? t('depsInstalled') : t('depsPython', { n: py.sizeMB || 32 }))}</small></div>
-      ${py.installed ? `<span class="chip ok">${icon('check', 13)} ${esc(t('installed'))}</span>` : S.depsBusy ? `<span class="muted small">${spinner(14)} ${Math.round((S.depsP || 0) * 100)} %</span>` : `<button class="btn sm" data-action="deps-now" data-dep="python">${icon('download', 14)} ${esc(t('installDeps'))}</button>`}</div>
+      ${depBtn('python', py.installed)}</div>
+    <div class="lib-row"><div class="m-ico">${icon('git', 17)}</div><div class="m-text"><b>Git</b><small>${esc(t('depsGit'))}</small></div>${depBtn('git', (S.deps || {}).git)}</div>
+
+    <div class="st-sec">${esc(t('srchTitle'))}</div>
+    <p class="muted small st-intro">${esc(t('srchHint'))}</p>
+    ${row(t('srchEngine'), `<select class="input" data-input="search.engine">${[['searxng', 'SearXNG'], ['duckduckgo', 'DuckDuckGo'], ['brave', 'Brave Search'], ['ducky', 'Ducky']].map(([v, l]) => `<option value="${v}" ${(srch.engine || 'searxng') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
+    ${(srch.engine || 'searxng') === 'searxng' ? `
+      <div class="lib-row"><div class="m-ico">${icon('search', 17)}</div><div class="m-text"><b>${esc(t('srchManaged'))}</b><small>${esc(sx.installed ? (sx.running ? t('srchRunning', { p: sx.port }) : t('srchStopped')) : t('srchNotInstalled'))}</small></div>
+        ${sx.installed ? `<button class="btn sm" data-action="deps-rm" data-dep="searxng">${icon('trash', 14)}</button><span class="chip ok">${icon('check', 13)} ${esc(t('installed'))}</span>` : depBtn('searxng', false)}</div>
+      ${row(t('srchOwnUrl'), `<input class="input mono" data-input="search.searxngUrl" value="${esc(srch.searxngUrl || '')}" placeholder="https://searx.example.org">`, t('srchOwnUrlHint'))}` : ''}
+    ${srch.engine === 'ducky' ? row('Ducky URL', `<input class="input mono" data-input="search.duckyUrl" value="${esc(srch.duckyUrl || '')}" placeholder="https://…/api/search?q={q}">`) : ''}
+    <div class="st-row"><div class="st-label"><span>${esc(t('srchTest'))}</span>${S.srchTest ? `<small>${esc(S.srchTest)}</small>` : ''}</div><div class="st-control"><button class="btn sm" data-action="srch-test">${S.srchTesting ? spinner(14) : icon('search', 14)} ${esc(t('srchTestGo'))}</button></div></div>
+
+    <div class="st-sec">${esc(t('brTitle'))}</div>
+    ${row(t('brAds'), toggle('browser.blockAds', br.blockAds !== false), t('brAdsHint'))}
+    ${row(t('brConsent'), toggle('browser.autoConsent', br.autoConsent !== false), t('brConsentHint'))}
+    ${row(t('brClear'), `<button class="btn sm" data-action="br-clear">${icon('trash', 14)} ${esc(t('brClearGo'))}</button>`, t('brClearHint'))}
+    ${row(t('subagents'), toggle('agent.subagents', ag.subagents !== false), t('subagentsHint'))}
 
     <div class="st-sec">${esc(t('mcpTitle'))}<span class="grow"></span>
       <button class="btn sm" data-action="mcp-claude">${icon('download', 14)} ${esc(t('mcpImport'))}</button>
@@ -71,7 +92,15 @@ const parseCmd = (s) => (String(s).match(/"[^"]*"|'[^']*'|\S+/g) || []).map((x) 
 Object.assign(actions, {
   'ag-folder-add': async () => { const f = await api.agent.addFolder(); if (f) { S.settings = await api.settings.get(); renderSettings(); } },
   'ag-folder-rm': async (el) => { await api.agent.removeFolder(el.dataset.f); S.settings = await api.settings.get(); renderSettings(); },
-  'deps-now': async (el) => { S.depsBusy = true; S.depsP = 0; renderSettings(); try { await api.deps.install(el.dataset.dep); toast(t('depsDone')); } catch (e) { toast(cleanErr(e), 'err'); } S.depsBusy = false; S.deps = await api.deps.status(); renderSettings(); },
+  'deps-rm': async (el) => { await api.deps.remove(el.dataset.dep); S.deps = await api.deps.status(); renderSettings(); },
+  'srch-test': async () => {
+    S.srchTesting = true; S.srchTest = ''; renderSettings();
+    const t0 = Date.now();
+    try { const r = await api.search.test('Fabro AI'); S.srchTest = t('srchTestOk', { n: r.results.length, e: r.engine, ms: Date.now() - t0 }); } catch (e) { S.srchTest = cleanErr(e); }
+    S.srchTesting = false; S.deps = await api.deps.status(); renderSettings();
+  },
+  'br-clear': async () => { await api.browser.control('clear'); toast(t('brCleared')); },
+  'deps-now': async (el) => { S.depsBusy = el.dataset.dep; S.depsP = 0; renderSettings(); try { await api.deps.install(el.dataset.dep); toast(t('depsDone')); } catch (e) { toast(cleanErr(e), 'err'); } S.depsBusy = false; S.deps = await api.deps.status(); renderSettings(); },
   'mcp-add-open': () => { S.mcpAdd = { type: 'stdio' }; S.mcpErr = ''; renderSettings(); },
   'mcp-add-close': () => { S.mcpAdd = null; renderSettings(); },
   'mcp-type': (el) => { S.mcpAdd.type = el.dataset.v; renderSettings(); },

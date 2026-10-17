@@ -2,7 +2,7 @@
 /* Agent mode UI: automatic switch, tool steps (files, terminal, browser, documents, Python, MCP, skills),
    permission cards, on-demand dependencies, and the workspace panel with the live browser. */
 
-const AGENT_ICONS = { files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle' };
+const AGENT_ICONS = { files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git' };
 const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p;
 function catOf(name) {
   if (name.startsWith('mcp__')) return 'mcp';
@@ -12,8 +12,12 @@ function catOf(name) {
   if (name === 'create_document') return 'documents';
   if (name === 'run_python') return 'python';
   if (name === 'load_skill') return 'skills';
+  if (name === 'update_plan') return 'plan';
+  if (name === 'run_subagent') return 'subagent';
+  if (name.startsWith('git_')) return 'git';
   return 'mcp';
 }
+const state0 = () => S.browser || {};
 function stepLabel(st) {
   const a = st.args || {}, v = st.view || {}, run = st.status === 'running' || st.status === 'asking';
   const k = (key, vars) => t((run ? 'ag_run_' : 'ag_done_') + key, vars);
@@ -29,6 +33,17 @@ function stepLabel(st) {
     case 'run_python': return k('py');
     case 'load_skill': return k('skill', { n: a.name || '' });
     case 'browser_open': return k('open', { u: fav(a.url || '') });
+    case 'browser_search': return k('bsearch', { q: a.query || '' });
+    case 'browser_extract': return k('extract', { p: v.title || fav(state0().url || '') });
+    case 'browser_find': return k('find', { q: a.text || '' });
+    case 'browser_select': return k('select', { o: a.option || '' });
+    case 'browser_wait': return k('wait');
+    case 'browser_tabs': return k('tabs');
+    case 'update_plan': { const st0 = a.steps || []; return t('ag_plan', { d: st0.filter((x) => x.status === 'done').length, n: st0.length }); }
+    case 'run_subagent': return k('sub', { d: a.description || '' });
+    case 'git_status': return k('gitstatus');
+    case 'git_diff': return k('gitdiff');
+    case 'git_commit': return k('gitcommit', { m: String(a.message || '').split('\n')[0].slice(0, 60) });
     case 'browser_read': return k('readpage');
     case 'browser_click': return k('click', { l: v.label || `#${a.id ?? ''}` });
     case 'browser_type': return k('type', { l: v.label || `#${a.id}` });
@@ -86,9 +101,21 @@ function stepDetail(st) {
       ${v.artifactId ? `<button class="icon-btn sm" data-action="art-open" data-id="${esc(v.artifactId)}" title="${esc(t('artEdit'))}">${icon('edit', 15)}</button>` : ''}</div>`;
   }
   if (st.name === 'browser_screenshot' && v.image) return `<img class="step-img" src="${v.image}" alt="">`;
+  if (st.name === 'browser_search' && v.sources && v.sources.length) return `<div class="st-srcs">${v.sources.slice(0, 8).map((s, i) => `<a class="src" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.snippet || s.title)}"><b>${i + 1}</b><span>${esc(s.title)}</span><small>${esc(fav(s.url))}</small></a>`).join('')}</div>`;
   return '';
 }
+// A sub-agent: its own steps nested under it, then its report (collapsed).
+function subagentBlock(st, m) {
+  const kids = (m.steps || []).filter((x) => x.parent === st.id);
+  const run = st.status === 'running' || st.status === 'asking' || kids.some((k) => k.status === 'asking');
+  const v = st.view || {};
+  const open = run || kids.some((k) => k.status === 'asking');
+  return `<details class="sub-block" ${open ? 'open' : ''}><summary>${esc(t((run ? 'sub_working' : 'sub_steps') + (kids.length === 1 ? '_1' : ''), { n: kids.length }))}${v.tokens ? ` · ${v.tokens} tokens` : ''}</summary>
+    <div class="sub-steps">${kids.map((k) => renderAgentStep(k, m)).join('')}${run && st.subText ? `<div class="sub-live">${esc(st.subText.slice(-400))}</div>` : ''}</div>
+    ${v.report ? `<div class="sub-report md">${md(v.report, 'sub-' + st.id)}</div>` : ''}</details>`;
+}
 function renderAgentStep(st, m) {
+  if (st.name === 'web_search' || st.name === 'fetch_url') return renderChatStep(st);
   const cat = catOf(st.name);
   const run = st.status === 'running';
   const ico = st.status === 'error' ? icon('warning', 14) : st.status === 'refused' ? icon('x', 14) : run ? spinner(14) : icon(AGENT_ICONS[cat] || 'puzzle', 14);
@@ -97,7 +124,7 @@ function renderAgentStep(st, m) {
     <span class="step-label">${esc(stepLabel(st))}${st.status === 'refused' ? ` — <em>${esc(t('ag_refused'))}</em>` : ''}${st.error ? ` — <em>${esc(st.error)}</em>` : ''}</span>
     ${st.status === 'asking' && st.perm ? permCard(st, m) : ''}
     ${st.deps ? depsCard(st) : ''}
-    <div class="step-detail">${stepDetail(st)}</div>
+    ${st.name === 'run_subagent' ? subagentBlock(st, m) : `<div class="step-detail">${stepDetail(st)}</div>`}
   </div>`;
 }
 
@@ -109,7 +136,7 @@ function onAgentEvent(ev, m) {
       m.agent = true;
       if (S.conv) { S.conv.agent = true; }
       renderTopbar(); toast(t('agentOn'));
-      if (S.settings.agentPanel !== false) openWorkspace();
+      if (S.settings.agentPanel !== false) { S.spOpen = true; renderSessionPanel(); }
       break;
     case 'tools_info': m.toolsInfo = { count: ev.count, tokens: ev.tokens }; break;
     case 'permission':
@@ -119,11 +146,18 @@ function onAgentEvent(ev, m) {
     case 'deps_needed': if (st) st.deps = { dep: ev.dep }; break;
     case 'tool_progress': if (st) st.live = ((st.live || '') + ev.text).slice(-20000); break;
     case 'retract': m.content = (m.content || '').replace(ev.text, ''); break;
+    case 'plan': if (!ev.sub) { m.plan = ev.steps; S.sp = S.sp || {}; renderSessionPanel(); } break;
+    case 'sub_token': { const p = (m.steps || []).find((x) => x.id === ev.parent); if (p) p.subText = ((p.subText || '') + ev.text).slice(-2000); break; }
   }
   if (ev.type !== 'tools_info') scheduleStreamRender();
+  if (['permission', 'agent_switch'].includes(ev.type)) renderSessionPanel();
 }
 api.on('browser:focus', () => { if (S.viewer && S.viewer.type === 'agent') { S.viewer.tab = 'browser'; renderViewer(); } else openWorkspace('browser'); });
-api.on('browser:state', (st) => { S.browser = st; const bar = $('#ab-url'); if (bar && document.activeElement !== bar) bar.value = st.url || ''; const t0 = $('.ab-title'); if (t0) t0.textContent = st.title || ''; const ctl = $('.ab-control'); if (ctl) ctl.classList.toggle('on', !!st.userControl); });
+api.on('browser:state', (st) => {
+  const sig = (x) => JSON.stringify(((x || {}).tabs || []).map((q) => [q.id, q.title, q.active, q.loading]));
+  const changed = sig(S.browser) !== sig(st);
+  S.browser = st;
+  if (changed && S.viewer && S.viewer.type === 'agent' && S.viewer.tab === 'browser') { const tb = $('.ab-tabs'); if (tb || (st.tabs || []).length) { renderViewer(); return; } } const bar = $('#ab-url'); if (bar && document.activeElement !== bar) bar.value = st.url || ''; const t0 = $('.ab-title'); if (t0) t0.textContent = st.title || ''; const ctl = $('.ab-control'); if (ctl) ctl.classList.toggle('on', !!st.userControl); });
 api.on('browser:blocked', (b) => toast(t('ag_dl_blocked', { f: b.file || '' })));
 api.on('deps:progress', ({ dep, p }) => {
   for (const m of (S.conv && S.conv.messages) || []) for (const st of m.steps || []) if (st.deps && st.deps.dep === dep && st.deps.installing) st.deps.p = p;
@@ -143,10 +177,12 @@ function workspaceView() {
   if (tab === 'files') body = filesT.length ? `<div class="ws-files">${[...new Map(filesT.map((s) => [s.view.path, s])).values()].map((s) => `<div class="file-chip" data-action="reveal-path" data-path="${esc(s.view.path)}">${icon('file', 13)}<span>${esc(s.view.path)}</span><small>${esc(t('ws_kind_' + s.name))}</small></div>`).join('')}</div>` : `<div class="empty-note">${esc(t('ws_nofiles'))}</div>`;
   if (tab === 'browser') {
     const b = S.browser || {};
-    body = `<div class="ab-bar">
+    const tabsHtml = (b.tabs || []).length ? `<div class="ab-tabs">${b.tabs.map((x) => `<button class="ab-tab ${x.active ? 'on' : ''}" data-action="ab-tab" data-id="${x.id}" title="${esc(x.url)}">${x.loading ? spinner(11) : icon('globe', 12)}<span>${esc(x.title || fav(x.url) || t('ab_newtab'))}</span><i class="x" data-action="ab-tab-close" data-id="${x.id}">${icon('x', 11)}</i></button>`).join('')}<button class="ab-tab-new" data-action="ab" data-a="newtab" title="${esc(t('ab_newtab'))}">${icon('plus', 14)}</button></div>` : '';
+    body = `${tabsHtml}<div class="ab-bar">
         <button class="icon-btn sm" data-action="ab" data-a="back" title="${esc(t('back'))}">${icon('back', 15)}</button>
         <button class="icon-btn sm" data-action="ab" data-a="forward" title="${esc(t('forward'))}">${icon('forward', 15)}</button>
         <button class="icon-btn sm" data-action="ab" data-a="reload" title="${esc(t('refresh'))}">${icon('refresh', 15)}</button>
+        <button class="icon-btn sm" data-action="ab" data-a="home" title="${esc(t('ab_home'))}">${icon('home', 15)}</button>
         <form class="ab-form" data-form="ab-go"><input id="ab-url" name="u" value="${esc(b.url || '')}" placeholder="${esc(t('ab_placeholder'))}" spellcheck="false"></form>
         <button class="ab-control ${b.userControl ? 'on' : ''}" data-action="ab-control" title="${esc(t('ab_control_hint'))}">${icon('user', 14)}<span>${esc(b.userControl ? t('ab_giveback') : t('ab_take'))}</span></button>
       </div>
@@ -194,7 +230,9 @@ Object.assign(actions, {
   'deps-skip': (el) => { const m = S.streaming && S.streaming.msg; const st = m && m.steps.find((x) => x.id === el.dataset.id); if (st) st.deps = null; api.chat.answer(S.streaming.reqId, el.dataset.id, false); },
   'ws-tab': (el) => { S.viewer.tab = el.dataset.tab; renderViewer(); },
   'open-workspace': () => openWorkspace(),
-  'ab': (el) => api.browser.control(el.dataset.a),
+  'ab': async (el) => { S.browser = await api.browser.control(el.dataset.a); if (el.dataset.a === 'newtab') renderViewer(); },
+  'ab-tab': async (el, e) => { if (e && e.target.closest('[data-action=ab-tab-close]')) return; S.browser = await api.browser.control('tab', el.dataset.id); renderViewer(); },
+  'ab-tab-close': async (el) => { S.browser = await api.browser.control('closetab', el.dataset.id); renderViewer(); },
   'ab-control': async () => { S.browser = await api.browser.control(S.browser && S.browser.userControl ? 'release' : 'take'); renderViewer(); },
   'reveal-path': (el) => api.shell.reveal(el.dataset.path),
   'open-path': (el) => api.shell.openPath(el.dataset.path),

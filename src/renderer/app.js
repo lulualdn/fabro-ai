@@ -282,8 +282,10 @@ function renderTopbar() {
     </div>
     <div class="tb-right">
       ${S.updater.state === 'ready' ? `<button class="chip accent upd-chip" data-action="upd-open">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
+      ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="icon-btn ${S.spOpen !== false ? 'on' : ''}" data-action="sp-toggle" title="${esc(t('sp_title'))}">${icon('plan', 18)}</button>` : ''}
       ${S.settings.sidebarCollapsed ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
     </div>`;
+  if (typeof renderSessionPanel === 'function') renderSessionPanel();
 }
 
 // ───────────────────────────── Update dialog ─────────────────────────────
@@ -320,10 +322,12 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#moda
 // Animated view swap (View Transitions API, falls back to an instant swap).
 function vt(fn, opts) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!document.startViewTransition || reduce) { fn(); return null; }
+  if (!document.startViewTransition || reduce || document.hidden) { fn(); return null; }
   if (opts && opts.kind) document.documentElement.dataset.vt = opts.kind;
   const t = document.startViewTransition(fn);
-  t.finished.finally(() => { delete document.documentElement.dataset.vt; });
+  // A skipped transition (window hidden, tray) rejects these promises: that is not an error.
+  t.ready.catch(() => {}); t.updateCallbackDone.catch(() => {});
+  t.finished.catch(() => {}).finally(() => { delete document.documentElement.dataset.vt; });
   return t;
 }
 
@@ -935,7 +939,7 @@ function finishStream() {
   // drop "retry" button from previous assistant messages
   refreshComposer();
   persist();
-  if (m) { afterAnswer(m); saveArtifactsFrom(m).catch(() => {}); }
+  if (m) { afterAnswer(m); saveArtifactsFrom(m).catch(() => {}).then(() => renderSessionPanel()); }
 }
 
 function onChatEvent(ev) {
@@ -945,9 +949,9 @@ function onChatEvent(ev) {
     case 'status': m.status = ev.status; scheduleStreamRender(); break;
     case 'reasoning': if (!m.thinkStart) m.thinkStart = Date.now(); m.reasoning += ev.text; scheduleStreamRender(); break;
     case 'token': if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now(); m.content += ev.text; scheduleStreamRender(); break;
-    case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running' }); scheduleStreamRender(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab === 'steps') renderViewer(); break;
-    case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; st.error = ev.error; st.perm = null; st.deps = null; if (st.view && st.view.out == null && st.live) st.view.out = st.live; delete st.live; } scheduleStreamRender(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab !== 'browser') renderViewer(); break; }
-    case 'agent_switch': case 'tools_info': case 'permission': case 'deps_needed': case 'tool_progress': case 'retract': onAgentEvent(ev, m); break;
+    case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running', parent: ev.parent, t0: Date.now() }); scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab === 'steps') renderViewer(); break;
+    case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; st.error = ev.error; st.perm = null; st.deps = null; if (st.view && st.view.out == null && st.live) st.view.out = st.live; delete st.live; delete st.subText; } scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab !== 'browser') renderViewer(); break; }
+    case 'agent_switch': case 'tools_info': case 'permission': case 'deps_needed': case 'tool_progress': case 'retract': case 'plan': case 'sub_token': onAgentEvent(ev, m); break;
     case 'tool_round': if (m.content && !/\n\n$/.test(m.content)) m.content += '\n\n'; break;
     case 'done': m.stats = ev.stats; finishStream(); break;
     case 'error': m.error = ev.message; m.errorCode = ev.code; m.errorDetail = ev.detail; finishStream(); break;
@@ -1041,7 +1045,8 @@ const actions = {
       const x = e.clientX || innerWidth / 2, y = e.clientY || innerHeight / 2;
       const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
       const t = vt(() => applySetting('theme', v), { kind: 'theme' });
-      await t.ready;
+      if (!t) return;
+      try { await t.ready; } catch { return; }
       document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
         { duration: 650, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' });
       return;

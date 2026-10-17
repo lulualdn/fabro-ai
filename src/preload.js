@@ -28,7 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   chat: { send: i('chat:send'), abort: i('chat:abort'), answer: i('chat:answer') },
   agent: { tools: i('agent:tools'), policy: i('agent:policy'), addFolder: i('agent:addFolder'), removeFolder: i('agent:removeFolder') },
   browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
-  deps: { status: i('deps:status'), install: i('deps:install') },
+  deps: { status: i('deps:status'), install: i('deps:install'), remove: i('deps:remove') },
+  search: { test: i('search:test') },
   mcp: { view: i('mcp:view'), add: i('mcp:add'), remove: i('mcp:remove'), toggle: i('mcp:toggle'), signIn: i('mcp:signin'), reconnect: i('mcp:reconnect'), claudeConfig: i('mcp:claudeConfig'), importClaude: i('mcp:importClaude') },
   skills: { list: i('skills:list'), toggle: i('skills:toggle'), create: i('skills:create'), openFolder: i('skills:openFolder') },
   providers: {

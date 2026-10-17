@@ -11,7 +11,7 @@ Module._load = function (req, ...r) {
 process.env.HOME = tmp; process.env.USERPROFILE = tmp;
 const store = require('../src/main/store'); store.init();
 const providers = require('../src/main/providers'); const chat = require('../src/main/chat');
-require('../src/main/agent/files'); require('../src/main/agent/shell');
+require('../src/main/agent/files'); require('../src/main/agent/shell'); require('../src/main/agent/plan');
 const agent = require('../src/main/agent');
 
 // Scripted model: each request returns the next step depending on what tools already ran.
@@ -20,6 +20,26 @@ const srv = http.createServer((req, res) => {
   let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
     if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'm' }] }));
     const body = JSON.parse(b);
+    if (mode === 'sub') {
+      const sys = body.messages[0].content || ''; const doneN = body.messages.filter((m) => m.role === 'tool').length;
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      const w = (d) => res.write(`data: ${JSON.stringify({ choices: [{ delta: d }] })}\n\n`);
+      if (/sub-agent working for the main/.test(sys)) {
+        subSeen.push({ tools: (body.tools || []).map((t) => t.function.name), task: body.messages[1].content });
+        if (doneN === 0) w({ tool_calls: [{ index: 0, id: 's0', function: { name: 'list_dir', arguments: JSON.stringify({ path: work }) } }] });
+        else w({ content: `Rapport: ${body.messages[1].content} ok` });
+      } else if (doneN === 0) {
+        w({ tool_calls: [
+          { index: 0, id: 'p0', function: { name: 'update_plan', arguments: JSON.stringify({ steps: [{ title: 'Explorer', status: 'in_progress' }, { title: 'Résumer', status: 'pending' }] }) } },
+        ] });
+      } else if (doneN === 1) {
+        w({ tool_calls: [
+          { index: 0, id: 'a', function: { name: 'run_subagent', arguments: JSON.stringify({ description: 'Lister A', task: 'tâche A' }) } },
+          { index: 1, id: 'b', function: { name: 'run_subagent', arguments: JSON.stringify({ description: 'Lister B', task: 'tâche B' }) } },
+        ] });
+      } else w({ content: 'Fini: ' + body.messages.filter((m) => m.role === 'tool').map((m) => m.content).join(' | ') });
+      return res.end('data: [DONE]\n\n');
+    }
     if (mode === 'fallback' && body.tools) { res.writeHead(400); return res.end(JSON.stringify({ error: { message: 'this model does not support tools' } })); }
     const done = body.messages.filter((m) => m.role === 'tool' || /^Tool result/.test(m.content || '')).length;
     const sys = body.messages[0].content;
@@ -38,7 +58,7 @@ const srv = http.createServer((req, res) => {
     res.end('data: [DONE]\n\n');
   });
 });
-const seen = [];
+const seen = []; const subSeen = [];
 function run(payload, answers) {
   return new Promise((resolve) => {
     const ev = [];
@@ -94,6 +114,21 @@ function run(payload, answers) {
   assert.ok(ev.some((e) => e.type === 'retract'), 'tool_call text retracted from the answer');
   assert.ok(fs.existsSync(path.join(work, 'resume.md')), 'fallback tool call executed');
   assert.ok(ev.find((e) => e.type === 'done').stats.noTools);
+
+  // Plan + parallel sub-agents: nested runs, steps forwarded under the parent call, reports returned.
+  mode = 'sub';
+  ev = await run({ reqId: 'a4', model: ref, messages: [{ role: 'user', content: 'go' }], params: { agentMode: true, agentPrompt: 'AGENT' }, meta: { convId: 'c-sub' } }, () => 'once');
+  const plan = ev.find((e) => e.type === 'plan');
+  assert.ok(plan && plan.steps.length === 2 && plan.steps[0].status === 'in_progress', 'plan event');
+  assert.strictEqual(subSeen.length, 4, 'two sub-agents, two requests each');
+  assert.ok(!subSeen[0].tools.includes('run_subagent'), 'sub-agents cannot spawn sub-agents');
+  assert.ok(subSeen[0].tools.includes('list_dir'));
+  const fwd = ev.filter((e) => e.type === 'tool_start' && e.parent);
+  assert.strictEqual(fwd.length, 2); assert.ok(fwd.every((e) => /^(a|b)~s0$/.test(e.id)), 'sub steps forwarded with parent ids');
+  const subEnds = ev.filter((e) => e.type === 'tool_end' && e.name === 'run_subagent');
+  assert.strictEqual(subEnds.length, 2); assert.match(subEnds[0].view.report, /Rapport: tâche/);
+  assert.match(ev.filter((e) => e.type === 'token').map((e) => e.text).join(''), /Fini: Plan updated.*Rapport: tâche A ok \| Rapport: tâche B ok/);
+  assert.ok(ev.every((e) => e.reqId === 'a4'), 'all events carry the parent reqId');
   console.log('agent-test: all passed');
   srv.close(); process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

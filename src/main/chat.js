@@ -31,6 +31,7 @@ function needDeps(reqId, callId, dep, out, signal) {
 }
 function answer(reqId, callId, value) { const k = `${reqId}:${callId}`; const r = waiting.get(k); if (r) { waiting.delete(k); r(value); } return !!r; }
 
+const SUB_NOTE = `\n\nYou are a sub-agent working for the main Fabro agent, not talking to the user. Do the task you were given with your tools, without asking questions (decide reasonably and note assumptions). Finish with a concise, complete report of what you found or did — files you created (full paths), key facts with sources, anything left undone. That report is all the main agent will see.`;
 function agentSystem(base) {
   const os = require('os');
   const folders = ((store.getSettings().agent || {}).folders || []);
@@ -227,9 +228,10 @@ async function completeAnthropic(be, messages, params, signal, acc, tools) {
 }
 
 // ───────────────────────────── main entry ─────────────────────────────
-async function send({ reqId, model, messages, params = {}, meta = {} }, emit) {
+async function send({ reqId, model, messages, params = {}, meta = {} }, emit, parent = null) {
   const ctrl = new AbortController();
   active.set(reqId, ctrl);
+  if (parent) parent.signal.addEventListener('abort', () => ctrl.abort(), { once: true });
   const out = (ev) => emit({ reqId, ...ev });
   const t0 = Date.now();
   let tFirst = null, chars = 0;
@@ -249,26 +251,70 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit) {
     let agentMode = !!params.agentMode;
     const buildTools = () => {
       const chatT = tools.schemas(params.tools || []);
-      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: userText, used: params.usedTools || [] }).map(agent.schema);
+      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: userText, used: params.usedTools || [], sub: !!parent }).map(agent.schema);
       return [...chatT, ...agentT];
     };
     let toolSchemas = buildTools();
     out({ type: 'tools_info', count: toolSchemas.length, tokens: agent.estTokens(toolSchemas) });
     const msgs = messages.slice();
     const setSystem = (text) => { const sys = msgs.find((m) => m.role === 'system'); if (sys) sys.content = text; else msgs.unshift({ role: 'system', content: text }); };
-    if (agentMode && params.agentPrompt) setSystem(agentSystem(params.agentPrompt));
+    if (parent) setSystem(agentSystem(params.agentPrompt || 'You are Fabro, an AI agent running on the user\'s computer.') + SUB_NOTE);
+    else if (agentMode && params.agentPrompt) setSystem(agentSystem(params.agentPrompt));
     const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
-    const ctxBase = { emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn) };
+    const ctxBase = { emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
+    let subN = 0;
+    // A sub-agent: a nested run with a fresh context. Its steps are forwarded to the UI under the parent
+    // call, its permission prompts go through this run (same reqId) so the user answers them in place.
+    const spawnSub = (callId) => async ({ description, task }) => {
+      const subId = `${reqId}/s${++subN}`;
+      const steps = []; let text = ''; let err = null; let tokens = 0;
+      const pid = (id) => `${callId}~${id}`;
+      await send({ reqId: subId, model, messages: [{ role: 'system', content: '' }, { role: 'user', content: task }],
+        params: { ...params, agentMode: true, usedTools: [], maxTokens: params.maxTokens }, meta: { ...meta, modelLabel: meta.modelLabel } },
+        (ev) => {
+          if (ev.type === 'token') { text += ev.text; out({ type: 'sub_token', parent: callId, text: ev.text }); }
+          else if (ev.type === 'retract') text = text.replace(ev.text, '');
+          else if (ev.type === 'tool_round') text = '';
+          else if (['tool_start', 'tool_end', 'tool_progress'].includes(ev.type)) {
+            if (ev.type === 'tool_start') steps.push(ev.name);
+            const { reqId: _r, ...rest } = ev; out({ ...rest, id: pid(ev.id), parent: callId });
+          } else if (ev.type === 'plan') out({ type: 'plan', steps: ev.steps, sub: callId });
+          else if (ev.type === 'done') tokens = (ev.stats && ev.stats.completionTokens) || 0;
+          else if (ev.type === 'error') err = ev.message;
+        },
+        { signal: ctrl.signal, callId, ask: (id, req) => ask(reqId, pid(id), req, out, ctrl.signal), needDeps: (id, dep) => needDeps(reqId, pid(id), dep, out, ctrl.signal), grants: convGrants.get(gkey), description });
+      if (ctrl.signal.aborted) throw Object.assign(new Error('aborted'), { code: 'ABORTED' });
+      return { text: text.trim() || (err ? `Sub-agent failed: ${err}` : ''), steps: steps.length, tokens, error: err };
+    };
+    const runAgentTool = (c, args) => {
+      const ctx = parent
+        ? { ...ctxBase, callId: c.id, ask: (req) => parent.ask(c.id, req), needDeps: (dep) => parent.needDeps(c.id, dep) }
+        : { ...ctxBase, callId: c.id, ask: (req) => ask(reqId, c.id, req, out, ctrl.signal), needDeps: (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal), spawnSub: spawnSub(c.id) };
+      return agent.execute({ name: c.name, args }, ctx);
+    };
     let steps = 0;
-    const maxSteps = () => (agentMode ? 40 : 12);
+    const maxSteps = () => (parent ? 30 : agentMode ? 60 : 12);
     for (;;) {
       const r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas);
       if (!r.toolCalls.length || steps >= maxSteps()) break;
       steps++;
       msgs.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' } })) });
+      // Sub-agent calls of the same turn run in parallel; everything else runs in order.
+      const subCalls = r.toolCalls.filter((c) => c.name === 'run_subagent' && !parent);
+      const pre = new Map();
+      if (subCalls.length > 1) {
+        if (!agentMode) { agentMode = true; out({ type: 'agent_switch', tool: 'run_subagent' }); if (params.agentPrompt) setSystem(agentSystem(params.agentPrompt)); }
+        await Promise.all(subCalls.map(async (c) => {
+          let args = {}; try { args = JSON.parse(c.args || '{}'); } catch {}
+          out({ type: 'tool_start', id: c.id, name: c.name, args, agent: true });
+          try { const res = await runAgentTool(c, args); pre.set(c.id, res); out({ type: 'tool_end', id: c.id, name: c.name, view: res.view, refused: res.refused }); }
+          catch (e) { if (ctrl.signal.aborted) throw e; pre.set(c.id, { content: `Error: ${e.message}` }); out({ type: 'tool_end', id: c.id, name: c.name, error: e.message, code: e.code }); }
+        }));
+      }
       for (const c of r.toolCalls) {
+        if (pre.has(c.id)) { msgs.push({ role: 'tool', tool_call_id: c.id, content: pre.get(c.id).content }); continue; }
         let args = {}; try { args = JSON.parse(c.args || '{}'); } catch {}
         // Calling any tool other than search / fetch / image switches the conversation to agent mode.
         if (!agentMode && agent.isAgentTool(c.name) && params.agent !== false) {
@@ -281,10 +327,9 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit) {
         try {
           if (tools.CHAT_TOOLS[c.name]) {
             if (!(params.tools || []).includes(c.name)) throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
-            result = await tools.run(c.name, args);
+            result = await tools.run(c.name, args, { needDeps: parent ? (dep) => parent.needDeps(c.id, dep) : (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) });
           } else if (agent.get(c.name) && params.agent !== false) {
-            const ctx = { ...ctxBase, callId: c.id, ask: (req) => ask(reqId, c.id, req, out, ctrl.signal), needDeps: (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) };
-            result = await agent.execute({ name: c.name, args }, ctx);
+            result = await runAgentTool(c, args);
           } else throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
           out({ type: 'tool_end', id: c.id, name: c.name, view: result.view, refused: result.refused });
         } catch (e) {

@@ -2,13 +2,18 @@
 // (Using any other tool switches the conversation to agent mode — see agent runtime.)
 const store = require('./store');
 const providers = require('./providers');
+const searxng = require('./searxng');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36 Fabro';
 
 const CHAT_TOOLS = {
   web_search: {
     description: 'Search the web for current information. Use it for news, prices, recent events, facts you are unsure about, or anything after your training data. Returns numbered results; cite them as [1], [2].',
-    parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query, in the language most likely to find good results' } }, required: ['query'] },
+    parameters: { type: 'object', properties: {
+      query: { type: 'string', description: 'Search query, in the language most likely to find good results' },
+      category: { type: 'string', enum: ['general', 'news', 'science', 'it', 'images', 'videos'], description: 'Optional: news for current events, it for programming, science for papers' },
+      time_range: { type: 'string', enum: ['day', 'week', 'month', 'year'], description: 'Optional: only recent results' },
+    }, required: ['query'] },
   },
   fetch_url: {
     description: 'Read a web page or call a public JSON API (GET). Returns the readable text or JSON. Use it to open a search result or a URL the user gave.',
@@ -80,18 +85,28 @@ async function ducky(query, base) {
   return list.slice(0, 8).map((x) => ({ title: x.title || x.name || x.url, url: x.url || x.link || x.href, snippet: x.snippet || x.description || x.body || '' })).filter((x) => x.url);
 }
 
-async function webSearch(query) {
+async function webSearch(query, ctx = {}, opts = {}) {
   const s = store.getSettings().search || {};
-  const engine = s.engine || 'duckduckgo';
-  let results;
+  let engine = s.engine || 'searxng';
+  let results, extra = {};
+  // SearXNG (default): the private instance is installed on demand, the first time it's needed.
+  if (engine === 'searxng' && !s.searxngUrl && !searxng.installed()) {
+    let ok = false;
+    if (ctx.needDeps && !s.searxngDeclined) {
+      ok = await ctx.needDeps('searxng');
+      if (!ok) await store.setSettings({ search: { searxngDeclined: true } });
+    }
+    if (!ok || !searxng.installed()) engine = 'duckduckgo';
+  }
   try {
-    results = engine === 'brave' ? await brave(query, providers.getKey('search:brave'))
+    if (engine === 'searxng') { const r = await searxng.search(query, s, { lang: opts.lang, category: opts.category, time: opts.time, page: opts.page }); results = r.results; extra = { answers: r.answers, infobox: r.infobox, suggestions: r.suggestions, pageUrl: r.pageUrl }; }
+    else results = engine === 'brave' ? await brave(query, providers.getKey('search:brave'))
       : engine === 'ducky' ? await ducky(query, s.duckyUrl)
       : await duckduckgo(query);
   } catch (e) {
-    if (engine !== 'duckduckgo') { results = await duckduckgo(query); } else throw e;
+    if (engine !== 'duckduckgo') { results = await duckduckgo(query); engine = 'duckduckgo'; extra = {}; } else throw e;
   }
-  return { engine, results };
+  return { engine, results, ...extra };
 }
 
 async function fetchUrl(url) {
@@ -114,12 +129,22 @@ async function fetchUrl(url) {
 }
 
 // Runs one tool call. Returns { content (for the model), view (for the UI) }.
-async function run(name, args) {
+function formatResults(r) {
+  const head = [
+    ...(r.answers || []).map((a) => `Direct answer: ${a}`),
+    r.infobox ? `Infobox — ${r.infobox.title}: ${r.infobox.text}${r.infobox.url ? ` (${r.infobox.url})` : ''}` : '',
+  ].filter(Boolean).join('\n');
+  const body = r.results.map((x, i) => `[${i + 1}] ${x.title}${x.date ? ` (${String(x.date).slice(0, 10)})` : ''}\n${x.url}\n${x.snippet}`).join('\n\n');
+  return r.results.length || head
+    ? `${head ? head + '\n\n' : ''}${body}\n\nCite sources as [n]. Open a result with fetch_url if the snippet is not enough.${(r.suggestions || []).length ? `\nRelated searches: ${r.suggestions.join(' · ')}` : ''}`
+    : 'No results.';
+}
+
+async function run(name, args, ctx = {}) {
   if (name === 'web_search') {
-    const { engine, results } = await webSearch(String(args.query || '').slice(0, 300));
-    const content = results.length
-      ? results.map((x, i) => `[${i + 1}] ${x.title}\n${x.url}\n${x.snippet}`).join('\n\n') + '\n\nCite sources as [n]. Open a result with fetch_url if the snippet is not enough.'
-      : 'No results.';
+    const r = await webSearch(String(args.query || '').slice(0, 300), ctx, { category: args.category, time: args.time_range });
+    const { engine, results } = r;
+    const content = formatResults(r);
     return { content, view: { kind: 'search', query: args.query, engine, sources: results.map((x) => ({ title: x.title, url: x.url, snippet: x.snippet })) } };
   }
   if (name === 'fetch_url') {
@@ -129,4 +154,4 @@ async function run(name, args) {
   throw Object.assign(new Error(`Unknown tool ${name}`), { code: 'UNKNOWN_TOOL' });
 }
 
-module.exports = { CHAT_TOOLS, schemas, run, htmlToText, duckduckgo, fetchUrl };
+module.exports = { CHAT_TOOLS, schemas, run, htmlToText, duckduckgo, fetchUrl, webSearch, formatResults };

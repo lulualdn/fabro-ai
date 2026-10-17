@@ -24,7 +24,7 @@ const DEFAULTS = {
   trayHintShown: false,
   hotkey: { enabled: true, accelerator: 'Control+Super+Space', copilotKey: true },
   quickTarget: 'current',      // quick bar: 'current' conversation or 'new'
-  search: { engine: 'duckduckgo', duckyUrl: '' },   // web search tool
+  search: { engine: 'searxng', searxngUrl: '', duckyUrl: '', searxngDeclined: false, v2: true },   // web search tool (SearXNG by default)
   chatTools: { webSearch: true, fetch: true },     // tools allowed in chat mode
   memory: { enabled: true, auto: true },           // use / generate memories
   styles: [], activeStyle: 'default',              // response styles (built-in + learned)

@@ -27,6 +27,18 @@ const srv = http.createServer((req, res) => {
       // ── agent scripts ──
       const toolsDone = body.messages.filter((m) => m.role === 'tool');
       const call1 = (name, args) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 't' + toolsDone.length, function: { name, arguments: JSON.stringify(args) } }] } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
+      const callN = (calls) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: calls.map(([name, args], i) => ({ index: i, id: `m${toolsDone.length}-${i}`, function: { name, arguments: JSON.stringify(args) } })) } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
+      if (/sub-agent working for the main/.test(sys)) {
+        if (toolsDone.length === 0) return call1('web_search', { query: ut });
+        return setTimeout(() => one(`Rapport sur « ${ut} » : Fabro est une app d’IA locale [1].`), 600);
+      }
+      if (/dossier de veille/i.test(ut)) {
+        const P = (a, b, c) => ({ steps: [{ title: 'Répartir les recherches', status: a }, { title: 'Chercher en parallèle', status: b }, { title: 'Rédiger la synthèse', status: c }] });
+        if (toolsDone.length === 0) return call1('update_plan', P('done', 'in_progress', 'pending'));
+        if (toolsDone.length === 1) return callN([['run_subagent', { description: 'Veille moteurs locaux', task: 'moteurs locaux' }], ['run_subagent', { description: 'Veille interfaces', task: 'interfaces' }]]);
+        if (toolsDone.length === 3) return call1('update_plan', P('done', 'done', 'done'));
+        return one('Synthèse : deux sous-agents ont couvert les moteurs locaux et les interfaces.');
+      }
       if (/range mon dossier/i.test(ut)) {
         if (toolsDone.length === 0) return call1('write_file', { path: path.join(agentDir, 'resume.md'), content: '# Résumé\nTout est rangé.' });
         if (toolsDone.length === 1) return call1('create_document', { format: 'docx', title: 'Rapport Fabro', content: '# Rapport\n\nTout va **bien**.\n\n- un\n- deux', folder: agentDir });
@@ -88,7 +100,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   const app = await electron.launch({ executablePath: require('electron'), args: [path.join(__dirname, '..'), `--user-data-dir=${userData}`, '--no-sandbox'], env: { ...process.env, FABRO_E2E: '1' } });
   const errors = [];
   const win = await app.firstWindow();
-  global.__fail = async () => { try { await win.screenshot({ path: `${shots}/FAIL.png` }); console.log('page errors:', errors, await win.evaluate(() => (document.querySelector('.pf-error') || {}).textContent)); } catch {} };
+  global.__fail = async () => { try { await win.screenshot({ path: `${shots}/FAIL.png` }); console.log('page errors:', errors, await win.evaluate(() => (document.querySelector('.pf-error') || {}).textContent)); console.log('last steps:', JSON.stringify(await win.evaluate(() => S.conv && S.conv.messages.at(-1) && { c: S.conv.messages.at(-1).content, e: S.conv.messages.at(-1).error, steps: (S.conv.messages.at(-1).steps || []).map((s) => [s.id, s.name, s.status, s.error]) }))); } catch {} };
   app.process().stdout.on('data', (d) => process.env.E2E_VERBOSE && process.stdout.write(d));
   app.process().stderr.on('data', (d) => { const s = String(d); if (/Error|error:/.test(s) && !/ERROR:|dbus|Gtk|libva|viz|gpu/i.test(s)) console.log('[main]', s.trim().slice(0, 400)); });
   win.on('pageerror', (e) => errors.push('main: ' + e.message));
@@ -353,12 +365,31 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   step('agent browser'); await win.screenshot({ path: `${shots}/31-agent-browser.png` });
   const typed = await app.evaluate(async ({ webContents }) => { const wc = webContents.getAllWebContents().find((w) => /\/login$/.test(w.getURL())); return wc && wc.executeJavaScript('[document.querySelector("[name=user]").value, document.querySelector("[name=pw]").value]'); });
   assert.deepStrictEqual(typed, ['lulu', ''], 'only the username was typed');
+  // Plan + parallel sub-agents, shown in the session panel
+  await win.fill('#prompt', 'Fais un dossier de veille');
+  await win.keyboard.press('Enter');
+  await win.click('[data-action=viewer-close]').catch(() => {});
+  await win.waitForSelector('.sub-block', { timeout: 15000 });
+  await win.waitForTimeout(250);
+  step('subagents running'); await win.screenshot({ path: `${shots}/31b-subagents.png` });
+  await win.waitForFunction(() => /Synthèse/.test(S.conv.messages.at(-1).content || '') && !document.querySelector('.msg.assistant.pending'), null, { timeout: 25000 });
+  await win.click('[data-action=viewer-close]').catch(() => {});
+  await win.waitForTimeout(400);
+  const sp = await win.evaluate(() => ({ plan: [...document.querySelectorAll('.sp-plan li')].map((l) => l.className), used: [...document.querySelectorAll('.sp-used span')].map((x) => x.textContent) }));
+  assert.ok(sp.plan.filter((c) => c === 'done').length >= 1 && !sp.plan.includes('in_progress'), 'plan finished in the panel: ' + JSON.stringify(sp));
+  assert.ok(sp.used.includes('Sous-agents') && sp.used.includes('Recherche web'), 'used list: ' + JSON.stringify(sp.used));
+  const subSteps = await win.evaluate(() => S.conv.messages.at(-1).steps.filter((s) => s.parent).length);
+  assert.strictEqual(subSteps, 2, 'each sub-agent searched once');
+  step('subagents done'); await win.screenshot({ path: `${shots}/31c-subagents-done.png` });
   // MCP: a local stdio server, its tools become agent tools
   await win.evaluate((p) => api.mcp.add({ name: 'echo', command: 'node', args: [p] }), path.join(__dirname, 'fixtures', 'mcp-echo.js'));
   await win.keyboard.press('Control+,');
   await win.click('.st-tab[data-tab=agent]');
   await win.waitForSelector('.mcp-st.st-ready', { timeout: 10000 });
   step('agent settings'); await win.screenshot({ path: `${shots}/32-agent-settings.png` });
+  await win.evaluate(() => document.querySelector('[data-input="search.engine"]').scrollIntoView({ block: 'start' }));
+  await win.waitForTimeout(200);
+  await win.screenshot({ path: `${shots}/32b-search-settings.png` });
   await win.click('[data-action=close-settings]');
   await win.fill('#prompt', 'Additionne 2 et 40 avec l’outil echo');
   await win.keyboard.press('Enter');

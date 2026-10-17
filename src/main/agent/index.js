@@ -16,10 +16,11 @@ function schema(t) { return { type: 'function', function: { name: t.name, descri
 const estTokens = (schemas) => Math.round(JSON.stringify(schemas).length / 3.6);
 
 // Pick the tools worth sending: core tools always, others when the conversation is about them.
-function select({ agentMode, text = '', used = [] }) {
+function select({ agentMode, text = '', used = [], sub = false }) {
   const s = store.getSettings().agent || {};
   if (s.enabled === false) return [];
   const disabled = new Set(s.disabledTools || []);
+  if (sub || s.subagents === false) disabled.add('run_subagent');
   const q = String(text).toLowerCase();
   const usedCats = new Set(used.map((n) => (registry.get(n) || {}).category).filter(Boolean));
   const picked = all().filter((t) => {
