@@ -48,6 +48,14 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get('Content-Length', '0')); body = self.rfile.read(n)
         try:
+            if self.path.startswith('/transcribe'):
+                # any audio/video file on disk (mp3, m4a, ogg, mp4…): faster-whisper decodes it with PyAV
+                j = json.loads(body or b'{}'); t0 = time.time()
+                with _stt_lock:
+                    m = stt_model(j.get('model', 'base'))
+                    segs, info = m.transcribe(j['path'], language=j.get('lang') or None, beam_size=1, vad_filter=True)
+                    out = [{'start': round(s.start, 2), 'end': round(s.end, 2), 'text': s.text.strip()} for s in segs]
+                return self._json(200, {'segments': out, 'text': ' '.join(x['text'] for x in out), 'language': info.language, 'duration': round(info.duration, 1), 'ms': int((time.time() - t0) * 1000)})
             if self.path.startswith('/stt'):
                 from urllib.parse import urlparse, parse_qs
                 q = parse_qs(urlparse(self.path).query)

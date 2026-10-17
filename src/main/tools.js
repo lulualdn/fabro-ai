@@ -176,13 +176,20 @@ async function showOnScene(a, ctx) {
   return { content: `Now showing on screen: ${items.map((x) => x.title || x.type).join(' · ')}. Talk about it naturally; don't read URLs aloud.`, view: { kind: 'scene', items } };
 }
 
+// Search results are numbered across the whole answer ([1]…[5] then [6]…), so citations stay unambiguous.
+function searchResult(r, query, ctx = {}) {
+  const off = ctx.src ? ctx.src.n : 0;
+  if (ctx.src) ctx.src.n += r.results.length;
+  return { content: formatResults(r, off), view: { kind: 'search', query, engine: r.engine, offset: off, sources: r.results.map((x) => ({ title: x.title, url: x.url, snippet: x.snippet })) } };
+}
+
 // Runs one tool call. Returns { content (for the model), view (for the UI) }.
-function formatResults(r) {
+function formatResults(r, off = 0) {
   const head = [
     ...(r.answers || []).map((a) => `Direct answer: ${a}`),
     r.infobox ? `Infobox — ${r.infobox.title}: ${r.infobox.text}${r.infobox.url ? ` (${r.infobox.url})` : ''}` : '',
   ].filter(Boolean).join('\n');
-  const body = r.results.map((x, i) => `[${i + 1}] ${x.title}${x.date ? ` (${String(x.date).slice(0, 10)})` : ''}\n${x.url}\n${x.snippet}`).join('\n\n');
+  const body = r.results.map((x, i) => `[${off + i + 1}] ${x.title}${x.date ? ` (${String(x.date).slice(0, 10)})` : ''}\n${x.url}\n${x.snippet}`).join('\n\n');
   return r.results.length || head
     ? `${head ? head + '\n\n' : ''}${body}\n\nCite sources as [n]. Open a result with fetch_url if the snippet is not enough.${(r.suggestions || []).length ? `\nRelated searches: ${r.suggestions.join(' · ')}` : ''}`
     : 'No results.';
@@ -191,9 +198,7 @@ function formatResults(r) {
 async function run(name, args, ctx = {}) {
   if (name === 'web_search') {
     const r = await webSearch(String(args.query || '').slice(0, 300), ctx, { category: args.category, time: args.time_range });
-    const { engine, results } = r;
-    const content = formatResults(r);
-    return { content, view: { kind: 'search', query: args.query, engine, sources: results.map((x) => ({ title: x.title, url: x.url, snippet: x.snippet })) } };
+    return searchResult(r, args.query, ctx);
   }
   if (name === 'show_on_scene') return showOnScene(args, ctx);
   if (name === 'generate_image') {
@@ -219,4 +224,4 @@ async function run(name, args, ctx = {}) {
   throw Object.assign(new Error(`Unknown tool ${name}`), { code: 'UNKNOWN_TOOL' });
 }
 
-module.exports = { CHAT_TOOLS, schemas, run, htmlToText, duckduckgo, fetchUrl, webSearch, formatResults };
+module.exports = { CHAT_TOOLS, schemas, run, htmlToText, duckduckgo, fetchUrl, webSearch, formatResults, searchResult };

@@ -59,6 +59,13 @@ function codeSection(c) {
 }
 
 const active = new Map();
+const injected = new Map(); // reqId → precisions typed by the user while the answer is being generated
+function inject(reqId, text) { if (!active.has(reqId) || !text) return false; const q = injected.get(reqId) || []; q.push(String(text)); injected.set(reqId, q); return true; }
+const takeInjected = (reqId, out) => {
+  const q = injected.get(reqId); if (!q || !q.length) return null; injected.delete(reqId);
+  out({ type: 'precision_used', count: q.length });
+  return { role: 'user', content: `[Précision ajoutée par l'utilisateur pendant ta réponse — prends-la en compte pour la suite, sans recommencer ce qui est déjà fait ni t'interrompre]\n${q.join('\n')}` };
+};
 
 async function resolveBackend(ref, emit) {
   const s = store.getSettings();
@@ -378,7 +385,8 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
-    const ctxBase = { emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
+    const src = { n: 0 };
+    const ctxBase = { src, emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
     if (codeCtx) {
       ctxBase.projectRoot = codeCtx.root;
       ctxBase.checkpoint = parent && parent.checkpoint ? parent.checkpoint : (p, before) => { if (!(p in cpFiles)) cpFiles[p] = before; };
@@ -420,6 +428,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     // Runtime guards: a model that gives up, claims work it didn't do, or stops mid-plan is sent back to work.
     const turnTools = []; let lastError = null; let lastPlan = null; let nudges = 0; const guardUsed = {}; const failCount = new Map();
     for (;;) {
+      if (!parent) { const pm = takeInjected(reqId, out); if (pm) msgs.push(pm); }
       compact(msgs, toolSchemas, be);
       let r;
       try { r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas); }
@@ -435,6 +444,12 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas);
       }
       if (!r.toolCalls.length) {
+        // The user added a precision while this answer was streaming: one more round so the model can address it.
+        if (!parent && !ctrl.signal.aborted && (injected.get(reqId) || []).length && (acc.precisionRounds = (acc.precisionRounds || 0) + 1) <= 3) {
+          if (r.content) msgs.push({ role: 'assistant', content: r.content });
+          out({ type: 'precision_round' });
+          continue;
+        }
         const nudge = nudges < 3 && !ctrl.signal.aborted && !(acc.noTools && !acc.fallback) && steps < maxSteps()
           ? prompts.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText }) : null;
         if (!nudge) break;
@@ -476,7 +491,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           if (badArgs) { const sc = toolSchemas.find((x) => x.function.name === c.name); throw Object.assign(new Error(`Your arguments for ${c.name} were not valid JSON (${badArgs}). Call it again with a JSON object matching: ${JSON.stringify((sc && sc.function.parameters) || {}).slice(0, 800)}`), { code: 'BAD_ARGS' }); }
           if (tools.CHAT_TOOLS[c.name]) {
             if (!(params.tools || []).includes(c.name)) throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
-            result = await tools.run(c.name, args, { emit: out, callId: c.id, signal: ctrl.signal, project: meta.project, needDeps: parent ? (dep) => parent.needDeps(c.id, dep) : (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) });
+            result = await tools.run(c.name, args, { src, emit: out, callId: c.id, signal: ctrl.signal, project: meta.project, needDeps: parent ? (dep) => parent.needDeps(c.id, dep) : (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) });
           } else if (agent.get(c.name) && params.agent !== false) {
             result = await runAgentTool(c, args);
           } else throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
@@ -524,7 +539,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       out({ type: 'error', message: e.message, code, detail: e.detail || '' });
     }
   } finally {
-    active.delete(reqId);
+    active.delete(reqId); injected.delete(reqId);
     if (be && be.inst) engine.release(be.inst);
     flushCp(); // Code mode: this turn's checkpoint (files as they were before the agent changed them)
   }
@@ -544,4 +559,4 @@ function quick(model, messages, params = {}) {
 
 function abort(reqId) { const c = active.get(reqId); if (c) c.abort(); return true; }
 
-module.exports = { send, abort, quick, answer, toAnthropic, parseToolCalls };
+module.exports = { send, abort, inject, quick, answer, toAnthropic, parseToolCalls };

@@ -40,6 +40,12 @@ const srv = http.createServer((req, res) => {
         if (toolsDone.length === 0) return call1('web_search', { query: ut });
         return setTimeout(() => one(`Rapport sur « ${ut} » : Fabro est une app d’IA locale [1].`), 600);
       }
+      if (/compare deux moteurs/i.test(body.messages.filter((m) => m.role === 'user').map((m) => typeof m.content === 'string' ? m.content : '').join(' '))) {
+        if (toolsDone.length === 0) return call1('web_search', { query: 'moteur a' });
+        if (toolsDone.length === 1) return setTimeout(() => call1('web_search', { query: 'moteur b' }), 1500);
+        const prec = body.messages.some((m) => m.role === 'user' && /Précision ajoutée/.test(String(m.content)));
+        return one(`Les deux moteurs diffèrent [1, ${toolsDone[0].content.match(/\[(\d+)\]/g).length + 1}].${prec ? ' (précision reçue : en français)' : ''}`);
+      }
       if (/dossier de veille/i.test(ut)) {
         const P = (a, b, c) => ({ steps: [{ title: 'Répartir les recherches', status: a }, { title: 'Chercher en parallèle', status: b }, { title: 'Rédiger la synthèse', status: c }] });
         if (toolsDone.length === 0) return call1('update_plan', P('done', 'in_progress', 'pending'));
@@ -249,6 +255,27 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   assert.ok(await win.$('.step.done .src'), 'search step with sources');
   assert.ok(await win.$('.cites .cite'), 'cited sources');
   await win.waitForFunction(() => S.conv && S.conv.title === 'Test de Fabro', null, { timeout: 8000 });
+  // several searches: numbering runs on, citations become links, tools fold into one summary; a precision mid-answer
+  const searchConv = await win.evaluate(() => S.conv.id);
+  await win.click('[data-action=new-chat]'); await win.waitForTimeout(300);
+  await win.fill('#prompt', 'Compare deux moteurs **vite**');
+  await win.keyboard.press('Enter');
+  await win.waitForFunction(() => S.streaming && (S.streaming.msg.steps || [])[0]?.status === 'done', null, { timeout: 15000 });
+  await win.fill('#prompt', 'Réponds en français');
+  assert.equal(await win.getAttribute('#send-btn', 'data-action'), 'inject', 'typing while answering offers a precision');
+  await win.keyboard.press('Enter');
+  await win.waitForFunction(() => /précision reçue/.test(document.querySelector('.msg.assistant .a-body > .md')?.textContent || '') && !document.querySelector('.msg.assistant.pending'), null, { timeout: 15000 });
+  await win.waitForTimeout(300);
+  assert.ok(await win.$('.msg.user .u-md strong'), 'user markdown');
+  assert.ok(await win.$('.precision.used'), 'precision shown as taken into account');
+  assert.match(await win.textContent('.steps-sum summary'), /2 fois/i, 'tools summary');
+  assert.equal((await win.$$('.md a.cit')).length, 2, 'inline citation links');
+  assert.ok(await win.evaluate(() => S.conv.messages.at(-1).steps[1].view.offset > 0), 'numbering continues across searches');
+  assert.ok((await win.$$('.cites .cite')).length >= 1 && /Sources cit/.test(await win.textContent('.cites-h')), 'cited sources listed (deduplicated)');
+  step('summary + citations + precision'); await win.screenshot({ path: `${shots}/17b-cites.png` });
+  await win.click('.steps-sum summary'); await win.waitForTimeout(200);
+  await win.screenshot({ path: `${shots}/17c-steps-open.png` });
+  await win.evaluate((id) => openConv(id), searchConv); await win.waitForTimeout(500);
   await win.waitForFunction(() => (S.memories || []).some((m) => /profondeur/.test(m.text)), null, { timeout: 8000 });
   // edit → branch
   await win.hover('.msg.user');

@@ -52,36 +52,111 @@ function branchNav(m) {
 
 // ───────────────────────────── Tool steps ─────────────────────────────
 const fav = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+const STEP_KIND = {
+  search: ['web_search', 'browser_search', 'search_files'],
+  read: ['fetch_url', 'browser_open', 'browser_read', 'browser_extract', 'read_file', 'read_artifact', 'list_dir', 'convert_file', 'pdf_find_text', 'inspect_document'],
+  create: ['write_file', 'create_document', 'create_pdf', 'generate_image', 'generate_speech', 'import_files', 'browser_download_images'],
+  edit: ['edit_file', 'edit_artifact', 'pdf_edit', 'delete_file'],
+  cmd: ['run_command', 'run_python', 'browser_script'],
+  web: ['browser_click', 'browser_type', 'browser_select', 'browser_key', 'browser_scroll', 'browser_wait', 'browser_tabs', 'browser_zoom', 'browser_screenshot', 'browser_back', 'browser_find'],
+  sub: ['run_subagent'],
+  skip: ['update_plan', 'load_skill', 'wait'],
+};
+const kindOf = (name) => Object.keys(STEP_KIND).find((k) => STEP_KIND[k].includes(name)) || 'other';
+// "Recherché 2 fois, lu 3 documents, exécuté 6 commandes"
+function stepsSummary(list) {
+  const n = {};
+  for (const st of list) { const k = kindOf(st.name); if (k !== 'skip') n[k] = (n[k] || 0) + 1; }
+  const parts = ['search', 'read', 'create', 'edit', 'cmd', 'web', 'sub', 'other'].filter((k) => n[k]).map((k) => t(`sum_${k}${n[k] === 1 ? '1' : 'n'}`, { n: n[k] }));
+  const txt = parts.join(', ');
+  return txt ? txt[0].toUpperCase() + txt.slice(1) : '';
+}
 function renderSteps(m) {
   if (!m.steps || !m.steps.length) return '';
-  const items = m.steps.filter((st) => !st.parent).map((st) => {
-    if (!['web_search', 'fetch_url'].includes(st.name) && typeof renderAgentStep === 'function') return renderAgentStep(st, m);
-    return renderChatStep(st);
-  }).join('');
-  return `<div class="steps">${items}</div>`;
+  const top = m.steps.filter((st) => !st.parent);
+  const counted = top.filter((st) => kindOf(st.name) !== 'skip');
+  const fold = counted.length >= 2;
+  const outs = fold && !m.pending && typeof stepOutputs === 'function' ? stepOutputs(top) : '';
+  if (outs) STEP_NO_OUT = true;
+  let items;
+  try {
+    items = top.map((st) => {
+      if (!['web_search', 'fetch_url'].includes(st.name) && typeof renderAgentStep === 'function') return renderAgentStep(st, m);
+      return renderChatStep(st);
+    }).join('');
+  } finally { STEP_NO_OUT = false; }
+  if (!fold) return `<div class="steps">${items}</div>`;
+  const running = top.some((st) => st.status === 'running');
+  const errs = top.filter((st) => st.status === 'error').length;
+  // several tools → one collapsible summary line (open while working, folded once done)
+  return `<details class="steps-sum" data-id="${m.id}" ${m.pending ? 'open' : ''}>
+    <summary>${running ? spinner(13) : icon('check', 13)}<span>${esc(stepsSummary(top))}</span>${errs ? `<em>${esc(t(errs === 1 ? 'sum_err1' : 'sum_errn', { n: errs }))}</em>` : ''}${icon('right', 12, 'sum-chev')}</summary>
+    <div class="steps">${items}</div>
+  </details>${outs ? `<div class="steps-outs">${outs}</div>` : ''}`;
 }
+const srcChips = (v) => `<div class="st-srcs">${v.sources.slice(0, 8).map((s, i) => `<a class="src" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.snippet || s.title)}"><b>${(v.offset || 0) + i + 1}</b><span>${esc(s.title)}</span><small>${esc(fav(s.url))}</small></a>`).join('')}</div>`;
 function renderChatStep(st) {
-  {
-    const run = st.status === 'running';
-    const ico = st.name === 'web_search' ? 'search' : 'globe';
-    let label;
-    if (st.name === 'web_search') label = run ? t('stepSearching', { q: st.args.query || '' }) : t('stepSearched', { q: st.args.query || '', n: (st.view && st.view.sources || []).length });
-    else label = run ? t('stepReading', { u: fav(st.args.url || '') }) : t('stepRead', { u: (st.view && st.view.title) || fav(st.args.url || '') });
-    const srcs = st.view && st.view.sources && st.view.sources.length ? `<div class="st-srcs">${st.view.sources.slice(0, 8).map((s, i) => `<a class="src" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.snippet || s.title)}"><b>${i + 1}</b><span>${esc(s.title)}</span><small>${esc(fav(s.url))}</small></a>`).join('')}</div>` : '';
-    return `<div class="step ${st.status}">
+  const run = st.status === 'running';
+  const ico = st.name === 'web_search' ? 'search' : 'globe';
+  let label;
+  if (st.name === 'web_search') label = run ? t('stepSearching', { q: st.args.query || '' }) : t('stepSearched', { q: st.args.query || '', n: (st.view && st.view.sources || []).length });
+  else label = run ? t('stepReading', { u: fav(st.args.url || '') }) : t('stepRead', { u: (st.view && st.view.title) || fav(st.args.url || '') });
+  const srcs = st.view && st.view.sources && st.view.sources.length ? srcChips(st.view) : '';
+  return `<div class="step ${st.status}">
       <span class="step-ico">${run ? spinner(14) : st.status === 'error' ? icon('warning', 14) : icon(ico, 14)}</span>
       <span class="step-label">${esc(label)}${st.error ? ` — <em>${esc(st.error)}</em>` : ''}</span>
       ${srcs}
     </div>`;
-  }
 }
-// Sources the answer cited ([1], [2]) as chips under the text.
+// number → source, over this answer's searches (numbers run on across searches; old messages restart at 1 each time)
+function sourceMap(m) {
+  const map = new Map(); let run = 0;
+  for (const st of (m.steps || []).filter((x) => !x.parent)) {
+    const v = st.view; if (!v || !v.sources || !v.sources.length) continue;
+    const off = v.offset != null ? v.offset : run;
+    v.sources.forEach((s, i) => { if (!map.has(off + i + 1)) map.set(off + i + 1, s); });
+    run = Math.max(run, off + v.sources.length);
+  }
+  return map;
+}
+const citeNums = (inner) => inner.split(/\s*[,;]\s*|\s*\]\s*\[\s*/).flatMap((p) => { const r = p.match(/^(\d{1,3})\s*[-–]\s*(\d{1,3})$/); if (r) { const out = []; for (let k = +r[1]; k <= +r[2] && out.length < 12; k++) out.push(k); return out; } return /^\d{1,3}$/.test(p) ? [+p] : []; });
+// Turns [1], [1, 3, 4], [2][5] in the rendered answer into small linked badges (never inside code or links).
+function linkCitations(html, map) {
+  if (!map || !map.size || !/\[\d/.test(html)) return html;
+  const tpl = document.createElement('template'); tpl.innerHTML = html;
+  const walker = document.createTreeWalker(tpl.content, NodeFilter.SHOW_TEXT);
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    if (!/\[\d/.test(node.nodeValue) || node.parentElement && node.parentElement.closest('code, pre, a')) continue;
+    const re = /\[(\d{1,3}(?:\s*(?:[,;–-]|\]\s*\[)\s*\d{1,3})*)\]/g;
+    const txt = node.nodeValue; let last = 0, mm, changed = false; const frag = document.createDocumentFragment();
+    while ((mm = re.exec(txt))) {
+      const nums = citeNums(mm[1]).filter((k) => map.has(k));
+      if (!nums.length) continue;
+      changed = true;
+      frag.append(txt.slice(last, mm.index));
+      const sup = document.createElement('span'); sup.className = 'cit-group';
+      for (const k of [...new Set(nums)]) {
+        const s = map.get(k); const a = document.createElement('a');
+        a.className = 'cit'; a.href = s.url; a.dataset.action = 'ext-link'; a.title = `${s.title} — ${fav(s.url)}`; a.textContent = k;
+        sup.append(a);
+      }
+      frag.append(sup); last = mm.index + mm[0].length;
+    }
+    if (!changed) continue;
+    frag.append(txt.slice(last)); node.replaceWith(frag);
+  }
+  return tpl.innerHTML;
+}
+// Sources the answer cited as a list under the text (all of them, deduplicated); the first few when nothing is cited.
 function citedSources(m) {
-  const all = (m.steps || []).flatMap((s) => (s.view && s.view.sources) || []);
-  if (!all.length || m.pending) return '';
-  const cited = [...new Set([...(m.content || '').matchAll(/\[(\d{1,2})\]/g)].map((x) => +x[1]))].filter((n) => all[n - 1]);
-  const list = (cited.length ? cited.map((n) => [n, all[n - 1]]) : all.slice(0, 4).map((s, i) => [i + 1, s]));
-  return `<div class="cites">${list.map(([n, s]) => `<a class="cite" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.title)}"><b>${n}</b>${esc(fav(s.url))}</a>`).join('')}</div>`;
+  if (m.pending) return '';
+  const map = sourceMap(m);
+  if (!map.size) return '';
+  const cited = [...new Set([...(m.content || '').matchAll(/\[(\d{1,3}(?:\s*(?:[,;–-]|\]\s*\[)\s*\d{1,3})*)\]/g)].flatMap((x) => citeNums(x[1])))].filter((k) => map.has(k)).sort((a, b) => a - b);
+  const seen = new Set(); const list = [];
+  for (const k of cited.length ? cited : [...map.keys()].slice(0, 4)) { const s = map.get(k); if (seen.has(s.url)) continue; seen.add(s.url); list.push([k, s]); }
+  return `<div class="cites"><span class="cites-h">${esc(t(cited.length ? 'sourcesCited' : 'sourcesTop'))}</span>${list.map(([n, s]) => `<a class="cite" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.snippet || s.url)}"><b>${n}</b><span class="c-t">${esc(s.title || fav(s.url))}</span><small>${esc(fav(s.url))}</small></a>`).join('')}</div>`;
 }
 
 // ───────────────────────────── Composer options ─────────────────────────────

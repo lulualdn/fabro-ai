@@ -62,6 +62,32 @@ fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpda
   const p = await run('wait', { seconds: 0.5 }); assert.match(p.content, /Waited/);
   srv.close();
   console.log('• browser tools with selectors, wait, element screenshot, image download: ok');
+  // files: ingest (copy + first look), convert, find text, edit keeping the layout, look at one page
+  const ing = await app.evaluate(async (_e, { root, file }) => process.mainModule.require(root + '/src/main/agent/filetools.js').ingest({ path: file }), { root: path.join(__dirname, '..'), file });
+  assert.ok(/Workspace/.test(ing.path) && ing.pages === 2 && /Rapport annuel 2026/.test(ing.text) && /^data:image\/png/.test(ing.thumb), 'attachment ingested with text and thumbnail');
+  const conv = await run('convert_file', { path: ing.path, to: 'images', pages: [2] });
+  assert.match(conv.content, /page-002\.png/);
+  const found = await run('pdf_find_text', { path: ing.path, text: '14000' });
+  assert.match(found.content, /page 2 · x/);
+  const ed = await run('pdf_edit', { path: ing.path, ops: [{ op: 'replace_text', find: '14000', text: '15500' }, { op: 'add_text', page: 1, x: 90, y: 60, text: 'Confidentiel', size: 14, color: '#ff5e42' }] });
+  assert.match(ed.content, /replaced 1 occurrence/); assert.ok(ed._img);
+  fs.writeFileSync(path.join(out, 'pdf-edited.jpg'), Buffer.from(ed._img.split(',')[1], 'base64'));
+  const txt = await run('convert_file', { path: ed.view.path, to: 'text' });
+  assert.match(txt.content, /15500/);
+  const one = await run('inspect_document', { path: ed.view.path, pages: [2], zoom: true });
+  assert.match(one.content, /Shown: page\(s\) 2/);
+  console.log('• files: ingest, convert (text/images), find + edit PDF keeping layout, page zoom: ok');
+  // the composer: a big paste becomes a .txt attachment
+  const win = await app.firstWindow();
+  const pasted = await win.evaluate(async () => {
+    const ta = document.querySelector('#prompt'); const dt = new DataTransfer(); dt.setData('text/plain', 'ligne\n'.repeat(200));
+    ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    return { pend: S.pending.map((x) => [x.name, x.kind, x.size]), value: ta.value };
+  });
+  assert.deepStrictEqual(pasted.pend[0].slice(0, 2), ['texte-colle.txt', 'text']); assert.strictEqual(pasted.value, '');
+  await win.screenshot({ path: path.join(out, 'paste-chip.png') });
+  console.log('• long paste attached as .txt: ok');
   console.log('layout-test: all passed →', out);
   await app.evaluate(({ app }) => app.quit()).catch(() => {});
   process.exit(0);

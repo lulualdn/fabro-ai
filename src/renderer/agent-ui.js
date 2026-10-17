@@ -93,8 +93,19 @@ function depsCard(st) {
     <div class="pc-actions">${d.installing ? '' : `<button class="btn sm primary" data-action="deps-install" data-id="${esc(st.id)}">${icon('download', 14)} ${esc(t('installDeps'))}</button><button class="btn sm" data-action="deps-skip" data-id="${esc(st.id)}">${esc(t('cancel'))}</button>`}</div>
   </div>`;
 }
-function stepDetail(st) {
+// What a step produced for the user (a file, a document, audio, an image): stays visible under a folded tool summary.
+let STEP_NO_OUT = false;
+function isDeliverable(st) {
   const v = st.view || {};
+  if (st.status !== 'done') return false;
+  if ((st.name === 'write_file' || st.name === 'edit_file') && v.path && S.conv && S.conv.code) return true;
+  if (['create_document', 'create_pdf', 'edit_artifact', 'generate_speech'].includes(st.name) && v.path) return true;
+  return st.name === 'generate_image' && !!v.image;
+}
+function stepOutputs(steps) { return steps.filter(isDeliverable).map((st) => stepDetail(st, true)).join(''); }
+function stepDetail(st, force) {
+  const v = st.view || {};
+  if (STEP_NO_OUT && !force && isDeliverable(st)) return '';
   if (st.name === 'run_command') {
     const out = st.live != null ? st.live : v.out || '';
     return `<div class="term"><div class="term-head">$ ${esc(st.args.command || '')}${v.code != null ? `<span class="${v.code === 0 ? 'ok-txt' : 'err-txt'}">exit ${v.code}</span>` : ''}</div>${out ? `<pre>${esc(out.slice(-4000))}</pre>` : ''}</div>`;
@@ -109,6 +120,9 @@ function stepDetail(st) {
     return `<div class="file-chip" data-action="reveal-path" data-path="${esc(v.path)}">${icon('file', 13)}<span>${esc(v.path)}</span>${v.add != null ? `<b class="add">+${v.add}</b><b class="del">−${v.del}</b>` : ''}</div>
       ${v.before != null ? `<details class="diff"><summary>${esc(t('ag_diff'))}</summary><pre>${esc(v.before).split('\n').map((l) => `<span class="dl">- ${l}</span>`).join('\n')}\n${esc(v.after).split('\n').map((l) => `<span class="al">+ ${l}</span>`).join('\n')}</pre></details>` : ''}`;
   }
+  // what the AI looked at (pages of a document, a page element…) is shown too
+  const seen = v.shot || (v.kind === 'shot' && v.image) ? `<img class="step-img" src="${v.shot || v.image}" alt="" data-action="shot-open" title="${esc(t('open'))}">` : '';
+  if (seen && !v.path) return seen;
   if (st.name === 'generate_speech' && v.path) {
     return `<div class="doc-chip">${icon('waveform', 16)}<span><b>${esc(base(v.path))}</b><small>${esc(v.seconds || 0)} s · ${esc(v.voice || '')}</small></span>
       <audio controls preload="none" src="${esc('file://' + encodeURI(v.path.replace(/\\/g, '/')).replace(/^file:\/\/(?!\/)/, 'file:///'))}"></audio>
@@ -118,7 +132,7 @@ function stepDetail(st) {
     return `<div class="doc-chip">${icon('file', 16)}<span><b>${esc(base(v.path))}</b><small>${esc(v.path)}</small></span>
       <button class="btn sm" data-action="open-path" data-path="${esc(v.path)}">${esc(t('open'))}</button>
       <button class="icon-btn sm" data-action="reveal-path" data-path="${esc(v.path)}" title="${esc(t('ag_reveal'))}">${icon('folder', 15)}</button>
-      ${v.artifactId ? `<button class="icon-btn sm" data-action="art-open" data-id="${esc(v.artifactId)}" title="${esc(t('artEdit'))}">${icon('edit', 15)}</button>` : ''}</div>`;
+      ${v.artifactId ? `<button class="icon-btn sm" data-action="art-open" data-id="${esc(v.artifactId)}" title="${esc(t('artEdit'))}">${icon('edit', 15)}</button>` : ''}</div>${seen}`;
   }
   if (st.name === 'browser_screenshot' && v.image) return `<img class="step-img" src="${v.image}" alt="">`;
   if (st.name === 'generate_image') {
@@ -128,7 +142,7 @@ function stepDetail(st) {
       <button class="icon-btn sm" data-action="open-path" data-path="${esc(v.path)}" title="${esc(t('open'))}">${icon('expand', 15)}</button>
       <button class="icon-btn sm" data-action="reveal-path" data-path="${esc(v.path)}" title="${esc(t('ag_reveal'))}">${icon('folder', 15)}</button></figcaption></figure>`;
   }
-  if (st.name === 'browser_search' && v.sources && v.sources.length) return `<div class="st-srcs">${v.sources.slice(0, 8).map((s, i) => `<a class="src" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.snippet || s.title)}"><b>${i + 1}</b><span>${esc(s.title)}</span><small>${esc(fav(s.url))}</small></a>`).join('')}</div>`;
+  if (st.name === 'browser_search' && v.sources && v.sources.length) return srcChips(v);
   return '';
 }
 // A sub-agent: its own steps nested under it, then its report (collapsed).
@@ -238,6 +252,7 @@ window.addEventListener('resize', syncBrowser);
 setInterval(syncBrowser, 700); // cheap safety net (overlays, animations)
 
 Object.assign(actions, {
+  'shot-open': (el) => openViewer({ type: 'image', title: t('ag_k_shot') !== 'ag_k_shot' ? t('ag_k_shot') : 'Capture', src: el.getAttribute('src') }),
   'perm': (el) => {
     const id = el.dataset.id;
     const m = (S.streaming && S.streaming.msg);

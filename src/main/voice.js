@@ -129,6 +129,15 @@ async function stt(wav, { lang, prompt } = {}) {
   if (!r.ok) throw new Error(j.error || `STT ${r.status}`);
   return j;
 }
+async function transcribeFile(file, { lang } = {}) {
+  const size = settings().whisper || 'base';
+  if (!whisperOk(size)) await getWhisper(size);
+  const p = await start(); touch();
+  const r = await fetch(`http://127.0.0.1:${p}/transcribe`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: file, model: size, lang }) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || `Transcription ${r.status}`);
+  return j;
+}
 async function tts(text, { voice, speed } = {}) {
   const id = voice || settings().voice || defaultVoice('en');
   if (!fs.existsSync(voiceFile(id))) await getVoice(id);
@@ -142,4 +151,4 @@ async function setWhisper(size, onProgress) { await getWhisper(size, onProgress)
 
 function init(pythonInstaller) { pyInstall = pythonInstaller; }
 
-module.exports = { init, status, install, stt, tts, setVoice, setWhisper, stop, VOICES };
+module.exports = { init, status, install, stt, transcribeFile, tts, setVoice, setWhisper, stop, VOICES };

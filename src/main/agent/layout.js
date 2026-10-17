@@ -58,12 +58,12 @@ async function printHtml(html, { landscape = false } = {}) {
 }
 
 // PDF bytes → page count, a contact sheet image, nearly empty pages (pdf.js in a hidden window).
-async function renderPdf(buf, { maxPages = 8 } = {}) {
+async function renderPdf(buf, { maxPages = 8, pages = null, width = null, keep = false } = {}) {
   const w = new BrowserWindow({ show: false, width: 800, height: 800, webPreferences: { sandbox: false, contextIsolation: true } });
   try {
     await w.loadFile(path.join(__dirname, '..', 'render', 'pdfview.html'));
     for (let i = 0; i < 50 && !(await w.webContents.executeJavaScript('!!window.ready', true)); i++) await new Promise((r) => setTimeout(r, 100));
-    return await w.webContents.executeJavaScript(`renderPdf(${JSON.stringify(Buffer.from(buf).toString('base64'))}, ${maxPages}, ${maxPages > 4 ? 420 : 560})`, true);
+    return await w.webContents.executeJavaScript(`renderPdf(${JSON.stringify(Buffer.from(buf).toString('base64'))}, ${maxPages}, ${width || (maxPages > 4 ? 420 : 560)}, ${JSON.stringify(pages || null)}, ${!!keep})`, true);
   } finally { w.destroy(); }
 }
 
@@ -89,7 +89,7 @@ async function buildPdf(art, ctx) {
 const resultOf = (art, { pdf, issues, r }, title) => ({
   content: report({ file: art.pdf.file, pages: r ? r.pages : '?', blank: r && r.blank, issues, artifactId: art.id, shown: r ? r.shown : 0 }),
   image: r && r.sheet,
-  view: { kind: 'document', path: art.pdf.file, format: 'pdf', title, artifactId: art.id, size: pdf.length, pages: r ? r.pages : undefined },
+  view: { kind: 'document', path: art.pdf.file, format: 'pdf', title, artifactId: art.id, size: pdf.length, pages: r ? r.pages : undefined, shot: r && r.sheet },
 });
 
 function findArtifact(ref, ctx) {
@@ -137,7 +137,7 @@ agent.register({
 agent.register({
   name: 'inspect_document', category: 'documents', risk: 'read', core: true,
   description: 'Look at a document: a PDF file, or an artifact (id or title). Returns a picture of the pages and layout problems (cut content, empty pages, tiny text). Use it to check your own documents before saying they are done.',
-  parameters: { type: 'object', properties: { path: { type: 'string', description: 'A .pdf file' }, artifact: { type: 'string', description: 'Artifact id or title' } } },
+  parameters: { type: 'object', properties: { path: { type: 'string', description: 'A .pdf file' }, artifact: { type: 'string', description: 'Artifact id or title' }, pages: { type: 'array', items: { type: 'integer' }, description: 'Only these pages (1-based), e.g. to look closely at one page' }, zoom: { type: 'boolean', description: 'Bigger pictures (for small details)' } } },
   summarize: (a) => a.path ? path.basename(a.path) : a.artifact,
   async run(a, ctx) {
     if (a.path) {
@@ -145,8 +145,9 @@ agent.register({
       await files.access(f, ctx, false);
       if (!/\.pdf$/i.test(f)) return { error: 'inspect_document reads PDF files; for an artifact pass `artifact`.' };
       const buf = fs.readFileSync(f);
-      const r = await renderPdf(buf);
-      return { content: report({ file: f, pages: r.pages, blank: r.blank, issues: [], shown: r.shown }), image: r.sheet };
+      const one = Array.isArray(a.pages) && a.pages.length;
+      const r = await renderPdf(buf, { pages: one ? a.pages.map(Number) : null, maxPages: one ? 4 : 8, width: a.zoom || (one && a.pages.length === 1) ? 1000 : null });
+      return { content: report({ file: f, pages: r.pages, blank: r.blank, issues: [], shown: r.shown }) + (one ? `\nShown: page(s) ${r.list.join(', ')}.` : ''), image: r.sheet, view: { kind: 'shot', image: r.sheet, path: f } };
     }
     const art = findArtifact(a.artifact, ctx);
     if (!art) return { error: `No artifact "${a.artifact}". Give its id or exact title.` };
@@ -157,7 +158,7 @@ agent.register({
     const html = art.type === 'html' ? content : art.type === 'slides' ? docs.slidesHtml(content) : docs.docHtml(art.title, content);
     const { pdf, issues } = await printHtml(html, { landscape: art.type === 'slides' });
     const r = await renderPdf(pdf);
-    return { content: report({ file: `(artifact “${art.title}”, as exported)`, pages: r.pages, blank: r.blank, issues, artifactId: art.id, shown: r.shown }), image: r.sheet };
+    return { content: report({ file: `(artifact “${art.title}”, as exported)`, pages: r.pages, blank: r.blank, issues, artifactId: art.id, shown: r.shown }), image: r.sheet, view: { kind: 'shot', image: r.sheet } };
   },
 });
 

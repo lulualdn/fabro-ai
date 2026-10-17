@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('api', {
     status: i('engine:status'), update: i('engine:update'), reinstall: i('engine:reinstall'), stop: i('engine:stop'), diagnostics: i('engine:diagnostics'),
     load: i('engine:load'), rollback: i('engine:rollback'), logs: i('engine:logs'), energy: i('engine:energy'),
   },
-  chat: { send: i('chat:send'), abort: i('chat:abort'), answer: i('chat:answer') },
+  chat: { send: i('chat:send'), abort: i('chat:abort'), inject: i('chat:inject'), answer: i('chat:answer') },
   agent: { tools: i('agent:tools'), policy: i('agent:policy'), addFolder: i('agent:addFolder'), removeFolder: i('agent:removeFolder') },
   browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
   deps: { status: i('deps:status'), install: i('deps:install'), remove: i('deps:remove') },
@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('api', {
   updater: { check: i('updater:check'), install: i('updater:install') },
   modes: { install: i('modes:install') },
   shell: { open: i('shell:open'), reveal: i('shell:reveal'), openPath: i('shell:openPath') },
+  files: { ingest: i('files:ingest'), preview: i('files:preview'), pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } } },
   anywhere: { status: i('anywhere:status'), pairStart: i('anywhere:pairStart'), pairStop: i('anywhere:pairStop'), revoke: i('anywhere:revoke'), rename: i('anywhere:rename'), configure: i('anywhere:configure'), reply: i('anywhere:reply') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
   on: (channel, cb) => {

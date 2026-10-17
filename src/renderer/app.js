@@ -136,10 +136,11 @@ marked.use({
   },
 });
 
-function md(text, prefix) {
+let MD_CITES = null;
+function md(text, prefix, opts) {
   MD_CTX = { prefix, n: 0 };
-  const html = marked.parse(text || '');
-  return DOMPurify.sanitize(html, { ADD_ATTR: ['data-action', 'data-key', 'target'] });
+  const html = DOMPurify.sanitize(marked.parse(text || '', opts), { ADD_ATTR: ['data-action', 'data-key', 'target'] });
+  return MD_CITES && !opts ? linkCitations(html, MD_CITES) : html;
 }
 
 // ───────────────────────────── Models helpers ─────────────────────────────
@@ -455,9 +456,10 @@ function renderAttachments(atts = [], removable = false) {
   return `<div class="atts">${atts.map((a, i) => {
     const rm = removable ? `<button class="att-x" data-action="att-remove" data-i="${i}">${icon('x', 12)}</button>` : '';
     if (a.kind === 'image') return `<div class="att att-img" data-action="att-open" data-i="${i}" data-src="${removable ? 'pending' : ''}"><img src="${a.data}" alt="">${rm}</div>`;
-    const ic = a.kind === 'video' ? 'video' : 'file';
-    return `<div class="att att-file" data-action="att-open" data-i="${i}" data-src="${removable ? 'pending' : ''}">
-      <span class="af-ico">${icon(ic, 18)}</span><span class="af-text"><b>${esc(a.name)}</b><small>${esc(a.ext || a.kind)} · ${fmtBytes(a.size)}</small></span>${rm}</div>`;
+    const ic = a.kind === 'video' ? 'video' : a.kind === 'audio' ? 'waveform' : a.ext === 'pdf' ? 'filePdf' : /^docx?$/.test(a.ext) ? 'fileDoc' : /^xlsx?|csv$/.test(a.ext) ? 'fileXls' : /^pptx?$/.test(a.ext) ? 'filePpt' : a.ext === 'zip' ? 'fileZip' : 'file';
+    const meta = [String(a.ext || a.kind).toUpperCase(), fmtBytes(a.size), a.pages ? t('pagesN', { n: a.pages }) : '', a.loading ? '…' : ''].filter(Boolean).join(' · ');
+    return `<div class="att att-file ${a.thumb ? 'has-thumb' : ''}" data-action="att-open" data-i="${i}" data-src="${removable ? 'pending' : ''}" title="${esc(a.path || a.name)}">
+      ${a.thumb ? `<img class="af-thumb" src="${a.thumb}" alt="">` : `<span class="af-ico">${icon(ic, 18)}</span>`}<span class="af-text"><b>${esc(a.name)}</b><small>${esc(meta)}</small></span>${rm}</div>`;
   }).join('')}</div>`;
 }
 
@@ -472,9 +474,23 @@ function renderThinking(m) {
   </details>`;
 }
 
+function renderPrecisions(m) {
+  if (!(m.precisions || []).length) return '';
+  return `<div class="precisions">${m.precisions.map((p) => `<div class="precision ${p.used ? 'used' : ''}"><span class="pr-l">${icon('chat', 13)} ${esc(t(p.used ? 'precisionUsed' : 'precisionQueued'))}</span><div class="md">${md(p.text, m.id + 'p', { breaks: true })}</div></div>`).join('')}</div>`;
+}
+function injectPrecision() {
+  const ta = $('#prompt'); const text = ta && ta.value.trim();
+  if (!S.streaming || !text) return false;
+  const m = S.streaming.msg;
+  api.chat.inject(S.streaming.reqId, text).then((ok) => { if (!ok) toast(t('precisionLate'), 'err'); });
+  (m.precisions ||= []).push({ text, used: false, at: Date.now() });
+  ta.value = ''; S._draft = ''; ta.style.height = 'auto'; updateSendState();
+  scheduleStreamRender();
+  return true;
+}
 function assistantBody(m) {
-  let html = renderThinking(m) + renderSteps(m);
-  if (m.content) html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.content, m.id)}</div>`) + citedSources(m);
+  let html = renderThinking(m) + renderSteps(m) + renderPrecisions(m);
+  if (m.content) { MD_CITES = sourceMap(m); try { html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.content, m.id)}</div>`) + citedSources(m); } finally { MD_CITES = null; } }
   else if (m.pending && !m.reasoning && !(m.steps || []).length) {
     const st = m.status === 'loading' ? t('loadingModel') : '';
     html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
@@ -526,7 +542,7 @@ function renderStats(m) {
 function renderMessage(m, idx) {
   if (m.role === 'user') {
     return `<div class="msg user ${Date.now() - m.createdAt < 1500 ? 'fresh' : ''}" id="m-${m.id}">
-      <div class="bubble">${renderAttachments(m.attachments)}${m.content ? `<div class="u-text">${esc(m.content)}</div>` : ''}</div>
+      <div class="bubble">${renderAttachments(m.attachments)}${m.content ? `<div class="u-md md">${md(m.content, m.id, { breaks: true })}</div>` : ''}</div>
       <div class="msg-actions">${branchNav(m)}<button class="icon-btn xs" data-action="edit-msg" data-id="${m.id}" title="${esc(t('editMsg'))}">${icon('edit', 14)}</button><button class="icon-btn xs" data-action="copy-msg" data-id="${m.id}" title="${esc(t('copy'))}">${icon('copy', 14)}</button></div>
     </div>`;
   }
@@ -613,11 +629,20 @@ function bindComposer() {
   const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 260) + 'px'; updateSendState(); };
   ta.addEventListener('input', () => { S._draft = ta.value; fit(); });
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!S.streaming) { const b = $('#send-btn'); if (b) { b.classList.remove('launch'); void b.offsetWidth; b.classList.add('launch'); } sendPrompt(); } }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (S.streaming) injectPrecision(); else { const b = $('#send-btn'); if (b) { b.classList.remove('launch'); void b.offsetWidth; b.classList.add('launch'); } sendPrompt(); } }
   });
   ta.addEventListener('paste', (e) => {
     const files = [...(e.clipboardData?.files || [])];
-    if (files.length) { e.preventDefault(); addFiles(files); }
+    if (files.length) { e.preventDefault(); addFiles(files); return; }
+    // a big paste becomes an attached .txt file (only the pasted text), like Claude
+    const text = e.clipboardData && e.clipboardData.getData('text/plain');
+    if (text && (text.length > 4000 || text.split('\n').length > 60)) {
+      e.preventDefault();
+      const n = S.pending.filter((x) => x.pasted).length + 1;
+      S.pending.push({ kind: 'text', pasted: true, name: n > 1 ? `texte-colle-${n}.txt` : 'texte-colle.txt', ext: 'txt', size: new Blob([text]).size, text, type: 'text/plain' });
+      refreshComposer();
+      toast(t('pastedAsFile', { n: text.split('\n').length }));
+    }
   });
   fit();
   if (!S.settingsTab) ta.focus();
@@ -626,6 +651,14 @@ function bindComposer() {
 function updateSendState() {
   const b = $('#send-btn'), ta = $('#prompt');
   if (b && !S.streaming) b.disabled = !(ta && ta.value.trim()) && !S.pending.length;
+  // while answering: typing turns the stop button into "add a precision" (the answer keeps going)
+  if (b && S.streaming) {
+    const add = !!(ta && ta.value.trim());
+    if ((b.dataset.action === 'inject') !== add) {
+      b.dataset.action = add ? 'inject' : 'stop'; b.classList.toggle('stop', !add); b.disabled = false;
+      b.title = t(add ? 'precisionSend' : 'stop'); b.innerHTML = icon(add ? 'up' : 'stop', 18);
+    }
+  }
 }
 
 function refreshComposer() {
@@ -651,7 +684,14 @@ async function addFiles(files) {
       else if (TEXT_EXT.test(f.name) || f.type.startsWith('text/')) {
         if (f.size > 2 * 1024 * 1024) { toast(t('fileTooBig', { name: f.name }), 'err'); continue; }
         S.pending.push({ ...base, kind: 'text', text: await readAs(f, 'readAsText') });
-      } else toast(t('fileUnsupported', { name: f.name }), 'err');
+      } else {
+        // any other file (PDF, Word, Excel, audio, ZIP…): copied into the AI's workspace, with a first look
+        if (f.size > 500 * 1024 * 1024) { toast(t('fileTooBig', { name: f.name }), 'err'); continue; }
+        const p = api.files.pathOf(f);
+        const tmp = { ...base, kind: 'file', loading: true }; S.pending.push(tmp); refreshComposer();
+        const r = await api.files.ingest(p ? { path: p, name: f.name } : { name: f.name, data: new Uint8Array(await f.arrayBuffer()) });
+        Object.assign(tmp, r, { loading: false, type: f.type });
+      }
     } catch { toast(t('fileUnsupported', { name: f.name }), 'err'); }
   }
   refreshComposer();
@@ -661,6 +701,7 @@ function openAttachment(a) {
   if (!a) return;
   if (a.kind === 'image') openViewer({ type: 'image', title: a.name, src: a.data });
   else if (a.kind === 'video') a.url ? openViewer({ type: 'video', title: a.name, src: a.url }) : toast(t('videoSessionOnly'));
+  else if ((a.kind === 'file' || a.kind === 'audio') && a.path) openViewer({ type: 'file', title: a.name, file: a });
   else if (a.kind === 'text') {
     if (/^(md|markdown)$/i.test(a.ext)) openViewer({ type: 'markdown', title: a.name, text: a.text });
     else openViewer({ type: 'code', title: a.name, lang: a.ext, code: a.text });
@@ -699,6 +740,15 @@ function renderViewer() {
     body = `<div class="v-media"><img src="${v.src}" alt=""></div>`;
   } else if (v.type === 'video') {
     body = `<div class="v-media"><video src="${v.src}" controls autoplay></video></div>`;
+  } else if (v.type === 'file') {
+    const a = v.file, url = 'file://' + encodeURI(String(a.path).replace(/\\/g, '/')).replace(/^file:\/\/(?!\/)/, 'file:///');
+    tools = `<span class="muted small">${esc(fmtBytes(a.size))}${a.pages ? ' · ' + esc(t('pagesN', { n: a.pages })) : ''}</span>
+      <button class="icon-btn sm" data-action="open-path" data-path="${esc(a.path)}" title="${esc(t('open'))}">${icon('expand', 16)}</button>
+      <button class="icon-btn sm" data-action="reveal-path" data-path="${esc(a.path)}" title="${esc(t('ag_reveal'))}">${icon('folder', 16)}</button>`;
+    if (a.kind === 'audio') body = `<div class="v-media"><audio src="${esc(url)}" controls></audio></div>`;
+    else if (v.preview && v.preview.images) body = `<div class="v-pages">${v.preview.images.map((src, i) => `<figure><img src="${src}" alt=""><figcaption>${i + 1}</figcaption></figure>`).join('')}</div>`;
+    else if (v.preview && v.preview.text != null) body = v.preview.text ? `<div class="v-doc"><pre class="v-text">${esc(v.preview.text)}</pre></div>` : `<p class="muted pad">${esc(t('noPreview'))}</p>`;
+    else { body = `<div class="v-media">${spinner(30)}</div>`; api.files.preview(a.path).then((pv) => { if (S.viewer === v) { v.preview = pv; renderViewer(); } }).catch(() => { if (S.viewer === v) { v.preview = { text: '' }; renderViewer(); } }); }
   } else if (v.type === 'markdown') {
     body = `<div class="v-doc md">${md(v.text, 'viewer')}</div>`;
     tools = `<button class="icon-btn sm" data-action="viewer-copy" title="${esc(t('copy'))}">${icon('copy', 16)}</button>`;
@@ -922,8 +972,18 @@ function buildMessages() {
   out.push({ role: 'system', content: systemPrompt() });
   for (const m of S.conv.messages) {
     if (m.pending || (m.role === 'assistant' && m.error && !m.content)) continue;
-    if (m.role === 'assistant') { out.push({ role: 'assistant', content: m.content }); continue; }
-    const texts = (m.attachments || []).filter((a) => a.kind === 'text').map((a) => `File: ${a.name}\n\`\`\`${a.ext || ''}\n${a.text}\n\`\`\``);
+    if (m.role === 'assistant') {
+      // precisions typed during that answer belong to the question it answered
+      const pr = (m.precisions || []).filter((p) => p.used).map((p) => p.text);
+      const u = out[out.length - 1];
+      if (pr.length && u && u.role === 'user') {
+        const add = `\n\n[Précisions ajoutées pendant la réponse]\n${pr.join('\n')}`;
+        if (typeof u.content === 'string') u.content += add; else if (u.content[0]) u.content[0].text += add;
+      }
+      out.push({ role: 'assistant', content: m.content }); continue;
+    }
+    const texts = (m.attachments || []).filter((a) => a.kind === 'text').map((a) => `File: ${a.name}\n\`\`\`${a.ext || ''}\n${a.text}\n\`\`\``)
+      .concat((m.attachments || []).filter((a) => (a.kind === 'file' || a.kind === 'audio') && a.path).map((a) => `Attached file: ${a.name} (${a.ext}, ${fmtBytes(a.size)}${a.pages ? `, ${a.pages} pages` : ''}) — saved in your workspace at ${a.path}. ${a.kind === 'audio' ? 'Transcribe it with convert_file (to: "transcript").' : a.text ? `Its text${a.chars > a.text.length ? ` (first ${a.text.length} of ${a.chars} chars)` : ''}:\n${a.text}` : 'Use convert_file to read it.'}${a.ext === 'pdf' ? '\n(To see the layout use inspect_document with pages; to change it keeping the layout use pdf_find_text + pdf_edit.)' : ''}`));
     const content = [...texts, m.content].filter(Boolean).join('\n\n');
     const imgs = (m.attachments || []).filter((a) => a.kind === 'image');
     if (imgs.length) out.push({ role: 'user', content: [{ type: 'text', text: content || ' ' }, ...imgs.map((a) => ({ type: 'image_url', image_url: { url: a.data } }))] });
@@ -957,7 +1017,7 @@ function generate(opts = {}) {
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
   const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
-  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code, agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {
@@ -970,6 +1030,9 @@ function finishStream() {
   if (m) {
     m.pending = false;
     if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now();
+    // precisions that arrived too late (answer stopped) go back to the composer
+    const late = (m.precisions || []).filter((p) => !p.used);
+    if (late.length) { m.precisions = m.precisions.filter((p) => p.used); S._draft = [S._draft, ...late.map((p) => p.text)].filter(Boolean).join('\n'); }
     const el = $(`#m-${m.id}`);
     if (el) el.outerHTML = renderMessage(m, S.conv.messages.indexOf(m));
   }
@@ -990,7 +1053,8 @@ function onChatEvent(ev) {
     case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; st.error = ev.error; st.perm = null; st.deps = null; if (st.view && st.view.out == null && st.live) st.view.out = st.live; delete st.live; delete st.subText; } scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab !== 'browser') renderViewer(); break; }
     case 'agent_switch': case 'tools_info': case 'permission': case 'deps_needed': case 'tool_progress': case 'retract': case 'plan': case 'sub_token': onAgentEvent(ev, m); break;
     case 'checkpoint': m.checkpoint = { id: ev.id, files: ev.files }; cxRefreshSoon(); break;
-    case 'tool_round': if (m.content && !/\n\n$/.test(m.content)) m.content += '\n\n'; break;
+    case 'precision_used': { let n = ev.count; for (const p of m.precisions || []) if (!p.used && n-- > 0) p.used = true; scheduleStreamRender(); break; }
+    case 'precision_round': case 'tool_round': if (m.content && !/\n\n$/.test(m.content)) m.content += '\n\n'; break;
     case 'done': m.stats = ev.stats; finishStream(); break;
     case 'error': m.error = ev.message; m.errorCode = ev.code; m.errorDetail = ev.detail; finishStream(); break;
   }
@@ -1034,6 +1098,7 @@ const actions = {
   'overlay-bg': (el, e) => { if (e.target === el) closeSettings(); },
   'send': (el) => { el.classList.remove('launch'); void el.offsetWidth; el.classList.add('launch'); sendPrompt(); },
   'stop': () => { if (S.streaming) api.chat.abort(S.streaming.reqId); },
+  'inject': () => { injectPrecision(); },
   'suggest': (el) => { const ta = $('#prompt'); ta.value = el.dataset.text; S._draft = ta.value; ta.dispatchEvent(new Event('input')); ta.focus(); },
   'attach': () => $('#file-input').click(),
   'att-remove': (el, e) => { e.stopPropagation(); S.pending.splice(+el.dataset.i, 1); refreshComposer(); },

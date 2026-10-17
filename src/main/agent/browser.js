@@ -248,7 +248,7 @@ agent.register({ ...common, name: 'browser_search', risk: 'net', core: true, key
     const tools = require('../tools');
     const r = await tools.webSearch(String(a.query).slice(0, 300), { needDeps: ctx.needDeps }, { category: a.category, time: a.time_range, page: a.page });
     if (!userControl) { const url = r.pageUrl || await searchPage(a.query); const wc = ensure().webContents; emit('browser:focus', {}); wc.loadURL(url).catch(() => {}); }
-    return { content: tools.formatResults(r), view: { kind: 'search', query: a.query, engine: r.engine, sources: r.results.map((x) => ({ title: x.title, url: x.url, snippet: x.snippet })) } };
+    return tools.searchResult(r, a.query, ctx);
   } });
 agent.register({ ...common, name: 'browser_open', risk: 'net', core: true, keywords: ['site', 'web', 'page', 'navigat', 'browser', 'navigateur', 'clique', 'click', 'formulaire', 'form', 'connecte', 'login'],
   description: 'Open a URL in Fabro’s built-in browser (visible to the user) and return the page text and its interactive elements with [id]s. new_tab=true keeps the current page open in another tab.',

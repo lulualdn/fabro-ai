@@ -15,7 +15,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/extras');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/extras'); const filetools = require('./agent/filetools');
 const browser = require('./agent/browser');
 const skills = require('./agent/skills');
 const python = require('./agent/python');
@@ -118,6 +118,12 @@ function registerIpc() {
   h('memory:delete', (id) => db.deleteMemory(id));
   h('memory:clear', () => db.clearMemories());
   h('artifacts:list', () => db.listArtifacts());
+  h('files:ingest', (o) => filetools.ingest(o || {}));
+  h('files:preview', async (p) => {
+    const fsx = require('fs'); if (!p || !fsx.existsSync(p)) throw new Error('File not found');
+    if (/\.pdf$/i.test(p)) { const r = await require('./agent/layout').renderPdf(fsx.readFileSync(p), { maxPages: 30, width: 900, keep: true }); return { pages: r.pages, images: r.each }; }
+    return { text: String(await require('./rag').extract(p).catch(() => '') || '').slice(0, 200000) };
+  });
   h('artifacts:get', (id) => db.getArtifact(id));
   h('artifacts:save', async (a) => { const saved = db.saveArtifact(a); if (saved && saved.pdf && saved.pdf.file) { try { await require('./agent/layout').buildPdf(db.getArtifact(saved.id), null); } catch (e) { console.error('pdf rebuild', e); } } return saved; });
   h('artifacts:delete', (id) => db.deleteArtifact(id));
@@ -183,6 +189,7 @@ function registerIpc() {
 
   h('chat:send', (payload) => { chat.send(payload, (ev) => send('chat:event', ev)); return true; });
   h('chat:abort', (id) => chat.abort(id));
+  h('chat:inject', (id, text) => chat.inject(id, text));
   h('chat:answer', (reqId, callId, value) => chat.answer(reqId, callId, value));
 
   h('agent:tools', () => agent.list());
