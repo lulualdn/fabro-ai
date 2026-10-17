@@ -114,6 +114,9 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    # GitHub's macOS runners are virtual machines whose GPU cannot run stable-diffusion.cpp's Metal
+    # backend ("buffer is nil"); install and model download are still checked there, the image is not.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
