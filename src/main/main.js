@@ -16,6 +16,7 @@ const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
 require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/extras'); const filetools = require('./agent/filetools');
+const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const skills = require('./agent/skills');
 const python = require('./agent/python');
@@ -189,6 +190,11 @@ function registerIpc() {
 
   h('chat:send', (payload) => { chat.send(payload, (ev) => send('chat:event', ev)); return true; });
   h('chat:abort', (id) => chat.abort(id));
+  h('tasks:list', () => tasks.list());
+  h('tasks:create', (o) => tasks.create(o));
+  h('tasks:update', (id, patch) => tasks.update(id, patch));
+  h('tasks:remove', (id) => tasks.remove(id));
+  h('tasks:run', (id) => { tasks.run(id, 'manual').catch(() => {}); return true; });
   h('chat:inject', (id, text) => chat.inject(id, text));
   h('chat:answer', (reqId, callId, value) => chat.answer(reqId, callId, value));
 
@@ -326,6 +332,7 @@ function registerIpc() {
 
 app.whenReady().then(async () => {
   store.init();
+  tasks.init(send);
   crash.init(() => win);
   searxng.configure({ deps: process.env.FABRO_DEPS || path.join(app.getPath('userData'), 'deps'), python: async (prog) => { await python.install((p) => prog(p * 0.3)); return python.pyPath(); } });
   // 0.1.9: SearXNG becomes the default search engine (DuckDuckGo stays the fallback).

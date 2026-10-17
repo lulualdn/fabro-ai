@@ -1484,3 +1484,16 @@ html.reduce-motion::view-transition-group(*), html.reduce-motion::view-transitio
 .onb-dots i.on { width: 18px; border-radius: 4px; background: var(--accent); }
 .onb-skip { position: absolute; top: 0; right: 4px; color: var(--muted); font-size: 13px; }
 .onb-skip:hover { color: var(--text); }
+
+.q-card .q-opts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.q-card .q-own { display: flex; gap: 6px; margin: 6px 0; } .q-card .q-own .input { flex: 1; height: 32px; }
+
+.tasks-page .tk-list { display: grid; gap: 12px; margin-top: 18px; }
+.tk { border: 1px solid var(--border); border-radius: var(--r); background: var(--elev); padding: 14px 16px; display: grid; gap: 8px; }
+.tk.off { opacity: .6; }
+.tk-top { display: flex; align-items: flex-start; gap: 10px; } .tk-t { flex: 1; display: grid; gap: 2px; } .tk-t small { color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+.tk-prompt { margin: 0; color: var(--text-2); font-size: 13.5px; white-space: pre-wrap; }
+.tk-vars { display: flex; flex-wrap: wrap; gap: 6px; } .tk-vars span { font-size: 12.5px; padding: 3px 8px; border-radius: 8px; background: var(--hover); }
+.tk-last { border-left: 3px solid var(--accent); padding: 4px 0 4px 10px; font-size: 13.5px; } .tk-last.err { border-color: var(--err); } .tk-last small { color: var(--muted); }
+.tk-act { display: flex; align-items: center; gap: 6px; }
+.tk-empty { display: grid; justify-items: center; gap: 10px; padding: 40px 0; color: var(--muted); text-align: center; }

@@ -46,6 +46,10 @@ const srv = http.createServer((req, res) => {
         const prec = body.messages.some((m) => m.role === 'user' && /Précision ajoutée/.test(String(m.content)));
         return one(`Les deux moteurs diffèrent [1, ${toolsDone[0].content.match(/\[(\d+)\]/g).length + 1}].${prec ? ' (précision reçue : en français)' : ''}`);
       }
+      if (/fais un truc cool/i.test(ut)) {
+        if (toolsDone.length === 0) return call1('ask_user', { question: 'Tu veux quoi exactement ?', options: ['Un poème', 'Une blague'] });
+        return one('OK : ' + toolsDone[0].content);
+      }
       if (/dossier de veille/i.test(ut)) {
         const P = (a, b, c) => ({ steps: [{ title: 'Répartir les recherches', status: a }, { title: 'Chercher en parallèle', status: b }, { title: 'Rédiger la synthèse', status: c }] });
         if (toolsDone.length === 0) return call1('update_plan', P('done', 'in_progress', 'pending'));
@@ -259,6 +263,23 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   step('usage'); await win.screenshot({ path: `${shots}/16-usage.png` });
   assert.ok(await win.evaluate(() => S.usage.total.requests >= 3), 'usage recorded (2 chats + API)');
   await win.click('[data-action=close-settings]');
+
+  // ask_user: the AI asks when the request is vague
+  await win.click('[data-action=new-chat]'); await win.fill('#prompt', 'Fais un truc cool'); await win.keyboard.press('Enter');
+  await win.waitForSelector('.q-card .q-opts button', { timeout: 15000 });
+  step('ask_user'); await win.screenshot({ path: `${shots}/08b-ask-user.png` });
+  await win.click('.q-card .q-opts button >> text=Une blague');
+  await win.waitForFunction(() => /answered: Une blague/.test(S.conv.messages.at(-1).content || '') && !S.streaming, null, { timeout: 15000 });
+  // scheduled task: weekly on Monday and Thursday at 15:00, with a variable
+  const tk = await win.evaluate(async () => { const t = await api.tasks.create({ title: 'Test hebdo', prompt: 'Dis bonjour à {{name}}', when: { type: 'weekly', days: ['mon', 'thu'], time: '15:00' }, vars: { name: 'Lulu' } }); return (await api.tasks.list()).find((x) => x.id === t.id); });
+  const nd = new Date(tk.next); assert.ok([1, 4].includes(nd.getDay()) && nd.getHours() === 15 && nd.getMinutes() === 0, 'weekly next run: ' + nd);
+  await win.evaluate((id) => api.tasks.run(id), tk.id);
+  await win.waitForFunction(async (id) => { const l = await api.tasks.list(); const k = l.find((x) => x.id === id); return k && k.runs && k.runs.length; }, tk.id, { timeout: 20000, polling: 500 });
+  await win.click('.nav-item[data-mode=tasks]'); await win.waitForSelector('.tk'); await win.waitForTimeout(300);
+  step('tasks page'); await win.screenshot({ path: `${shots}/08c-tasks.png` });
+  assert.match(await win.textContent('.tk'), /Test hebdo/);
+  await win.evaluate((id) => api.tasks.remove(id), tk.id);
+  await win.evaluate(() => { S.mode = 'chat'; newChat(); renderSidebar(); renderView(); });
 
   // ── Wave 3: tools, branches, regenerate, search, title, memory, personalization ──
   await win.evaluate(async () => { await saveSettings({ search: { engine: 'ducky', duckyUrl: location.protocol === 'file:' ? '' : '' } }); S.memDelay = 400; });

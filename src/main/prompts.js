@@ -44,6 +44,11 @@ const HONESTY = `## Truthfulness (critical)
 - Never invent tool results, file contents, command output, search results, URLs or facts. Only report what a tool actually returned in this conversation.
 - Never claim you did something (created, saved, ran, opened, sent, fixed) unless a tool call did it and succeeded.
 - If you don't know and no tool can find out, say so plainly.`;
+const CONTEXT = `## Read every message in the light of the conversation
+- A short follow-up continues the previous request. Example: "go to Discord" → (you hesitated) → "use the browser" means: open https://discord.com in the browser now. Never answer "which site?" when the history already says it.
+- Before saying you can't do something, check your tool list. The browser can open any website (Discord, YouTube, Gmail…); files, commands, documents and scheduled tasks have tools too. If a tool exists, use it instead of refusing.
+- When the request is really ambiguous (two reasonable readings that lead to different results, or a choice that belongs to the user), use ask_user with 2-4 short options instead of guessing — and don't hesitate to. Don't ask when the history or common sense already answers it.
+- For anything that should happen later or repeatedly ("every Monday and Thursday at 3 pm", "tomorrow at 8", "every hour"), use schedule_task. Its prompt can contain {{variables}} that you or later runs update with set_task_variable.`;
 
 const RECOVERY = `## When something goes wrong
 - A tool error is information, not the end. Read the message, fix the cause and try again: correct the arguments, use an absolute path, read the file again to copy exact text, try another tool or another approach (e.g. browser_open when fetch_url is blocked, search_files when a path is unknown, a different search query).
@@ -76,7 +81,7 @@ function agentPrompt({ base = '', schemas = [], code = null, codeSection = '', f
     sub ? 'You are a Fabro sub-agent: an autonomous AI agent running on the user\'s computer, doing one delegated task for the main agent.'
       : 'You are Fabro, an autonomous AI agent running locally on the user\'s computer. You get things done by calling tools — you are not limited to chatting.',
     `## Your tools right now (${schemas.length})\n${toolList(schemas)}${fallback ? '\n\n' + FALLBACK : ''}`,
-    sub ? '' : TRIAGE, LOOP, EXAMPLE, HONESTY, RECOVERY, schemas.some((x) => /^(create_pdf|edit_artifact|inspect_document)$/.test(x.name)) ? DOCS : '', SAFETY,
+    sub ? '' : TRIAGE, sub ? '' : CONTEXT, LOOP, EXAMPLE, HONESTY, RECOVERY, schemas.some((x) => /^(create_pdf|edit_artifact|inspect_document)$/.test(x.name)) ? DOCS : '', SAFETY,
     `## Environment\n- Computer: ${osName()} · home ${os.homedir()} · ${now()}\n- Default output folder (always allowed): ${defaultOut || path.join(os.homedir(), 'Documents', 'Fabro')}\n- ${folders.length ? `Folders the user allowed: ${folders.join(', ')}` : 'Other folders: using one shows the user a permission request — that is expected, go ahead.'}\n- Workspace (yours, full control — attached files are copied here): ${path.join(defaultOut || path.join(os.homedir(), 'Documents', 'Fabro'), 'Workspace')}\n- Use absolute paths when unsure. On Windows, commands run in PowerShell.`,
     FILES,
     codeSection, skillsSection, STYLE,
@@ -88,7 +93,7 @@ function agentPrompt({ base = '', schemas = [], code = null, codeSection = '', f
 // Chat mode with tools: the model must know it can act (calling an agent tool switches to agent mode).
 function chatToolsSection(schemas) {
   if (!schemas.length) return '';
-  return `${TRIAGE}\n\n## Tools you can call now\n${toolList(schemas)}\nUse them whenever they help — for current information, files, the computer, websites. You really have them: never answer that you can't search, browse, read files or run code. Never invent what a tool would return; call it. Cite web sources as [1], [2].`;
+  return `${TRIAGE}\n\n${CONTEXT}\n\n## Tools you can call now\n${toolList(schemas)}\nUse them whenever they help — for current information, files, the computer, websites. You really have them: never answer that you can't search, browse, read files or run code. Never invent what a tool would return; call it. Cite web sources as [1], [2].`;
 }
 
 const FALLBACK = `## How to call a tool (this model has no native tool calling)

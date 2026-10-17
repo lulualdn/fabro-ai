@@ -349,7 +349,7 @@ function renderView() {
   }
   if (S.mode !== 'chat') {
     v.className = 'view';
-    v.innerHTML = S.mode === 'custom' ? renderCustomPage() : S.mode === 'artifacts' && typeof renderArtifactsPage === 'function' ? renderArtifactsPage() : S.mode === 'projects' ? renderProjectsPage() : renderSoon(S.mode);
+    v.innerHTML = S.mode === 'custom' ? renderCustomPage() : S.mode === 'artifacts' && typeof renderArtifactsPage === 'function' ? renderArtifactsPage() : S.mode === 'projects' ? renderProjectsPage() : S.mode === 'tasks' ? renderTasksPage() : renderSoon(S.mode);
     if (S.mode === 'custom') bindCustomPage();
     if (S.mode === 'projects') afterProjectsRender();
     return;

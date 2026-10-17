@@ -155,3 +155,17 @@ agent.register({
 });
 
 module.exports = { wavParts, wavFile, mp3, chunks };
+
+// Ask the user a question when the request is vague (options + free answer). Never blocks forever:
+// in unattended runs (scheduled tasks) the model is told nobody is there and must pick the most reasonable reading.
+agent.register({ name: 'ask_user', category: 'core', risk: 'read', core: true,
+  description: 'Ask the user a short question when the request is ambiguous or a choice is really theirs (which file, which account, which style…). Give 2-4 likely options; the user can also type their own answer. Do NOT use it when the conversation history already answers the question.',
+  parameters: { type: 'object', properties: { question: { type: 'string' }, options: { type: 'array', items: { type: 'string' }, description: '2-4 short likely answers' } }, required: ['question'] },
+  summarize: (a) => a.question,
+  async run(a, ctx) {
+    if (ctx.unattended || !ctx.ask) return { content: 'Nobody can answer right now (unattended run). Pick the most reasonable option yourself and say which one you chose.' };
+    const opts = (a.options || []).map(String).filter(Boolean).slice(0, 4);
+    const v = await ctx.ask({ kind: 'question', tool: 'ask_user', question: String(a.question || '').slice(0, 500), options: opts, summary: String(a.question || '') });
+    if (!v || v === 'deny') return { content: 'The user skipped the question. Continue with the most reasonable choice and say which one.', view: { kind: 'answer', answer: '' } };
+    return { content: `The user answered: ${v}`, view: { kind: 'answer', answer: String(v) } };
+  } });

@@ -250,7 +250,7 @@ agent.register({ ...common, name: 'browser_search', risk: 'net', core: true, key
     if (!userControl) { const url = r.pageUrl || await searchPage(a.query); const wc = ensure().webContents; emit('browser:focus', {}); wc.loadURL(url).catch(() => {}); }
     return tools.searchResult(r, a.query, ctx);
   } });
-agent.register({ ...common, name: 'browser_open', risk: 'net', core: true, keywords: ['site', 'web', 'page', 'navigat', 'browser', 'navigateur', 'clique', 'click', 'formulaire', 'form', 'connecte', 'login'],
+agent.register({ ...common, name: 'browser_open', risk: 'net', core: true, keywords: ['site', 'web', 'page', 'navigat', 'browser', 'navigateur', 'clique', 'click', 'formulaire', 'form', 'connecte', 'login', 'va sur', 'aller sur', 'ouvre', 'go to', 'open ', 'discord', 'youtube', 'gmail', 'instagram', 'twitter', '.com', '.fr', 'http'],
   description: 'Open a URL in Fabro’s built-in browser (visible to the user) and return the page text and its interactive elements with [id]s. new_tab=true keeps the current page open in another tab.',
   parameters: { type: 'object', properties: { url: { type: 'string' }, new_tab: { type: 'boolean' } }, required: ['url'] },
   summarize: (a) => a.url,

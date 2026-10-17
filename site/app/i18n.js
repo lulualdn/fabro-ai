@@ -119,3 +119,8 @@ Object.assign(FA_I18N.fr, { sum_search1: 'recherché 1 fois', sum_searchn: 'rech
 Object.assign(FA_I18N.es, { view: 'Ver', saveFile: 'Descargar', sources: 'Fuentes', sourcesCited: 'Fuentes citadas', recents: 'Recientes' });
 Object.assign(FA_I18N.de, { view: 'Ansehen', saveFile: 'Herunterladen', sources: 'Quellen', sourcesCited: 'Zitierte Quellen', recents: 'Zuletzt' });
 Object.assign(FA_I18N.en, { search: 'Search' }); Object.assign(FA_I18N.fr, { search: 'Rechercher' }); Object.assign(FA_I18N.es, { search: 'Buscar' }); Object.assign(FA_I18N.de, { search: 'Suchen' });
+// touch actions
+Object.assign(FA_I18N.en, { copy: 'Copy', copied: 'Copied', cancel: 'Cancel', editMsg: 'Edit', regenerate: 'Regenerate', share: 'Share', readAloud: 'Read aloud', selectText: 'Select text', rename: 'Rename', delete: 'Delete', editing: 'Editing your message' });
+Object.assign(FA_I18N.fr, { copy: 'Copier', copied: 'Copié', cancel: 'Annuler', editMsg: 'Modifier', regenerate: 'Régénérer', share: 'Partager', readAloud: 'Lire à voix haute', selectText: 'Sélectionner le texte', rename: 'Renommer', delete: 'Supprimer', editing: 'Modification de ton message' });
+Object.assign(FA_I18N.es, { copy: 'Copiar', copied: 'Copiado', cancel: 'Cancelar', editMsg: 'Editar', regenerate: 'Regenerar', share: 'Compartir', readAloud: 'Leer en voz alta', selectText: 'Seleccionar texto', rename: 'Renombrar', delete: 'Eliminar', editing: 'Editando tu mensaje' });
+Object.assign(FA_I18N.de, { copy: 'Kopieren', copied: 'Kopiert', cancel: 'Abbrechen', editMsg: 'Bearbeiten', regenerate: 'Neu erzeugen', share: 'Teilen', readAloud: 'Vorlesen', selectText: 'Text auswählen', rename: 'Umbenennen', delete: 'Löschen', editing: 'Deine Nachricht bearbeiten' });

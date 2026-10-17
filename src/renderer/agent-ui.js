@@ -69,8 +69,16 @@ function stepLabel(st) {
     default: if (st.name.startsWith('mcp__')) { const [, srv, tool] = st.name.split('__'); return `${srv} · ${tool}`; } return st.name;
   }
 }
+function questionCard(st) {
+  const p = st.perm;
+  return `<div class="perm-card q-card"><div class="pc-head">${icon('chat', 16)}<b>${esc(p.question || p.summary || '')}</b></div>
+    ${(p.options || []).length ? `<div class="q-opts">${p.options.map((o) => `<button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>` : ''}
+    <form class="q-own" data-id="${esc(st.id)}" onsubmit="event.preventDefault(); const v=this.querySelector('input').value.trim(); if (v) actions.perm({ dataset: { id: this.dataset.id, v } });"><input class="input" placeholder="${esc(t('q_own'))}"><button class="btn sm primary" type="submit">${esc(t('send'))}</button></form>
+    <button class="link small" data-action="perm" data-id="${esc(st.id)}" data-v="deny">${esc(t('q_skip'))}</button></div>`;
+}
 function permCard(st, m) {
   const p = st.perm;
+  if (p.kind === 'question') return questionCard(st);
   const danger = p.risk === 'danger';
   const title = p.reason === 'folder' ? t('perm_folder') : danger ? t('perm_danger') : t('perm_' + (catOf(p.tool) || 'mcp'));
   return `<div class="perm-card ${danger ? 'danger' : ''}">

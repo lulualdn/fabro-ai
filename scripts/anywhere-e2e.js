@@ -146,8 +146,15 @@ function y4m(rgba, w, h, file) {
   });
   await phone.fill('#prompt', 'Quelle est la capitale de la France ?');
   await phone.click('.composer .send');
-  await phone.waitForFunction(() => /Paris/.test((document.querySelector('.msg.ai .md') || {}).textContent || ''), null, { timeout: 30000 });
+  await phone.waitForFunction(() => /Paris/.test((document.querySelector('.msg.ai .md') || {}).textContent || ''), null, { timeout: 30000 }).catch(async (e) => { console.log('phone errors', phErrors, await phone.evaluate(() => document.querySelector('#chat').innerHTML.slice(0, 600))); await phone.screenshot({ path: path.join(shots, 'FAIL.png') }); throw e; });
   await phone.waitForFunction(() => { const c = window.__fa.S.convs.get(window.__fa.S.cur); return c && !c.nodes.some((n) => n.pending); }, null, { timeout: 30000 });
+  // long press on an answer opens the action sheet (copy, regenerate, share…)
+  await phone.evaluate(() => { const el = document.querySelector('.msg.ai'); const r = el.getBoundingClientRect(); const tc = new Touch({ identifier: 1, target: el, clientX: r.left + 20, clientY: r.top + 10 }); el.dispatchEvent(new TouchEvent('touchstart', { touches: [tc], changedTouches: [tc], bubbles: true })); });
+  await phone.waitForSelector('#act-sheet .as-it', { timeout: 3000 }); await wait(350);
+  await phone.screenshot({ path: path.join(shots, 'phone-actions.png') });
+  step('long press → action sheet');
+  await phone.evaluate(() => { const el = document.querySelector('.msg.ai'); const tc = new Touch({ identifier: 1, target: el, clientX: 0, clientY: 0 }); el.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [tc], bubbles: true })); });
+  await phone.click('#act-sheet .as-it.cancel'); await wait(300);
   const via = await phone.evaluate(() => window.__fa.S.conn.state);
   step(`answered in streaming (${via})`);
   await phone.screenshot({ path: path.join(shots, 'phone-chat.png') });

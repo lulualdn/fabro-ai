@@ -61,7 +61,7 @@ async function execute(call, ctx) {
   if (guard && guard.refuse) return { content: `Refused: ${guard.refuse}`, view: { kind: 'refused', reason: guard.refuse }, refused: true };
   const policy = ctx.policyFor ? ctx.policyFor(tool, policyFor(tool)) : policyFor(tool);
   if (policy === 'never') return { content: 'The user does not allow this tool.', view: { kind: 'refused', reason: 'policy' }, refused: true };
-  const needsAsk = policy === 'ask' || (guard && guard.confirm);
+  const needsAsk = call.name !== 'ask_user' && (policy === 'ask' || (guard && guard.confirm));
   if (needsAsk) {
     const decision = await ctx.ask({ project: !!ctx.projectRoot, tool: tool.name, category: tool.category, risk: guard && guard.confirm ? 'danger' : tool.risk, summary: tool.summarize ? tool.summarize(args) : JSON.stringify(args).slice(0, 300), reason: guard && guard.confirm, args });
     if (decision === 'always' && !(guard && guard.confirm)) { if (ctx.onAlways) await ctx.onAlways(tool.name); else await setPolicy(tool.name, 'always'); }

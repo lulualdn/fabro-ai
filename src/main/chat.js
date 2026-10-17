@@ -346,13 +346,16 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     if (be.inst) engine.acquire(be.inst);
     out({ type: 'status', status: 'generating', backend: be.kind === 'local' ? 'local' : be.provider.kind });
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-    const userText = lastUser ? (typeof lastUser.content === 'string' ? lastUser.content : (lastUser.content || []).map((c) => c.text || '').join(' ')) : '';
+    const txt = (m) => (typeof m.content === 'string' ? m.content : (m.content || []).map((c) => c.text || '').join(' '));
+    const userText = lastUser ? txt(lastUser) : '';
+    // tools are picked from the last few turns, so "use the browser" after "go to Discord" brings the browser
+    const recentText = messages.filter((m) => m.role === 'user' || m.role === 'assistant').slice(-6).map(txt).join(' ').slice(-4000);
     let agentMode = !!params.agentMode;
     const codeCtx = meta.code && meta.code.root ? meta.code : null;
     if (codeCtx) agentMode = true;
     const buildTools = () => {
       const chatT = tools.schemas(params.tools || []);
-      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: userText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx }).map(agent.schema);
+      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: recentText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx }).map(agent.schema);
       return [...chatT, ...agentT];
     };
     let toolSchemas = buildTools();
@@ -386,7 +389,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
     const src = { n: 0 };
-    const ctxBase = { src, emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
+    const ctxBase = { src, taskId: meta.taskId, unattended: !!meta.unattended, emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
     if (codeCtx) {
       ctxBase.projectRoot = codeCtx.root;
       ctxBase.checkpoint = parent && parent.checkpoint ? parent.checkpoint : (p, before) => { if (!(p in cpFiles)) cpFiles[p] = before; };

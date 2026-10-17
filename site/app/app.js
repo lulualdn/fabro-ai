@@ -776,6 +776,7 @@
       <section class="main">
         <header class="top" id="top"></header>
         <div class="chat" id="chat">${chatBody()}</div>
+        <button id="to-bottom" class="to-bottom" data-act="to-bottom" aria-label="↓">${ic('back', 18)}</button>
         <div class="composer-wrap" id="composer"></div>
       </section>
     </div>`;
@@ -803,10 +804,11 @@
       <span class="top-title">${esc(c ? c.title || t('untitled') : '')}</span>
       <button class="pc-chip" data-act="model">
         <span class="pc-dot ${st}"></span>
-        <span class="pc-txt"><b>${esc(modelLabel())}</b><small>${esc(S.link ? `${S.link.pcName || 'PC'} · ${label}` : t('guestMode'))}</small></span>
+        <span class="pc-txt"><b class="m-title">${esc(c ? c.title || t('untitled') : 'Fabro')}</b><b class="d-title">${esc(modelLabel())}</b><small>${esc(S.link ? `${S.link.pcName || 'PC'} · ${modelLabel()}` : t('guestMode'))}</small></span>
       </button>
       <span class="grow"></span>
-      <button class="icon-btn" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave')}</button>`;
+      <button class="icon-btn" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave')}</button>
+      <button class="icon-btn top-new" data-act="new" aria-label="${esc(t('newChat'))}">${ic('plus')}</button>`;
   }
   function modelLabel() {
     if (S.settings.model === 'phone') { const m = localInfo(); return m ? `${m.name} · ${t('onPhone')}` : t('localTitle'); }
@@ -865,13 +867,15 @@
     const kept = $('#prompt') ? $('#prompt').value : S.draft;
     el.innerHTML = `${S.conn.state === 'off' && S.link ? `<div class="banner">${esc(S.conn.err || t('pcAway'))} <button class="link" data-act="reconnect">${esc(t('retry'))}</button></div>` : ''}
       ${S.atts.length ? `<div class="c-atts">${S.atts.map((a, i) => `<span class="c-att"><img src="${esc(a.data)}" alt=""><button data-act="att-rm" data-i="${i}" aria-label="${esc(t('remove'))}">${ic('x', 14)}</button></span>`).join('')}</div>` : ''}
-      <form class="composer" data-form="send">
+      ${S.editing ? `<div class="edit-bar">✎ ${esc(t('editing'))}<span class="grow"></span><button type="button" class="link" data-act="edit-cancel">${esc(t('cancel'))}</button></div>` : ''}
+      <form class="composer ${kept && kept.trim() ? 'has-text' : ''}" data-form="send">
         <textarea id="prompt" rows="1" placeholder="${esc(ph)}" aria-label="${esc(t('placeholder'))}">${esc(kept)}</textarea>
         <div class="c-row">
           <label class="icon-btn c-plus ${vision ? '' : 'dim'}" aria-label="${esc(t('addPhoto'))}">${ic('plus', 18)}<input type="file" accept="image/*" multiple hidden id="photo-in"></label>
           <button type="button" class="chip ${c && c.agent || (!c && S.settings.agent) ? 'on' : ''}" data-act="agent">${ic('agent', 16)} ${esc(t('agent'))}</button>
           <span class="grow"></span>
           <button type="button" class="model-pill" data-act="model">${esc(modelLabel())} <span class="chev">⌄</span></button>
+          <button type="button" class="c-talk" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave', 19)}</button>
           <button type="button" class="icon-btn c-voice" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave', 18)}</button>
           <button type="button" class="icon-btn ${S.dictating ? 'rec' : ''}" data-act="dictate" aria-label="${esc(t('dictate'))}">${ic('mic')}</button>
           ${running ? `<button type="button" class="send stop" data-act="stop" aria-label="${esc(t('stop'))}">${ic('stop', 18)}</button>` : `<button type="submit" class="send" aria-label="${esc(t('send'))}">${ic('send', 20)}</button>`}
@@ -1002,16 +1006,80 @@
       if (S.cur === id) S.cur = null; render();
     },
   };
+  // ───────────────────────────── touch: long press, swipes, action sheets ─────────────────────────────
+  const buzz = (ms = 12) => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
+  function actionSheet(title, items) {
+    $('#act-sheet') && $('#act-sheet').remove();
+    const el = document.createElement('div'); el.id = 'act-sheet'; el.className = 'as-wrap';
+    el.innerHTML = `<div class="as-bg" data-act="as-close"></div><div class="as" role="menu">${title ? `<div class="as-title">${esc(title)}</div>` : ''}
+      ${items.map((it, i) => `<button class="as-it ${it.danger ? 'danger' : ''}" data-act="as-pick" data-i="${i}" role="menuitem"><span class="as-ic">${it.icon || ''}</span>${esc(it.label)}</button>`).join('')}
+      <button class="as-it cancel" data-act="as-close">${esc(t('cancel'))}</button></div>`;
+    S.asItems = items; document.body.appendChild(el); buzz();
+  }
+  const closeSheet = () => { const el = $('#act-sheet'); if (!el) return; el.classList.add('out'); setTimeout(() => el.remove(), 200); };
+  const nodeOf = (id) => { const c = curConv(); return c && A.nodesOf(c).find((n) => n.id === id); };
+  function messageMenu(id) {
+    const n = nodeOf(id); if (!n) return; const c = curConv();
+    const text = n.content || '';
+    const items = [{ label: t('copy'), icon: '⧉', run: () => navigator.clipboard.writeText(text).then(() => toast(t('copied'))) }];
+    if (n.role === 'user' && !busy(c)) items.push({ label: t('editMsg'), icon: '✎', run: () => { S.editing = n.id; S.draft = text; render(); const ta = $('#prompt'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } } });
+    if (n.role === 'assistant' && !n.pending && !busy(c)) items.push({ label: t('regenerate'), icon: '↻', run: () => { const p = nodeOf(n.parentId); if (!p) return; c.leafId = p.parentId || null; send(p.content, p.attachments || []); } });
+    if (navigator.share) items.push({ label: t('share'), icon: '↗', run: () => navigator.share({ text }).catch(() => {}) });
+    if (n.role === 'assistant' && text) items.push({ label: t('readAloud'), icon: '🔊', run: () => { try { Speaker.say(speakable(text)); } catch {} } });
+    items.push({ label: t('selectText'), icon: '⌶', run: () => { const v = document.createElement('div'); v.className = 'av'; v.id = 'av'; v.innerHTML = `<header><button class="icon-btn" data-act="art-close" aria-label="${esc(t('close'))}">${ic('back')}</button><div class="av-t"><b>${esc(t('selectText'))}</b></div></header><div class="av-body"><div class="sel-text">${esc(text)}</div></div>`; document.body.appendChild(v); } });
+    actionSheet('', items);
+  }
+  function convMenu(id) {
+    const meta = allConvs().find((c) => c.id === id); if (!meta) return;
+    actionSheet(meta.title || t('untitled'), [
+      { label: t('rename'), icon: '✎', run: async () => { const v = prompt(t('rename'), meta.title || ''); if (!v) return; const c = S.convs.get(id); if (c) { c.title = v.slice(0, 120); await saveConv(c); } if (session) rpc('conv.rename', { id, title: v }).catch(() => {}); render(); } },
+      { label: t('delete'), icon: '🗑', danger: true, run: () => acts.delete({ dataset: { id } }) },
+    ]);
+  }
+  // long press (450 ms without moving) on a message or a conversation
+  let lp = null;
+  document.addEventListener('touchstart', (e) => {
+    const m = e.target.closest('.msg[id^="m-"], .d-item[data-id]'); if (!m || e.touches.length > 1) return;
+    const t0 = e.touches[0]; lp = { x: t0.clientX, y: t0.clientY, el: m, timer: setTimeout(() => { lp.fired = true; m.classList.add('pressed'); setTimeout(() => m.classList.remove('pressed'), 250); if (m.classList.contains('d-item')) convMenu(m.dataset.id); else messageMenu(m.id.slice(2)); }, 450) };
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => { if (lp && Math.hypot(e.touches[0].clientX - lp.x, e.touches[0].clientY - lp.y) > 10) { clearTimeout(lp.timer); lp = null; } }, { passive: true });
+  document.addEventListener('touchend', (e) => { if (!lp) return; clearTimeout(lp.timer); if (lp.fired) e.preventDefault(); lp = null; });
+  document.addEventListener('contextmenu', (e) => { const m = e.target.closest('.msg[id^="m-"], .d-item[data-id]'); if (!m || matchMedia('(pointer: fine)').matches && !e.ctrlKey) return; e.preventDefault(); });
+  // swipe from the left edge opens the conversations, swipe left closes them
+  let sw = null;
+  document.addEventListener('touchstart', (e) => { const x = e.touches[0].clientX; if (S.view !== 'main' || innerWidth >= 820) return; if ((!S.drawer && x < 24) || (S.drawer && e.target.closest('.drawer'))) sw = { x, y: e.touches[0].clientY, open: S.drawer }; }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (!sw) return; const tch = e.changedTouches[0]; const dx = tch.clientX - sw.x, dy = Math.abs(tch.clientY - sw.y);
+    if (!sw.open && dx > 60 && dy < 60) acts.drawer(); else if (sw.open && dx < -60 && dy < 60) acts['drawer-close']();
+    sw = null;
+  });
+  // tap a code block to copy it
+  document.addEventListener('click', (e) => { const pre = e.target.closest('.md pre'); if (!pre || window.getSelection().toString()) return; navigator.clipboard.writeText(pre.innerText).then(() => { buzz(8); toast(t('copied')); }).catch(() => {}); });
+  // a button to jump back to the latest message
+  document.addEventListener('scroll', (e) => { if (e.target.id !== 'chat') return; const el = e.target; const far = el.scrollHeight - el.scrollTop - el.clientHeight > 400; const b = $('#to-bottom'); if (b) b.classList.toggle('show', far); }, true);
+  Object.assign(acts, {
+    'as-close': () => closeSheet(),
+    'as-pick': (el) => { const it = (S.asItems || [])[+el.dataset.i]; closeSheet(); if (it) setTimeout(() => it.run(), 60); },
+    'to-bottom': () => scrollChat(true),
+    'edit-cancel': () => { S.editing = null; S.draft = ''; renderComposer(); },
+    'msg-menu': (el) => messageMenu(el.dataset.id),
+  });
+
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]'); if (!el) return;
     const fn = acts[el.dataset.act]; if (fn) { e.preventDefault(); fn(el, e); }
   });
   document.addEventListener('submit', (e) => {
     const f = e.target.closest('form[data-form]'); if (!f) return; e.preventDefault();
-    if (f.dataset.form === 'send') { const ta = $('#prompt'); const v = ta.value; if (busy(curConv())) return; send(v, S.atts.slice()); }
+    if (f.dataset.form === 'send') {
+      const ta = $('#prompt'); const v = ta.value; const c = curConv(); if (busy(c)) return;
+      // editing a message: the new version branches from the same place
+      if (S.editing && c) { const n = A.nodesOf(c).find((x) => x.id === S.editing); if (n) c.leafId = n.parentId || null; S.editing = null; }
+      send(v, S.atts.slice());
+    }
     if (f.dataset.form === 'code') { A.parseTextCode($('#code-in').value).then((d) => { if (d) pairWith(d); else toast(t('badCode'), 'err'); }); }
   });
-  document.addEventListener('input', (e) => { if (e.target.id === 'd-q') { S.q = e.target.value; const l = $('.d-list'); if (l) l.innerHTML = convList(); return; } if (e.target.id === 'prompt') { S.draft = e.target.value; fit(e.target); } });
+  document.addEventListener('input', (e) => { if (e.target.id === 'd-q') { S.q = e.target.value; const l = $('.d-list'); if (l) l.innerHTML = convList(); return; } if (e.target.id === 'prompt') { S.draft = e.target.value; fit(e.target); const f = e.target.form; if (f) f.classList.toggle('has-text', !!e.target.value.trim() || S.atts.length > 0); } });
   document.addEventListener('keydown', (e) => {
     if (e.target.id === 'prompt' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); e.target.form.requestSubmit(); }
     if (e.key === 'Escape') { if ($('#av')) acts['art-close'](); else if (S.voice) closeVoice(); else if (S.sheet) { S.sheet = null; renderSheet(); } }
