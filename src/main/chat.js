@@ -476,7 +476,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           if (badArgs) { const sc = toolSchemas.find((x) => x.function.name === c.name); throw Object.assign(new Error(`Your arguments for ${c.name} were not valid JSON (${badArgs}). Call it again with a JSON object matching: ${JSON.stringify((sc && sc.function.parameters) || {}).slice(0, 800)}`), { code: 'BAD_ARGS' }); }
           if (tools.CHAT_TOOLS[c.name]) {
             if (!(params.tools || []).includes(c.name)) throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
-            result = await tools.run(c.name, args, { project: meta.project, needDeps: parent ? (dep) => parent.needDeps(c.id, dep) : (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) });
+            result = await tools.run(c.name, args, { emit: out, callId: c.id, signal: ctrl.signal, project: meta.project, needDeps: parent ? (dep) => parent.needDeps(c.id, dep) : (dep) => needDeps(reqId, c.id, dep, out, ctrl.signal) });
           } else if (agent.get(c.name) && params.agent !== false) {
             result = await runAgentTool(c, args);
           } else throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });

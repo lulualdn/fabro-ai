@@ -101,7 +101,7 @@ function stylePrompt() {
 const REASONING = ['auto', 'off', 'low', 'medium', 'high'];
 function chatTools() {
   const ct = S.settings.chatTools || {};
-  return [ct.webSearch !== false && 'web_search', ct.fetch !== false && 'fetch_url'].filter(Boolean);
+  return [ct.webSearch !== false && 'web_search', ct.fetch !== false && 'fetch_url', ct.images !== false && 'generate_image'].filter(Boolean);
 }
 function composerExtras() {
   const r = S.settings.gen.reasoning || 'auto';
@@ -124,6 +124,7 @@ function openPlusMenu(anchor) {
       <button class="pm-item" data-action="attach">${icon('clip', 16)}<span class="pm-text"><b>${esc(t('attach'))}</b></span></button>
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="tool-toggle" data-key="webSearch">${icon('globe', 16)}<span class="pm-text"><b>${esc(t('webSearch'))}</b><small>${esc(t('webSearchHint'))}</small></span>${tg(ct.webSearch !== false)}</button>
+      <button class="pm-item" data-action="tool-toggle" data-key="images">${icon('image', 16)}<span class="pm-text"><b>${esc(t('img_tool'))}</b><small>${esc(t('img_toolHint'))}</small></span>${tg(ct.images !== false)}</button>
       <button class="pm-item" data-action="tool-toggle" data-key="fetch">${icon('link', 16)}<span class="pm-text"><b>${esc(t('fetchTool'))}</b><small>${esc(t('fetchHint'))}</small></span>${tg(ct.fetch !== false)}</button>
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="style-menu">${icon('brush', 16)}<span class="pm-text"><b>${esc(t('responseStyle'))}</b><small>${esc(activeStyle().name)}</small></span>${icon('right', 14)}</button>

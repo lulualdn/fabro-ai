@@ -101,3 +101,29 @@ jobs:
           name: voice-${{ matrix.os }}
           path: voice-mode.png
           if-no-files-found: ignore
+
+  images:
+    # stable-diffusion.cpp build picked for the runner + SD Turbo, one real image.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/images-smoke.js
+        env:
+          SHOTS: .
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: image-${{ matrix.os }}
+          path: generated.png
+          if-no-files-found: ignore

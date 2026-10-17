@@ -1343,3 +1343,13 @@ details.py summary, details.diff summary { cursor: pointer; font-size: 12px; col
 .vx-top .input { width: auto; min-width: 140px; }
 .vx-title { white-space: nowrap; }
 .vx-subs { margin-bottom: 4px; }
+
+/* ───────────── Generated images ───────────── */
+.gen-wait { position: relative; width: min(360px, 100%); aspect-ratio: var(--r, 1/1); margin: 6px 0 2px 26px; border-radius: 16px; overflow: hidden; background: var(--panel); display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+.gen-shimmer { position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--accent) 14%, transparent) 50%, transparent 70%); background-size: 250% 100%; animation: gen-sh 1.6s linear infinite; }
+@keyframes gen-sh { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.gen-wait span { position: relative; } .gen-wait i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); transition: width .3s; }
+.gen-img { margin: 6px 0 2px 26px; width: min(460px, 100%); border-radius: 16px; overflow: hidden; border: 1px solid var(--border); background: var(--elev); animation: rise .4s var(--ease) both; }
+.gen-img img { display: block; width: 100%; cursor: zoom-in; }
+.gen-img figcaption { display: flex; align-items: center; gap: 4px; padding: 6px 8px 6px 12px; font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .gen-shimmer { animation: none; } }

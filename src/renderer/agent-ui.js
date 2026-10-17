@@ -2,7 +2,7 @@
 /* Agent mode UI: automatic switch, tool steps (files, terminal, browser, documents, Python, MCP, skills),
    permission cards, on-demand dependencies, and the workspace panel with the live browser. */
 
-const AGENT_ICONS = { files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git', code: 'flask' };
+const AGENT_ICONS = { files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git', code: 'flask', image: 'image' };
 const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p;
 function catOf(name) {
   if (name.startsWith('mcp__')) return 'mcp';
@@ -16,6 +16,7 @@ function catOf(name) {
   if (name === 'run_subagent') return 'subagent';
   if (name.startsWith('git_')) return 'git';
   if (name === 'run_tests' || name === 'run_lint') return 'code';
+  if (name === 'generate_image') return 'image';
   return 'mcp';
 }
 const state0 = () => S.browser || {};
@@ -42,6 +43,7 @@ function stepLabel(st) {
     case 'browser_tabs': return k('tabs');
     case 'update_plan': { const st0 = a.steps || []; return t('ag_plan', { d: st0.filter((x) => x.status === 'done').length, n: st0.length }); }
     case 'run_subagent': return k('sub', { d: a.description || '' });
+    case 'generate_image': return k('img', { p: String(a.prompt || '').slice(0, 70) });
     case 'run_tests': return k('tests');
     case 'run_lint': return k('lint');
     case 'git_status': return k('gitstatus');
@@ -106,6 +108,13 @@ function stepDetail(st) {
       ${v.artifactId ? `<button class="icon-btn sm" data-action="art-open" data-id="${esc(v.artifactId)}" title="${esc(t('artEdit'))}">${icon('edit', 15)}</button>` : ''}</div>`;
   }
   if (st.name === 'browser_screenshot' && v.image) return `<img class="step-img" src="${v.image}" alt="">`;
+  if (st.name === 'generate_image') {
+    if (st.status === 'running') return `<div class="gen-wait" style="--r:${(st.args.aspect === 'portrait' || st.args.aspect === 'tall') ? '3/4' : st.args.aspect === 'wide' ? '16/9' : st.args.aspect === 'landscape' ? '4/3' : '1/1'}"><div class="gen-shimmer"></div><span>${st.pct ? Math.round(st.pct * 100) + ' %' : esc(t('img_preparing'))}</span><i style="width:${Math.round((st.pct || 0) * 100)}%"></i></div>`;
+    if (v.image) return `<figure class="gen-img"><img src="${v.image}" alt="${esc(v.prompt || '')}" data-action="gen-open" data-path="${esc(v.path)}">
+      <figcaption><span>${esc(v.model || '')} · ${v.width}×${v.height} · ${Math.round((v.ms || 0) / 1000)} s</span><span class="grow"></span>
+      <button class="icon-btn sm" data-action="open-path" data-path="${esc(v.path)}" title="${esc(t('open'))}">${icon('expand', 15)}</button>
+      <button class="icon-btn sm" data-action="reveal-path" data-path="${esc(v.path)}" title="${esc(t('ag_reveal'))}">${icon('folder', 15)}</button></figcaption></figure>`;
+  }
   if (st.name === 'browser_search' && v.sources && v.sources.length) return `<div class="st-srcs">${v.sources.slice(0, 8).map((s, i) => `<a class="src" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.snippet || s.title)}"><b>${i + 1}</b><span>${esc(s.title)}</span><small>${esc(fav(s.url))}</small></a>`).join('')}</div>`;
   return '';
 }
@@ -149,7 +158,7 @@ function onAgentEvent(ev, m) {
       if (document.hidden || !document.hasFocus()) api.notify({ title: t('perm_notify'), body: ev.summary || ev.tool, onlyIfHidden: true });
       break;
     case 'deps_needed': if (st) st.deps = { dep: ev.dep }; break;
-    case 'tool_progress': if (st) st.live = ((st.live || '') + ev.text).slice(-20000); break;
+    case 'tool_progress': if (st) { if (ev.pct != null) st.pct = ev.pct; else st.live = ((st.live || '') + ev.text).slice(-20000); } break;
     case 'retract': m.content = (m.content || '').replace(ev.text, ''); break;
     case 'plan': if (!ev.sub) { m.plan = ev.steps; S.sp = S.sp || {}; renderSessionPanel(); } break;
     case 'sub_token': { const p = (m.steps || []).find((x) => x.id === ev.parent); if (p) p.subText = ((p.subText || '') + ev.text).slice(-2000); break; }
@@ -240,6 +249,7 @@ Object.assign(actions, {
   'ab-tab-close': async (el) => { S.browser = await api.browser.control('closetab', el.dataset.id); renderViewer(); },
   'ab-control': async () => { S.browser = await api.browser.control(S.browser && S.browser.userControl ? 'release' : 'take'); renderViewer(); },
   'reveal-path': (el) => api.shell.reveal(el.dataset.path),
+  'gen-open': (el) => openViewer({ type: 'image', title: el.alt || '', src: el.src }),
   'open-path': (el) => api.shell.openPath(el.dataset.path),
 });
 document.addEventListener('submit', (e) => {

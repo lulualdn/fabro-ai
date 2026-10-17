@@ -25,6 +25,7 @@ const tools = require('./tools');
 const code = require('./code');
 const rag = require('./rag');
 const voice = require('./voice');
+const images = require('./images');
 const S = () => store.getSettings();
 exporter.registerScheme();
 
@@ -183,9 +184,15 @@ function registerIpc() {
     if (dep === 'python') return python.install(prog);
     if (dep === 'searxng') { const r = await searxng.install(prog); await store.setSettings({ search: { searxngDeclined: false } }); searxng.start(S().lang).catch(() => {}); return r; }
     if (dep === 'git') return code.install(prog);
+    if (dep === 'images') return images.install(prog);
+    if (dep === 'voice') return voice.install(prog);
     throw new Error('Unknown dependency');
   });
   h('deps:remove', (dep) => { if (dep === 'searxng') return searxng.remove(); throw new Error('Unknown dependency'); });
+  // Images
+  h('images:status', () => images.status());
+  h('images:install', (preset) => images.install((p) => send('deps:progress', { dep: 'images', p }), preset));
+
   // Voice
   h('voice:status', () => voice.status());
   h('voice:install', () => voice.install((p) => send('deps:progress', { dep: 'voice', p }), { lang: S().language && S().language !== 'auto' ? S().language : app.getLocale().slice(0, 2) }));

@@ -3,7 +3,7 @@
 
 async function loadAgentSettings() {
   try {
-    [S.agentTools, S.mcp, S.skills, S.deps] = await Promise.all([api.agent.tools(), api.mcp.view(), api.skills.list(), api.deps.status()]);
+    [S.agentTools, S.mcp, S.skills, S.deps, S.imgStatus] = await Promise.all([api.agent.tools(), api.mcp.view(), api.skills.list(), api.deps.status(), api.images.status()]);
   } catch {}
   if (S.settingsTab === 'agent') renderSettings();
 }
@@ -39,6 +39,11 @@ function agentTab() {
     <div class="lib-row"><div class="m-ico">${icon('code', 17)}</div><div class="m-text"><b>Python 3.12</b><small>${esc(py.installed ? t('depsInstalled') : t('depsPython', { n: py.sizeMB || 32 }))}</small></div>
       ${depBtn('python', py.installed)}</div>
     <div class="lib-row"><div class="m-ico">${icon('git', 17)}</div><div class="m-text"><b>Git</b><small>${esc(t('depsGit'))}</small></div>${depBtn('git', (S.deps || {}).git)}</div>
+
+    <div class="st-sec">${esc(t('img_title'))}</div>
+    <p class="muted small st-intro">${esc(t('img_hint'))}</p>
+    ${(() => { const im = S.imgStatus || {}; const pr = im.presets || {}; return Object.entries(pr).map(([k, p]) => `<div class="lib-row"><div class="m-ico">${icon('image', 17)}</div><div class="m-text"><b>${esc(p.name)}${k === im.recommended ? ` <span class="chip accent">${esc(t('recommended'))}</span>` : ''}</b><small>${esc(t('img_' + k))} · ≈ ${p.sizeGB} GB</small></div>
+      ${p.ready && im.engine ? (im.preset === k ? `<span class="chip ok">${icon('check', 13)} ${esc(t('img_active'))}</span>` : `<button class="btn sm" data-action="img-use" data-k="${k}">${esc(t('img_use'))}</button>`) : S.depsBusy === 'images:' + k ? `<span class="muted small">${spinner(14)} ${Math.round((S.depsP || 0) * 100)} %</span>` : `<button class="btn sm" data-action="img-install" data-k="${k}" ${S.depsBusy ? 'disabled' : ''}>${icon('download', 14)} ${esc(t('installDeps'))}</button>`}</div>`).join(''); })()}
 
     <div class="st-sec">${esc(t('srchTitle'))}</div>
     <p class="muted small st-intro">${esc(t('srchHint'))}</p>
@@ -92,6 +97,8 @@ const parseCmd = (s) => (String(s).match(/"[^"]*"|'[^']*'|\S+/g) || []).map((x) 
 Object.assign(actions, {
   'ag-folder-add': async () => { const f = await api.agent.addFolder(); if (f) { S.settings = await api.settings.get(); renderSettings(); } },
   'ag-folder-rm': async (el) => { await api.agent.removeFolder(el.dataset.f); S.settings = await api.settings.get(); renderSettings(); },
+  'img-install': async (el) => { S.depsBusy = 'images:' + el.dataset.k; S.depsP = 0; renderSettings(); try { S.imgStatus = await api.images.install(el.dataset.k); toast(t('depsDone')); } catch (e) { toast(cleanErr(e), 'err'); } S.depsBusy = false; renderSettings(); },
+  'img-use': async (el) => { S.depsBusy = 'images:' + el.dataset.k; renderSettings(); try { S.imgStatus = await api.images.install(el.dataset.k); } catch (e) { toast(cleanErr(e), 'err'); } S.depsBusy = false; renderSettings(); },
   'deps-rm': async (el) => { await api.deps.remove(el.dataset.dep); S.deps = await api.deps.status(); renderSettings(); },
   'srch-test': async () => {
     S.srchTesting = true; S.srchTest = ''; renderSettings();

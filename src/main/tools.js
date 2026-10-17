@@ -15,6 +15,15 @@ const CHAT_TOOLS = {
       time_range: { type: 'string', enum: ['day', 'week', 'month', 'year'], description: 'Optional: only recent results' },
     }, required: ['query'] },
   },
+  generate_image: {
+    description: 'Create an image locally (stable-diffusion.cpp) and show it to the user: illustrations, photos, logos, concept art. Write the prompt in English, detailed and visual (subject, setting, style, lighting, colours, composition). The image is saved in Documents/Fabro/Images.',
+    parameters: { type: 'object', properties: {
+      prompt: { type: 'string', description: 'Detailed English description of the image' },
+      aspect: { type: 'string', enum: ['square', 'portrait', 'landscape', 'wide', 'tall'] },
+      negative: { type: 'string', description: 'Optional: what to avoid' },
+      seed: { type: 'integer' },
+    }, required: ['prompt'] },
+  },
   show_on_scene: {
     description: 'Voice mode: show something on the screen while you talk — pictures found on the web (images query), a video (video query or YouTube URL), a web page (url), or your own drawing/diagram/page (svg or html you write). Replaces what is shown.',
     parameters: { type: 'object', properties: {
@@ -187,6 +196,17 @@ async function run(name, args, ctx = {}) {
     return { content, view: { kind: 'search', query: args.query, engine, sources: results.map((x) => ({ title: x.title, url: x.url, snippet: x.snippet })) } };
   }
   if (name === 'show_on_scene') return showOnScene(args, ctx);
+  if (name === 'generate_image') {
+    const images = require('./images');
+    let st = await images.status();
+    if (!st.engine || !st.preset || !st.presets[st.preset].ready) {
+      if (!ctx.needDeps || !(await ctx.needDeps('images'))) throw new Error('Image generation is not installed (the user declined). Tell the user they can install it in Settings → Agent.');
+      st = await images.status();
+    }
+    const r = await images.generate(args, { signal: ctx.signal, onProgress: (p) => ctx.emit && ctx.emit({ type: 'tool_progress', id: ctx.callId, pct: p }) });
+    return { content: `Image generated (${r.width}×${r.height}, ${st.presets[r.preset].name}, ${(r.ms / 1000).toFixed(0)} s) and shown to the user. Saved at ${r.path}. Don't describe it at length; one short sentence is enough.`,
+      view: { kind: 'image', path: r.path, image: r.dataUrl, width: r.width, height: r.height, prompt: args.prompt, model: st.presets[r.preset].name, ms: r.ms } };
+  }
   if (name === 'project_search') {
     if (!ctx.project) throw new Error('No project');
     const r = await require('./rag').search(ctx.project, String(args.query || ''), 8);
