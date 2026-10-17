@@ -1,4 +1,8 @@
-﻿; Fabro uninstaller: ask whether to also remove conversations, settings and downloaded models.
+﻿; Fabro colours on the classic setup screens (welcome / finish / header)
+!define MUI_BGCOLOR "12161D"
+!define MUI_TEXTCOLOR "F3F1EE"
+
+; Fabro uninstaller: ask whether to also remove conversations, settings and downloaded models.
 ; Never asked (and nothing removed) during an update or a silent uninstall.
 !macro customUnInstall
   ${ifNot} ${isUpdated}
