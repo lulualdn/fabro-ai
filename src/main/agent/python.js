@@ -47,16 +47,10 @@ async function install(onProgress = () => {}) {
 
 function deps() { return { python: { installed: installed(), path: installed() ? pyBin() : null, sizeMB: 32 } }; }
 
-function run(bin, args, opts, onData) {
-  return new Promise((resolve) => {
-    let out = '';
-    const p = spawn(bin, args, { ...opts, windowsHide: true });
-    const t = setTimeout(() => { try { p.kill(); } catch {} out += '\n[stopped: time limit]'; }, opts.timeout || 120000);
-    p.stdout.on('data', (d) => { out += d; onData && onData(String(d)); });
-    p.stderr.on('data', (d) => { out += d; onData && onData(String(d)); });
-    p.on('error', (e) => { clearTimeout(t); resolve({ code: -1, out: out + String(e.message) }); });
-    p.on('close', (code) => { clearTimeout(t); resolve({ code, out }); });
-  });
+// Python runs in the tool runtime process.
+async function run(bin, args, opts, onData) {
+  const r = await require('../runtime').exec({ bin, args, cwd: opts.cwd, env: opts.env, timeout: opts.timeout || 120000 }, { onData: (s) => onData && onData(s) });
+  return { code: r.code, out: (r.out || '') + (r.err || '') + (r.killed ? '\n[stopped: time limit]' : '') };
 }
 
 agent.register({

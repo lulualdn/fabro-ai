@@ -26,6 +26,8 @@ const code = require('./code');
 const rag = require('./rag');
 const voice = require('./voice');
 const images = require('./images');
+const crash = require('./crash');
+const runtime = require('./runtime');
 const S = () => store.getSettings();
 exporter.registerScheme();
 
@@ -189,6 +191,12 @@ function registerIpc() {
     throw new Error('Unknown dependency');
   });
   h('deps:remove', (dep) => { if (dep === 'searxng') return searxng.remove(); throw new Error('Unknown dependency'); });
+  // Tool runtime + crash reports
+  h('runtime:status', () => runtime.status());
+  h('crash:list', () => crash.list().map(({ stack, ...r }) => r));
+  h('crash:folder', () => { require('fs').mkdirSync(crash.dir(), { recursive: true }); shell.openPath(crash.dir()); });
+  h('crash:report', (file) => { const r = crash.list().find((x) => x.file === file); if (r) shell.openExternal(crash.issueUrl(r)); });
+
   // Images
   h('images:status', () => images.status());
   h('images:install', (preset) => images.install((p) => send('deps:progress', { dep: 'images', p }), preset));
@@ -273,6 +281,7 @@ function registerIpc() {
 
 app.whenReady().then(async () => {
   store.init();
+  crash.init(() => win);
   searxng.configure({ deps: process.env.FABRO_DEPS || path.join(app.getPath('userData'), 'deps'), python: async (prog) => { await python.install((p) => prog(p * 0.3)); return python.pyPath(); } });
   // 0.1.9: SearXNG becomes the default search engine (DuckDuckGo stays the fallback).
   if (!(S().search || {}).v2) await store.setSettings({ search: { engine: (S().search || {}).engine === 'duckduckgo' ? 'searxng' : (S().search || {}).engine, v2: true } });
@@ -316,5 +325,5 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => { if (!isMac) app.quit(); });
 app.on('activate', () => { if (win) desktop.showMain(); else createWindow(); });
-app.on('before-quit', () => { engine.stop(); searxng.stop(); voice.stop(); });
+app.on('before-quit', () => { engine.stop(); searxng.stop(); voice.stop(); runtime.stop(); });
 app.on('will-quit', () => { engine.stop(); mcp.stopAll(); db.close(); });

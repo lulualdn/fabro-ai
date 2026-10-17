@@ -29,6 +29,8 @@ const DEFAULTS = {
   memory: { enabled: true, auto: true },           // use / generate memories
   styles: [], activeStyle: 'default',              // response styles (built-in + learned)
   autoTitle: true,
+  telemetry: { crashReports: false },             // nothing is sent; opt-in offers a GitHub report after a crash
+  reduceMotion: false,
   agent: { enabled: true, folders: [], permissions: {}, disabledTools: [] },
   mcp: { servers: [] },
   skills: { disabled: [], extraDirs: [] },

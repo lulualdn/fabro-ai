@@ -743,6 +743,7 @@ async function openSettings(tab = 'general') {
   closePopover();
   renderSettings();
   if (tab === 'models' && !S.catalog) { S.catalog = await api.models.catalog(); renderSettings(); }
+  if (tab === 'system') { Promise.all([api.runtime.status(), api.crash.list()]).then(([rt, cr]) => { S.rt = rt; S.crashes = cr; if (S.settingsTab === 'system') renderSettings(); }); }
   if (tab === 'providers') loadProviders();
   if (tab === 'models' || tab === 'storage') loadModelExtras();
   if (tab === 'engine') startMonitor(); else stopMonitor();
@@ -795,6 +796,7 @@ function settingsBody(tab) {
     return `
       ${row(t('yourName'), `<input class="input" type="text" maxlength="40" data-input="userName" value="${esc(st.userName || '')}" placeholder="${esc(prettyName(S.info.userName) || t('yourName'))}">`, t('yourNameHint'))}
       ${row(t('language'), `<select class="input" data-input="language">${langOpts}</select>`)}
+      ${row(t('reduceMotion'), toggle('reduceMotion', !!st.reduceMotion), t('reduceMotionHint'))}
       ${row(t('theme'), seg('theme', st.theme, [['system', t('themeSystem'), 'monitor'], ['light', t('themeLight'), 'sun'], ['dark', t('themeDark'), 'moon']]))}
       ${row(t('autoUpdate'), toggle('autoUpdate', st.autoUpdate), t('autoUpdateHint'))}
       ${row(t('devMode'), toggle('devMode', st.devMode), t('devModeHint'))}
@@ -829,7 +831,13 @@ function settingsBody(tab) {
       <div class="spec"><small>${esc(t('acceleration'))}</small><b>${esc(accel)}</b></div>
       ${sp.gpus.map((g) => `<div class="spec wide"><small>GPU</small><b>${esc(g.name)}</b><span>${g.vramGB ? g.vramGB + ' GB VRAM' : sp.unified ? t('unifiedMemory') : ''}</span></div>`).join('')}
     </div>
-    <p class="muted small">${esc(t('budgetNote', { g: sp.gpuBudgetGB, r: sp.ramBudgetGB }))}</p>`;
+    <p class="muted small">${esc(t('budgetNote', { g: sp.gpuBudgetGB, r: sp.ramBudgetGB }))}</p>
+    <div class="st-sec">${esc(t('rt_title'))}</div>
+    ${row(t('rt_runtime'), `<span class="chip ${S.rt && S.rt.isolated ? 'ok' : ''}">${esc(S.rt ? (S.rt.isolated ? t('rt_isolated', { p: S.rt.pid || '—' }) : t('rt_inprocess')) : '…')}</span>`, t('rt_hint'))}
+    <div class="st-sec">${esc(t('tel_title'))}</div>
+    <p class="muted small st-intro">${esc(t('tel_hint'))}</p>
+    ${row(t('tel_crash'), toggle('telemetry.crashReports', !!(S.settings.telemetry || {}).crashReports), t('tel_crashHint'))}
+    ${(S.crashes || []).length ? row(t('tel_saved', { n: S.crashes.length }), `<button class="btn sm" data-action="crash-folder">${icon('folder', 14)} ${esc(t('open'))}</button>${(S.crashes || [])[0] ? `<button class="btn sm" data-action="crash-report" data-f="${esc(S.crashes[0].file)}">${icon('share', 14)} ${esc(t('tel_send'))}</button>` : ''}`) : ''}`;
   }
   if (tab === 'about') {
     return `<div class="about">${logo(56)}<h3>Fabro</h3><p class="muted">v${esc(S.info.version)} · ${esc(t('tagline'))}</p>
@@ -1087,6 +1095,8 @@ const actions = {
     }
     await applySetting(el.dataset.key, v);
   },
+  'crash-folder': () => api.crash.folder(),
+  'crash-report': (el) => api.crash.report(el.dataset.f),
   'dl-catalog': async (el) => {
     const m = (S.catalog?.items || []).find((x) => x.id === el.dataset.id);
     if (!m) return;

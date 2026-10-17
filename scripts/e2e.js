@@ -499,6 +499,39 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.waitForFunction(() => /Résultat :[\s\S]*42/.test(document.querySelector('.msg.assistant:last-child .md')?.textContent || ''), null, { timeout: 15000 });
   step('mcp call');
 
+  // ── Accessibility: keyboard, names, menus, reduced motion, automated audit (axe) ──
+  await win.click('[data-action=new-chat]');
+  await win.waitForTimeout(300);
+  const a11y = await win.evaluate(() => ({
+    recents: [...document.querySelectorAll('.recent')].every((r) => r.tabIndex === 0 && r.getAttribute('role') === 'button'),
+    unnamed: [...document.querySelectorAll('button')].filter((b) => b.offsetParent && !b.textContent.trim() && !b.getAttribute('aria-label') && !b.title).map((b) => b.outerHTML.slice(0, 80)),
+    live: !!document.querySelector('#sr-live[aria-live=polite]'),
+  }));
+  assert.ok(a11y.recents, 'recents reachable with the keyboard');
+  assert.deepStrictEqual(a11y.unnamed, [], 'every icon button has a name');
+  assert.ok(a11y.live);
+  await win.focus('.model-pill'); await win.keyboard.press('Enter');
+  await win.waitForSelector('#popover-root .popover');
+  await win.waitForFunction(() => document.querySelector('#popover-root').contains(document.activeElement), null, { timeout: 3000 });
+  await win.keyboard.press('ArrowDown');
+  await win.keyboard.press('Escape');
+  await win.waitForFunction(() => !document.querySelector('#popover-root .popover') && document.activeElement && document.activeElement.classList.contains('model-pill'), null, { timeout: 3000 });
+  await win.evaluate(() => applySetting('reduceMotion', true));
+  assert.ok(await win.evaluate(() => document.documentElement.classList.contains('reduce-motion') && matchMedia('(prefers-reduced-motion: reduce)').matches));
+  await win.evaluate(() => applySetting('reduceMotion', false));
+  await win.evaluate(fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8'));
+  const axe = await win.evaluate(async () => { const r = await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] }, rules: { 'color-contrast': { enabled: false } } }); return r.violations.map((v) => ({ id: v.id, impact: v.impact, n: v.nodes.length, ex: v.nodes[0] && v.nodes[0].html.slice(0, 120) })); });
+  console.log('  axe:', JSON.stringify(axe));
+  assert.deepStrictEqual(axe.filter((v) => v.impact === 'critical' || v.impact === 'serious'), [], 'no serious accessibility violations');
+  step('accessibility');
+  const rt = await win.evaluate(() => api.runtime.status());
+  assert.ok(rt.isolated && rt.pid && rt.restarts === 0, 'tool commands ran in the separate runtime process: ' + JSON.stringify(rt));
+  await win.evaluate(() => openSettings('system'));
+  await win.waitForFunction(() => S.rt && document.querySelector('[data-key="telemetry.crashReports"]'), null, { timeout: 5000 });
+  assert.strictEqual(await win.evaluate(() => !!(S.settings.telemetry || {}).crashReports), false, 'no crash reports by default');
+  await win.screenshot({ path: `${shots}/38-system.png` });
+  await win.click('[data-action=close-settings]');
+
   // Close → tray (window hidden, app alive)
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('quick.html')).close());
   await win.waitForTimeout(500);

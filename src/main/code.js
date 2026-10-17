@@ -126,39 +126,31 @@ function testSummary(text, code) {
 }
 
 // ───────────────────────────── terminal ─────────────────────────────
-const procs = new Map();
-function run(root, command, kind = 'terminal') {
-  const id = kind + '-' + Date.now().toString(36);
-  const win = process.platform === 'win32';
-  const [bin, pre] = win ? ['powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command']] : [process.env.SHELL || '/bin/bash', ['-lc']];
-  const p = spawn(bin, [...pre, command], { cwd: root, windowsHide: true, env: { ...process.env, FORCE_COLOR: '0', CI: '1' } });
-  let out = '';
-  procs.set(id, p);
-  const push = (d) => { const s = String(d); out += s; emit('code:term', { id, kind, data: s }); };
-  p.stdout.on('data', push); p.stderr.on('data', push);
-  p.on('error', (e) => push(String(e.message)));
-  p.on('close', (code) => {
-    procs.delete(id);
-    const extra = kind === 'tests' ? { summary: testSummary(out, code), problems: problems(out) } : kind === 'lint' ? { problems: problems(out) } : {};
-    emit('code:exit', { id, kind, code, ...extra });
-  });
-  return id;
+// Commands run in the tool runtime process (isolated from the app).
+function shellCmd(command) {
+  return process.platform === 'win32' ? ['powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command]] : [process.env.SHELL || '/bin/bash', ['-lc', command]];
 }
-// Run and wait (used by the AI's run_tests / run_lint): output streams to the Tests / Problems tabs.
-function runWait(root, command, kind, ctx) {
-  return new Promise((resolve) => {
-    const id = run(root, command, kind);
-    const p = procs.get(id);
-    let out = '';
-    const t = setTimeout(() => kill(id), 15 * 60000);
-    if (ctx && ctx.onAbort) ctx.onAbort(() => kill(id));
-    if (!p) return resolve({ code: -1, out: 'could not start' });
-    const onData = (d) => { out += d; if (ctx && ctx.emit) ctx.emit({ type: 'tool_progress', id: ctx.callId, text: String(d) }); };
-    p.stdout.on('data', onData); p.stderr.on('data', onData);
-    p.on('close', (code) => { clearTimeout(t); resolve({ code, out }); });
+function start(root, command, kind = 'terminal', { onData, timeout } = {}) {
+  const id = kind + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const [bin, args] = shellCmd(command);
+  const done = require('./runtime').exec({ bin, args, cwd: root, env: { ...process.env, FORCE_COLOR: '0', CI: '1' }, maxBytes: 4 << 20, timeout }, {
+    id, onData: (data) => { emit('code:term', { id, kind, data }); onData && onData(data); },
+  }).then((r) => {
+    const out = (r.out || '') + (r.err || '');
+    const extra = kind === 'tests' ? { summary: testSummary(out, r.code), problems: problems(out) } : kind === 'lint' ? { problems: problems(out) } : {};
+    emit('code:exit', { id, kind, code: r.code, ...extra });
+    return { code: r.code, out };
   });
+  return { id, done };
 }
-function kill(id) { const p = procs.get(id); if (p) try { p.kill(); } catch {} return true; }
+function run(root, command, kind = 'terminal') { return start(root, command, kind).id; }
+// Run and wait (the AI's run_tests / run_lint): output streams to the Tests / Problems tabs and the chat.
+async function runWait(root, command, kind, ctx) {
+  const { id, done } = start(root, command, kind, { timeout: 15 * 60000, onData: (d) => ctx && ctx.emit && ctx.emit({ type: 'tool_progress', id: ctx.callId, text: String(d) }) });
+  if (ctx && ctx.onAbort) ctx.onAbort(() => kill(id));
+  return done;
+}
+function kill(id) { require('./runtime').kill(id); return true; }
 
 // ───────────────────────────── agent tools for code sessions ─────────────────────────────
 const projectOf = (ctx) => ctx.projectRoot;

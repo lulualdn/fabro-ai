@@ -1353,3 +1353,16 @@ details.py summary, details.diff summary { cursor: pointer; font-size: 12px; col
 .gen-img img { display: block; width: 100%; cursor: zoom-in; }
 .gen-img figcaption { display: flex; align-items: center; gap: 4px; padding: 6px 8px 6px 12px; font-size: 12px; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .gen-shimmer { animation: none; } }
+
+/* ───────────── Accessibility ───────────── */
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip-link { position: fixed; top: 8px; left: 50%; transform: translate(-50%, -150%); z-index: 200; background: var(--accent); color: #fff; padding: 8px 14px; border-radius: 10px; font-weight: 600; text-decoration: none; transition: transform .2s var(--ease); }
+.skip-link:focus { transform: translate(-50%, 0); outline: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+button:focus-visible, [role=button]:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible { outline: none; }
+#prompt:focus-visible { outline: none; }
+.recent:focus-visible, .cx-node:focus-visible, .prj-chat:focus-visible { outline-offset: -2px; }
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+html.reduce-motion::view-transition-group(*), html.reduce-motion::view-transition-old(*), html.reduce-motion::view-transition-new(*) { animation: none !important; }
+@media (forced-colors: active) { .send, .btn.primary { forced-color-adjust: none; } :focus-visible { outline: 2px solid CanvasText; } }

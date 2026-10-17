@@ -1,6 +1,5 @@
 // Terminal tool: runs a command in an allowed folder, output streamed to the chat.
 // Confined to the folder (working directory + no inherited secrets), always confirmed unless allowed.
-const { spawn } = require('child_process');
 const path = require('path');
 const agent = require('./index');
 const files = require('./files');
@@ -41,24 +40,11 @@ agent.register({
     env.FABRO_AGENT = '1';
     if (ctx.projectRoot) { env.FABRO_PROJECT = ctx.projectRoot; env.CI = env.CI || '1'; env.GIT_TERMINAL_PROMPT = '0'; env.npm_config_yes = 'true'; }
     const timeout = Math.min(900, Math.max(5, a.timeout_s || 120)) * 1000;
-    const t0 = Date.now();
-    let out = '', err = '', killed = false;
-    const code = await new Promise((resolve) => {
-      const p = spawn(bin, [...pre, a.command], { cwd, env, windowsHide: true });
-      ctx.onAbort && ctx.onAbort(() => { killed = true; try { p.kill(); } catch {} });
-      const t = setTimeout(() => { killed = true; try { p.kill(); } catch {} }, timeout);
-      const push = (which) => (d) => {
-        const s = String(d);
-        if (which === 'out') out += s; else err += s;
-        ctx.emit && ctx.emit({ type: 'tool_progress', id: ctx.callId, text: s });
-        if (out.length + err.length > 400000) { killed = true; try { p.kill(); } catch {} }
-      };
-      p.stdout.on('data', push('out')); p.stderr.on('data', push('err'));
-      p.on('error', (e) => { err += String(e.message); clearTimeout(t); resolve(-1); });
-      p.on('close', (c) => { clearTimeout(t); resolve(c); });
-    });
+    // Runs in the tool runtime process (isolated from the app); output streams back live.
+    const ctrl = new AbortController(); ctx.onAbort && ctx.onAbort(() => ctrl.abort());
+    const r = await require('../runtime').exec({ bin, args: [...pre, a.command], cwd, env, timeout }, { signal: ctrl.signal, onData: (s) => ctx.emit && ctx.emit({ type: 'tool_progress', id: ctx.callId, text: s }) });
+    const { code, out, err, killed, ms } = r;
     const clip = (s) => s.length > 16000 ? s.slice(0, 6000) + `\n… (${s.length - 12000} chars cut) …\n` + s.slice(-6000) : s;
-    const ms = Date.now() - t0;
     return {
       content: `$ ${a.command}\n(exit ${code}${killed ? ', stopped' : ''}, ${(ms / 1000).toFixed(1)} s, in ${cwd})\n${clip(out)}${err ? `\n[stderr]\n${clip(err)}` : ''}`,
       view: { kind: 'command', command: a.command, cwd, code, ms, killed, out: (out + (err ? '\n' + err : '')).slice(-6000) },

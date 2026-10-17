@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('api', {
   browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
   deps: { status: i('deps:status'), install: i('deps:install'), remove: i('deps:remove') },
   search: { test: i('search:test') },
+  runtime: { status: i('runtime:status') },
+  crash: { list: i('crash:list'), folder: i('crash:folder'), report: i('crash:report') },
   images: { status: i('images:status'), install: i('images:install') },
   voice: { status: i('voice:status'), install: i('voice:install'), stt: i('voice:stt'), tts: i('voice:tts'), setVoice: i('voice:setVoice'), setWhisper: i('voice:setWhisper') },
   projects: {
