@@ -30,6 +30,7 @@ function init() {
     CREATE INDEX IF NOT EXISTS art_updated ON artifacts(updated DESC);
     CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
   `);
+  try { db.exec('ALTER TABLE conversations ADD COLUMN code_root TEXT'); } catch { /* already there */ }
   migrateJson();
   return db;
 }
@@ -51,11 +52,11 @@ function saveConversation(c) {
   const data = JSON.stringify(c);
   init().exec('BEGIN');
   try {
-    q(`INSERT INTO conversations (id, title, created, updated, pinned, agent, project, has_artifact, data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    q(`INSERT INTO conversations (id, title, created, updated, pinned, agent, project, has_artifact, code_root, data)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET title=excluded.title, updated=excluded.updated, pinned=excluded.pinned, agent=excluded.agent,
-         project=excluded.project, has_artifact=excluded.has_artifact, data=excluded.data`)
-      .run(c.id, c.title || '', c.createdAt || t, t, c.pinned ? 1 : 0, c.agent ? 1 : 0, c.project || null, hasArtifact(c) ? 1 : 0, data);
+         project=excluded.project, has_artifact=excluded.has_artifact, code_root=excluded.code_root, data=excluded.data`)
+      .run(c.id, c.title || '', c.createdAt || t, t, c.pinned ? 1 : 0, c.agent ? 1 : 0, c.project || null, hasArtifact(c) ? 1 : 0, (c.code && c.code.root) || null, data);
     q('DELETE FROM conv_fts WHERE conv_id = ?').run(c.id);
     q('INSERT INTO conv_fts (conv_id, title, body) VALUES (?, ?, ?)').run(c.id, c.title || '', textOf(c));
     db.exec('COMMIT');
@@ -69,9 +70,9 @@ function getConversation(id) {
 }
 function listConversations({ project } = {}) {
   const rows = project
-    ? q('SELECT id, title, updated, pinned, agent, has_artifact, project FROM conversations WHERE project = ? ORDER BY updated DESC').all(project)
-    : q('SELECT id, title, updated, pinned, agent, has_artifact, project FROM conversations ORDER BY updated DESC').all();
-  return rows.map((r) => ({ id: r.id, title: r.title, updatedAt: r.updated, pinned: !!r.pinned, agent: !!r.agent, hasArtifact: !!r.has_artifact, project: r.project || null }));
+    ? q('SELECT id, title, updated, pinned, agent, has_artifact, project, code_root FROM conversations WHERE project = ? ORDER BY updated DESC').all(project)
+    : q('SELECT id, title, updated, pinned, agent, has_artifact, project, code_root FROM conversations ORDER BY updated DESC').all();
+  return rows.map((r) => ({ id: r.id, title: r.title, updatedAt: r.updated, pinned: !!r.pinned, agent: !!r.agent, hasArtifact: !!r.has_artifact, project: r.project || null, codeRoot: r.code_root || null }));
 }
 function patchConversation(id, patch) {
   const c = getConversation(id);

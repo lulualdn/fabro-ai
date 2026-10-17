@@ -9,6 +9,7 @@ const usage = require('./usage');
 const tools = require('./tools');
 const agent = require('./agent');
 const skills = require('./agent/skills');
+const code = require('./code');
 
 // ───────────────────────────── permissions & dependencies (asked in the UI) ─────────────────────────────
 const waiting = new Map(); // `${reqId}:${callId}` → resolve
@@ -32,12 +33,35 @@ function needDeps(reqId, callId, dep, out, signal) {
 function answer(reqId, callId, value) { const k = `${reqId}:${callId}`; const r = waiting.get(k); if (r) { waiting.delete(k); r(value); } return !!r; }
 
 const SUB_NOTE = `\n\nYou are a sub-agent working for the main Fabro agent, not talking to the user. Do the task you were given with your tools, without asking questions (decide reasonably and note assumptions). Finish with a concise, complete report of what you found or did — files you created (full paths), key facts with sources, anything left undone. That report is all the main agent will see.`;
-function agentSystem(base) {
+// Code mode: permissions per project — "ask before acting", "accept edits" (default) or "auto".
+function codePolicy(tool, base, c) {
+  const ps = code.projectSettings(c.root);
+  if ((ps.allow || []).includes(tool.name)) return 'always';
+  if (base === 'never') return 'never';
+  const mode = c.mode || ps.mode || 'edits';
+  if (tool.risk === 'read') return 'always';
+  if (mode === 'ask') return 'ask';
+  if (mode === 'auto') return ['write', 'exec', 'net'].includes(tool.risk) ? 'always' : base;
+  if (tool.category === 'files' && tool.risk === 'write') return 'always';
+  if (tool.category === 'plan') return 'always';
+  return tool.risk === 'net' ? base : 'ask';
+}
+function codeSection(c) {
+  const ins = code.instructions(c.root);
+  const cmd = code.detect(c.root);
+  return [
+    `# Code session\nProject folder: ${c.root}\nRelative paths are inside it and commands run there by default. Work like a careful senior engineer: read the relevant files before changing them, prefer edit_file for small changes, keep the existing style, then run the tests/linter and fix what you broke. Summarize what changed at the end (files and why).`,
+    Object.values(cmd).some((v) => v && v !== 'unknown') ? `Project commands (${cmd.kind}): ${['test', 'lint', 'build', 'run'].filter((k) => cmd[k]).map((k) => `${k}: \`${cmd[k]}\``).join(' · ')}` : '',
+    c.branch ? `Git branch: ${c.branch}. Commit only when the user asks (git_commit).` : 'Not a git repository.',
+    ins ? `# Project instructions (${ins.file}) — follow them\n${ins.text}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+function agentSystem(base, c) {
   const os = require('os');
   const folders = ((store.getSettings().agent || {}).folders || []);
   return [base, skills.promptSection(),
     `Computer: ${process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux'} · home ${os.homedir()} · default output folder ${require('path').join(os.homedir(), 'Documents', 'Fabro')}`,
-    folders.length ? `Folders the user already allowed: ${folders.join(', ')}` : 'No folder allowed yet: using a folder shows the user a permission request.',
+    c ? codeSection(c) : folders.length ? `Folders the user already allowed: ${folders.join(', ')}` : 'No folder allowed yet: using a folder shows the user a permission request.',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -241,6 +265,13 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     push(type, text) { tFirst = tFirst || Date.now(); if (type === 'token') chars += text.length; out({ type, text }); },
   };
   let be = null;
+  const cpFiles = {};
+  let cpDone = false;
+  const flushCp = () => {
+    if (cpDone || parent || !(meta.code && meta.code.root) || !Object.keys(cpFiles).length) return;
+    cpDone = true;
+    try { const id = code.recordTurn(meta.convId || reqId, meta.turnId || reqId, meta.code.root, cpFiles); out({ type: 'checkpoint', id, files: Object.keys(cpFiles) }); } catch {}
+  };
   try {
     be = await resolveBackend(model, out);
     if (be.gen) params = { ...params, ...Object.fromEntries(Object.entries(be.gen).filter(([, v]) => v !== null && v !== '' && v !== undefined)) };
@@ -249,21 +280,29 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
     const userText = lastUser ? (typeof lastUser.content === 'string' ? lastUser.content : (lastUser.content || []).map((c) => c.text || '').join(' ')) : '';
     let agentMode = !!params.agentMode;
+    const codeCtx = meta.code && meta.code.root ? meta.code : null;
+    if (codeCtx) agentMode = true;
     const buildTools = () => {
       const chatT = tools.schemas(params.tools || []);
-      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: userText, used: params.usedTools || [], sub: !!parent }).map(agent.schema);
+      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: userText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx }).map(agent.schema);
       return [...chatT, ...agentT];
     };
     let toolSchemas = buildTools();
     out({ type: 'tools_info', count: toolSchemas.length, tokens: agent.estTokens(toolSchemas) });
     const msgs = messages.slice();
     const setSystem = (text) => { const sys = msgs.find((m) => m.role === 'system'); if (sys) sys.content = text; else msgs.unshift({ role: 'system', content: text }); };
-    if (parent) setSystem(agentSystem(params.agentPrompt || 'You are Fabro, an AI agent running on the user\'s computer.') + SUB_NOTE);
-    else if (agentMode && params.agentPrompt) setSystem(agentSystem(params.agentPrompt));
+    if (parent) setSystem(agentSystem(params.agentPrompt || 'You are Fabro, an AI agent running on the user\'s computer.', codeCtx) + SUB_NOTE);
+    else if (agentMode && params.agentPrompt) setSystem(agentSystem(params.agentPrompt, codeCtx));
     const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
     const ctxBase = { emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
+    if (codeCtx) {
+      ctxBase.projectRoot = codeCtx.root;
+      ctxBase.checkpoint = parent && parent.checkpoint ? parent.checkpoint : (p, before) => { if (!(p in cpFiles)) cpFiles[p] = before; };
+      ctxBase.policyFor = (tool, base) => codePolicy(tool, base, codeCtx);
+      ctxBase.onAlways = async (name) => { const ps = code.projectSettings(codeCtx.root); await code.setProject(codeCtx.root, { allow: [...new Set([...(ps.allow || []), name])] }); };
+    }
     let subN = 0;
     // A sub-agent: a nested run with a fresh context. Its steps are forwarded to the UI under the parent
     // call, its permission prompts go through this run (same reqId) so the user answers them in place.
@@ -284,7 +323,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           else if (ev.type === 'done') tokens = (ev.stats && ev.stats.completionTokens) || 0;
           else if (ev.type === 'error') err = ev.message;
         },
-        { signal: ctrl.signal, callId, ask: (id, req) => ask(reqId, pid(id), req, out, ctrl.signal), needDeps: (id, dep) => needDeps(reqId, pid(id), dep, out, ctrl.signal), grants: convGrants.get(gkey), description });
+        { signal: ctrl.signal, callId, checkpoint: ctxBase.checkpoint, ask: (id, req) => ask(reqId, pid(id), req, out, ctrl.signal), needDeps: (id, dep) => needDeps(reqId, pid(id), dep, out, ctrl.signal), grants: convGrants.get(gkey), description });
       if (ctrl.signal.aborted) throw Object.assign(new Error('aborted'), { code: 'ABORTED' });
       return { text: text.trim() || (err ? `Sub-agent failed: ${err}` : ''), steps: steps.length, tokens, error: err };
     };
@@ -305,7 +344,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       const subCalls = r.toolCalls.filter((c) => c.name === 'run_subagent' && !parent);
       const pre = new Map();
       if (subCalls.length > 1) {
-        if (!agentMode) { agentMode = true; out({ type: 'agent_switch', tool: 'run_subagent' }); if (params.agentPrompt) setSystem(agentSystem(params.agentPrompt)); }
+        if (!agentMode) { agentMode = true; out({ type: 'agent_switch', tool: 'run_subagent' }); if (params.agentPrompt) setSystem(agentSystem(params.agentPrompt, codeCtx)); }
         await Promise.all(subCalls.map(async (c) => {
           let args = {}; try { args = JSON.parse(c.args || '{}'); } catch {}
           out({ type: 'tool_start', id: c.id, name: c.name, args, agent: true });
@@ -320,7 +359,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         if (!agentMode && agent.isAgentTool(c.name) && params.agent !== false) {
           agentMode = true;
           out({ type: 'agent_switch', tool: c.name });
-          if (params.agentPrompt) setSystem(agentSystem(params.agentPrompt));
+          if (params.agentPrompt) setSystem(agentSystem(params.agentPrompt, codeCtx));
         }
         out({ type: 'tool_start', id: c.id, name: c.name, args, agent: agent.isAgentTool(c.name) });
         let result;
@@ -357,9 +396,11 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       backend: be.kind === 'local' ? 'local' : be.provider.kind,
       tools: steps || undefined, noTools: acc.noTools || undefined,
     };
+    flushCp();
     out({ type: 'done', stats });
     usage.record({ model: meta.modelLabel || (be.kind === 'local' ? be.model : `${be.provider.name} · ${be.model}`), backend: stats.backend, convId: meta.convId, prompt: stats.promptTokens || 0, completion: stats.completionTokens || 0 });
   } catch (e) {
+    flushCp();
     if (ctrl.signal.aborted) out({ type: 'done', aborted: true, stats: { totalMs: Date.now() - t0 } });
     else {
       const code = e.code || (e.message === 'NO_MODEL' ? 'NO_MODEL' : /ECONNREFUSED|fetch failed/i.test(e.message) ? 'ENGINE_DOWN' : 'UNKNOWN');
@@ -368,6 +409,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
   } finally {
     active.delete(reqId);
     if (be && be.inst) engine.release(be.inst);
+    flushCp(); // Code mode: this turn's checkpoint (files as they were before the agent changed them)
   }
 }
 

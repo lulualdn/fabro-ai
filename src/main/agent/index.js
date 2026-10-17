@@ -16,7 +16,7 @@ function schema(t) { return { type: 'function', function: { name: t.name, descri
 const estTokens = (schemas) => Math.round(JSON.stringify(schemas).length / 3.6);
 
 // Pick the tools worth sending: core tools always, others when the conversation is about them.
-function select({ agentMode, text = '', used = [], sub = false }) {
+function select({ agentMode, text = '', used = [], sub = false, code = false }) {
   const s = store.getSettings().agent || {};
   if (s.enabled === false) return [];
   const disabled = new Set(s.disabledTools || []);
@@ -25,6 +25,8 @@ function select({ agentMode, text = '', used = [], sub = false }) {
   const usedCats = new Set(used.map((n) => (registry.get(n) || {}).category).filter(Boolean));
   const picked = all().filter((t) => {
     if (disabled.has(t.name) || CHAT_TOOL_NAMES.has(t.name)) return false;
+    if (t.codeOnly && !code) return false;
+    if (code && (t.codeOnly || t.category === 'git')) return true;
     if (t.core) return true;
     if (usedCats.has(t.category)) return true;
     if (agentMode && t.categoryCore) return true;
@@ -57,12 +59,12 @@ async function execute(call, ctx) {
   const args = call.args || {};
   const guard = tool.guard ? await tool.guard(args, ctx) : null; // { refuse?: reason, confirm?: reason }
   if (guard && guard.refuse) return { content: `Refused: ${guard.refuse}`, view: { kind: 'refused', reason: guard.refuse }, refused: true };
-  const policy = policyFor(tool);
+  const policy = ctx.policyFor ? ctx.policyFor(tool, policyFor(tool)) : policyFor(tool);
   if (policy === 'never') return { content: 'The user does not allow this tool.', view: { kind: 'refused', reason: 'policy' }, refused: true };
   const needsAsk = policy === 'ask' || (guard && guard.confirm);
   if (needsAsk) {
-    const decision = await ctx.ask({ tool: tool.name, category: tool.category, risk: guard && guard.confirm ? 'danger' : tool.risk, summary: tool.summarize ? tool.summarize(args) : JSON.stringify(args).slice(0, 300), reason: guard && guard.confirm, args });
-    if (decision === 'always' && !(guard && guard.confirm)) await setPolicy(tool.name, 'always');
+    const decision = await ctx.ask({ project: !!ctx.projectRoot, tool: tool.name, category: tool.category, risk: guard && guard.confirm ? 'danger' : tool.risk, summary: tool.summarize ? tool.summarize(args) : JSON.stringify(args).slice(0, 300), reason: guard && guard.confirm, args });
+    if (decision === 'always' && !(guard && guard.confirm)) { if (ctx.onAlways) await ctx.onAlways(tool.name); else await setPolicy(tool.name, 'always'); }
     if (decision === 'never') { await setPolicy(tool.name, 'never'); return { content: 'The user refused and blocked this tool.', view: { kind: 'refused', reason: 'user' }, refused: true }; }
     if (decision !== 'once' && decision !== 'always') return { content: 'The user refused this action. Ask them how to proceed or try another way.', view: { kind: 'refused', reason: 'user' }, refused: true };
   }

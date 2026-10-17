@@ -129,6 +129,32 @@ function run(payload, answers) {
   assert.strictEqual(subEnds.length, 2); assert.match(subEnds[0].view.report, /Rapport: tâche/);
   assert.match(ev.filter((e) => e.type === 'token').map((e) => e.text).join(''), /Fini: Plan updated.*Rapport: tâche A ok \| Rapport: tâche B ok/);
   assert.ok(ev.every((e) => e.reqId === 'a4'), 'all events carry the parent reqId');
+
+  // Code mode: project-relative paths, accept-edits policy, sandboxed commands, checkpoints + undo.
+  const code = require('../src/main/code');
+  code.init(() => {});
+  const proj = path.join(tmp, 'proj'); fs.mkdirSync(proj); fs.writeFileSync(path.join(proj, 'a.txt'), 'v1');
+  const asks = [];
+  const cp = {};
+  const cctx = { projectRoot: proj, emit: () => {}, ask: async (r) => { asks.push(r); return 'once'; }, checkpoint: (p, b) => { if (!(p in cp)) cp[p] = b; },
+    policyFor: (tool, b) => (tool.risk === 'read' || (tool.category === 'files' && tool.risk === 'write') ? 'always' : 'ask') };
+  await agent.execute({ name: 'write_file', args: { path: 'a.txt', content: 'v2' } }, cctx);
+  await agent.execute({ name: 'write_file', args: { path: 'sub/b.txt', content: 'new' } }, cctx);
+  assert.strictEqual(asks.length, 0, 'edits inside the project do not ask');
+  assert.strictEqual(fs.readFileSync(path.join(proj, 'a.txt'), 'utf8'), 'v2');
+  await agent.setPolicy('run_command', 'ask');
+  await agent.execute({ name: 'run_command', args: { command: process.platform === 'win32' ? 'type C:\\Windows\\win.ini' : 'cat /etc/hostname' } }, cctx);
+  assert.strictEqual(asks[0].reason, 'outside_project', 'commands touching paths outside the project are flagged');
+  assert.ok(asks[0].project, 'permission knows it is a project');
+  code.recordTurn('conv-x', 't1', proj, cp);
+  assert.deepStrictEqual(code.sessionChanges('conv-x').map((c) => path.basename(c.path)).sort(), ['a.txt', 'b.txt']);
+  const d = await code.fileDiff('conv-x', proj, 'a.txt');
+  assert.strictEqual(d.before, 'v1'); assert.strictEqual(d.after, 'v2'); assert.strictEqual(d.source, 'session');
+  await code.revert('conv-x', 't1');
+  assert.strictEqual(fs.readFileSync(path.join(proj, 'a.txt'), 'utf8'), 'v1', 'undo restores content');
+  assert.ok(!fs.existsSync(path.join(proj, 'sub', 'b.txt')), 'undo removes created files');
+  assert.ok(code.problems('src/app.ts(12,5): error TS2322: Type string is not assignable\nsrc/x.js:3:7: warning no-unused-vars').length === 2, 'problems parsed');
+  const ts = code.testSummary('Tests: 1 failed, 4 passed, 5 total', 1); assert.strictEqual(ts.passed, 4); assert.strictEqual(ts.failed, 1);
   console.log('agent-test: all passed');
   srv.close(); process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

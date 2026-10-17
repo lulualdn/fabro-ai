@@ -2,7 +2,7 @@
 /* Agent mode UI: automatic switch, tool steps (files, terminal, browser, documents, Python, MCP, skills),
    permission cards, on-demand dependencies, and the workspace panel with the live browser. */
 
-const AGENT_ICONS = { files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git' };
+const AGENT_ICONS = { files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git', code: 'flask' };
 const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p;
 function catOf(name) {
   if (name.startsWith('mcp__')) return 'mcp';
@@ -15,6 +15,7 @@ function catOf(name) {
   if (name === 'update_plan') return 'plan';
   if (name === 'run_subagent') return 'subagent';
   if (name.startsWith('git_')) return 'git';
+  if (name === 'run_tests' || name === 'run_lint') return 'code';
   return 'mcp';
 }
 const state0 = () => S.browser || {};
@@ -41,6 +42,8 @@ function stepLabel(st) {
     case 'browser_tabs': return k('tabs');
     case 'update_plan': { const st0 = a.steps || []; return t('ag_plan', { d: st0.filter((x) => x.status === 'done').length, n: st0.length }); }
     case 'run_subagent': return k('sub', { d: a.description || '' });
+    case 'run_tests': return k('tests');
+    case 'run_lint': return k('lint');
     case 'git_status': return k('gitstatus');
     case 'git_diff': return k('gitdiff');
     case 'git_commit': return k('gitcommit', { m: String(a.message || '').split('\n')[0].slice(0, 60) });
@@ -63,10 +66,10 @@ function permCard(st, m) {
   return `<div class="perm-card ${danger ? 'danger' : ''}">
     <div class="pc-head">${icon(danger ? 'warning' : 'shield', 16)}<b>${esc(title)}</b></div>
     <pre class="pc-what">${esc(p.summary || '')}</pre>
-    ${p.reason && p.reason !== 'folder' ? `<div class="pc-why">${esc(t('perm_why_' + (p.reason === 'danger_command' ? 'cmd' : p.reason === 'delete' ? 'delete' : 'sensitive'), { r: p.reason }))}</div>` : ''}
+    ${p.reason && p.reason !== 'folder' ? `<div class="pc-why">${esc(t('perm_why_' + (p.reason === 'danger_command' ? 'cmd' : p.reason === 'delete' ? 'delete' : p.reason === 'outside_project' ? 'outside' : 'sensitive'), { r: p.reason }))}</div>` : ''}
     <div class="pc-actions">
       <button class="btn sm primary" data-action="perm" data-id="${esc(st.id)}" data-v="once">${esc(t('perm_once'))}</button>
-      ${!danger ? `<button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="always">${esc(t(p.reason === 'folder' ? 'perm_always_folder' : 'perm_always'))}</button>` : ''}
+      ${!danger ? `<button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="always">${esc(t(p.reason === 'folder' ? 'perm_always_folder' : p.project ? 'perm_always_project' : 'perm_always'))}</button>` : ''}
       <button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="deny">${esc(t('perm_deny'))}</button>
     </div></div>`;
 }
@@ -90,6 +93,8 @@ function stepDetail(st) {
     const out = st.live != null ? st.live : v.out || '';
     return `<details class="py"><summary>${esc(t('ag_code'))}</summary><pre class="code-mini">${esc(st.args.code || '')}</pre></details>${out ? `<div class="term"><pre>${esc(out.slice(-4000))}</pre></div>` : ''}${v.image ? `<img class="step-img" src="${v.image}" alt="">` : ''}`;
   }
+  if ((st.name === 'write_file' || st.name === 'edit_file') && v.path && S.conv && S.conv.code) return cxFileCard(st);
+  if ((st.name === 'run_tests' || st.name === 'run_lint') && v.command) return `<div class="term"><div class="term-head">$ ${esc(v.command)}<span class="${v.code === 0 ? 'ok-txt' : 'err-txt'}">${st.name === 'run_tests' ? esc([v.passed != null ? t('cx_passed', { n: v.passed }) : '', v.failed ? t('cx_failed', { n: v.failed }) : ''].filter(Boolean).join(' · ') || 'exit ' + v.code) : esc(t('cx_probN', { n: v.count || 0 }))}</span></div>${st.live ? `<pre>${esc(st.live.slice(-3000))}</pre>` : ''}</div>`;
   if ((st.name === 'write_file' || st.name === 'edit_file') && v.path) {
     return `<div class="file-chip" data-action="reveal-path" data-path="${esc(v.path)}">${icon('file', 13)}<span>${esc(v.path)}</span>${v.add != null ? `<b class="add">+${v.add}</b><b class="del">−${v.del}</b>` : ''}</div>
       ${v.before != null ? `<details class="diff"><summary>${esc(t('ag_diff'))}</summary><pre>${esc(v.before).split('\n').map((l) => `<span class="dl">- ${l}</span>`).join('\n')}\n${esc(v.after).split('\n').map((l) => `<span class="al">+ ${l}</span>`).join('\n')}</pre></details>` : ''}`;

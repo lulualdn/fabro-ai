@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('api', {
   browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
   deps: { status: i('deps:status'), install: i('deps:install'), remove: i('deps:remove') },
   search: { test: i('search:test') },
+  code: {
+    open: i('code:open'), info: i('code:info'), close: i('code:close'), recent: i('code:recent'), tree: i('code:tree'), status: i('code:status'),
+    read: i('code:read'), write: i('code:write'), diff: i('code:diff'), changes: i('code:changes'), revert: i('code:revert'),
+    git: i('code:git'), branches: i('code:branches'), log: i('code:log'), run: i('code:run'), kill: i('code:kill'), project: i('code:project'), preview: i('code:preview'),
+  },
   mcp: { view: i('mcp:view'), add: i('mcp:add'), remove: i('mcp:remove'), toggle: i('mcp:toggle'), signIn: i('mcp:signin'), reconnect: i('mcp:reconnect'), claudeConfig: i('mcp:claudeConfig'), importClaude: i('mcp:importClaude') },
   skills: { list: i('skills:list'), toggle: i('skills:toggle'), create: i('skills:create'), openFolder: i('skills:openFolder') },
   providers: {
@@ -48,7 +53,7 @@ contextBridge.exposeInMainWorld('api', {
   shell: { open: i('shell:open'), reveal: i('shell:reveal'), openPath: i('shell:openPath') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

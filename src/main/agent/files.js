@@ -8,11 +8,11 @@ const agent = require('./index');
 
 const allowed = () => ((store.getSettings().agent || {}).folders || []).map((f) => path.resolve(f));
 function inside(p, root) { const r = path.relative(root, p); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)); }
-function resolvePath(p) {
+function resolvePath(p, ctx) {
   if (!p) throw new Error('path is required');
   let x = String(p).replace(/^~(?=$|[\\/])/, os.homedir());
   const roots = allowed();
-  if (!path.isAbsolute(x)) x = path.join(roots[0] || defaultOut(), x);
+  if (!path.isAbsolute(x)) x = path.join((ctx && ctx.projectRoot) || roots[0] || defaultOut(), x);
   return path.resolve(x);
 }
 const defaultOut = () => path.join(os.homedir(), 'Documents', 'Fabro');
@@ -21,6 +21,7 @@ const BLOCKED = /([\\/]\.ssh|[\\/]\.gnupg|[\\/]\.aws|[\\/]AppData[\\/]Roaming[\\
 // Folder access: inside an allowed folder → ok; else ask once to add the folder.
 async function access(p, ctx, write) {
   if (BLOCKED.test(p)) throw Object.assign(new Error('This location holds credentials and is never accessible'), { code: 'BLOCKED_PATH' });
+  if (ctx.projectRoot && inside(p, ctx.projectRoot)) return true; // Code mode: the open project
   if (allowed().some((r) => inside(p, r)) || inside(p, defaultOut())) return true;
   if (!write) { try { if (require('./skills').readableRoots().some((r) => inside(p, r))) return true; } catch {} }
   if (ctx.grants && [...ctx.grants].some((r) => inside(p, r))) return true;
@@ -35,6 +36,8 @@ async function access(p, ctx, write) {
 const fmtSize = (n) => n < 1024 ? `${n} B` : n < 1 << 20 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 2 ** 20).toFixed(1)} MB`;
 const TEXT = /\.(txt|md|markdown|json|csv|tsv|js|mjs|cjs|ts|tsx|jsx|py|lua|luau|html?|css|scss|xml|ya?ml|toml|ini|cfg|conf|sh|bat|ps1|c|h|cpp|hpp|cs|java|kt|go|rs|php|rb|sql|swift|log|env\.example|gitignore|dockerfile|vue|svelte)$/i;
 
+// Code mode: remember each file's content before the agent first changes it (undo / diff).
+async function checkpoint(ctx, p) { if (ctx.checkpoint) { let before = null; try { before = await fsp.readFile(p, 'utf8'); } catch {} ctx.checkpoint(p, before); } }
 function touched(ctx, p, kind) { (ctx.files = ctx.files || []).push({ path: p, kind, at: Date.now() }); ctx.emit && ctx.emit({ type: 'file_touched', path: p, kind }); }
 
 agent.register({
@@ -43,7 +46,7 @@ agent.register({
   parameters: { type: 'object', properties: { path: { type: 'string' }, recursive: { type: 'boolean', description: 'Up to 3 levels deep' } }, required: ['path'] },
   summarize: (a) => a.path,
   async run(a, ctx) {
-    const p = resolvePath(a.path); await access(p, ctx, false);
+    const p = resolvePath(a.path || '.', ctx); await access(p, ctx, false);
     const out = [];
     const walk = async (dir, depth) => {
       for (const e of (await fsp.readdir(dir, { withFileTypes: true })).slice(0, 400)) {
@@ -66,7 +69,7 @@ agent.register({
   parameters: { type: 'object', properties: { path: { type: 'string' }, from_line: { type: 'integer' }, to_line: { type: 'integer' } }, required: ['path'] },
   summarize: (a) => a.path,
   async run(a, ctx) {
-    const p = resolvePath(a.path); await access(p, ctx, false);
+    const p = resolvePath(a.path, ctx); await access(p, ctx, false);
     const st = await fsp.stat(p);
     if (st.isDirectory()) throw new Error('This is a folder, use list_dir');
     let text;
@@ -91,13 +94,13 @@ agent.register({
   parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] },
   summarize: (a) => `${a.path} (${String(a.content || '').split('\n').length} lines)`,
   async run(a, ctx) {
-    const p = resolvePath(a.path); await access(p, ctx, true);
+    const p = resolvePath(a.path, ctx); await access(p, ctx, true); await checkpoint(ctx, p);
     const before = fs.existsSync(p) ? await fsp.readFile(p, 'utf8').catch(() => null) : null;
     await fsp.mkdir(path.dirname(p), { recursive: true });
     await fsp.writeFile(p, String(a.content ?? ''), 'utf8');
     touched(ctx, p, before == null ? 'created' : 'modified');
     const diff = lineDiff(before || '', String(a.content ?? ''));
-    return { content: `${before == null ? 'Created' : 'Wrote'} ${p} (+${diff.add} −${diff.del})`, view: { kind: 'write', path: p, created: before == null, ...diff } };
+    return { content: `${before == null ? 'Created' : 'Wrote'} ${p} (+${diff.add} −${diff.del})`, view: { kind: 'write', path: p, created: before == null, ...diff, ...(ctx.projectRoot ? { rel: path.relative(ctx.projectRoot, p) } : {}) } };
   },
 });
 
@@ -107,7 +110,7 @@ agent.register({
   parameters: { type: 'object', properties: { path: { type: 'string' }, old_text: { type: 'string' }, new_text: { type: 'string' } }, required: ['path', 'old_text', 'new_text'] },
   summarize: (a) => a.path,
   async run(a, ctx) {
-    const p = resolvePath(a.path); await access(p, ctx, true);
+    const p = resolvePath(a.path, ctx); await access(p, ctx, true); await checkpoint(ctx, p);
     const src = await fsp.readFile(p, 'utf8');
     const n = src.split(a.old_text).length - 1;
     if (n === 0) throw new Error('old_text not found — read the file again and copy the exact text');
@@ -116,7 +119,7 @@ agent.register({
     await fsp.writeFile(p, next, 'utf8');
     touched(ctx, p, 'modified');
     const diff = lineDiff(a.old_text, a.new_text);
-    return { content: `Edited ${p} (+${diff.add} −${diff.del})`, view: { kind: 'write', path: p, ...diff, before: a.old_text.slice(0, 4000), after: a.new_text.slice(0, 4000) } };
+    return { content: `Edited ${p} (+${diff.add} −${diff.del})`, view: { kind: 'write', path: p, ...diff, before: a.old_text.slice(0, 4000), after: a.new_text.slice(0, 4000), ...(ctx.projectRoot ? { rel: path.relative(ctx.projectRoot, p) } : {}) } };
   },
 });
 
@@ -128,7 +131,7 @@ agent.register({
   summarize: (a) => a.path,
   guard: () => ({ confirm: 'delete' }),
   async run(a, ctx) {
-    const p = resolvePath(a.path); await access(p, ctx, true);
+    const p = resolvePath(a.path, ctx); await access(p, ctx, true); await checkpoint(ctx, p);
     const { shell } = require('electron');
     try { await shell.trashItem(p); } catch { await fsp.rm(p, { recursive: false }); }
     touched(ctx, p, 'deleted');
@@ -139,10 +142,10 @@ agent.register({
 agent.register({
   name: 'search_files', category: 'files', risk: 'read', core: true, untrusted: true,
   description: 'Search text inside files of a folder (case-insensitive), like grep. Returns matching lines with file and line number.',
-  parameters: { type: 'object', properties: { path: { type: 'string' }, query: { type: 'string' }, glob: { type: 'string', description: 'Optional extension filter, e.g. ".js"' } }, required: ['path', 'query'] },
+  parameters: { type: 'object', properties: { path: { type: 'string' }, query: { type: 'string' }, glob: { type: 'string', description: 'Optional extension filter, e.g. ".js"' } }, required: ['query'] },
   summarize: (a) => `"${a.query}" in ${a.path}`,
   async run(a, ctx) {
-    const root = resolvePath(a.path); await access(root, ctx, false);
+    const root = resolvePath(a.path || '.', ctx); await access(root, ctx, false);
     const q = String(a.query).toLowerCase(); const hits = [];
     const walk = async (dir, depth) => {
       if (hits.length >= 200 || depth > 6) return;
@@ -178,4 +181,4 @@ async function docxText(p) {
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 
-module.exports = { resolvePath, access, allowed, defaultOut, lineDiff, touched };
+module.exports = { resolvePath, access, allowed, defaultOut, lineDiff, touched, inside };

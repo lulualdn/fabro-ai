@@ -8,6 +8,14 @@ const shots = process.argv[2] || fs.mkdtempSync(path.join(os.tmpdir(), 'fabro-sh
 fs.mkdirSync(shots, { recursive: true });
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'fabro-e2e-'));
 const agentDir = path.join(userData, 'dossier-agent'); fs.mkdirSync(agentDir);
+// A small JS project with a failing test, in git, for Code mode.
+const proj = path.join(userData, 'calc-app');
+fs.mkdirSync(path.join(proj, 'src'), { recursive: true });
+fs.writeFileSync(path.join(proj, 'package.json'), JSON.stringify({ name: 'calc-app', version: '1.0.0', scripts: { test: 'node test.js' } }, null, 2));
+fs.writeFileSync(path.join(proj, 'src', 'math.js'), 'function add(a, b) {\n  return a - b;\n}\n\nmodule.exports = { add };\n');
+fs.writeFileSync(path.join(proj, 'test.js'), "const assert = require('assert');\nconst { add } = require('./src/math');\nlet ok = 0, ko = 0;\nfor (const [n, f] of [['adds', () => assert.strictEqual(add(2, 3), 5)], ['zero', () => assert.strictEqual(add(0, 0), 0)]]) { try { f(); ok++; console.log('✓ ' + n); } catch (e) { ko++; console.log('✕ ' + n); } }\nconsole.log(ok + ' passed, ' + ko + ' failed');\nprocess.exit(ko ? 1 : 0);\n");
+fs.writeFileSync(path.join(proj, 'index.html'), '<!doctype html><title>Calc</title><h1>Calc app</h1>');
+const gitOk = (() => { try { const cp = require('child_process'); const g = (a) => cp.execFileSync('git', a, { cwd: proj, stdio: 'ignore', env: { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@t' } }); g(['init', '-q', '-b', 'main']); g(['add', '-A']); g(['commit', '-q', '-m', 'init']); return true; } catch { return false; } })();
 fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpdate: false, language: 'fr', userName: 'Lulu', theme: process.env.THEME || 'light' }));
 
 const reply = 'Bonjour ! Voici **une réponse** de test.\n\n```js\nconsole.log("ok")\n```';
@@ -38,6 +46,12 @@ const srv = http.createServer((req, res) => {
         if (toolsDone.length === 1) return callN([['run_subagent', { description: 'Veille moteurs locaux', task: 'moteurs locaux' }], ['run_subagent', { description: 'Veille interfaces', task: 'interfaces' }]]);
         if (toolsDone.length === 3) return call1('update_plan', P('done', 'done', 'done'));
         return one('Synthèse : deux sous-agents ont couvert les moteurs locaux et les interfaces.');
+      }
+      if (/# Code session/.test(sys) && /corrige le bug/i.test(ut)) {
+        if (toolsDone.length === 0) return call1('read_file', { path: 'src/math.js' });
+        if (toolsDone.length === 1) return call1('edit_file', { path: 'src/math.js', old_text: 'return a - b;', new_text: 'return a + b;' });
+        if (toolsDone.length === 2) return call1('run_tests', {});
+        return one('Corrigé : `add` soustrayait au lieu d’additionner. Les tests passent.');
       }
       if (/range mon dossier/i.test(ut)) {
         if (toolsDone.length === 0) return call1('write_file', { path: path.join(agentDir, 'resume.md'), content: '# Résumé\nTout est rangé.' });
@@ -381,6 +395,67 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   const subSteps = await win.evaluate(() => S.conv.messages.at(-1).steps.filter((s) => s.parent).length);
   assert.strictEqual(subSteps, 2, 'each sub-agent searched once');
   step('subagents done'); await win.screenshot({ path: `${shots}/31c-subagents-done.png` });
+  // ── Code mode: project, session, edit card, tests, diff, editor, git, undo ──
+  win.on('dialog', (d) => d.accept());
+  await win.click('[data-action=mode][data-mode=code]');
+  await win.waitForSelector('.cx-welcome', { timeout: 8000 });
+  await win.waitForTimeout(500); step('code welcome'); await win.screenshot({ path: `${shots}/33-code-welcome.png` });
+  await win.evaluate(async (p) => { await cxOpen(p); renderSidebar(); renderView(); }, proj);
+  await win.waitForSelector('.cx-node', { timeout: 8000 });
+  assert.ok(await win.$('.cx-start'), 'project start screen');
+  await win.fill('#prompt', 'Corrige le bug dans add');
+  await win.keyboard.press('Enter');
+  await win.waitForSelector('.perm-card [data-v=once]', { timeout: 15000 }); // run_tests asks (accept-edits mode)
+  assert.ok(await win.$('.cx-fcard'), 'modified-file card');
+  assert.match(fs.readFileSync(path.join(proj, 'src', 'math.js'), 'utf8'), /a \+ b/, 'edit applied without asking (accept edits)');
+  assert.match(await win.textContent('.perm-card'), /Toujours pour ce projet/);
+  await win.click('.perm-card [data-v=once]');
+  await win.waitForFunction(() => /Les tests passent/.test(S.conv.messages.at(-1).content || '') && !document.querySelector('.msg.assistant.pending'), null, { timeout: 25000 });
+  await win.waitForSelector('.cx-turn', { timeout: 5000 });
+  await win.waitForFunction(() => S.cx.tests && S.cx.tests.summary && S.cx.tests.summary.ok, null, { timeout: 8000 });
+  const sum = await win.evaluate(() => S.cx.tests.summary);
+  assert.strictEqual(sum.passed, 2, 'tests summary: ' + JSON.stringify(sum));
+  if (gitOk) await win.waitForFunction(() => S.cx.git && S.cx.git.files && Object.keys(S.cx.git.files).some((f) => /math\.js$/.test(f)), null, { timeout: 8000 });
+  await win.waitForTimeout(300);
+  step('code session'); await win.screenshot({ path: `${shots}/34-code-session.png` });
+  await win.click('.cx-fcard');
+  await win.waitForSelector('.cx-diff .dl.ins', { timeout: 8000 });
+  assert.match(await win.textContent('.cx-diff .dl.ins'), /a \+ b/);
+  await win.waitForTimeout(500); step('code diff'); await win.screenshot({ path: `${shots}/35-code-diff.png` });
+  await win.click('[data-action=cx-vtab][data-tab=file]');
+  await win.waitForSelector('#cx-ta');
+  await win.focus('#cx-ta'); await win.keyboard.press('Control+End'); await win.keyboard.type('\n// édité à la main\n');
+  await win.keyboard.press('Control+s');
+  await win.waitForFunction(() => S.viewer && !S.viewer.dirty, null, { timeout: 5000 });
+  assert.match(fs.readFileSync(path.join(proj, 'src', 'math.js'), 'utf8'), /édité à la main/, 'editor saved');
+  await win.waitForTimeout(500); step('code editor'); await win.screenshot({ path: `${shots}/36-code-editor.png` });
+  // terminal
+  await win.click('[data-action=viewer-close]');
+  await win.click('[data-action=cx-term-tab][data-tab=terminal]');
+  await win.fill('#cx-cmd', 'node -e "console.log(40+2)"');
+  await win.keyboard.press('Enter');
+  await win.waitForFunction(() => /\b42\b/.test(document.querySelector('#cx-out')?.textContent || ''), null, { timeout: 10000 });
+  step('code terminal'); await win.screenshot({ path: `${shots}/37-code-terminal.png` });
+  // undo the agent turn → file back to its original content
+  await win.click('[data-action=cx-revert]');
+  await win.waitForFunction(() => document.querySelector('.cx-turn.reverted'), null, { timeout: 8000 });
+  assert.match(fs.readFileSync(path.join(proj, 'src', 'math.js'), 'utf8'), /a - b/, 'turn undone');
+  if (gitOk) {
+    await win.waitForFunction(() => !Object.keys((S.cx.git || {}).files || {}).length, null, { timeout: 8000 });
+    // commit flow: change a file, commit from the panel
+    fs.writeFileSync(path.join(proj, 'NOTES.md'), '# Notes\n');
+    await win.waitForSelector('.cx-commit', { timeout: 8000 });
+    await win.fill('.cx-commit input', 'Ajoute des notes');
+    await win.click('.cx-commit [type=submit]');
+    await win.waitForSelector('.cx-clean', { timeout: 8000 });
+    const log = require('child_process').execFileSync('git', ['log', '-1', '--pretty=%s'], { cwd: proj }).toString().trim();
+    assert.strictEqual(log, 'Ajoute des notes');
+  }
+  const codeRecents = await win.evaluate(() => S.convs.filter((c) => c.codeRoot).length);
+  assert.strictEqual(codeRecents, 1, 'code session saved with its project');
+  await win.click('[data-action=mode][data-mode=chat]');
+  await win.waitForTimeout(300);
+
   // MCP: a local stdio server, its tools become agent tools
   await win.evaluate((p) => api.mcp.add({ name: 'echo', command: 'node', args: [p] }), path.join(__dirname, 'fixtures', 'mcp-echo.js'));
   await win.keyboard.press('Control+,');

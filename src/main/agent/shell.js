@@ -18,15 +18,28 @@ function shellFor(kind) {
 agent.register({
   name: 'run_command', category: 'shell', risk: 'exec', core: true,
   description: `Run a terminal command in a folder and get its output (exit code, stdout, stderr). ${process.platform === 'win32' ? 'Windows: PowerShell by default.' : 'Uses bash.'} Use for builds, tests, git, package managers, scripts. Not interactive: never run commands that wait for input.`,
-  parameters: { type: 'object', properties: { command: { type: 'string' }, cwd: { type: 'string', description: 'Folder to run in' }, timeout_s: { type: 'integer', description: 'Default 120, max 900' }, shell: { type: 'string', enum: ['auto', 'powershell', 'cmd', 'bash'] } }, required: ['command', 'cwd'] },
-  summarize: (a) => `${a.command}\n📁 ${a.cwd}`,
-  guard: (a) => (DANGER.test(a.command || '') ? { confirm: 'danger_command' } : null),
+  parameters: { type: 'object', properties: { command: { type: 'string' }, cwd: { type: 'string', description: 'Folder to run in (in Code mode: defaults to the project, relative paths are inside it)' }, timeout_s: { type: 'integer', description: 'Default 120, max 900' }, shell: { type: 'string', enum: ['auto', 'powershell', 'cmd', 'bash'] } }, required: ['command'] },
+  summarize: (a) => `${a.command}${a.cwd ? `\n📁 ${a.cwd}` : ''}`,
+  guard: (a, ctx) => {
+    if (DANGER.test(a.command || '')) return { confirm: 'danger_command' };
+    // Code-mode sandbox: commands stay in the project folder.
+    if (ctx && ctx.projectRoot) {
+      const cwd = files.resolvePath(a.cwd || '.', ctx);
+      if (!files.inside(cwd, ctx.projectRoot)) return { confirm: 'outside_project' };
+      const abs = String(a.command).match(/(?:^|[\s"'=])((?:[A-Za-z]:\\|\/)[^\s"';|&]+)/g) || [];
+      const outside = abs.map((x) => x.trim().replace(/^["'=]/, '')).filter((x) => !/^\/(dev\/null|tmp\b|usr\/bin|bin\/)/.test(x)).find((x) => !files.inside(require('path').resolve(x), ctx.projectRoot));
+      if (outside) return { confirm: 'outside_project' };
+    }
+    return null;
+  },
   async run(a, ctx) {
-    const cwd = files.resolvePath(a.cwd);
+    if (!a.cwd && !ctx.projectRoot) throw new Error('cwd is required');
+    const cwd = files.resolvePath(a.cwd || '.', ctx);
     await files.access(cwd, ctx, true);
     const [bin, pre] = shellFor(a.shell || 'auto');
     const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !SECRET_ENV.test(k) && !/^ELECTRON_/.test(k)));
     env.FABRO_AGENT = '1';
+    if (ctx.projectRoot) { env.FABRO_PROJECT = ctx.projectRoot; env.CI = env.CI || '1'; env.GIT_TERMINAL_PROMPT = '0'; env.npm_config_yes = 'true'; }
     const timeout = Math.min(900, Math.max(5, a.timeout_s || 120)) * 1000;
     const t0 = Date.now();
     let out = '', err = '', killed = false;

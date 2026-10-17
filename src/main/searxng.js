@@ -60,6 +60,22 @@ async function install(onProgress = () => {}) {
   try { return await installing; } finally { installing = null; }
 }
 
+// Windows has no `pwd` module; SearXNG only imports it for Valkey (disabled here).
+function shims() {
+  const d = path.join(dir(), 'shims');
+  if (process.platform === 'win32' && !fs.existsSync(path.join(d, 'pwd.py'))) {
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, 'pwd.py'), [
+      '# Fabro shim: SearXNG imports pwd for Valkey, which Fabro does not use.',
+      'import getpass, collections',
+      "struct_passwd = collections.namedtuple('struct_passwd', 'pw_name pw_passwd pw_uid pw_gid pw_gecos pw_dir pw_shell')",
+      "def getpwuid(uid): return struct_passwd(getpass.getuser(), 'x', 0, 0, '', '', '')",
+      'def getpwnam(name): return getpwuid(0)',
+      '',
+    ].join('\n'));
+  }
+  return d;
+}
 function freePort() {
   return new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
 }
@@ -90,7 +106,7 @@ async function start(lang) {
   starting = (async () => {
     stop();
     port = await freePort();
-    const env = { ...process.env, SEARXNG_SETTINGS_PATH: settingsFile(port, lang), PYTHONPATH: srcDir(), PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' };
+    const env = { ...process.env, SEARXNG_SETTINGS_PATH: settingsFile(port, lang), PYTHONPATH: [srcDir(), shims()].join(path.delimiter), PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' };
     lastErr = '';
     proc = spawn(venvPy(), ['-m', 'searx.webapp'], { cwd: srcDir(), env, windowsHide: true });
     proc.stderr.on('data', (d) => { lastErr = (lastErr + d).slice(-3000); });

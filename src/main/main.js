@@ -181,6 +181,29 @@ function registerIpc() {
     throw new Error('Unknown dependency');
   });
   h('deps:remove', (dep) => { if (dep === 'searxng') return searxng.remove(); throw new Error('Unknown dependency'); });
+  // Code mode
+  h('code:open', async () => {
+    const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });
+    if (r.canceled || !r.filePaths[0]) return null;
+    const i = await code.info(r.filePaths[0]); code.watch(i.root); return i;
+  });
+  h('code:info', async (root) => { const i = await code.info(root); code.watch(root); return i; });
+  h('code:close', () => { code.watch(null); return true; });
+  h('code:recent', () => code.recent());
+  h('code:tree', (root, rel) => code.tree(root, rel));
+  h('code:status', (root) => code.status(root));
+  h('code:read', (root, rel) => code.readFile(root, rel));
+  h('code:write', (root, rel, content) => code.writeFile(root, rel, content));
+  h('code:diff', (convId, root, rel) => code.fileDiff(convId, root, rel));
+  h('code:changes', (convId) => code.sessionChanges(convId));
+  h('code:revert', (convId, turnId) => code.revert(convId, turnId));
+  h('code:git', (root, action, arg) => code.gitAction(root, action, arg));
+  h('code:branches', (root) => code.branches(root));
+  h('code:log', (root) => code.log(root));
+  h('code:run', (root, command, kind) => code.run(root, command, kind));
+  h('code:kill', (id) => code.kill(id));
+  h('code:project', (root, patch) => code.setProject(root, patch));
+  h('code:preview', (root, rel) => code.previewUrl(root, rel));
   h('search:test', async (q) => tools.webSearch(q || 'Fabro AI', {}));
   h('mcp:view', () => mcp.view());
   h('mcp:add', (cfg) => mcp.add(cfg));
@@ -227,6 +250,7 @@ app.whenReady().then(async () => {
   createWindow();
   browser.init(win, send);
   mcp.init(send);
+  code.init(send);
   desktop.init(() => win, (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a)));
   if (process.argv.includes('--hidden')) win.once('ready-to-show', () => win.hide());
   system.getSpecs(); // warm cache

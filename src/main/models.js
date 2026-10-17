@@ -21,6 +21,7 @@ const CATALOG = [
   { id: 'gpt-oss-20b', name: 'gpt-oss 20B', by: 'OpenAI', repo: 'ggml-org/gpt-oss-20b-GGUF', quant: 'MXFP4', params: '20B · MoE', sizeGB: 12.1, moe: true, tags: ['chat', 'reasoning', 'tools'] },
   { id: 'gemma-4-26b-a4b', name: 'Gemma 4 26B A4B', by: 'Google', repo: 'unsloth/gemma-4-26B-A4B-it-GGUF', params: '26B · MoE', sizeGB: 16.0, moe: true, tags: ['chat', 'vision', 'tools'] },
   { id: 'qwen3.8-27b', name: 'Qwen3.8 27B', by: 'Qwen', repo: 'unsloth/Qwen3.8-27B-GGUF', params: '27B', sizeGB: 16.5, tags: ['chat', 'reasoning', 'tools'] },
+  { id: 'qwen2.5-coder-7b', name: 'Qwen2.5 Coder 7B', by: 'Qwen', repo: 'unsloth/Qwen2.5-Coder-7B-Instruct-GGUF', params: '7B', sizeGB: 4.7, tags: ['code', 'tools'] },
   { id: 'qwen3-coder-30b', name: 'Qwen3 Coder 30B A3B', by: 'Qwen', repo: 'unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF', params: '30B · MoE', sizeGB: 18.6, moe: true, tags: ['code', 'tools'] },
   { id: 'qwen3.6-35b-a3b', name: 'Qwen3.6 35B A3B', by: 'Qwen', repo: 'unsloth/Qwen3.6-35B-A3B-GGUF', params: '35B · MoE', sizeGB: 21.0, moe: true, tags: ['chat', 'vision', 'reasoning', 'tools'] },
   { id: 'gemma-4-31b', name: 'Gemma 4 31B', by: 'Google', repo: 'unsloth/gemma-4-31B-it-GGUF', params: '31B', sizeGB: 19.0, tags: ['chat', 'vision'] },

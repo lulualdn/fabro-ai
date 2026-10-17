@@ -39,7 +39,7 @@ const srv = http.createServer((req, res) => {
     console.log(`  installed in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   }
   const r = await win.evaluate(() => api.search.test('llama.cpp'));
-  console.log('• search:', r.engine, r.results.length, 'results —', r.results.slice(0, 3).map((x) => x.title).join(' | '));
+  console.log('• search:', r.engine, r.results.length, 'results —', r.results.slice(0, 3).map((x) => x.title).join(' | '), r.fallback ? '\n  FALLBACK: ' + JSON.stringify(r.fallback) : '');
   assert.strictEqual(r.engine, 'searxng'); assert.ok(r.results.length >= 3, 'SearXNG returns results');
 
   // Agent browser driven by a scripted model

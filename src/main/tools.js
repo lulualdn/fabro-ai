@@ -104,7 +104,7 @@ async function webSearch(query, ctx = {}, opts = {}) {
       : engine === 'ducky' ? await ducky(query, s.duckyUrl)
       : await duckduckgo(query);
   } catch (e) {
-    if (engine !== 'duckduckgo') { results = await duckduckgo(query); engine = 'duckduckgo'; extra = {}; } else throw e;
+    if (engine !== 'duckduckgo') { const from = engine; results = await duckduckgo(query); engine = 'duckduckgo'; extra = { fallback: { from, error: String(e.message || e).slice(0, 600) } }; } else throw e;
   }
   return { engine, results, ...extra };
 }

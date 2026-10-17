@@ -193,17 +193,20 @@ function renderRecents() {
   if (!el) return;
   const q = S.sbQuery.trim().toLowerCase();
   if (q && S.sbResults) return renderSearchResults(el);
-  const list = S.convs.filter((c) => !q || (c.title || '').toLowerCase().includes(q));
+  const list = S.convs.filter((c) => (S.mode === 'code' ? c.codeRoot && (!S.cx.root || c.codeRoot === S.cx.root) : !c.codeRoot) && (!q || (c.title || '').toLowerCase().includes(q)));
   const pinned = list.filter((c) => c.pinned), rest = list.filter((c) => !c.pinned);
   el.innerHTML = `
     ${pinned.length ? `<div class="sb-section"><span>${esc(t('pinned'))}</span></div>${pinned.map(recentItem).join('')}` : ''}
-    ${rest.length ? `<div class="sb-section"><span>${esc(t('recents'))}</span><button class="icon-btn xs" data-action="noop" title="${esc(t('filter'))}">${icon('filter', 14)}</button></div>${rest.map(recentItem).join('')}` : ''}
+    ${rest.length ? `<div class="sb-section"><span>${esc(S.mode === 'code' && S.cx.root ? t('cx_sessions') : t('recents'))}</span><button class="icon-btn xs" data-action="noop" title="${esc(t('filter'))}">${icon('filter', 14)}</button></div>${rest.map(recentItem).join('')}` : ''}
     ${q && !list.length ? `<div class="sb-empty">${esc(t('noResults'))}</div>` : ''}`;
 }
 
+// Code mode with a file open on a narrow window: the app sidebar steps aside (like an IDE).
+const sbAuto = () => S.mode === 'code' && !!S.viewer && S.viewer.type === 'codefile' && innerWidth < 1500;
+const sbHidden = () => !!S.settings.sidebarCollapsed || (sbAuto() && !S.sbForce);
 function renderSidebar() {
   const sb = $('#sidebar');
-  const collapsed = S.settings.sidebarCollapsed;
+  const collapsed = sbHidden();
   $('#app').classList.toggle('sb-collapsed', collapsed);
   const installed = S.settings.installedModes || ['chat'];
   const eng = S.engine;
@@ -272,7 +275,8 @@ function navTo(mode, convId, push = true) {
 
 // ───────────────────────────── Topbar ─────────────────────────────
 function renderTopbar() {
-  const title = S.mode === 'chat' ? (S.conv && S.conv.messages.length ? S.conv.title || t('untitled') : '') : t(S.mode === 'code' ? 'mode_code' : 'nav_' + S.mode);
+  const title = S.mode === 'chat' ? (S.conv && S.conv.messages.length ? S.conv.title || t('untitled') : '')
+    : S.mode === 'code' ? (S.cx.root ? `${S.cx.info ? S.cx.info.name : ''}${S.conv && S.conv.messages.length ? ' · ' + (S.conv.title || t('untitled')) : ''}` : t('mode_code')) : t('nav_' + S.mode);
   $('#topbar').innerHTML = `
     <div class="tb-left">
       ${S.settings.sidebarCollapsed ? '' : ''}
@@ -283,7 +287,7 @@ function renderTopbar() {
     <div class="tb-right">
       ${S.updater.state === 'ready' ? `<button class="chip accent upd-chip" data-action="upd-open">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
       ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="icon-btn ${S.spOpen !== false ? 'on' : ''}" data-action="sp-toggle" title="${esc(t('sp_title'))}">${icon('plan', 18)}</button>` : ''}
-      ${S.settings.sidebarCollapsed ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
+      ${sbHidden() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
     </div>`;
   if (typeof renderSessionPanel === 'function') renderSessionPanel();
 }
@@ -335,6 +339,12 @@ function renderView() {
   renderTopbar();
   reportQuick();
   const v = $('#view');
+  if (S.mode === 'code') {
+    v.className = 'view code-view' + (S.cx.root ? '' : ' cx-none');
+    v.innerHTML = renderCodeView();
+    afterCodeRender();
+    return;
+  }
   if (S.mode !== 'chat') {
     v.className = 'view';
     v.innerHTML = S.mode === 'custom' ? renderCustomPage() : S.mode === 'artifacts' && typeof renderArtifactsPage === 'function' ? renderArtifactsPage() : ['code', 'projects'].includes(S.mode) ? renderLockedMode(S.mode) : renderSoon(S.mode);
@@ -468,6 +478,7 @@ function assistantBody(m) {
     html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
   }
   if (m.error) html += errorCard({ code: m.errorCode || (m.error === 'NO_MODEL' ? 'NO_MODEL' : 'UNKNOWN'), message: m.error, detail: m.errorDetail });
+  if (m.checkpoint) html += cxTurnCard(m);
   return html;
 }
 
@@ -658,12 +669,15 @@ function closeViewer() { S.viewer = null; renderViewer(); }
 
 function renderViewer() {
   const el = $('#viewer');
+  if (!S.viewer) S.sbForce = false;
+  if ($('#app').classList.contains('sb-collapsed') !== sbHidden()) { renderSidebar(); renderTopbar(); }
   $('#app').classList.toggle('with-viewer', !!S.viewer);
-  $('#app').classList.toggle('wide-viewer', !!S.viewer && ['artifact', 'htmlpreview', 'agent'].includes(S.viewer.type));
+  $('#app').classList.toggle('wide-viewer', !!S.viewer && ['artifact', 'htmlpreview', 'agent', 'codefile'].includes(S.viewer.type));
   if (!S.viewer || S.viewer.type !== 'agent') setTimeout(() => typeof syncBrowser === 'function' && syncBrowser(), 0);
   if (!S.viewer) { el.innerHTML = ''; return; }
   const v = S.viewer;
   if (v.type === 'agent') { el.innerHTML = workspaceView(); afterViewerRender(); return; }
+  if (v.type === 'codefile') { el.innerHTML = codeFileView(); afterCodeFile(); return; }
   if (v.type === 'artifact') { el.innerHTML = artifactViewer(); if (v.editing) bindArtEditor(); return; }
   if (v.type === 'htmlpreview') {
     el.innerHTML = `<div class="v-head"><span class="v-title">${esc(v.title)}</span><div class="v-tools"><button class="icon-btn sm" data-action="viewer-close" title="${esc(t('close'))}">${icon('x', 17)}</button></div></div>
@@ -853,6 +867,7 @@ function renderRepoFiles() {
 // ───────────────────────────── Conversations ─────────────────────────────
 function newConv() {
   const c = { id: uid(), title: '', mode: 'chat', nodes: [], leafId: null, messages: [], createdAt: Date.now(), updatedAt: Date.now(), ephemeral: !!S.ephemeralNext };
+  if (S.mode === 'code' && S.cx.root) { c.mode = 'code'; c.code = { root: S.cx.root }; c.agent = true; c.ephemeral = false; }
   S.ephemeralNext = false;
   return c;
 }
@@ -868,6 +883,12 @@ const persist = debounce(async () => {
 async function openConv(id) {
   if (S.streaming) return;
   try { S.conv = treeify(await api.conv.get(id)); } catch { toast(t('loadFailed'), 'err'); return; }
+  if (S.conv.code && S.conv.code.root) {
+    S.mode = 'code'; S.code.clear(); navTo('code', id);
+    if (S.cx.root !== S.conv.code.root) await cxOpen(S.conv.code.root, { keepConv: true });
+    vt(() => { renderSidebar(); renderView(); });
+    return;
+  }
   S.mode = 'chat'; S.code.clear(); navTo('chat', id);
   vt(() => { renderSidebar(); renderView(); });
 }
@@ -876,6 +897,7 @@ function reportQuick() { api.quick.report({ convId: S.conv && S.conv.messages.le
 
 function newChat() {
   if (S.streaming) return;
+  if (S.mode === 'code' && S.cx.root) { S.conv = null; S.code.clear(); S._draft = ''; vt(() => { renderSidebar(); renderView(); }); return; }
   S.conv = null; S.mode = 'chat'; S.code.clear(); S._draft = ''; navTo('chat', null);
   vt(() => { renderSidebar(); renderView(); });
 }
@@ -920,7 +942,7 @@ function generate(opts = {}) {
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
   const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
-  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? undefined : r, tools: chatTools(), agentMode: !!S.conv.agent, agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false }, meta: { convId: S.conv.id, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? undefined : r, tools: chatTools(), agentMode: !!S.conv.agent || !!S.conv.code, agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {
@@ -952,6 +974,7 @@ function onChatEvent(ev) {
     case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running', parent: ev.parent, t0: Date.now() }); scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab === 'steps') renderViewer(); break;
     case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; st.error = ev.error; st.perm = null; st.deps = null; if (st.view && st.view.out == null && st.live) st.view.out = st.live; delete st.live; delete st.subText; } scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab !== 'browser') renderViewer(); break; }
     case 'agent_switch': case 'tools_info': case 'permission': case 'deps_needed': case 'tool_progress': case 'retract': case 'plan': case 'sub_token': onAgentEvent(ev, m); break;
+    case 'checkpoint': m.checkpoint = { id: ev.id, files: ev.files }; cxRefreshSoon(); break;
     case 'tool_round': if (m.content && !/\n\n$/.test(m.content)) m.content += '\n\n'; break;
     case 'done': m.stats = ev.stats; finishStream(); break;
     case 'error': m.error = ev.message; m.errorCode = ev.code; m.errorDetail = ev.detail; finishStream(); break;
@@ -960,13 +983,17 @@ function onChatEvent(ev) {
 
 // ───────────────────────────── Actions ─────────────────────────────
 const actions = {
-  'toggle-sidebar': async () => { await saveSettings({ sidebarCollapsed: !S.settings.sidebarCollapsed }); renderSidebar(); renderTopbar(); },
+  'toggle-sidebar': async () => {
+    if (sbAuto() && !S.settings.sidebarCollapsed) S.sbForce = !S.sbForce; // auto-hidden in Code mode: just show it for now
+    else await saveSettings({ sidebarCollapsed: !S.settings.sidebarCollapsed });
+    renderSidebar(); renderTopbar();
+  },
   'new-chat': newChat,
-  'mode': (el) => { S.mode = el.dataset.mode; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); vt(() => { renderSidebar(); renderView(); }); },
+  'mode': (el) => { S.mode = el.dataset.mode; if (S.conv && !!S.conv.code !== (S.mode === 'code')) S.conv = null; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); vt(() => { renderSidebar(); renderView(); }); },
   'hist-back': () => histGo(-1),
   'hist-fwd': () => histGo(1),
   'toggle-more': () => { S.moreOpen = !S.moreOpen; renderSidebar(); },
-  'focus-search': async () => { if (S.settings.sidebarCollapsed) await actions['toggle-sidebar'](); $('#sb-q')?.focus(); },
+  'focus-search': async () => { if (sbHidden()) await actions['toggle-sidebar'](); $('#sb-q')?.focus(); },
   'user-menu': (el) => openUserMenu(el),
   'soon': () => toast(t('soon')),
   'noop': () => {},
