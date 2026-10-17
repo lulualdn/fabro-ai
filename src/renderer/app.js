@@ -236,7 +236,7 @@ function renderSidebar() {
     </div>
     <label class="sb-search hide-c">${icon('search', 16)}<input id="sb-q" type="search" placeholder="${esc(t('searchChats'))}" value="${esc(S.sbQuery)}" aria-label="${esc(t('searchChats'))}"><kbd>Ctrl K</kbd></label>
     <nav class="nav">
-      <button class="nav-item new" data-action="new-chat" title="${esc(t('newChat'))}"><span class="nc-ico">${icon('plus', 15)}</span><span class="label">${esc(t('newChat'))}</span></button>
+      <button class="nav-item new" data-action="new-chat" title="${esc(t('newChat'))}"><span class="nc-ico">${icon('plus', 15)}</span><span class="label">${esc(t(S.mode === 'code' && S.cx.root ? 'cx_newSession' : 'newChat'))}</span></button>
       ${pages}
       <button class="nav-item muted-item" data-action="toggle-more" aria-expanded="${S.moreOpen}">${icon(S.moreOpen ? 'down' : 'right', 16)}<span class="label">${esc(t('nav_more'))}</span></button>
       ${more}

@@ -29,7 +29,14 @@ function git(root, args, opts = {}) {
       (err, out, errOut) => resolve({ ok: !err, out: String(out || ''), err: String(errOut || (err && err.message) || '') }));
   });
 }
-async function hasGit() { return (await git(process.cwd(), ['--version'])).ok; }
+async function hasGit() { return (await git(process.cwd() || require('os').homedir(), ['--version'])).ok; }
+// Commits need a name/email: use the user's git identity, else a local fallback (never fails on a fresh PC).
+async function identity(root) {
+  const e = await git(root, ['config', 'user.email']);
+  if (e.ok && e.out.trim()) return [];
+  const name = (require('os').userInfo().username || 'Fabro user');
+  return ['-c', `user.name=${name}`, '-c', `user.email=${name.replace(/\s+/g, '.')}@localhost`];
+}
 async function status(root) {
   const r = await git(root, ['status', '--porcelain=v1', '-b', '-uall']);
   if (!r.ok) return { repo: false, branch: null, files: {} };
@@ -179,7 +186,7 @@ agent.register({
     if (a.branch) { const sw = await git(root, ['switch', a.branch]); if (!sw.ok) await git(root, ['switch', '-c', a.branch]); }
     const add = await git(root, ['add', ...(a.files && a.files.length ? ['--', ...a.files] : ['-A'])]);
     if (!add.ok) throw new Error(add.err);
-    const c = await git(root, ['commit', '-m', a.message]);
+    const c = await git(root, [...await identity(root), 'commit', '-m', a.message]);
     if (!c.ok) throw new Error(c.err || c.out);
     emit('code:changed', { root });
     return { content: c.out.trim(), view: { kind: 'commit', message: a.message } };
@@ -330,7 +337,7 @@ function recent() { return ((store.getSettings().code || {}).recent || []).filte
 async function info(root) {
   if (!fs.existsSync(root)) throw new Error('Folder not found');
   await touchRecent(root);
-  return { root, name: path.basename(root), git: await status(root), instructions: instructions(root), commands: detect(root), settings: projectSettings(root) };
+  return { root, name: path.basename(root), git: await status(root), hasGit: await hasGit(), instructions: instructions(root), commands: detect(root), settings: projectSettings(root) };
 }
 async function branches(root) { const r = await git(root, ['branch', '--format=%(refname:short)']); return r.ok ? r.out.split('\n').filter(Boolean) : []; }
 async function log(root, n = 15) {
@@ -341,7 +348,7 @@ async function gitAction(root, action, arg) {
   let r;
   if (action === 'init') r = await git(root, ['init']);
   else if (action === 'switch') { r = await git(root, ['switch', arg]); if (!r.ok) r = await git(root, ['switch', '-c', arg]); }
-  else if (action === 'commit') { await git(root, ['add', '-A']); r = await git(root, ['commit', '-m', arg || 'Update']); }
+  else if (action === 'commit') { await git(root, ['add', '-A']); r = await git(root, [...await identity(root), 'commit', '-m', arg || 'Update']); }
   else if (action === 'discard') { const rel = arg; const st = (await status(root)).files[rel]; r = st === 'U' ? (fs.rmSync(within(root, rel), { force: true }), { ok: true }) : await git(root, ['restore', '--staged', '--worktree', '--', rel]); }
   else if (action === 'undoCommit') r = await git(root, ['reset', '--soft', 'HEAD~1']);
   else throw new Error('Unknown git action');

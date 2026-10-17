@@ -90,7 +90,7 @@ function cxSide() {
     <div class="cx-tree" id="cx-tree">${cxTreeHtml('', 0)}</div>
     <div class="cx-changes">
       <div class="cx-h">${icon('git', 14)}<span>${g.repo ? esc(g.branch || 'HEAD') : esc(t('cx_noGit'))}</span>${g.repo && g.ahead ? `<small>↑${g.ahead}</small>` : ''}<span class="grow"></span>
-        ${g.repo ? `<button class="icon-btn xs" data-action="cx-branch" title="${esc(t('cx_branch'))}">${icon('git', 13)}</button><button class="icon-btn xs" data-action="cx-log" title="${esc(t('cx_history'))}">${icon('tasks', 13)}</button>` : `<button class="link" data-action="cx-git-init">${esc(t('cx_gitInit'))}</button>`}</div>
+        ${g.repo ? `<button class="icon-btn xs" data-action="cx-branch" title="${esc(t('cx_branch'))}">${icon('git', 13)}</button><button class="icon-btn xs" data-action="cx-log" title="${esc(t('cx_history'))}">${icon('tasks', 13)}</button>` : (i.hasGit === false ? `<button class="link" data-action="cx-git-install">${S.cx.gitInstalling ? spinner(12) : ''} ${esc(t('cx_gitInstall'))}</button>` : `<button class="link" data-action="cx-git-init">${esc(t('cx_gitInit'))}</button>`)}</div>
       ${g.repo ? `${changes.length ? `<div class="cx-chlist">${changes.slice(0, 200).map(([f, k]) => `<div class="cx-ch" data-action="cx-file" data-rel="${esc(f)}" data-tab="diff" title="${esc(f)}"><span class="gb ${GIT_CLS[k] || 'mod'}">${k}</span><span class="cx-ch-n">${esc(cxBase(f))}</span><small>${esc(f.includes('/') || f.includes('\\') ? f.replace(/[\\/][^\\/]+$/, '') : '')}</small><button class="icon-btn xs" data-action="cx-discard" data-rel="${esc(f)}" title="${esc(t('cx_discard'))}">${icon('retry', 12)}</button></div>`).join('')}</div>
         <form class="cx-commit" data-form="cx-commit"><input class="input sm2" name="m" placeholder="${esc(t('cx_commitPh'))}" autocomplete="off"><button class="btn sm primary" type="submit">${icon('commit', 14)} ${esc(t('cx_commit'))}</button></form>`
         : `<div class="cx-clean">${icon('done', 14)} ${esc(t('cx_clean'))}</div>`}` : ''}
@@ -354,6 +354,7 @@ Object.assign(actions, {
   'cx-vtab': async (el) => { const v = S.viewer; v.tab = el.dataset.tab; if (v.tab === 'preview' && !v.url) v.url = /\.html?$/i.test(v.rel) ? await api.code.preview(S.cx.root, v.rel) : S.cx.devUrl; renderViewer(); },
   'cx-save': async () => { const v = S.viewer; if (!v || v.type !== 'codefile') return; try { await api.code.write(S.cx.root, v.rel, v.text); v.dirty = false; toast(t('cx_saved')); cxLoadViewer(v.rel, v.tab, true); } catch (e) { toast(cleanErr(e), 'err'); } },
   'cx-discard': async (el) => { if (!confirm(t('cx_discardConfirm', { f: el.dataset.rel }))) return; try { S.cx.git = await api.code.git(S.cx.root, 'discard', el.dataset.rel); cxRefresh(); } catch (e) { toast(cleanErr(e), 'err'); } },
+  'cx-git-install': async () => { S.cx.gitInstalling = true; cxRenderTree(); try { await api.deps.install('git'); S.cx.info = await api.code.info(S.cx.root); toast(t('depsDone')); } catch (e) { toast(cleanErr(e), 'err'); } S.cx.gitInstalling = false; cxRenderTree(); },
   'cx-git-init': async () => { try { S.cx.git = await api.code.git(S.cx.root, 'init'); cxRenderTree(); } catch (e) { toast(cleanErr(e), 'err'); } },
   'cx-branch': async (el) => {
     const r = el.getBoundingClientRect(); const list = await api.code.branches(S.cx.root);
