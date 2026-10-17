@@ -32,6 +32,6 @@ const chat = require(R + '/src/main/chat'); const agent = require(R + '/src/main
   console.log('resume.md:', out.slice(0, 300));
   await engine.stop();
   if (!/pomme/i.test(out) || !/mamie/i.test(out)) { console.error('FAIL: summary file missing or not based on the files'); process.exit(1); }
-  if (!/3/.test(answers[1] || '')) { console.error('FAIL: line count answer'); process.exit(1); }
+  if (!/(^|\D)3(\D|$)/.test(answers[1] || '')) { console.error('FAIL: line count answer'); process.exit(1); }
   console.log('agent-real: all passed'); process.exit(0);
 })().catch(async (e) => { console.error(e); await engine.stop(); process.exit(1); });

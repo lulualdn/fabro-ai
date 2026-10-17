@@ -24,6 +24,7 @@ const searxng = require('./searxng');
 const tools = require('./tools');
 const code = require('./code');
 const rag = require('./rag');
+const voice = require('./voice');
 const S = () => store.getSettings();
 exporter.registerScheme();
 
@@ -64,6 +65,9 @@ function createWindow() {
   });
   win.once('ready-to-show', () => { if (!process.argv.includes('--hidden')) win.show(); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  // Microphone for dictation / voice mode (the app's own page only); nothing else.
+  win.webContents.session.setPermissionRequestHandler((wc, perm, cb, details) => cb(wc === win.webContents && (perm === 'media' && (!details.mediaTypes || details.mediaTypes.every((t) => t === 'audio')) || perm === 'clipboard-sanitized-write')));
+  win.webContents.session.setPermissionCheckHandler((wc, perm) => perm === 'media' || perm === 'clipboard-sanitized-write');
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); shell.openExternal(url); } });
 }
 
@@ -182,6 +186,14 @@ function registerIpc() {
     throw new Error('Unknown dependency');
   });
   h('deps:remove', (dep) => { if (dep === 'searxng') return searxng.remove(); throw new Error('Unknown dependency'); });
+  // Voice
+  h('voice:status', () => voice.status());
+  h('voice:install', () => voice.install((p) => send('deps:progress', { dep: 'voice', p }), { lang: S().language && S().language !== 'auto' ? S().language : app.getLocale().slice(0, 2) }));
+  h('voice:stt', (wav, o) => voice.stt(wav, o));
+  h('voice:tts', (text, o) => voice.tts(text, o));
+  h('voice:setVoice', (id) => voice.setVoice(id, (p) => send('deps:progress', { dep: 'voice', p })));
+  h('voice:setWhisper', (size) => voice.setWhisper(size, (p) => send('deps:progress', { dep: 'voice', p })));
+
   // Projects
   h('projects:list', () => db.listProjects());
   h('projects:get', (id) => db.getProject(id));
@@ -272,6 +284,7 @@ app.whenReady().then(async () => {
   mcp.init(send);
   code.init(send);
   rag.init(send);
+  voice.init(async (prog) => { await python.install(prog); return python.pyPath(); });
   desktop.init(() => win, (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a)));
   if (process.argv.includes('--hidden')) win.once('ready-to-show', () => win.hide());
   system.getSpecs(); // warm cache
@@ -287,5 +300,5 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => { if (!isMac) app.quit(); });
 app.on('activate', () => { if (win) desktop.showMain(); else createWindow(); });
-app.on('before-quit', () => { engine.stop(); searxng.stop(); });
+app.on('before-quit', () => { engine.stop(); searxng.stop(); voice.stop(); });
 app.on('will-quit', () => { engine.stop(); mcp.stopAll(); db.close(); });

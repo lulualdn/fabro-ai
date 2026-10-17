@@ -69,3 +69,35 @@ jobs:
       - run: npm ci
       - name: Agent with Qwen3.5 4B (CPU)
         run: node scripts/agent-real.js
+
+  voice:
+    # Local voice stack installed by the app itself (Whisper + Piper), spoken question through a fake mic.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Voice mode (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          SHOTS=. xvfb-run -a node scripts/voice-smoke.js
+      - name: Voice mode (Windows)
+        if: runner.os == 'Windows'
+        run: node scripts/voice-smoke.js
+        env:
+          SHOTS: .
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voice-${{ matrix.os }}
+          path: voice-mode.png
+          if-no-files-found: ignore

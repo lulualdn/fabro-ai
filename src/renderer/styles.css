@@ -1294,3 +1294,52 @@ details.py summary, details.diff summary { cursor: pointer; font-size: 12px; col
 @media (max-width: 960px) { .prj-view { flex-direction: column; } .prj-side { width: 100%; position: static; } }
 .prj-view, .prj-page { width: 100%; box-sizing: border-box; }
 .link { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+/* ───────────── Voice ───────────── */
+.mic-btn.rec { color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 calc(var(--lv, 0) * 6px) color-mix(in srgb, var(--accent) 25%, transparent); transition: box-shadow .08s; }
+.mic-btn.busy { opacity: .6; }
+.vx { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(18px); animation: vx-in .3s var(--ease) both; }
+.vx.out { animation: vx-out .25s var(--ease) both; }
+@keyframes vx-in { from { opacity: 0; transform: scale(1.02); } } @keyframes vx-out { to { opacity: 0; transform: scale(1.02); } }
+.vx-top { display: flex; align-items: center; gap: 10px; padding: 14px 18px; -webkit-app-region: no-drag; }
+.platform-win32 .vx-top, .platform-linux .vx-top { padding-top: 44px; }
+.vx-title { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-2); }
+.vx-body { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 0 24px; }
+.vx-scene:empty { display: none; }
+.vx-scene { width: min(900px, 100%); max-height: 52vh; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: rise .4s var(--ease) both; }
+.vs { width: 100%; display: flex; justify-content: center; }
+.vs.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.vs-img { margin: 0; border-radius: 16px; overflow: hidden; background: var(--panel); box-shadow: var(--shadow); max-height: 50vh; display: flex; flex-direction: column; }
+.vs.grid .vs-img { max-height: 25vh; }
+.vs-img img { width: 100%; height: 100%; object-fit: cover; min-height: 0; flex: 1; }
+.vs-img figcaption { font-size: 11.5px; color: var(--muted); padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vs-frame { width: 100%; height: 48vh; border: 0; border-radius: 16px; background: #fff; box-shadow: var(--shadow); }
+.vs-svg { width: 100%; max-height: 50vh; display: flex; justify-content: center; background: var(--elev); border-radius: 16px; padding: 12px; box-shadow: var(--shadow); }
+.vs-svg svg { max-width: 100%; max-height: calc(50vh - 24px); height: auto; }
+.vs-cap { font-size: 13px; color: var(--muted); }
+.vx-center { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.vx-ring { width: 210px; height: 210px; border-radius: 50%; display: grid; place-items: center; position: relative; transition: width .4s var(--ease), height .4s var(--ease); }
+.vx-center.small .vx-ring { width: 110px; height: 110px; }
+.vx-ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%); transform: scale(calc(0.85 + var(--lv, 0) * 0.5)); transition: transform .1s; }
+.vx[data-phase=thinking] .vx-ring::before, .vx[data-phase=transcribing] .vx-ring::before { animation: vx-breathe 1.4s ease-in-out infinite; }
+@keyframes vx-breathe { 50% { transform: scale(1.12); opacity: .7; } }
+.vx-mark { display: grid; place-items: center; will-change: transform; --logo: var(--accent); position: relative; }
+.vx-status { color: var(--muted); font-size: 14px; min-height: 20px; }
+.vx-subs { width: min(720px, 100%); text-align: center; display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
+.vx-user { color: var(--muted); font-size: 15px; }
+.vx-user:not(:empty)::before { content: '“'; } .vx-user:not(:empty)::after { content: '”'; }
+.vx-ai { font-family: var(--serif); font-size: 24px; line-height: 1.35; color: var(--text); }
+.vx-err { color: var(--err); font-size: 13px; }
+.vx-ctl { display: flex; justify-content: center; gap: 18px; padding: 18px 0 30px; }
+.vx-btn { all: unset; cursor: pointer; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; background: var(--elev); border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow-sm); transition: transform .15s var(--spring), background .15s; }
+.vx-btn:hover { transform: scale(1.06); } .vx-btn:active { transform: scale(.95); }
+.vx-btn.off { background: var(--panel); color: var(--muted); position: relative; } .vx-btn.off::after { content: ''; position: absolute; width: 28px; height: 2px; background: currentColor; transform: rotate(-45deg); }
+.vx-btn.end { background: var(--err); color: #fff; border-color: transparent; }
+.vx-install { max-width: 460px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.vx-install h2 { font-family: var(--serif); font-weight: 500; font-size: 28px; margin: 0; }
+.vx-install p { color: var(--text-2); margin: 0 0 6px; }
+.vx-install .bar { width: 280px; }
+@media (prefers-reduced-motion: reduce) { .vx, .vx-ring::before { animation: none !important; } }
+.vx-top .input { width: auto; min-width: 140px; }
+.vx-title { white-space: nowrap; }
+.vx-subs { margin-bottom: 4px; }

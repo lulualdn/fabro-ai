@@ -8,7 +8,7 @@ const store = require('./store');
 const { downloadFile } = require('./download');
 
 let pyInstall = null; // (progress) => python path
-const dir = () => path.join(app.getPath('userData'), 'deps', 'voice');
+const dir = () => path.join(process.env.FABRO_DEPS || path.join(app.getPath('userData'), 'deps'), 'voice');
 const modelsDir = () => path.join(app.getPath('userData'), 'voice');
 const venvPy = () => (process.platform === 'win32' ? path.join(dir(), 'venv', 'Scripts', 'python.exe') : path.join(dir(), 'venv', 'bin', 'python'));
 const runtimeOk = () => fs.existsSync(venvPy()) && fs.existsSync(path.join(dir(), 'ok'));

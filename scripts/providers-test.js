@@ -81,7 +81,7 @@ const run = (payload) => new Promise((resolve) => { const ev = []; chat.send(pay
   ev = await run({ reqId: 'b', model: { backend: 'provider', provider: ant.id, model: 'claude-x' }, messages: [{ role: 'system', content: 'be nice' }, { role: 'user', content: [{ type: 'text', text: 'img?' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] }], params: { temperature: 1.5, maxTokens: 0, reasoning: 'low' } });
   assert.strictEqual(ev.filter((e) => e.type === 'token').map((e) => e.text).join(''), 'Bonjour');
   const sent = seen['/ant/v1/messages'];
-  assert.strictEqual(sent.headers['x-api-key'], 'ak'); assert.strictEqual(sent.body.system, 'be nice');
+  assert.strictEqual(sent.headers['x-api-key'], 'ak'); assert.match(sent.body.system, /^be nice/);
   assert.strictEqual(sent.body.messages[0].content[1].source.data, 'AAAA');
   assert.ok(sent.body.thinking && sent.body.thinking.budget_tokens === 2048 && sent.body.temperature === undefined);
   assert.strictEqual(ev.find((e) => e.type === 'done').stats.promptTokens, 20);
@@ -105,8 +105,9 @@ const run = (payload) => new Promise((resolve) => { const ev = []; chat.send(pay
   assert.deepStrictEqual(ev.find((e) => e.type === 'tool_start').args, { query: 'fabro' });
   assert.strictEqual(ev.filter((e) => e.type === 'token').map((e) => e.text).join(''), 'Je cherche…Voici [1].');
   const second = seen.toolReqs[1];
-  assert.strictEqual(second.messages[1].tool_calls[0].function.name, 'web_search');
-  assert.match(second.messages[2].content, /RESULT for web_search/);
+  assert.strictEqual(second.messages.find((m) => m.tool_calls).tool_calls[0].function.name, 'web_search');
+  assert.match(second.messages.find((m) => m.role === 'tool').content, /RESULT for web_search/);
+  assert.match(seen.toolReqs[0].messages[0].content, /## Tools you can call now/, 'chat requests explain the tools');
   assert.ok(['web_search', 'fetch_url'].every((n) => seen.toolReqs[0].tools.some((t) => t.function.name === n)));
   // Anthropic tool_use / tool_result round trip
   v = await providers.add({ kind: 'anthropic', apiKey: 'k2', baseUrl: `${B}/anttool/v1` });

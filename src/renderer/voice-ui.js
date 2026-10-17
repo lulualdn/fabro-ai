@@ -1,262 +1,263 @@
 'use strict';
-/* Voice: dictation in the composer and the real-time voice mode (speak ↔ listen, subtitles,
-   interruption, voice choice, a "scene" where Fabro shows images, videos, pages and drawings while it
-   talks, and the propeller that spins faster when Fabro speaks). STT = Whisper, TTS = Piper, local. */
+/* Voice: dictation (mic button) and voice mode — a live spoken conversation with local Whisper (speech to
+   text) and Piper (text to speech), voice activity detection, interruption, subtitles, a scene where the AI
+   shows images / videos / pages / drawings, and the Fabro propeller that spins with what's happening. */
 
-S.voice = { on: false, phase: 'idle', user: '', ai: '', scene: [], level: 0, muted: false, status: null, installing: null };
+S.voice = { on: false, phase: 'idle', user: '', ai: '', scene: [], muted: false, level: 0, status: null, installing: null, err: '' };
 
-// ───────────────────────────── audio helpers ─────────────────────────────
-function wavFromFloat(chunks, rate) {
-  const n = chunks.reduce((a, c) => a + c.length, 0);
-  const buf = new ArrayBuffer(44 + n * 2); const v = new DataView(buf);
-  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
-  let o = 44; for (const c of chunks) for (let i = 0; i < c.length; i++, o += 2) v.setInt16(o, Math.max(-1, Math.min(1, c[i])) * 0x7fff, true);
-  return buf;
-}
-const rms = (a) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * a[i]; return Math.sqrt(s / a.length); };
-
-// Microphone with a small energy VAD. onUtterance(wavArrayBuffer) when a phrase ends.
-class Mic {
-  constructor({ onUtterance, onLevel, onStart, continuous }) { Object.assign(this, { onUtterance, onLevel, onStart, continuous }); this.floor = 0.006; }
+// ───────────────────────────── microphone + voice activity detection ─────────────────────────────
+const Mic = {
+  stream: null, ctx: null, proc: null, rec: null, pre: [], speaking: false, voiced: 0, silent: 0, floor: 0.008, onUtterance: null, onLevel: null, sens: 1,
   async start() {
+    if (this.stream) return;
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-    this.ctx = new AudioContext({ sampleRate: 16000 });
+    this.ctx = new AudioContext();
     const src = this.ctx.createMediaStreamSource(this.stream);
-    this.node = this.ctx.createScriptProcessor(1024, 1, 1);
-    this.pre = []; this.rec = null; this.loud = 0; this.quiet = 0;
-    this.node.onaudioprocess = (e) => {
-      const d = new Float32Array(e.inputBuffer.getChannelData(0));
-      const r = rms(d);
-      this.onLevel && this.onLevel(r);
-      if (this.paused) return;
-      if (!this.continuous) { (this.rec ||= []).push(d); return; } // dictation: record everything
-      const thr = Math.max(0.012, this.floor * 3) * (this.bargeIn ? 2.6 : 1);
-      if (!this.rec) {
-        this.pre.push(d); if (this.pre.length > 6) this.pre.shift();
-        if (r > thr) { if (++this.loud >= 3) { this.rec = [...this.pre]; this.quiet = 0; this.onStart && this.onStart(); } }
-        else { this.loud = 0; this.floor = this.floor * 0.97 + r * 0.03; }
+    this.proc = this.ctx.createScriptProcessor(2048, 1, 1);
+    const mute = this.ctx.createGain(); mute.gain.value = 0;
+    src.connect(this.proc); this.proc.connect(mute); mute.connect(this.ctx.destination);
+    const frameMs = 2048 / this.ctx.sampleRate * 1000;
+    this.proc.onaudioprocess = (e) => {
+      const d = e.inputBuffer.getChannelData(0);
+      let sum = 0; for (let i = 0; i < d.length; i++) sum += d[i] * d[i];
+      const rms = Math.sqrt(sum / d.length);
+      this.onLevel && this.onLevel(rms);
+      if (S.voice.muted && S.voice.on) return;
+      const thr = Math.max(0.012, this.floor * 3) * this.sens;
+      const copy = new Float32Array(d);
+      if (!this.speaking) {
+        this.floor = this.floor * 0.97 + Math.min(rms, 0.05) * 0.03;
+        this.pre.push(copy); if (this.pre.length > 10) this.pre.shift();
+        if (rms > thr) { if (++this.voiced >= 3) { this.speaking = true; this.rec = [...this.pre]; this.silent = 0; this.onStart && this.onStart(); } } else this.voiced = 0;
       } else {
-        this.rec.push(d);
-        this.quiet = r < thr * 0.8 ? this.quiet + 1 : 0;
-        const secs = this.rec.length * 1024 / 16000;
-        if (this.quiet > 14 || secs > 30) { const chunks = this.rec; this.rec = null; this.loud = 0; if (secs > 0.5) this.onUtterance(wavFromFloat(chunks, 16000)); }
+        this.rec.push(copy);
+        if (rms < thr * 0.7) this.silent += frameMs; else this.silent = 0;
+        const dur = this.rec.length * frameMs;
+        if (this.silent > (this.endMs || 750) || dur > 30000) {
+          this.speaking = false; this.voiced = 0; this.pre = [];
+          const chunks = this.rec; this.rec = null;
+          if (dur - this.silent > 350) this.onUtterance && this.onUtterance(encodeWav(chunks, this.ctx.sampleRate));
+          else this.onCancel && this.onCancel();
+        }
       }
     };
-    src.connect(this.node); this.node.connect(this.ctx.destination);
-  }
-  finish() { const c = this.rec || []; this.rec = null; return c.length ? wavFromFloat(c, 16000) : null; }
-  stop() { try { this.node.disconnect(); } catch {} try { this.ctx.close(); } catch {} (this.stream && this.stream.getTracks() || []).forEach((t) => t.stop()); }
+  },
+  stop() {
+    try { this.proc && (this.proc.onaudioprocess = null); this.ctx && this.ctx.close(); } catch {}
+    if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
+    Object.assign(this, { stream: null, ctx: null, proc: null, rec: null, pre: [], speaking: false, voiced: 0, silent: 0 });
+  },
+};
+// Float32 chunks → 16 kHz mono 16-bit WAV.
+function encodeWav(chunks, rate) {
+  const n = chunks.reduce((a, c) => a + c.length, 0);
+  const all = new Float32Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const ratio = rate / 16000; const len = Math.floor(n / ratio);
+  const pcm = new Int16Array(len);
+  for (let i = 0; i < len; i++) { const s = all[Math.floor(i * ratio)]; pcm[i] = Math.max(-1, Math.min(1, s)) * 0x7fff; }
+  const buf = new ArrayBuffer(44 + pcm.length * 2); const v = new DataView(buf);
+  const w = (p, s) => { for (let i = 0; i < s.length; i++) v.setUint8(p + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+  new Int16Array(buf, 44).set(pcm);
+  return new Uint8Array(buf);
 }
+const sttLang = () => { const l = S.settings.language; return l && l !== 'auto' ? l : (S.lang || '').slice(0, 2) || undefined; };
 
-// ───────────────────────────── dictation (composer mic) ─────────────────────────────
-let dict = null;
-async function toggleDictation(btn) {
-  if (dict) {
-    const m = dict; dict = null; btn.classList.remove('rec');
-    const wav = m.finish(); m.stop();
-    if (!wav) return;
-    btn.classList.add('busy');
+// ───────────────────────────── speech output ─────────────────────────────
+const Speaker = {
+  queue: [], playing: null, gen: 0, analyser: null, actx: null,
+  say(text) {
+    const clean = speakable(text); if (!clean) return;
+    const g = this.gen;
+    const job = { text: clean, audio: api.voice.tts(clean).catch((e) => { S.voice.err = cleanErr(e); return null; }) };
+    this.queue.push(job);
+    if (!this.playing) this.next(g);
+  },
+  async next(g) {
+    const job = this.queue.shift();
+    if (!job || g !== this.gen) { this.playing = null; if (g === this.gen) vPhase(S.streaming ? 'thinking' : 'listening'); return; }
+    this.playing = job;
+    const bytes = await job.audio;
+    if (g !== this.gen || !bytes) { this.next(g); return; }
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+    const el = new Audio(url); job.el = el;
     try {
-      const r = await api.voice.stt(wav, { lang: S.lang });
-      const ta = $('#prompt');
-      if (ta && r.text) { ta.value = (ta.value ? ta.value.replace(/\s*$/, ' ') : '') + r.text; ta.dispatchEvent(new Event('input')); ta.focus(); }
-    } catch (e) { toast(cleanErr(e), 'err'); }
-    btn.classList.remove('busy');
-    return;
-  }
-  if (!(await voiceReady())) return;
-  dict = new Mic({ continuous: false, onLevel: (r) => btn.style.setProperty('--lvl', Math.min(1, r * 12).toFixed(2)) });
-  try { await dict.start(); btn.classList.add('rec'); } catch (e) { dict = null; toast(t('vo_micDenied'), 'err'); }
+      this.actx = this.actx || new AudioContext();
+      const src = this.actx.createMediaElementSource(el); this.analyser = this.actx.createAnalyser(); this.analyser.fftSize = 256;
+      src.connect(this.analyser); this.analyser.connect(this.actx.destination);
+    } catch {}
+    S.voice.ai = job.text; vPhase('speaking'); vRenderSubs();
+    el.onended = () => { URL.revokeObjectURL(url); if (this.playing === job) this.next(g); };
+    el.onerror = el.onended;
+    el.play().catch(() => el.onended());
+  },
+  level() {
+    if (!this.analyser || !this.playing) return 0;
+    const a = new Uint8Array(this.analyser.frequencyBinCount); this.analyser.getByteTimeDomainData(a);
+    let m = 0; for (const x of a) m = Math.max(m, Math.abs(x - 128)); return m / 128;
+  },
+  stop() { this.gen++; this.queue = []; if (this.playing && this.playing.el) { try { this.playing.el.pause(); } catch {} } this.playing = null; },
+  busy() { return !!this.playing || this.queue.length > 0; },
+};
+// Spoken form: no markdown, code, links or artifacts.
+function speakable(t) {
+  return String(t).replace(/<artifact[\s\S]*?(<\/artifact>|$)/g, ' ').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '').replace(/\[\d+\]/g, '')
+    .replace(/^#+\s*/gm, '').replace(/^\s*[-*•]\s+/gm, '').replace(/[*_~>#|]/g, '').replace(/\s+/g, ' ').trim();
 }
-async function voiceReady() {
-  S.voice.status = await api.voice.status();
-  if (S.voice.status.runtime) return true;
-  openVoice(); // shows the install card
-  return false;
+// Streamed reply → sentences → speech.
+let vBuf = '';
+function vFeed(text, final) {
+  vBuf += text;
+  for (;;) {
+    const m = vBuf.match(/^([\s\S]{12,}?[.!?…:;](?=\s|$)|[\s\S]+?\n\n)/);
+    if (!m) break;
+    Speaker.say(m[1]); vBuf = vBuf.slice(m[1].length);
+  }
+  if (final) { if (vBuf.trim()) Speaker.say(vBuf); vBuf = ''; }
 }
 
 // ───────────────────────────── voice mode ─────────────────────────────
-let mic = null, rafV = 0, playCtx = null, playAn = null;
-const speakQ = []; let speaking = null, ttsBusy = false, sentBuf = '', voiceReq = null;
-
-async function openVoice() {
-  S.voice.on = true; S.voice.phase = 'idle'; S.voice.user = ''; S.voice.ai = ''; S.voice.scene = [];
-  S.voice.status = S.voice.status || await api.voice.status();
-  renderVoice();
-  if (!S.voice.status.runtime) return;
-  await startListening();
+function vPhase(p) { S.voice.phase = p; const el = $('#vx'); if (el) { el.dataset.phase = p; const st = $('#vx-status'); if (st) st.textContent = t('vx_' + p); } }
+async function voiceOpen() {
+  if (S.voice.on) return;
+  S.voice.on = true; S.voice.scene = []; S.voice.user = ''; S.voice.ai = ''; S.voice.err = '';
+  try { S.voice.status = await api.voice.status(); } catch {}
+  vRender();
+  if (S.voice.status && S.voice.status.runtime) vStartListening();
 }
-async function startListening() {
-  if (mic) return;
-  mic = new Mic({
-    continuous: true,
-    onLevel: (r) => { S.voice.micLevel = r; },
-    onStart: () => { if (speaking || ttsBusy || (S.streaming && voiceReq === S.streaming.reqId)) interruptVoice(); setPhase('hearing'); },
-    onUtterance: async (wav) => {
-      setPhase('thinking');
-      try {
-        const r = await api.voice.stt(wav, { lang: S.settings.voice && S.settings.voice.lang || S.lang });
-        const text = (r.text || '').trim();
-        if (!text || /^(\W|merci\.?|thank you\.?|sous-titr)/i.test(text) && text.length < 12) { setPhase('listening'); return; }
-        S.voice.user = text; S.voice.ai = ''; renderVoiceSubs();
-        sendVoice(text);
-      } catch (e) { toast(cleanErr(e), 'err'); setPhase('listening'); }
-    },
-  });
-  try { await mic.start(); setPhase('listening'); } catch { mic = null; toast(t('vo_micDenied'), 'err'); setPhase('idle'); }
-  loopVoice();
-}
-function closeVoice() {
-  interruptVoice();
-  if (mic) { mic.stop(); mic = null; }
-  cancelAnimationFrame(rafV); S.voice.on = false;
-  $('#overlay-root').innerHTML = '';
-  if (S.conv && S.mode === 'chat') renderView();
-}
-function setPhase(p) { S.voice.phase = p; const el = $('.vo'); if (el) el.dataset.phase = p; if (mic) mic.bargeIn = p === 'speaking'; const st = $('.vo-state'); if (st) st.textContent = t('vo_' + p); }
-
-function sendVoice(text) {
-  if (S.mode !== 'chat') { S.mode = 'chat'; }
-  if (S.conv && S.conv.code) S.conv = null;
-  if (!S.conv) { S.conv = newConv(); S.conv.voice = true; }
-  sentBuf = '';
-  sendPrompt(text, { voice: true });
-  voiceReq = S.streaming && S.streaming.reqId;
-}
-function interruptVoice() {
-  speakQ.length = 0; sentBuf = '';
-  if (speaking) { try { speaking.pause(); } catch {} speaking = null; }
-  if (S.streaming && voiceReq === S.streaming.reqId) api.chat.abort(voiceReq);
-  voiceReq = null;
-}
-
-// Stream → sentences → TTS queue.
-const plain = (s) => s.replace(/```[\s\S]*?```/g, ' ').replace(/<artifact[\s\S]*?(<\/artifact>|$)/g, ' ').replace(/[*_#>`|]+/g, '').replace(/\[(\d+)\]/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim();
-function voiceToken(text) {
-  sentBuf += text;
-  S.voice.ai += text; renderVoiceSubs();
-  let m;
-  while ((m = sentBuf.match(/^([\s\S]{12,}?[.!?…:;](?=\s)|[\s\S]+?\n\n)/))) { const s = plain(m[1]); sentBuf = sentBuf.slice(m[1].length); if (s) speak(s); }
-}
-function voiceDone() { const s = plain(sentBuf); sentBuf = ''; if (s) speak(s); if (!speakQ.length && !speaking && !ttsBusy) setPhase('listening'); }
-function speak(sentence) { speakQ.push({ text: sentence, audio: null }); pumpSpeak(); }
-async function pumpSpeak() {
-  // prefetch: synthesize the next sentences while the current one plays
-  for (const it of speakQ) if (!it.audio && !it.loading) {
-    it.loading = true; ttsBusy = true;
-    api.voice.tts(it.text).then((u8) => { it.audio = URL.createObjectURL(new Blob([u8], { type: 'audio/wav' })); ttsBusy = speakQ.some((x) => x.loading && !x.audio); pumpSpeak(); })
-      .catch((e) => { it.failed = true; ttsBusy = false; toast(cleanErr(e), 'err'); pumpSpeak(); });
-    break;
-  }
-  if (speaking || !speakQ.length) return;
-  const it = speakQ[0];
-  if (it.failed) { speakQ.shift(); return pumpSpeak(); }
-  if (!it.audio) return;
-  speakQ.shift();
-  const a = new Audio(it.audio);
-  speaking = a;
+async function vStartListening() {
   try {
-    playCtx ||= new AudioContext(); playAn ||= (() => { const an = playCtx.createAnalyser(); an.fftSize = 512; an.connect(playCtx.destination); return an; })();
-    playCtx.createMediaElementSource(a).connect(playAn);
-  } catch {}
-  setPhase('speaking');
-  a.onended = a.onerror = () => { URL.revokeObjectURL(it.audio); if (speaking === a) speaking = null; if (!speakQ.length && !(S.streaming && voiceReq === S.streaming.reqId)) setPhase('listening'); pumpSpeak(); };
-  a.play().catch(() => { speaking = null; pumpSpeak(); });
+    Mic.sens = 1; Mic.endMs = 750;
+    Mic.onStart = () => { if (Speaker.busy() || S.streaming) vInterrupt(); vPhase('hearing'); };
+    Mic.onCancel = () => vPhase(Speaker.busy() ? 'speaking' : S.streaming ? 'thinking' : 'listening');
+    Mic.onUtterance = vHeard;
+    Mic.onLevel = (l) => { S.voice.level = l; };
+    await Mic.start();
+    vPhase('listening'); vSpin();
+  } catch (e) { S.voice.err = t('vx_micErr'); vRender(); }
 }
+function vInterrupt() {
+  Speaker.stop(); vBuf = '';
+  if (S.streaming) { api.chat.abort(S.streaming.reqId); }
+}
+async function vHeard(wav) {
+  vPhase('transcribing');
+  try {
+    const last = S.conv && [...S.conv.messages].reverse().find((m) => m.role === 'assistant' && m.content);
+    const r = await api.voice.stt(wav, { lang: sttLang(), prompt: last ? speakable(last.content).slice(-180) : '' });
+    const text = (r.text || '').trim();
+    if (!text || /^[.…\s]*$/.test(text)) { vPhase('listening'); return; }
+    S.voice.user = text; S.voice.ai = ''; vRenderSubs();
+    if (S.mode !== 'chat') { S.mode = 'chat'; renderSidebar(); }
+    for (let i = 0; i < 40 && S.streaming; i++) await new Promise((r2) => setTimeout(r2, 50)); // aborted turn settling
+    vPhase('thinking');
+    sendPrompt(text, { voice: true });
+  } catch (e) { S.voice.err = cleanErr(e); vRender(); vPhase('listening'); }
+}
+function voiceClose() {
+  S.voice.on = false; Mic.stop(); Speaker.stop(); vBuf = '';
+  cancelAnimationFrame(vSpin.raf); vSpin.raf = 0;
+  const el = $('#vx'); if (el) { el.classList.add('out'); setTimeout(() => el.remove(), 260); }
+  refreshComposer && refreshComposer();
+}
+// The propeller: slow when listening, faster while thinking, fastest — and pulsing — while speaking.
+function vSpin() {
+  if (vSpin.raf) return;
+  let a = 0, last = performance.now(), sp = 30;
+  const tick = (now) => {
+    const dt = (now - last) / 1000; last = now;
+    const p = S.voice.phase; const lv = Speaker.level();
+    const target = p === 'speaking' ? 320 + lv * 900 : p === 'thinking' || p === 'transcribing' ? 200 : p === 'hearing' ? 70 + S.voice.level * 2000 : 26;
+    sp += (target - sp) * Math.min(1, dt * 4); a = (a + sp * dt) % 360;
+    const m = $('#vx-mark');
+    if (m) { m.style.transform = `rotate(${a}deg) scale(${1 + (p === 'speaking' ? lv * 0.18 : p === 'hearing' ? Math.min(0.15, S.voice.level * 3) : 0)})`; }
+    const ring = $('#vx-ring'); if (ring) ring.style.setProperty('--lv', String(p === 'hearing' ? Math.min(1, S.voice.level * 12) : p === 'speaking' ? lv : 0));
+    vSpin.raf = requestAnimationFrame(tick);
+  };
+  vSpin.raf = requestAnimationFrame(tick);
+}
+function vRenderSubs() { const u = $('#vx-user'), a = $('#vx-ai'); if (u) u.textContent = S.voice.user; if (a) a.textContent = S.voice.ai; }
+function vSceneHtml() {
+  const it = S.voice.scene; if (!it.length) return '';
+  const one = (x) => x.type === 'image' ? `<figure class="vs-img"><img src="${esc(x.url)}" alt="${esc(x.title || '')}" referrerpolicy="no-referrer" onerror="this.closest('figure').remove()"><figcaption>${esc(x.title || '')}</figcaption></figure>`
+    : x.type === 'video' ? `<iframe class="vs-frame" src="${esc(x.embed || x.url)}" allow="autoplay; encrypted-media" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>`
+    : x.type === 'web' ? `<iframe class="vs-frame" src="${esc(x.url)}" sandbox="allow-scripts allow-same-origin"></iframe>`
+    : x.type === 'svg' ? `<div class="vs-svg">${DOMPurify.sanitize(x.content, { USE_PROFILES: { svg: true, svgFilters: true } })}</div>`
+    : `<iframe class="vs-frame" sandbox="allow-scripts" srcdoc="${esc(x.content)}"></iframe>`;
+  return `<div class="vs ${it.length > 1 ? 'grid' : ''}">${it.map(one).join('')}</div>${it[0].title && it.length === 1 && it[0].type !== 'image' ? `<div class="vs-cap">${esc(it[0].title)}</div>` : ''}`;
+}
+function vRender() {
+  let el = $('#vx');
+  const st = S.voice.status || {};
+  const voices = (st.voices || []).filter((v) => v.lang === (sttLang() || 'en'));
+  const body = !st.runtime ? `<div class="vx-install">
+      <h2>${esc(t('vx_installT'))}</h2><p>${esc(t('vx_installB'))}</p>
+      ${S.voice.installing != null ? `<div class="bar"><i style="width:${Math.round(S.voice.installing * 100)}%"></i></div><small class="muted">${esc(t('deps_installing', { p: Math.round(S.voice.installing * 100) }))}</small>`
+        : `<button class="btn primary lg" data-action="vx-install">${icon('download', 16)} ${esc(t('vx_install'))}</button>`}
+      ${S.voice.err ? `<div class="pf-error">${icon('warning', 14)} ${esc(S.voice.err)}</div>` : ''}</div>`
+    : `<div class="vx-scene" id="vx-scene">${vSceneHtml()}</div>
+       <div class="vx-center ${S.voice.scene.length ? 'small' : ''}"><div class="vx-ring" id="vx-ring"><span id="vx-mark" class="vx-mark">${logo(S.voice.scene.length ? 64 : 120)}</span></div>
+         <div class="vx-status" id="vx-status">${esc(t('vx_' + S.voice.phase))}</div></div>
+       <div class="vx-subs"><div class="vx-user" id="vx-user">${esc(S.voice.user)}</div><div class="vx-ai" id="vx-ai">${esc(S.voice.ai)}</div>${S.voice.err ? `<div class="vx-err">${esc(S.voice.err)}</div>` : ''}</div>`;
+  const html = `<div class="vx-top"><span class="vx-title">${icon('waveform', 16)} ${esc(t('vx_title'))}</span><span class="grow"></span>
+      ${st.runtime && voices.length ? `<select class="input sm2" id="vx-voice" aria-label="${esc(t('vx_voice'))}">${voices.map((v) => `<option value="${esc(v.id)}" ${st.voice === v.id ? 'selected' : ''}>${esc(v.name)}${v.installed ? '' : ' ↓'}</option>`).join('')}</select>` : ''}
+      <button class="icon-btn" data-action="vx-close" title="${esc(t('close'))}">${icon('x', 18)}</button></div>
+    <div class="vx-body">${body}</div>
+    ${st.runtime ? `<div class="vx-ctl">
+      <button class="vx-btn ${S.voice.muted ? 'off' : ''}" data-action="vx-mute" title="${esc(t(S.voice.muted ? 'vx_unmute' : 'vx_mute'))}">${icon('mic', 22)}</button>
+      <button class="vx-btn" data-action="vx-stop-talk" title="${esc(t('vx_interrupt'))}">${icon('stop', 20)}</button>
+      <button class="vx-btn end" data-action="vx-close" title="${esc(t('vx_end'))}">${icon('x', 22)}</button></div>` : ''}`;
+  if (!el) { el = document.createElement('div'); el.id = 'vx'; el.className = 'vx'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', t('vx_title')); document.body.appendChild(el); }
+  el.dataset.phase = S.voice.phase; el.innerHTML = html;
+  const sel = $('#vx-voice'); if (sel) sel.addEventListener('change', async () => { try { S.voice.status = await api.voice.setVoice(sel.value); } catch (e) { toast(cleanErr(e), 'err'); } });
+}
+api.on('deps:progress', ({ dep, p }) => { if (dep === 'voice' && S.voice.installing != null) { S.voice.installing = p; if (S.voice.on) vRender(); } });
 
-// Hook into the chat stream.
+// Hook the chat stream: speak the answer, show the scene.
 const _onChatEvent = onChatEvent;
-onChatEvent = function (ev) { // eslint-disable-line no-global-assign
-  const mine = S.voice.on && voiceReq && ev.reqId === voiceReq;
+onChatEvent = function (ev) {
+  const live = S.voice.on && S.streaming && ev.reqId === S.streaming.reqId;
   _onChatEvent(ev);
-  if (!mine) return;
-  if (ev.type === 'token') voiceToken(ev.text);
-  if (ev.type === 'retract') { S.voice.ai = S.voice.ai.replace(ev.text, ''); }
-  if (ev.type === 'tool_start') { setPhase('thinking'); }
-  if (ev.type === 'tool_end' && ev.view && ev.view.kind === 'scene') { S.voice.scene = ev.view.items || []; renderVoiceScene(); }
-  if (ev.type === 'done' || ev.type === 'error') { voiceDone(); voiceReq = null; }
+  if (!live) return;
+  if (ev.type === 'token') vFeed(ev.text, false);
+  if (ev.type === 'retract') vBuf = vBuf.replace(ev.text, '');
+  if (ev.type === 'tool_start') vPhase('thinking');
+  if (ev.type === 'tool_end' && ev.view && ev.view.kind === 'scene') { S.voice.scene = ev.view.items || []; const sc = $('#vx-scene'); if (sc) { vRender(); } }
+  if (ev.type === 'done' || ev.type === 'error') { vFeed('', true); if (!Speaker.busy()) vPhase('listening'); if (ev.type === 'error') { S.voice.err = ev.message; vRenderSubs(); } }
 };
 
-// Propeller: slow when listening, medium when thinking, fast when speaking (with the voice level).
-function loopVoice() {
-  cancelAnimationFrame(rafV);
-  let angle = 0, last = performance.now();
-  const data = new Uint8Array(256);
-  const tick = (now) => {
-    const dt = Math.min(64, now - last) / 1000; last = now;
-    let lvl = 0;
-    if (speaking && playAn) { playAn.getByteTimeDomainData(data); let s = 0; for (const x of data) s += ((x - 128) / 128) ** 2; lvl = Math.sqrt(s / data.length) * 4; }
-    else if (S.voice.phase === 'hearing') lvl = Math.min(1, (S.voice.micLevel || 0) * 10);
-    S.voice.level = S.voice.level * 0.8 + Math.min(1, lvl) * 0.2;
-    const speed = { idle: 20, listening: 30, hearing: 70, thinking: 220, speaking: 420 }[S.voice.phase] || 30;
-    angle = (angle + dt * (speed + S.voice.level * 600)) % 360;
-    const el = $('.vo-prop');
-    if (el) { el.style.transform = `rotate(${angle}deg) scale(${1 + S.voice.level * 0.12})`; el.parentElement.style.setProperty('--glow', (0.25 + S.voice.level).toFixed(2)); }
-    if (S.voice.on) rafV = requestAnimationFrame(tick);
+// ───────────────────────────── dictation (mic button in the composer) ─────────────────────────────
+async function dictate(btn) {
+  if (S.dictating) { Mic.forceEnd = true; Mic.silent = 99999; return; }
+  try { const st = await api.voice.status(); if (!st.runtime) { voiceOpen(); return; } } catch {}
+  S.dictating = true; btn.classList.add('rec');
+  const done = () => { S.dictating = false; btn.classList.remove('rec'); if (!S.voice.on) Mic.stop(); };
+  Mic.sens = 1; Mic.endMs = 1300;
+  Mic.onStart = () => btn.classList.add('hot');
+  Mic.onCancel = done;
+  Mic.onLevel = (l) => btn.style.setProperty('--lv', String(Math.min(1, l * 14)));
+  Mic.onUtterance = async (wav) => {
+    btn.classList.remove('hot'); btn.classList.add('busy');
+    try { const r = await api.voice.stt(wav, { lang: sttLang() }); const ta = $('#prompt'); if (ta && r.text) { ta.value = (ta.value ? ta.value.replace(/\s*$/, ' ') : '') + r.text; ta.dispatchEvent(new Event('input')); ta.focus(); } }
+    catch (e) { toast(cleanErr(e), 'err'); }
+    btn.classList.remove('busy'); done();
   };
-  rafV = requestAnimationFrame(tick);
-}
-
-function renderVoice() {
-  const st = S.voice.status || {};
-  const vs = (st.voices || []).filter((v) => v.lang === (S.lang || 'en').slice(0, 2));
-  const cur = (S.settings.voice || {}).voice;
-  $('#overlay-root').innerHTML = `<div class="vo" data-phase="${S.voice.phase}" role="dialog" aria-label="${esc(t('vo_title'))}">
-    <div class="vo-top"><span class="vo-badge">${icon('waveform', 15)} ${esc(t('vo_title'))}</span><span class="grow"></span>
-      ${st.runtime ? `<select class="vo-voice" data-voice-pick aria-label="${esc(t('vo_voice'))}">${vs.map((v) => `<option value="${v.id}" ${v.id === cur ? 'selected' : ''}>${esc(v.name)}${v.installed ? '' : ' ↓'}</option>`).join('')}</select>` : ''}
-      <button class="icon-btn vo-x" data-action="vo-close" title="${esc(t('close'))}">${icon('x', 20)}</button></div>
-    <div class="vo-scene" id="vo-scene"></div>
-    <div class="vo-center">
-      ${st.runtime ? `<div class="vo-orb"><div class="vo-prop">${logo(118)}</div></div><div class="vo-state" aria-live="polite">${esc(t('vo_' + S.voice.phase))}</div>`
-        : `<div class="vo-install">${logo(64)}<h2>${esc(t('vo_installT'))}</h2><p>${esc(t('vo_installB'))}</p>
-            ${S.voice.installing != null ? `<div class="bar"><i style="width:${Math.round(S.voice.installing * 100)}%"></i></div><small>${esc(t('deps_installing', { p: Math.round(S.voice.installing * 100) }))}</small>` : `<button class="btn primary lg" data-action="vo-install">${icon('download', 17)} ${esc(t('vo_installGo'))}</button>`}</div>`}
-    </div>
-    <div class="vo-subs" id="vo-subs"></div>
-    ${st.runtime ? `<div class="vo-bar"><button class="vo-btn ${S.voice.muted ? 'off' : ''}" data-action="vo-mute" title="${esc(t(S.voice.muted ? 'vo_unmute' : 'vo_mute'))}">${icon('mic', 22)}</button>
-      <button class="vo-btn" data-action="vo-interrupt" title="${esc(t('vo_interrupt'))}">${icon('stop', 20)}</button>
-      <button class="vo-btn end" data-action="vo-close" title="${esc(t('vo_end'))}">${icon('x', 22)}</button></div>` : ''}
-  </div>`;
-  renderVoiceSubs(); renderVoiceScene();
-}
-function renderVoiceSubs() {
-  const el = $('#vo-subs'); if (!el) return;
-  const ai = plain(S.voice.ai).split(/(?<=[.!?…])\s/).slice(-2).join(' ');
-  el.innerHTML = `${S.voice.user ? `<p class="vo-u">${esc(S.voice.user)}</p>` : ''}${ai ? `<p class="vo-a">${esc(ai)}</p>` : ''}`;
-}
-function renderVoiceScene() {
-  const el = $('#vo-scene'); if (!el) return;
-  const items = S.voice.scene || [];
-  el.classList.toggle('on', items.length > 0);
-  $('.vo') && $('.vo').classList.toggle('with-scene', items.length > 0);
-  el.innerHTML = items.map((it, i) => {
-    const cap = it.title ? `<figcaption>${esc(it.title)}</figcaption>` : '';
-    if (it.type === 'image') return `<figure class="vs-img" style="--i:${i}"><img src="${esc(it.url)}" alt="${esc(it.title || '')}" referrerpolicy="no-referrer" onerror="this.closest('figure').remove()">${cap}</figure>`;
-    if (it.type === 'video') return `<figure class="vs-web" style="--i:${i}"><iframe src="${esc(it.embed || it.url)}" allow="autoplay; encrypted-media; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>${cap}</figure>`;
-    if (it.type === 'web') return `<figure class="vs-web" style="--i:${i}"><iframe src="${esc(it.url)}" sandbox="allow-scripts allow-same-origin"></iframe>${cap}</figure>`;
-    if (it.type === 'html' || it.type === 'svg') return `<figure class="vs-web" style="--i:${i}"><iframe sandbox="allow-scripts" srcdoc="${esc(it.type === 'svg' ? `<body style="margin:0;display:grid;place-items:center;height:100vh;background:#fff">${it.content}</body>` : it.content)}"></iframe>${cap}</figure>`;
-    return '';
-  }).join('');
+  try { await Mic.start(); } catch { toast(t('vx_micErr'), 'err'); done(); }
+  setTimeout(() => { if (S.dictating && !Mic.speaking) { done(); } }, 12000);
 }
 
 Object.assign(actions, {
-  'voice-mode': () => openVoice(),
-  'dictate': (el) => toggleDictation(el),
-  'vo-close': () => closeVoice(),
-  'vo-mute': () => { S.voice.muted = !S.voice.muted; if (mic) mic.paused = S.voice.muted; renderVoice(); },
-  'vo-interrupt': () => { interruptVoice(); setPhase('listening'); },
-  'vo-install': async () => {
-    S.voice.installing = 0; renderVoice();
-    try { S.voice.status = await api.voice.install({ lang: (S.lang || 'en').slice(0, 2) }); S.settings = await api.settings.get(); S.voice.installing = null; renderVoice(); startListening(); }
-    catch (e) { S.voice.installing = null; toast(cleanErr(e), 'err'); renderVoice(); }
+  'voice-mode': () => voiceOpen(),
+  'dictate': (el) => dictate(el),
+  'vx-close': () => voiceClose(),
+  'vx-mute': () => { S.voice.muted = !S.voice.muted; vRender(); },
+  'vx-stop-talk': () => { vInterrupt(); vPhase('listening'); },
+  'vx-install': async () => {
+    S.voice.installing = 0; S.voice.err = ''; vRender();
+    try { S.voice.status = await api.voice.install(); S.voice.installing = null; vRender(); vStartListening(); }
+    catch (e) { S.voice.installing = null; S.voice.err = cleanErr(e); vRender(); }
   },
 });
-api.on('deps:progress', ({ dep, p }) => { if (dep === 'voice' && S.voice.installing != null) { S.voice.installing = p; const b = $('.vo-install .bar i'); if (b) b.style.width = Math.round(p * 100) + '%'; const s = $('.vo-install small'); if (s) s.textContent = t('deps_installing', { p: Math.round(p * 100) }); } });
-document.addEventListener('change', async (e) => {
-  const sel = e.target.closest('[data-voice-pick]'); if (!sel) return;
-  sel.disabled = true;
-  try { S.voice.status = await api.voice.setVoice(sel.value); S.settings = await api.settings.get(); } catch (er) { toast(cleanErr(er), 'err'); }
-  sel.disabled = false;
-});
-document.addEventListener('keydown', (e) => { if (S.voice.on && e.key === 'Escape') closeVoice(); });
+document.addEventListener('keydown', (e) => { if (S.voice.on && e.key === 'Escape') voiceClose(); if (S.voice.on && e.key === ' ' && e.target === document.body) { e.preventDefault(); vInterrupt(); vPhase('listening'); } });
