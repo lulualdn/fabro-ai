@@ -32,7 +32,8 @@ const llm = http.createServer((req, res) => {
     const body = JSON.parse(b || '{}');
     const sys = String((body.messages && body.messages[0] && body.messages[0].content) || '');
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    const words = /You name conversations/.test(sys) ? ['Capitale de la France'] : /maintain a short memory/.test(sys) ? ['[]'] : ANSWER.split(/(?<= )/);
+    const lastU = [...(body.messages || [])].reverse().find((m) => m.role === 'user'); const ut = String(lastU && (typeof lastU.content === 'string' ? lastU.content : (lastU.content || []).map((c) => c.text || '').join(' ')) || '');
+    const words = /You name conversations/.test(sys) ? ['Capitale de la France'] : /fiche/i.test(ut) ? ['Voici la fiche.\n\n<artifact type="markdown" title="Fiche Paris">\n# Paris\n\n- Capitale de la France\n- 2,1 millions d’habitants\n</artifact>'] : /maintain a short memory/.test(sys) ? ['[]'] : ANSWER.split(/(?<= )/);
     let i = 0;
     const tick = () => { if (i < words.length) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: words[i++] } }] })}\n\n`); setTimeout(tick, 40); } else res.end('data: [DONE]\n\n'); };
     tick();
@@ -202,6 +203,21 @@ function y4m(rgba, w, h, file) {
   push.close();
   step('Web Push notification sent by the computer');
 
+  // ── an artifact, read only on the phone ──
+  await phone.fill('#prompt', 'Fais-moi une fiche sur Paris');
+  await phone.click('.composer .send');
+  await phone.waitForSelector('.art-card', { timeout: 30000 });
+  await phone.click('.art-card');
+  await phone.waitForFunction(() => /2,1 millions/.test((document.querySelector('#av .av-body') || {}).textContent || ''), null, { timeout: 10000 });
+  await wait(500); await phone.screenshot({ path: path.join(shots, 'phone-artifact.png') });
+  await phone.click('[data-act=art-close]');
+  step('artifact opened read-only on the phone');
+  // the same app in a desktop browser
+  await phone.setViewportSize({ width: 1280, height: 800 });
+  await wait(400);
+  await phone.screenshot({ path: path.join(shots, 'web-desktop.png') });
+  await phone.setViewportSize({ width: 390, height: 844 });
+
   // ── the computer goes away: the message waits, then goes ──
   await win.evaluate(() => api.anywhere.configure({ enabled: false }));
   await phone.waitForFunction(() => window.__fa.S.conn.state === 'off', null, { timeout: 15000 });
@@ -211,7 +227,7 @@ function y4m(rgba, w, h, file) {
   await phone.screenshot({ path: path.join(shots, 'phone-queued.png') });
   step('queued while the computer is away');
   await win.evaluate(() => api.anywhere.configure({ enabled: true }));
-  await phone.waitForFunction(() => { const c = window.__fa.S.convs.get(window.__fa.S.cur); if (!c) return false; const p = window.FabroAnywhere.pathOf(c); const l = p[p.length - 1]; return p.length >= 6 && l.role === 'assistant' && !l.pending && /Paris/.test(l.content); }, null, { timeout: 90000 });
+  await phone.waitForFunction(() => { const c = window.__fa.S.convs.get(window.__fa.S.cur); if (!c) return false; const p = window.FabroAnywhere.pathOf(c); const l = p[p.length - 1]; return p.length >= 8 && l.role === 'assistant' && !l.pending && /Paris/.test(l.content); }, null, { timeout: 90000 });
   step('sent and answered when the computer came back');
 
   // ── revoke from the computer ──
@@ -220,6 +236,15 @@ function y4m(rgba, w, h, file) {
   await win.evaluate((id) => api.anywhere.revoke(id), devs[0].id);
   await phone.waitForFunction(() => window.__fa.S.view === 'welcome', null, { timeout: 20000 });
   step('revoked: the phone is back to the welcome screen');
+
+  // ── guest mode: the phone model without any computer or account ──
+  const guest = await ctx.newPage();
+  await guest.goto(`http://127.0.0.1:${sitePort}/app/`);
+  await guest.click('[data-act=guest]');
+  await guest.waitForFunction(() => window.__fa.S.view === 'main' && window.__fa.S.settings.guest, null, { timeout: 5000 });
+  await guest.waitForSelector('.sheet [data-act=local-get], .sheet .err', { timeout: 10000 });
+  await guest.screenshot({ path: path.join(shots, 'phone-guest.png') });
+  step('guest mode without a computer');
 
   assert.deepStrictEqual(pcErrors, [], 'no errors on the computer');
   assert.deepStrictEqual(phErrors.filter((e) => !/WebGPU|gpu/i.test(e)), [], 'no errors on the phone');

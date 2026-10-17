@@ -213,3 +213,21 @@ h1, h2 { font-family: var(--serif); font-weight: 500; letter-spacing: -.01em; ma
 .toast.out { opacity: 0; transform: translateY(-8px); transition: .3s; }
 @keyframes up-t { from { opacity: 0; transform: translateY(-10px); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* artifacts (read only) */
+.art-card { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 420px; margin: 8px 0; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--elev); text-align: left; }
+.art-card span:last-child { display: grid; min-width: 0; } .art-card b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .art-card small { color: var(--muted); }
+.art-ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; background: var(--accent-soft); font-size: 20px; flex: none; }
+.av { position: fixed; inset: 0; z-index: 45; background: var(--bg); display: flex; flex-direction: column; animation: up .28s var(--ease) both; }
+.av header { display: flex; align-items: center; gap: 8px; padding: calc(6px + var(--safe-t)) 10px 6px; border-bottom: 1px solid var(--border); }
+.av-t { flex: 1; display: grid; min-width: 0; } .av-t b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .av-t small { color: var(--muted); font-size: 12.5px; }
+.av-body { flex: 1; overflow: auto; padding: 16px 16px calc(24px + var(--safe-b)); }
+.av-body.html { padding: 0; display: flex; } .art-frame { flex: 1; border: 0; width: 100%; min-height: 100%; background: #fff; }
+.av-body .doc { max-width: 720px; margin: 0 auto; font-size: 16px; }
+.slide { max-width: 720px; margin: 0 auto 14px; aspect-ratio: 16 / 9; overflow: auto; padding: 18px 20px; border-radius: 14px; background: var(--elev); border: 1px solid var(--border); position: relative; }
+.slide small { position: absolute; right: 12px; bottom: 8px; color: var(--muted); }
+.art-svg { display: block; max-width: 100%; margin: 0 auto; background: #fff; border-radius: 12px; }
+.art-code { margin: 0; font: 13px/1.5 var(--mono); white-space: pre; }
+.guest { margin-top: 4px; font-size: 14.5px; } .vx-hint { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
+/* desktop browsers: a calmer, centred layout */
+@media (min-width: 1100px) { .drawer { width: 320px; } .chat { padding: 28px 32px 12px; } .msgs { gap: 24px; } .composer-wrap { padding-bottom: 22px; } .welcome { flex-direction: column; } }

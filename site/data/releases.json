@@ -1,5 +1,192 @@
 [
  {
+  "tag": "v0.1.21",
+  "date": "2026-10-17T17:51:05Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.21",
+  "prerelease": false,
+  "body": "The tools Fabro asked for, and speech generation\n\n- Browser: click, type, select and press keys on CSS selectors; wait for an element to appear or disappear (or for text); screenshot of a single element; download the images of a page\n- wait: pause for a while (uploads, builds, external processes) then continue\n- import_files: the user picks files (PDF, DOCX, ZIP…) — copied to Documents/Fabro/Imports, ZIPs unpacked, text extracted for the AI\n- generate_speech: text → MP3 or WAV with the local Piper voices (any length, voice by name or language)\n- Step cards for the new tools (audio player, PDF chips)\n- Tests: browser selectors / wait / element screenshot / image download; speech files in the voice test\n",
+  "assets": [
+   {
+    "name": "Fabro-0.1.21-arm64-mac.zip",
+    "size": 134911209,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-0.1.21-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.21-arm64-mac.zip.blockmap",
+    "size": 140131,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-0.1.21-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.21-arm64.dmg",
+    "size": 135474856,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-0.1.21-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.21-arm64.dmg.blockmap",
+    "size": 144027,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-0.1.21-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.21.AppImage",
+    "size": 132004778,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-0.1.21.AppImage"
+   },
+   {
+    "name": "Fabro-Setup-0.1.21.exe",
+    "size": 116117631,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-Setup-0.1.21.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.21.exe.blockmap",
+    "size": 121062,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/Fabro-Setup-0.1.21.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.21/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.20",
+  "date": "2026-10-17T17:47:19Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.20",
+  "prerelease": false,
+  "body": "Designed PDFs the AI can see and fix, line-by-line artifact edits, Fabro v2 instructions\n\n- create_pdf: full layouts from HTML + CSS (A4/A3/A5/Letter/Legal/16:9 slides, cover pages, grids, tables, page breaks); returns a picture of the pages and detected problems (cut content, page wider than the paper, nearly empty pages, tiny text, missing images)\n- inspect_document: look at any PDF or artifact as pages; read_artifact (numbered lines) and edit_artifact (exact text or line ranges, new version, PDF regenerated and shown again); user edits of a PDF's artifact rebuild the PDF; the open artifact refreshes when the AI edits it\n- The AI reviews its documents like a designer and fixes them (up to 3 rounds) before saying it's done\n- Fabro v2 instructions (written with the user): intent triage, action plan (objective, tool, parameters, expected result) shown with update_plan, tools first, up to 5 retries with changed parameters, concise structured answers — in agent and chat-with-tools modes\n- CI: layout test with the real tools",
+  "assets": [
+   {
+    "name": "Fabro-0.1.20-arm64-mac.zip",
+    "size": 134741502,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/Fabro-0.1.20-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.20-arm64-mac.zip.blockmap",
+    "size": 140344,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/Fabro-0.1.20-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.20-arm64.dmg",
+    "size": 135343104,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/Fabro-0.1.20-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.20-arm64.dmg.blockmap",
+    "size": 142045,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/Fabro-0.1.20-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.20.AppImage",
+    "size": 131861241,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/Fabro-0.1.20.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.20.exe",
+    "size": 115906026,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/Fabro-Setup-0.1.20.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.20.exe.blockmap",
+    "size": 121164,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/Fabro-Setup-0.1.20.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.20/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.19",
+  "date": "2026-10-17T17:20:35Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.19",
+  "prerelease": false,
+  "body": "Fabro Anywhere and the website on fabro.ufstudios.eu\n\n- The pairing screen, the phone app link and push notifications use https://fabro.ufstudios.eu",
+  "assets": [
+   {
+    "name": "Fabro-0.1.19-arm64-mac.zip",
+    "size": 134734188,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/Fabro-0.1.19-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.19-arm64-mac.zip.blockmap",
+    "size": 140544,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/Fabro-0.1.19-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.19-arm64.dmg",
+    "size": 135331881,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/Fabro-0.1.19-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.19-arm64.dmg.blockmap",
+    "size": 142116,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/Fabro-0.1.19-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.19.AppImage",
+    "size": 131852992,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/Fabro-0.1.19.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.19.exe",
+    "size": 115900153,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/Fabro-Setup-0.1.19.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.19.exe.blockmap",
+    "size": 120792,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/Fabro-Setup-0.1.19.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.19/latest.yml"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.18",
   "date": "2026-10-17T17:15:33Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.18",

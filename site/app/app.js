@@ -416,7 +416,7 @@
     try {
       const link = await A.phonePair({ relay, identity: S.identity, payload, name: deviceName(), platform: platform(), timeout: 45000 });
       link.relays = link.relays && link.relays.length ? link.relays : urls;
-      S.link = link; await kv.set('link', link);
+      S.link = link; await kv.set('link', link); S.forceWelcome = false; if (S.settings.model === 'phone' && S.settings.guest) S.settings.model = null; S.settings.guest = false; await saveSettings();
       S.view = 'paired'; render();
       connect(true);
     } catch (e) {
@@ -525,16 +525,18 @@
       const r = job.wav ? await job.wav : null;
       if (g !== this.gen) return;
       if (r && r.wav) {
+        // the computer's voice (Piper), played in one audio element unlocked by the first tap (iOS)
         const bytes = A.unb64u(r.wav.replace(/\+/g, '-').replace(/\//g, '_'));
         const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
-        this.audio = new Audio(url);
-        await new Promise((res) => { this.audio.onended = res; this.audio.onerror = res; this.audio.play().catch(res); });
+        const el = this.el || (this.el = new Audio()); this.audio = el; el.src = url;
+        await new Promise((res) => { el.onended = res; el.onerror = res; el.play().catch(res); });
         URL.revokeObjectURL(url);
       } else if ('speechSynthesis' in window) {
         await new Promise((res) => { const u = new SpeechSynthesisUtterance(job.text); u.lang = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE' }[lang]; u.onend = res; u.onerror = res; speechSynthesis.speak(u); });
       }
       this.next(g);
     },
+    unlock() { try { const el = this.el || (this.el = new Audio()); el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; el.play().catch(() => {}); } catch {} },
     stop() { this.gen++; this.q = []; this.playing = false; try { this.audio && this.audio.pause(); } catch {} try { speechSynthesis.cancel(); } catch {} },
   };
   const speakable = (s) => String(s || '').replace(/```[\s\S]*?```/g, ' ').replace(/`([^`]+)`/g, '$1').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[#*_>|~]/g, '').replace(/\s+/g, ' ').trim();
@@ -542,6 +544,7 @@
   // Voice mode: listen → transcribe → ask → speak, hands-free, until closed.
   function openVoice() {
     if (!S.cur) { const c = newConv(); S.cur = c.id; saveConv(c); }
+    Speaker.unlock();
     const V = S.voice = { phase: 'listening', user: '', ai: '', convId: S.cur, spoken: 0, level: 0, err: '' };
     V.feed = (text) => {
       V.ai = text; V.phase = 'speaking';
@@ -597,6 +600,53 @@
     try { await Mic.start(() => {}, null, { vad: false }); S.dictating = true; btn.classList.add('rec'); } catch { toast(t('noMic'), 'err'); }
   }
 
+  // ───────────────────────────── artifacts (read-only on the phone) ─────────────────────────────
+  const attrsOf = (x) => { const o = {}; for (const m of String(x).matchAll(/(\w+)\s*=\s*"([^"]*)"/g)) o[m[1].toLowerCase()] = m[2]; return o; };
+  function artType(t, body) {
+    t = String(t || '').toLowerCase();
+    if (/slide|deck|present/.test(t)) return 'slides'; if (/svg|draw/.test(t)) return 'svg'; if (/html|page|web|site/.test(t)) return 'html'; if (/code|script|program/.test(t)) return 'code';
+    if (/^\s*<svg/i.test(body)) return 'svg'; if (/^\s*(<!doctype|<html)/i.test(body)) return 'html'; return 'markdown';
+  }
+  function splitArt(content) {
+    const out = []; let rest = String(content || ''), i = 0;
+    for (;;) {
+      const open = rest.match(/<artifact\b([^>]*)>/i);
+      if (!open) { if (rest) out.push({ kind: 'text', text: rest }); break; }
+      if (open.index) out.push({ kind: 'text', text: rest.slice(0, open.index) });
+      const after = rest.slice(open.index + open[0].length), close = after.search(/<\/artifact>/i), at = attrsOf(open[1]);
+      const body = (close < 0 ? after : after.slice(0, close)).replace(/^\n+/, '').replace(/\s+$/, '');
+      out.push({ kind: 'artifact', i: i++, type: artType(at.type, body), title: at.title || '', lang: at.lang || '', body, open: close < 0 });
+      if (close < 0) break; rest = after.slice(close + '</artifact>'.length);
+    }
+    return out;
+  }
+  const ART_ICON = { markdown: '📄', slides: '🖼️', html: '🌐', svg: '✏️', code: '⌨️' };
+  function artBody(a) {
+    if (a.type === 'markdown') return `<div class="md doc">${md(a.body)}</div>`;
+    if (a.type === 'slides') return a.body.split(/\n-{3,}\n/).map((x, i) => `<section class="slide"><small>${i + 1}</small><div class="md">${md(x)}</div></section>`).join('');
+    if (a.type === 'svg') return `<img class="art-svg" alt="" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(a.body)}">`;
+    if (a.type === 'html') return `<iframe class="art-frame" sandbox title="${esc(a.title)}" srcdoc="${esc(a.body)}"></iframe>`;
+    return `<pre class="art-code"><code>${esc(a.body)}</code></pre>`;
+  }
+  function openArt(a) {
+    S.art = a; let el = $('#av'); if (!el) { el = document.createElement('div'); el.id = 'av'; el.className = 'av'; document.body.appendChild(el); }
+    el.innerHTML = `<header><button class="icon-btn" data-act="art-close" aria-label="${esc(t('close'))}">${ic('back')}</button><div class="av-t"><b>${esc(a.title || t('untitled'))}</b><small>${esc(t('readOnly'))}${a.versions ? ' · v' + a.versions : ''}</small></div>
+      ${a.pdf ? `<button class="btn sm primary" data-act="art-pdf">PDF</button>` : ''}</header><div class="av-body ${a.type}">${a.loading ? `<p class="muted pad">${esc(t('loading'))}</p>` : artBody(a)}</div>`;
+  }
+  async function openArtById(id) {
+    if (!session) { toast(t('offline'), 'err'); return; }
+    openArt({ title: '…', loading: true });
+    try { const a = await rpc('artifact.get', { id }); openArt({ ...a, body: a.content, type: a.type === 'html' ? 'html' : artType(a.type, a.content) }); } catch (e) { $('#av') && $('#av').remove(); toast(e.message, 'err'); }
+  }
+  async function openPdf(id) {
+    try {
+      toast(t('loading'));
+      const r = await rpc('doc.pdf', { id }, 120000);
+      const url = URL.createObjectURL(new Blob([A.unb64u(r.data.replace(/\+/g, '-').replace(/\//g, '_'))], { type: 'application/pdf' }));
+      const w = window.open(url, '_blank'); if (!w) location.href = url;
+    } catch (e) { toast(e.message, 'err'); }
+  }
+
   // ───────────────────────────── rendering ─────────────────────────────
   const ICON = {
     menu: '<path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>',
@@ -627,7 +677,8 @@
   function render() {
     const app = $('#app');
     document.documentElement.lang = lang;
-    if (!S.link && !['scan', 'code', 'pairing', 'paired'].includes(S.view)) S.view = 'welcome';
+    if (!S.link && !S.settings.guest && !['scan', 'code', 'pairing', 'paired'].includes(S.view)) S.view = 'welcome';
+    if (S.forceWelcome && S.view === 'main') S.view = 'welcome';
     if (S.view === 'welcome') app.innerHTML = welcomeView();
     else if (S.view === 'scan') app.innerHTML = scanView();
     else if (S.view === 'code') app.innerHTML = codeView();
@@ -643,6 +694,7 @@
       <div class="w-actions">
         <button class="btn primary lg" data-act="scan">${ic('eye', 20)} ${esc(t('pair'))}</button>
         <button class="btn ghost" data-act="code">${ic('keyboard', 18)} ${esc(t('typeCode'))}</button>
+        ${S.settings.guest ? `<button class="btn ghost" data-act="home">${ic('back', 18)} ${esc(t('back'))}</button>` : `<button class="link guest" data-act="guest">${esc(t('guest'))}</button>`}
       </div>
       ${installHint()}
       <footer class="w-foot"><a href="../">${esc(t('about'))}</a> · <a href="../privacy.html">${esc(t('privacy'))}</a></footer>
@@ -715,13 +767,13 @@
     el.innerHTML = `<button class="icon-btn" data-act="drawer" aria-label="${esc(t('chats'))}">${ic('menu')}</button>
       <button class="pc-chip" data-act="model">
         <span class="pc-dot ${st}"></span>
-        <span class="pc-txt"><b>${esc(modelLabel())}</b><small>${esc((S.link && S.link.pcName) || 'PC')} · ${esc(label)}</small></span>
+        <span class="pc-txt"><b>${esc(modelLabel())}</b><small>${esc(S.link ? `${S.link.pcName || 'PC'} · ${label}` : t('guestMode'))}</small></span>
       </button>
       <span class="grow"></span>
       <button class="icon-btn" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave')}</button>`;
   }
   function modelLabel() {
-    if (S.settings.model === 'phone') { const m = localInfo(); return m ? `${m.name} · ${t('onPhone')}` : t('onPhone'); }
+    if (S.settings.model === 'phone') { const m = localInfo(); return m ? `${m.name} · ${t('onPhone')}` : t('localTitle'); }
     const m = S.models.find((x) => refKey(x.ref) === refKey(S.settings.model));
     return m ? m.label : (S.conn.info ? t('defaultModel') : 'Fabro');
   }
@@ -750,7 +802,8 @@
     return `${m.reasoning ? `<details class="think"><summary>${esc(t('thinking'))}</summary><div>${esc(m.reasoning)}</div></details>` : ''}
       ${steps.length ? `<div class="steps">${steps.map((s) => `<span class="step ${s.status}">${s.status === 'running' ? '<i class="pulse"></i>' : s.status === 'error' ? '⚠' : '✓'} ${esc(toolName(s.name))}</span>`).join('')}</div>` : ''}
       ${asks.map((a) => `<div class="ask"><b>${esc(t('askTitle'))}</b><p>${esc(a.summary || a.tool || '')}</p>${a.detail ? `<pre>${esc(String(a.detail).slice(0, 600))}</pre>` : ''}<div class="ask-btns"><button class="btn primary sm" data-act="ask" data-id="${esc(a.id)}" data-v="once">${esc(t('allow'))}</button><button class="btn sm" data-act="ask" data-id="${esc(a.id)}" data-v="deny">${esc(t('deny'))}</button></div></div>`).join('')}
-      <div class="md">${m.content ? md(m.content) : m.pending ? `<span class="typing">${logo(22, 'spin')}</span>` : ''}</div>
+      <div class="md">${m.content ? splitArt(m.content).map((g) => g.kind === 'text' ? md(g.text) : `<button class="art-card" data-act="art" data-node="${esc(m.id)}" data-i="${g.i}"><span class="art-ic">${ART_ICON[g.type] || '📄'}</span><span><b>${esc(g.title || t('untitled'))}</b><small>${esc(g.open ? t('writing') : t('art_' + g.type))}</small></span></button>`).join('') : m.pending ? `<span class="typing">${logo(22, 'spin')}</span>` : ''}</div>
+      ${(m.steps || []).filter((s2) => s2.view && s2.view.artifactId).map((s2) => `<button class="art-card" data-act="art-id" data-id="${esc(s2.view.artifactId)}"><span class="art-ic">${s2.view.format === 'pdf' ? '📕' : '📄'}</span><span><b>${esc(s2.view.title || t('untitled'))}</b><small>${esc(s2.view.format === 'pdf' ? 'PDF' + (s2.view.pages ? ' · ' + s2.view.pages + ' p.' : '') : t('art_markdown'))}</small></span></button>`).join('')}
       ${m.error ? `<div class="err">⚠ ${esc(m.error)}</div>` : ''}
       ${!m.pending ? `<div class="meta">${esc(m.model || '')}</div>` : ''}`;
   }
@@ -814,7 +867,8 @@
     const pushOk = 'PushManager' in window;
     const notifyOn = pushOk && Notification.permission === 'granted' && S.settings.notify;
     return `<h2>${esc(t('settings'))}</h2>
-      <div class="card pc-card">${ic('pc', 26)}<div><b>${esc((S.link && S.link.pcName) || 'PC')}</b><small>${esc(st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : t('offlineShort'))}${info.version ? ' · Fabro ' + esc(info.version) : ''}</small></div></div>
+      ${!S.link ? `<div class="card pc-card">${ic('phone', 26)}<div><b>${esc(t('guestMode'))}</b><small>${esc(t('guestHint'))}</small></div></div><button class="btn primary" data-act="pair-pc">${ic('pc', 18)} ${esc(t('pairPc'))}</button>` : ''}
+      ${S.link ? `<div class="card pc-card">${ic('pc', 26)}<div><b>${esc((S.link && S.link.pcName) || 'PC')}</b><small>${esc(st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : t('offlineShort'))}${info.version ? ' · Fabro ' + esc(info.version) : ''}</small></div></div>` : ''}
       <div class="set-row"><span>${ic('bell', 18)} ${esc(t('notifications'))}</span>${pushOk ? `<button class="switch ${notifyOn ? 'on' : ''}" data-act="${notifyOn ? 'notify-off' : 'notify-on'}" role="switch" aria-checked="${notifyOn}"><i></i></button>` : `<small class="muted">${esc(t('noPush'))}</small>`}</div>
       ${pushOk && /iPhone|iPad/.test(navigator.userAgent) && !(matchMedia('(display-mode: standalone)').matches || navigator.standalone) ? `<p class="hint">${esc(t('iosPush'))}</p>` : ''}
       <h3>${esc(t('localTitle'))}</h3>
@@ -832,14 +886,15 @@
       <label class="field"><span>${esc(t('customRelay'))}</span><input class="input" data-change="relay" placeholder="wss://…" value="${esc(S.settings.customRelay || '')}"></label>
       <p class="muted small">${esc(t('relayHint'))}</p>
       <div class="sep"></div>
-      <button class="btn danger" data-act="unpair">${esc(t('unpair'))}</button>
+      ${S.link ? `<button class="btn danger" data-act="unpair">${esc(t('unpair'))}</button>` : ''}
       <p class="muted small center">Fabro Anywhere · <a href="../privacy.html">${esc(t('privacy'))}</a></p>`;
   }
   function renderVoice() {
     let el = $('#vx'); if (!el) { el = document.createElement('div'); el.id = 'vx'; el.className = 'vx'; document.body.appendChild(el); }
     el.innerHTML = `<div class="vx-top"><span>${esc(t('voiceMode'))}</span><button class="icon-btn light" data-act="voice-close" aria-label="${esc(t('close'))}">${ic('x')}</button></div>
       <div class="vx-mid"><div class="vx-orb">${logo(120, 'vx-prop')}</div><p class="vx-phase"></p></div>
-      <div class="vx-sub"><p class="vx-user"></p><p class="vx-ai"></p><p class="vx-err err"></p></div>`;
+      <div class="vx-sub"><p class="vx-user"></p><p class="vx-ai"></p><p class="vx-err err"></p>
+        ${session && !pcVoice() ? `<p class="vx-hint">${esc(t('voicePcMissing'))}</p><button class="btn ghost sm" data-act="voice-install" ${S.voiceInstalling ? 'disabled' : ''}>${esc(S.voiceInstalling ? t('installing') : t('voiceInstall'))}</button>` : ''}</div>`;
     paintVoice();
   }
   function paintVoice() {
@@ -856,7 +911,7 @@
     scan: () => startScan(),
     'scan-close': () => { stopScan(); S.view = S.link ? 'main' : 'welcome'; render(); },
     code: () => { stopScan(); S.view = 'code'; render(); setTimeout(() => $('#code-in') && $('#code-in').focus(), 50); },
-    home: () => { S.view = S.link ? 'main' : 'welcome'; render(); },
+    home: () => { S.forceWelcome = false; S.view = S.link || S.settings.guest ? 'main' : 'welcome'; render(); },
     install: async () => { if (S.installEvt) { S.installEvt.prompt(); await S.installEvt.userChoice.catch(() => {}); S.installEvt = null; render(); } },
     'notify-on': async () => { const ok = await ensurePush(true); if (S.view === 'paired') { S.view = 'main'; render(); } else renderSheet(); if (ok) toast(t('notifyReady')); },
     'notify-off': async () => { await disablePush(); renderSheet(); },
@@ -881,6 +936,13 @@
     ask: (el) => answerAsk(el.dataset.id, el.dataset.v),
     'att-rm': (el) => { S.atts.splice(+el.dataset.i, 1); renderComposer(); },
     reconnect: () => { retryN = 0; connect(true); },
+    art: (el) => { const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.node); const g = n && splitArt(n.content).filter((x) => x.kind === 'artifact')[+el.dataset.i]; if (g) { const ref = (n.artifacts || [])[+el.dataset.i]; openArt({ ...g, refId: ref && ref.id }); if (ref && ref.id && session) rpc('artifact.get', { id: ref.id }).then((a) => { if (S.art && S.art.refId === ref.id) openArt({ ...a, body: a.content, refId: ref.id, type: artType(a.type, a.content) }); }).catch(() => {}); } },
+    'art-id': (el) => openArtById(el.dataset.id),
+    'art-close': () => { S.art = null; $('#av') && $('#av').remove(); },
+    'art-pdf': () => { if (S.art && S.art.id) openPdf(S.art.id); },
+    'voice-install': async () => { if (!session) return; S.voiceInstalling = true; paintVoice(); try { const st = await rpc('voice.install', { lang }, 20 * 60000); S.conn.info.voice = { ready: !!(st.runtime && st.whisperReady), voice: st.voice }; toast(t('voiceReady')); } catch (e) { toast(e.message, 'err'); } S.voiceInstalling = false; if (S.voice) { closeVoice(); openVoice(); } },
+    guest: async () => { S.settings.guest = true; S.settings.model = 'phone'; await saveSettings(); S.view = 'main'; render(); if (!localInfo()) { S.sheet = 'settings'; renderSheet(); } },
+    'pair-pc': () => { S.sheet = null; renderSheet(); S.view = 'welcome'; S.forceWelcome = true; render(); },
     voice: () => openVoice(),
     'voice-close': () => closeVoice(),
     'local-get': (el) => { const m = LOCAL_MODELS.find((x) => x.id === el.dataset.id); if (m) loadLocal(m, { download: true }); },
@@ -907,7 +969,7 @@
   document.addEventListener('input', (e) => { if (e.target.id === 'prompt') { S.draft = e.target.value; fit(e.target); } });
   document.addEventListener('keydown', (e) => {
     if (e.target.id === 'prompt' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); e.target.form.requestSubmit(); }
-    if (e.key === 'Escape') { if (S.voice) closeVoice(); else if (S.sheet) { S.sheet = null; renderSheet(); } }
+    if (e.key === 'Escape') { if ($('#av')) acts['art-close'](); else if (S.voice) closeVoice(); else if (S.sheet) { S.sheet = null; renderSheet(); } }
   });
   document.addEventListener('change', async (e) => {
     if (e.target.id === 'photo-in') { await addPhotos(e.target.files); return; }
@@ -956,7 +1018,7 @@
     applyLang(); applyTheme();
     const q = new URLSearchParams(location.search);
     if (q.get('c')) S.cur = q.get('c');
-    S.view = S.link ? 'main' : 'welcome';
+    S.view = S.link || S.settings.guest ? 'main' : 'welcome';
     render();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
     if (S.link) connect();

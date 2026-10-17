@@ -317,6 +317,21 @@ async function handle(deviceId, method, p = {}) {
     case 'run.answer': { const r = runs.get(p.runId); return r ? chat.answer(r.reqId, p.callId, p.value) : false; }
     case 'voice.stt': { const voice = require('./voice'); return voice.stt(Buffer.from(p.wav, 'base64'), { lang: p.lang }); }
     case 'voice.tts': { const voice = require('./voice'); const wav = await voice.tts(String(p.text || '').slice(0, 1500), {}); return { wav: Buffer.from(wav).toString('base64') }; }
+    case 'artifact.get': {
+      const a = db.getArtifact(String(p.id || '')); if (!a) throw new Error('Artifact not found');
+      const last = a.versions[a.versions.length - 1] || {};
+      return { id: a.id, type: a.type, title: a.title, content: String(last.content || '').slice(0, 400000), versions: a.versions.length, pdf: !!(a.pdf && a.pdf.file && fs.existsSync(a.pdf.file)) };
+    }
+    case 'doc.pdf': {
+      const a = db.getArtifact(String(p.id || '')); if (!a || !a.pdf || !a.pdf.file || !fs.existsSync(a.pdf.file)) throw new Error('PDF not found');
+      const buf = fs.readFileSync(a.pdf.file); if (buf.length > 12e6) throw new Error('PDF too large to send');
+      return { name: path.basename(a.pdf.file), data: buf.toString('base64') };
+    }
+    case 'voice.install': {
+      const voice = require('./voice');
+      const lang = (p.lang || store.getSettings().language || 'en').slice(0, 2);
+      return voice.install(() => {}, { lang }).then(() => voice.status());
+    }
     case 'push.sub': { dev.push = p.sub && p.sub.endpoint && p.sub.keys ? { endpoint: String(p.sub.endpoint), keys: { p256dh: String(p.sub.keys.p256dh), auth: String(p.sub.keys.auth) } } : null; save(); emitStatus(); return true; }
     case 'unpair': setTimeout(() => revoke(deviceId), 300); return true;
     case 'push.test': return notify(deviceId, { title: pcName(), body: p.body || 'Fabro Anywhere ✓', tag: 'test' });

@@ -1,6 +1,7 @@
 // Fabro Anywhere (phone app) texts. English is the fallback for any missing key.
 window.FA_I18N = {
   en: {
+    readOnly: 'Read only', writing: 'Writing…', art_markdown: 'Document', art_slides: 'Slides', art_html: 'Web page', art_svg: 'Drawing', art_code: 'Code', voicePcMissing: 'The computer has no voice installed: the phone’s own voice is used.', voiceInstall: 'Install the voice on the computer', installing: 'Installing…', voiceReady: 'The computer’s voice is ready.', guest: 'Use without a computer (model on this phone)', guestMode: 'On this phone only', guestHint: 'Answers come from a model running in this browser. No account, nothing leaves the phone.', pairPc: 'Pair a computer',
     tagline: 'Your computer’s AI, in your pocket.', step1: 'On your computer, open Fabro › Settings › Fabro Anywhere › Add a phone.', step2: 'Tap “Pair” here and point the camera at the circular code.',
     pair: 'Pair', typeCode: 'Type the code', codeHint: 'The code under “No camera?” on your computer.', pairBtn: 'Pair', back: 'Back', about: 'About Fabro', privacy: 'Privacy',
     install: 'Add to home screen', installIos: 'Tip: tap Share › Add to Home Screen to install Fabro Anywhere.',
@@ -27,6 +28,7 @@ window.FA_I18N = {
     noMic: 'The microphone isn’t available.', noStt: 'Voice needs the computer (with voice installed) or a browser with speech recognition.',
   },
   fr: {
+    readOnly: 'Lecture seule', writing: 'Rédaction…', art_markdown: 'Document', art_slides: 'Diapositives', art_html: 'Page web', art_svg: 'Dessin', art_code: 'Code', voicePcMissing: 'La voix n’est pas installée sur l’ordinateur : la voix du téléphone est utilisée.', voiceInstall: 'Installer la voix sur l’ordinateur', installing: 'Installation…', voiceReady: 'La voix de l’ordinateur est prête.', guest: 'Utiliser sans ordinateur (modèle sur ce téléphone)', guestMode: 'Sur ce téléphone uniquement', guestHint: 'Les réponses viennent d’un modèle qui tourne dans ce navigateur. Sans compte, rien ne quitte le téléphone.', pairPc: 'Associer un ordinateur',
     tagline: 'L’IA de ton ordinateur, dans ta poche.', step1: 'Sur ton ordinateur, ouvre Fabro › Réglages › Fabro Anywhere › Ajouter un téléphone.', step2: 'Touche « Associer » ici et vise le code circulaire avec l’appareil photo.',
     pair: 'Associer', typeCode: 'Taper le code', codeHint: 'Le code sous « Pas d’appareil photo ? » sur ton ordinateur.', pairBtn: 'Associer', back: 'Retour', about: 'À propos de Fabro', privacy: 'Confidentialité',
     install: 'Ajouter à l’écran d’accueil', installIos: 'Astuce : touche Partager › Sur l’écran d’accueil pour installer Fabro Anywhere.',
@@ -53,6 +55,7 @@ window.FA_I18N = {
     noMic: 'Le micro n’est pas disponible.', noStt: 'La voix a besoin de l’ordinateur (avec la voix installée) ou d’un navigateur avec reconnaissance vocale.',
   },
   es: {
+    readOnly: 'Solo lectura', writing: 'Escribiendo…', art_markdown: 'Documento', art_slides: 'Diapositivas', art_html: 'Página web', art_svg: 'Dibujo', art_code: 'Código', voicePcMissing: 'El ordenador no tiene la voz instalada: se usa la voz del móvil.', voiceInstall: 'Instalar la voz en el ordenador', installing: 'Instalando…', voiceReady: 'La voz del ordenador está lista.', guest: 'Usar sin ordenador (modelo en este móvil)', guestMode: 'Solo en este móvil', guestHint: 'Las respuestas vienen de un modelo que funciona en este navegador. Sin cuenta, nada sale del móvil.', pairPc: 'Vincular un ordenador',
     tagline: 'La IA de tu ordenador, en tu bolsillo.', step1: 'En tu ordenador, abre Fabro › Ajustes › Fabro Anywhere › Añadir un móvil.', step2: 'Toca «Vincular» aquí y apunta la cámara al código circular.',
     pair: 'Vincular', typeCode: 'Escribir el código', codeHint: 'El código bajo «¿Sin cámara?» en tu ordenador.', pairBtn: 'Vincular', back: 'Atrás', about: 'Acerca de Fabro', privacy: 'Privacidad',
     install: 'Añadir a la pantalla de inicio', installIos: 'Consejo: toca Compartir › Añadir a pantalla de inicio para instalar Fabro Anywhere.',
@@ -79,6 +82,7 @@ window.FA_I18N = {
     noMic: 'El micrófono no está disponible.', noStt: 'La voz necesita el ordenador (con la voz instalada) o un navegador con reconocimiento de voz.',
   },
   de: {
+    readOnly: 'Nur lesen', writing: 'Schreibt…', art_markdown: 'Dokument', art_slides: 'Folien', art_html: 'Webseite', art_svg: 'Zeichnung', art_code: 'Code', voicePcMissing: 'Auf dem Computer ist keine Stimme installiert: Die Stimme des Handys wird genutzt.', voiceInstall: 'Stimme auf dem Computer installieren', installing: 'Installiere…', voiceReady: 'Die Stimme des Computers ist bereit.', guest: 'Ohne Computer nutzen (Modell auf diesem Handy)', guestMode: 'Nur auf diesem Handy', guestHint: 'Die Antworten kommen von einem Modell in diesem Browser. Kein Konto, nichts verlässt das Handy.', pairPc: 'Computer koppeln',
     tagline: 'Die KI deines Computers, in deiner Tasche.', step1: 'Öffne auf dem Computer Fabro › Einstellungen › Fabro Anywhere › Handy hinzufügen.', step2: 'Tippe hier auf „Koppeln“ und richte die Kamera auf den runden Code.',
     pair: 'Koppeln', typeCode: 'Code eingeben', codeHint: 'Der Code unter „Keine Kamera?“ auf deinem Computer.', pairBtn: 'Koppeln', back: 'Zurück', about: 'Über Fabro', privacy: 'Datenschutz',
     install: 'Zum Startbildschirm', installIos: 'Tipp: Teilen › Zum Home-Bildschirm, um Fabro Anywhere zu installieren.',
