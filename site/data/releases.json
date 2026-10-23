@@ -1,5 +1,325 @@
 [
  {
+  "tag": "v0.1.31",
+  "date": "2026-10-23T21:37:46Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.31",
+  "prerelease": false,
+  "body": "Noms des conversations Claude et ChatGPT lus depuis les données du site\n\n- Claude et ChatGPT : la synchro lit la liste de vos conversations directement dans les données du site (depuis la page connectée), avec leur vrai nom et leur vraie date\n- La lecture de la page reste en secours si ça échoue, et pour Gemini\n- Les conversations déjà affichées « Untitled » prennent leur nom à la prochaine synchro (au lancement, ou bouton Synchroniser dans Réglages › Mods)\n- Réglages › Mods affiche l'état de la synchro : nombre de conversations, combien ont un nom, heure, source, ou l'erreur",
+  "assets": [
+   {
+    "name": "Fabro-0.1.31-arm64-mac.zip",
+    "size": 139686906,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/Fabro-0.1.31-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.31-arm64-mac.zip.blockmap",
+    "size": 145929,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/Fabro-0.1.31-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.31-arm64.dmg",
+    "size": 140421195,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/Fabro-0.1.31-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.31-arm64.dmg.blockmap",
+    "size": 146714,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/Fabro-0.1.31-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.31.AppImage",
+    "size": 136881659,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/Fabro-0.1.31.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.31.exe",
+    "size": 118773678,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/Fabro-Setup-0.1.31.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.31.exe.blockmap",
+    "size": 123631,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/Fabro-Setup-0.1.31.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.31/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.30",
+  "date": "2026-10-23T21:28:59Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.30",
+  "prerelease": false,
+  "body": "Les mods synchronisent aussi les noms des conversations\n\n- Le nom d'une conversation Claude, ChatGPT ou Gemini suit le site en direct : quand le site la nomme ou que vous la renommez, l'historique change tout de suite\n- Une nouvelle conversation prend votre message comme nom en attendant celui du site\n- Les conversations listées sans nom récupèrent leur nom depuis leur propre page, plus de « Untitled »\n- Un nom connu n'est jamais remplacé par un nom vide lors d'une synchro",
+  "assets": [
+   {
+    "name": "Fabro-0.1.30-arm64-mac.zip",
+    "size": 139686249,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/Fabro-0.1.30-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.30-arm64-mac.zip.blockmap",
+    "size": 146039,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/Fabro-0.1.30-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.30-arm64.dmg",
+    "size": 140420129,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/Fabro-0.1.30-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.30-arm64.dmg.blockmap",
+    "size": 147385,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/Fabro-0.1.30-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.30.AppImage",
+    "size": 136881790,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/Fabro-0.1.30.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.30.exe",
+    "size": 118772509,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/Fabro-Setup-0.1.30.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.30.exe.blockmap",
+    "size": 123681,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/Fabro-Setup-0.1.30.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.30/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.29",
+  "date": "2026-10-23T20:13:51Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.29",
+  "prerelease": false,
+  "body": "Mods (Claude, ChatGPT et Gemini pour Fabro), liens fabro://, capture d'écran dans la barre rapide\n\n- Modding complet : Réglages › Mods installe des mods (dossier ou .zip) qui peuvent tout changer, de l'interface au fonctionnement interne. Guide : MODDING.md\n- Mods intégrés Claude, ChatGPT et Gemini pour Fabro : à l'installation, la page de connexion s'ouvre et Fabro attend d'arriver sur la page de nouvelle conversation\n- /claude, /chatgpt ou /gemini + message ouvre le site dans la zone de chat (barre latérale masquée, juste un bouton pour la rouvrir), remplit le message et appuie sur Entrée tout seul\n- Vos conversations Claude, ChatGPT et Gemini apparaissent dans l'historique, triées par date avec l'icône du site, synchronisées au lancement puis toutes les 5 minutes\n- En ouvrir une affiche le site à côté de la barre latérale ; ouvrir une conversation Fabro revient à l'interface de Fabro\n- Barre rapide (touche Copilot) : capture de l'écran jointe automatiquement (retirable), collage et glisser-déposer de fichiers et d'images, /claude ouvre Fabro sur Claude\n- Liens fabro://new?q=… et fabro://chat/<id> pour lancer Fabro depuis un navigateur\n- Glisser-déposer et Ctrl+V de fichiers partout où il y a une zone de message",
+  "assets": [
+   {
+    "name": "Fabro-0.1.29-arm64-mac.zip",
+    "size": 139685588,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/Fabro-0.1.29-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.29-arm64-mac.zip.blockmap",
+    "size": 146067,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/Fabro-0.1.29-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.29-arm64.dmg",
+    "size": 140419256,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/Fabro-0.1.29-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.29-arm64.dmg.blockmap",
+    "size": 147447,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/Fabro-0.1.29-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.29.AppImage",
+    "size": 136881346,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/Fabro-0.1.29.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.29.exe",
+    "size": 118771913,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/Fabro-Setup-0.1.29.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.29.exe.blockmap",
+    "size": 123668,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/Fabro-Setup-0.1.29.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.29/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.28",
+  "date": "2026-10-17T23:52:41Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.28",
+  "prerelease": false,
+  "body": "Installateurs aux couleurs de Fabro\n\n- Setup Windows classique et désinstalleur : bandeau latéral, en-tête et couleurs du thème sombre de Fabro\n- DMG macOS : fond personnalisé (glisser Fabro vers Applications), fenêtre et icônes placées\n- L'installateur Fabro (interface perso) reste le téléchargement principal et sert aussi aux mises à jour Windows",
+  "assets": [
+   {
+    "name": "Fabro-0.1.28-arm64-mac.zip",
+    "size": 139661323,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/Fabro-0.1.28-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.28-arm64-mac.zip.blockmap",
+    "size": 145934,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/Fabro-0.1.28-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.28-arm64.dmg",
+    "size": 140421050,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/Fabro-0.1.28-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.28-arm64.dmg.blockmap",
+    "size": 148566,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/Fabro-0.1.28-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.28.AppImage",
+    "size": 136856277,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/Fabro-0.1.28.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.28.exe",
+    "size": 118752499,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/Fabro-Setup-0.1.28.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.28.exe.blockmap",
+    "size": 123862,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/Fabro-Setup-0.1.28.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.28/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.27",
+  "date": "2026-10-17T23:47:36Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.27",
+  "prerelease": false,
+  "body": "L'IA pose des questions, tâches planifiées avec variables, Anywhere mobile tactile\n\n- Outil ask_user : l'IA pose une question (options + réponse libre) quand c'est vague ; prompt revu pour l'utiliser sans hésiter\n- Interprétation avec l'historique : « utilise le navigateur » après « va sur Discord » ouvre discord.com ; outils choisis d'après les derniers échanges\n- Tâches planifiées : une fois, chaque jour, certains jours (ex. lundi et jeudi à 15 h) ou toutes les X minutes ; variables {{…}} modifiables par l'IA pendant les exécutions (set_task_variable) ; résultats en conversation + notification PC et téléphone ; page Tâches planifiées\n- Anywhere mobile : appui long sur un message (copier, modifier, régénérer, partager, lire, sélectionner), appui long sur une conversation (renommer, supprimer), glisser depuis le bord, toucher un bloc de code pour le copier, bouton retour en bas, nouvelle barre du haut, bouton voix à la place d'envoyer quand le champ est vide",
+  "assets": [
+   {
+    "name": "Fabro-0.1.27-arm64-mac.zip",
+    "size": 139660724,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/Fabro-0.1.27-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.27-arm64-mac.zip.blockmap",
+    "size": 145945,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/Fabro-0.1.27-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.27-arm64.dmg",
+    "size": 140213831,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/Fabro-0.1.27-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.27-arm64.dmg.blockmap",
+    "size": 148658,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/Fabro-0.1.27-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.27.AppImage",
+    "size": 136856287,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/Fabro-0.1.27.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.27.exe",
+    "size": 118731463,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/Fabro-Setup-0.1.27.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.27.exe.blockmap",
+    "size": 123833,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/Fabro-Setup-0.1.27.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.27/latest.yml"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.26",
   "date": "2026-10-17T22:30:14Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.26",

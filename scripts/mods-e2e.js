@@ -171,6 +171,30 @@ async function until(fn, ms = 15000, what = 'condition') { const t0 = Date.now()
   await until(() => win.evaluate(() => document.querySelectorAll('.recent.ext').length === 0 && !!document.querySelector('#sb-lists')), 15000, 'chats gone');
   console.log('✓ uninstall');
 
+  // 11. Import the sign-in from a browser: a planted Firefox cookie store → chooser → one click → connected
+  const ffDir = fs.mkdirSync(path.join(userData, 'fakeff'), { recursive: true }) || path.join(userData, 'fakeff');
+  const ffCookies = path.join(userData, 'fakeff', 'cookies.sqlite');
+  { const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(ffCookies);
+    db.exec('CREATE TABLE moz_cookies (id INTEGER PRIMARY KEY, host TEXT, name TEXT, value TEXT, path TEXT, expiry INTEGER, isSecure INTEGER, isHttpOnly INTEGER, sameSite INTEGER)');
+    db.prepare('INSERT INTO moz_cookies (host,name,value,path,expiry,isSecure,isHttpOnly,sameSite) VALUES (?,?,?,?,?,?,?,?)')
+      .run('127.0.0.1', 'sessionKey', 'ok', '/', Math.floor(Date.now() / 1000) + 86400, 0, 1, 1); db.close(); }
+  // tell the main process to offer this fake browser (browser-import reads the env live)
+  await app.evaluate(({}, p) => { process.env.FABRO_IMPORT_FAKE = JSON.stringify({ id: 'firefox', name: 'Firefox', kind: 'firefox', cookies: p }); }, ffCookies);
+  await win.evaluate(() => openSettings('mods'));
+  await win.waitForSelector('[data-action="mod-install"][data-id="claude"]');
+  await win.click('[data-action="mod-install"][data-id="claude"]');
+  // install → the connect chooser appears (not the login page) because a browser is available
+  await win.waitForSelector('.wc-import [data-wc-imp="firefox"]', { timeout: 15000 });
+  assert(!(await webUrls()).some((u) => u.startsWith(base + '/login')), 'chooser shown, not the login page');
+  await win.screenshot({ path: path.join(shots, '08-import.png') });
+  console.log('✓ import chooser lists the browser');
+  await win.click('.wc-import [data-wc-imp="firefox"]');
+  await until(() => win.$$eval('.recent.ext', (x) => x.length >= 2), 20000, 'connected by import');
+  assert(!(await webUrls()).some((u) => u.startsWith(base + '/login')), 'never showed the login page');
+  const ext2 = await win.$$eval('.recent.ext .r-title', (x) => x.map((e) => e.textContent));
+  assert(ext2.includes('Old project notes'), 'chats synced after import: ' + ext2);
+  console.log('✓ imported the sign-in from Firefox, connected without the login page');
+
   await app.close(); srv.close();
   console.log('ALL OK →', shots);
 })().catch(async (e) => { console.error('FAIL', e); process.exit(1); });

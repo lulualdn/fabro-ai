@@ -9,6 +9,7 @@ module.exports = require('../_shared/webchat-main')({
   done: new RegExp(`^${esc(B)}/app`),
   session: async (fabro) => (await fabro.web.cookies({})).some((c) => ['__Secure-1PSID', 'SID'].includes(c.name) && /google\.com$|127\.0\.0\.1|localhost/.test(c.domain.replace(/^\./, ''))),
   // Gemini has no address that fills in a prompt: Fabro types it, then presses Enter.
+  cookieDomains: ['.google.com', '.gemini.google.com'],
   newChat: { url: () => `${B}/app`, mode: 'type' },
   composer: 'rich-textarea .ql-editor, div.ql-editor[contenteditable="true"], div[contenteditable="true"][role="textbox"], div[contenteditable="true"]',
   chatUrl: (id) => `${B}/app/${id}`,

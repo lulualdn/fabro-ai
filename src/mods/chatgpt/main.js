@@ -7,6 +7,7 @@ module.exports = require('../_shared/webchat-main')({
   loginUrl: `${B}/auth/login`,
   done: new RegExp(`^${esc(B)}/(\\?.*)?$|^${esc(B)}/(c|g)/`), // back on the home / new-chat page once signed in
   session: async (fabro) => (await fabro.web.cookies({})).some((c) => /^__Secure-next-auth\.session-token/.test(c.name)),
+  cookieDomains: ['.chatgpt.com', '.openai.com', 'chatgpt.com'],
   newChat: { url: (q) => `${B}/?q=${encodeURIComponent(q)}`, mode: 'prefilled' },
   composer: '#prompt-textarea, div[contenteditable="true"]',
   chatUrl: (id) => `${B}/c/${id}`,

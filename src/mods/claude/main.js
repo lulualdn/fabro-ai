@@ -7,6 +7,7 @@ module.exports = require('../_shared/webchat-main')({
   loginUrl: `${B}/login`,
   done: new RegExp(`^${esc(B)}/(new|recents|chats?|project)`), // the new-chat page (extra query allowed)
   session: async (fabro) => (await fabro.web.cookies({})).some((c) => c.name === 'sessionKey' && /claude\.ai$|127\.0\.0\.1|localhost/.test(c.domain.replace(/^\./, ''))),
+  cookieDomains: process.env.FABRO_MODTEST_CLAUDE ? [new URL(B).hostname] : ['.claude.ai'],
   newChat: { url: (q) => `${B}/new?q=${encodeURIComponent(q)}`, mode: 'prefilled' },
   composer: 'div[contenteditable="true"]',
   chatUrl: (id) => `${B}/chat/${id}`,

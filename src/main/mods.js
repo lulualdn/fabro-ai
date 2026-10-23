@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const store = require('./store');
 const web = require('./webapps');
+const browserImport = require('./browser-import');
 
 const BUILTIN = path.join(__dirname, '..', 'mods');
 const userDir = () => path.join(app.getPath('userData'), 'mods');
@@ -85,6 +86,8 @@ function fabroFor(m) {
       scrape: (o) => web.scrape({ partition, ...o }),
       cookies: (filter) => web.cookies(partition, filter),
       clear: () => web.clear(partition),
+      browsers: () => browserImport.list(),                                  // the user's installed browsers
+      importCookies: (o) => browserImport.importInto(require('electron').session.fromPartition(partition), o), // { browser, profile, domains }
     },
   };
   return { api, handlers, cleanups };
@@ -204,6 +207,8 @@ function init({ win, quick }) {
     const id = await installFrom(r.filePaths[0]);
     return { id, list: view() };
   });
+  h('mods:browsers', () => browserImport.list());
+  h('mods:importCookies', (_e, id, o) => call(id, 'importCookies', [o]));
   h('mods:webBounds', (_e, key, b) => web.setBounds(key, b));
   h('mods:webHide', () => web.hideAll());
   h('mods:commands', () => view().filter((m) => m.enabled).flatMap((m) => (m.commands || []).map((c) => ({ ...c, mod: m.id }))));

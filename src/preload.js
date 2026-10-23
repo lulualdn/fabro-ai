@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld('api', {
   mods: {
     list: i('mods:list'), ready: i('mods:ready'), enable: i('mods:enable'), uninstall: i('mods:uninstall'), call: i('mods:call'),
     openFolder: i('mods:openFolder'), addFrom: i('mods:addFrom'), webBounds: i('mods:webBounds'), webHide: i('mods:webHide'), commands: i('mods:commands'),
+    browsers: i('mods:browsers'), importCookies: i('mods:importCookies'),
   },
   link: { ready: i('link:ready') },
   on: (channel, cb) => {

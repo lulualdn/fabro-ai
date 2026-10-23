@@ -84,6 +84,10 @@ Every mod has its own browser session (`persist:mod-<id>`). The sign-in is kept 
 * `scrape({ url, ready, script })`: open a page in a hidden window and return what `script` returns.
 * `cookies(filter)`, `clear()`: read the session's cookies, or sign out of everything.
 * `contents()`: the page's raw Electron `webContents`.
+* `browsers()`: the user's installed browsers, `[{ id, name, kind, profiles:[{name}] }]`.
+* `importCookies({ browser, profile, domains })`: read those cookies from the browser and set them into the mod's session (Firefox, Chrome, Edge, Brave…; Chromium values are decrypted). Returns `{ set, total }`.
+
+The sign-in is kept between launches already (each mod has its own browser session). Importing is only a shortcut so the user doesn't sign in again.
 
 ## App window (`renderer.js`)
 

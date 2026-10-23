@@ -178,6 +178,14 @@ module.exports = function create(cfg) {
       icon = (fabro.readJSON('icon.json', {}) || {}).icon || '';
       fabro.handle('state', () => state());
       fabro.handle('sync', () => sync());
+      fabro.handle('browsers', () => fabro.web.browsers());
+      // import the site's cookies from one of the user's browsers → signed in without the login page
+      fabro.handle('importCookies', async (o) => {
+        const r = await fabro.web.importCookies({ browser: o.browser, profile: o.profile, domains: cfg.cookieDomains });
+        const ok = await cfg.session(fabro);
+        if (ok) { await fabro.settings.set({ connected: true }); fabro.emit('login-done', {}); sync(); }
+        return { ...r, connected: ok };
+      });
       fabro.handle('home', async () => { view(); await fabro.web.load(cfg.home); return true; });
       fabro.handle('openChat', async (id) => { view(); await fabro.web.load(cfg.chatUrl(id)); return true; });
       fabro.handle('newChat', async (text) => {

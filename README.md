@@ -58,7 +58,7 @@ Run the workflow manually (Actions › Build & release › Run workflow) to get 
 
 ## Mods
 
-Everything in Fabro can be modded: screens, commands, history, internals. Settings › Mods installs them (built-in: Claude, ChatGPT and Gemini for Fabro). How to write one: [MODDING.md](MODDING.md). Test: `xvfb-run -a node scripts/mods-e2e.js`.
+Everything in Fabro can be modded: screens, commands, history, internals. Settings › Mods installs them (built-in: Claude, ChatGPT and Gemini for Fabro). Each web-chat mod keeps its own saved sign-in and can import it from your own browser (Firefox, Chrome, Edge, Brave…). How to write one: [MODDING.md](MODDING.md). Tests: `node scripts/browser-import-test.js`, `xvfb-run -a node scripts/mods-e2e.js`.
 
 ## Links
 
