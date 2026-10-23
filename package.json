@@ -1,6 +1,6 @@
 {
   "name": "fabro",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "description": "Lift off, locally.",
   "main": "src/main/main.js",
   "scripts": {
@@ -113,7 +113,15 @@
         }
       ],
       "title": "Fabro"
-    }
+    },
+    "protocols": [
+      {
+        "name": "Fabro",
+        "schemes": [
+          "fabro"
+        ]
+      }
+    ]
   },
   "repository": {
     "type": "git",

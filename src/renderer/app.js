@@ -1311,18 +1311,19 @@ document.addEventListener('keydown', (e) => {
 $('#file-input').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
 ['dragover', 'drop'].forEach((ev) => document.addEventListener(ev, (e) => {
   e.preventDefault();
-  if (ev === 'drop' && e.dataTransfer.files.length && S.mode === 'chat') addFiles([...e.dataTransfer.files]);
+  if (ev === 'drop' && e.dataTransfer.files.length && S.mode === 'chat' && !S.modView) addFiles([...e.dataTransfer.files]);
 }));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
 // IPC events
 api.on('chat:event', (ev) => onChatEvent(ev)); // late-bound: voice mode wraps onChatEvent
 api.on('app:command', ({ cmd }) => { if (cmd === 'new-chat') newChat(); });
-api.on('quick:run', async ({ text, target }) => {
+api.on('quick:run', async ({ text, target, attachments }) => {
   if (S.streaming) { api.quick.started({ reqId: null, error: t('quickBusy') }); return; }
   if (!currentModel()) { api.quick.started({ reqId: null, error: t('noModel') }); return; }
   if (target === 'new' || !S.conv) { S.conv = null; S.code.clear(); S._draft = ''; navTo('chat', null); }
   S.mode = 'chat';
+  if (attachments && attachments.length && typeof quickAttach === 'function') await quickAttach(attachments); // screenshot, pasted or dropped files
   await sendPrompt(text, { quick: true });
   if (S.streaming) api.quick.started({ reqId: S.streaming.reqId, convId: S.conv.id, title: S.conv.title, model: currentModel()?.label });
 });

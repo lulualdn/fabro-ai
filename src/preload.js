@@ -64,8 +64,13 @@ contextBridge.exposeInMainWorld('api', {
   files: { ingest: i('files:ingest'), preview: i('files:preview'), pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } } },
   anywhere: { status: i('anywhere:status'), pairStart: i('anywhere:pairStart'), pairStop: i('anywhere:pairStop'), revoke: i('anywhere:revoke'), rename: i('anywhere:rename'), configure: i('anywhere:configure'), reply: i('anywhere:reply') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
+  mods: {
+    list: i('mods:list'), ready: i('mods:ready'), enable: i('mods:enable'), uninstall: i('mods:uninstall'), call: i('mods:call'),
+    openFolder: i('mods:openFolder'), addFrom: i('mods:addFrom'), webBounds: i('mods:webBounds'), webHide: i('mods:webHide'), commands: i('mods:commands'),
+  },
+  link: { ready: i('link:ready') },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

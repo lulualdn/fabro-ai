@@ -29,6 +29,8 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
           xvfb-run -a -s "-screen 0 1440x900x24" node scripts/e2e.js e2e-shots
+      - name: Mods (Claude for Fabro on a local copy of the site), fabro:// links, paste, quick bar
+        run: xvfb-run -a -s "-screen 0 1440x900x24" node scripts/mods-e2e.js e2e-shots/mods
       - name: Designed PDFs the AI can see and fix
         run: xvfb-run -a node scripts/layout-test.js e2e-shots
       - uses: actions/upload-artifact@v4

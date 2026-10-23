@@ -1,0 +1,19 @@
+{
+  "id": "gemini",
+  "name": "Gemini for Fabro",
+  "version": "1.0.0",
+  "author": "UFStudios",
+  "description": "Use Google Gemini (gemini.google.com) inside Fabro: type /gemini to start a chat, your Gemini chats appear in your history.",
+  "setup": true,
+  "main": "main.js",
+  "renderer": [
+    "../_shared/webchat-renderer.js",
+    "renderer.js"
+  ],
+  "commands": [
+    {
+      "name": "gemini",
+      "description": "Ask Gemini (gemini.google.com)"
+    }
+  ]
+}

@@ -50,4 +50,13 @@ button { border: 0; background: none; cursor: pointer; }
 .q-btn.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .q-btn.primary:hover { filter: brightness(1.06); }
 kbd { font: 11px ui-monospace, Consolas, monospace; opacity: .7; }
+/* attachments: screenshot, pasted or dropped files */
+.q-atts { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 6px; animation: in .25s cubic-bezier(.2,.8,.2,1) both; }
+.q-att { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 4px 6px 4px 4px; border-radius: 12px; background: var(--bar); border: 1px solid var(--border); box-shadow: 0 6px 18px -8px rgba(0,0,0,.35); max-width: 260px; font-size: 12.5px; }
+.q-att img { width: 52px; height: 32px; object-fit: cover; border-radius: 8px; flex: none; }
+.q-att .q-ficon { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--hover); flex: none; }
+.q-att b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-att button { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: var(--muted); flex: none; }
+.q-att button:hover { background: var(--hover); color: var(--text); }
+body.drag .qbar { outline: 2px dashed var(--accent); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

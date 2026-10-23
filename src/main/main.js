@@ -30,6 +30,7 @@ const images = require('./images');
 const crash = require('./crash');
 const runtime = require('./runtime');
 const anywhere = require('./anywhere');
+const mods = require('./mods');
 const S = () => store.getSettings();
 exporter.registerScheme();
 // Fabro Anywhere: let phones on the same network reach the computer directly (real local addresses
@@ -55,7 +56,31 @@ const send = (ch, data) => {
 const isMac = process.platform === 'darwin';
 
 if (!app.requestSingleInstanceLock()) app.quit();
-app.on('second-instance', () => desktop.showMain());
+
+// fabro:// links (from a browser or any app): fabro://new?q=…, fabro://chat/<id>, fabro://settings/<tab>
+const PROTOCOL = 'fabro';
+if (process.env.FABRO_E2E) { /* tests never register the link handler on the machine */ }
+else if (process.defaultApp && process.argv.length >= 2) app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+else app.setAsDefaultProtocolClient(PROTOCOL);
+let pendingLink = null, rendererReady = false;
+function parseLink(raw) {
+  try {
+    const u = new URL(raw); if (u.protocol !== PROTOCOL + ':') return null;
+    const parts = [u.hostname, ...u.pathname.split('/')].filter(Boolean).map(decodeURIComponent);
+    const q = u.searchParams;
+    return { action: parts[0] || 'open', id: parts[1] || q.get('id') || '', tab: parts[1] || q.get('tab') || '', q: (q.get('q') || q.get('prompt') || '').slice(0, 20000) };
+  } catch { return null; }
+}
+function openLink(raw) {
+  const l = parseLink(raw); if (!l) return;
+  if (!rendererReady || !win) { pendingLink = l; return; }
+  desktop.showMain();
+  win.webContents.send('app:deeplink', l);
+}
+const linkIn = (argv) => (argv || []).find((a) => typeof a === 'string' && a.startsWith(PROTOCOL + '://'));
+app.on('open-url', (e, url) => { e.preventDefault(); openLink(url); }); // macOS
+app.on('second-instance', (_e, argv) => { desktop.showMain(); const l = linkIn(argv); if (l) openLink(l); });
+{ const l = linkIn(process.argv); if (l) pendingLink = parseLink(l); }
 
 function overlayColors(dark) {
   if (store.getSettings().devMode) return { color: dark ? '#3a2a12' : '#f6d48a', symbolColor: dark ? '#f6d48a' : '#3a2a12', height: 28 };
@@ -322,6 +347,7 @@ function registerIpc() {
   // Extension modes (projects / agent / code) — wired in a later version.
   h('modes:install', async (mode) => ({ ok: false, mode, reason: 'coming_soon' }));
 
+  h('link:ready', () => { rendererReady = true; const l = pendingLink; pendingLink = null; if (l) setTimeout(() => win && win.webContents.send('app:deeplink', l), 300); return true; });
   h('shell:open', (url) => { if (/^https?:/.test(url)) shell.openExternal(url); });
   h('shell:openPath', (p) => { if (typeof p === 'string' && require('fs').existsSync(p) && !/\.(exe|bat|cmd|ps1|sh|msi|com|scr|vbs|js|lnk)$/i.test(p)) return shell.openPath(p); });
   h('shell:reveal', (p) => { if (typeof p === 'string' && require('fs').existsSync(p)) shell.showItemInFolder(p); });
@@ -363,6 +389,8 @@ app.whenReady().then(async () => {
   rag.init(send);
   voice.init(async (prog) => { await python.install(prog); return python.pyPath(); });
   desktop.init(() => win, (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a)));
+  mods.init({ win: () => win, quick: () => desktop.getQuick() });
+  win.webContents.on('did-start-loading', () => { rendererReady = false; });
   if (process.argv.includes('--hidden')) win.once('ready-to-show', () => win.hide());
   system.getSpecs(); // warm cache
 

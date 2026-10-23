@@ -1,0 +1,19 @@
+{
+  "id": "claude",
+  "name": "Claude for Fabro",
+  "version": "1.0.0",
+  "author": "UFStudios",
+  "description": "Use Claude (claude.ai) inside Fabro: type /claude to start a chat, your Claude chats appear in your history.",
+  "setup": true,
+  "main": "main.js",
+  "renderer": [
+    "../_shared/webchat-renderer.js",
+    "renderer.js"
+  ],
+  "commands": [
+    {
+      "name": "claude",
+      "description": "Ask Claude (claude.ai)"
+    }
+  ]
+}

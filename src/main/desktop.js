@@ -1,5 +1,5 @@
 // Desktop integration: tray icon (close → tray), global AI hotkey and the quick bar.
-const { app, BrowserWindow, Tray, Menu, globalShortcut, screen, nativeImage, nativeTheme, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, screen, nativeImage, nativeTheme, Notification, desktopCapturer } = require('electron');
 const path = require('path');
 const store = require('./store');
 
@@ -101,17 +101,34 @@ function quickState() {
   const dark = th === 'dark' || (th !== 'light' && nativeTheme.shouldUseDarkColors);
   return { ...mainState, target: store.getSettings().quickTarget || 'current', dark };
 }
-function toggleQuick(forceShow) {
+// A screenshot of the screen under the cursor, taken before the bar appears (so the bar isn't in it).
+async function screenShot() {
+  if (store.getSettings().quickScreenshot === false) return null;
+  try {
+    const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const scale = Math.min(1, 1920 / (d.size.width * d.scaleFactor));
+    const size = { width: Math.round(d.size.width * d.scaleFactor * scale), height: Math.round(d.size.height * d.scaleFactor * scale) };
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: size });
+    const src = sources.find((x) => String(x.display_id) === String(d.id)) || sources[0];
+    if (!src || src.thumbnail.isEmpty()) return null;
+    return { kind: 'image', name: 'screenshot.jpg', type: 'image/jpeg', data: 'data:image/jpeg;base64,' + src.thumbnail.toJPEG(85).toString('base64') };
+  } catch { return null; }
+}
+let opening = false;
+async function toggleQuick(forceShow) {
   if (!quick) {
     createQuick();
     // First open: wait for the page so the state isn't lost.
     quick.webContents.once('did-finish-load', () => toggleQuick(true));
     return;
   }
-  if (quick.webContents.isLoading()) return;
+  if (quick.webContents.isLoading() || opening) return;
   if (quick.isVisible() && !forceShow) { quick.hide(); return; }
+  opening = true;
+  const shot = await screenShot();
+  opening = false;
   placeQuick();
-  quick.webContents.send('quick:show', quickState());
+  quick.webContents.send('quick:show', { ...quickState(), screenshot: shot });
   quick.show(); quick.focus();
 }
 function resizeQuick(h) {
@@ -149,8 +166,17 @@ function init(getMainWindow, ipc) {
   app.on('will-quit', () => globalShortcut.unregisterAll());
 
   ipc('quick:submit', ({ text, target, attachments }) => {
-    if (!text || !String(text).trim()) return false;
-    send('quick:run', { text: String(text), target: target === 'new' || !mainState.convId ? 'new' : 'current', attachments: attachments || [] });
+    if ((!text || !String(text).trim()) && !(attachments || []).length) return false;
+    // "/claude …" and other mod commands open the main window, where the command runs
+    const cmd = String(text || '').trim().match(/^\/([a-z0-9_-]+)/i);
+    if (cmd) {
+      let cmds = []; try { cmds = require('./mods').view().filter((m) => m.enabled).flatMap((m) => m.commands || []); } catch {}
+      if (cmds.some((c) => c.name.toLowerCase() === cmd[1].toLowerCase())) {
+        if (quick) quick.hide(); showMain(); send('quick:command', { text: String(text).trim() });
+        return { command: true };
+      }
+    }
+    send('quick:run', { text: String(text || '').trim(), target: target === 'new' || !mainState.convId ? 'new' : 'current', attachments: attachments || [] });
     store.setSettings({ quickTarget: target === 'new' ? 'new' : 'current' });
     return true;
   });
@@ -175,4 +201,4 @@ function init(getMainWindow, ipc) {
 // chat events also stream into the quick bar
 function forward(ch, data) { if (quick && !quick.isDestroyed()) quick.webContents.send(ch, data); }
 
-module.exports = { init, attachMain, showMain, forward, notify, tr: (k) => tr(k), isQuitting: () => quitting, setQuitting: () => { quitting = true; } };
+module.exports = { init, attachMain, showMain, forward, notify, getQuick: () => quick, tr: (k) => tr(k), isQuitting: () => quitting, setQuitting: () => { quitting = true; } };

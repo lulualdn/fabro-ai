@@ -1,0 +1,19 @@
+{
+  "id": "chatgpt",
+  "name": "ChatGPT for Fabro",
+  "version": "1.0.0",
+  "author": "UFStudios",
+  "description": "Use ChatGPT (chatgpt.com) inside Fabro: type /chatgpt to start a chat, your ChatGPT chats appear in your history.",
+  "setup": true,
+  "main": "main.js",
+  "renderer": [
+    "../_shared/webchat-renderer.js",
+    "renderer.js"
+  ],
+  "commands": [
+    {
+      "name": "chatgpt",
+      "description": "Ask ChatGPT (chatgpt.com)"
+    }
+  ]
+}
