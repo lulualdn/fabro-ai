@@ -13,6 +13,20 @@ module.exports = require('../_shared/webchat-main')({
   chatId: (u) => ((u || '').match(/\/c\/([0-9a-f-]{20,})/i) || [])[1] || null,
   list: {
     url: `${B}/`,
+    // chatgpt.com's own data, from inside the signed-in page: names and last update of your chats
+    api: `(async () => {
+      const s = await (await fetch('/api/auth/session', { credentials: 'include' })).json();
+      if (!s || !s.accessToken) throw new Error('no session');
+      const items = [];
+      for (let off = 0; off < 300; off += 100) {
+        const r = await fetch('/backend-api/conversations?offset=' + off + '&limit=100&order=updated', { credentials: 'include', headers: { authorization: 'Bearer ' + s.accessToken } });
+        if (!r.ok) throw new Error('conversations ' + r.status);
+        const d = await r.json(); const arr = d.items || [];
+        for (const c of arr) items.push({ id: c.id, title: c.title || '', t: typeof c.update_time === 'number' ? c.update_time * 1000 : Date.parse(c.update_time) || 0 });
+        if (arr.length < 100) break;
+      }
+      return { items };
+    })()`,
     ready: `document.querySelectorAll('a[href*="/c/"]').length > 0`,
     script: `(async () => {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

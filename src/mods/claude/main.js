@@ -13,6 +13,19 @@ module.exports = require('../_shared/webchat-main')({
   chatId: (u) => ((u || '').match(/\/chat\/([0-9a-f-]{20,})/i) || [])[1] || null,
   list: {
     url: `${B}/recents`,
+    // claude.ai's own data, read from inside the signed-in page: every chat with its name and last update
+    api: `(async () => {
+      const j = async (u) => { const r = await fetch(u, { credentials: 'include', headers: { accept: 'application/json' } }); if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); };
+      const orgs = (await j('/api/organizations')) || [];
+      const list = (Array.isArray(orgs) ? orgs : []).filter((o) => o && o.uuid && (!o.capabilities || o.capabilities.includes('chat')));
+      const items = [];
+      for (const o of list) {
+        const d = await j('/api/organizations/' + o.uuid + '/chat_conversations?limit=300').catch(() => []);
+        for (const c of (Array.isArray(d) ? d : d.data || d.conversations || [])) if (c && c.uuid) items.push({ id: c.uuid, title: c.name || '', t: Date.parse(c.updated_at || c.created_at) || 0 });
+      }
+      items.sort((a, b) => b.t - a.t);
+      return { items };
+    })()`,
     ready: `document.querySelectorAll('a[href*="/chat/"]').length > 0`,
     script: `(async () => {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

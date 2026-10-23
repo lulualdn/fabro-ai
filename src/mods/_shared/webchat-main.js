@@ -7,7 +7,9 @@
 //   session: async (fabro) => bool (signed in? usually a cookie),
 //   newChat: { url: (q) => string, mode: 'prefilled' | 'type' }, composer: CSS selector of the message box,
 //   chatUrl: (id) => string, chatId: (url) => id | null,
-//   list: { url, ready: JS returning truthy when the list is there, script: JS returning { items:[{id,title,ago?,group?}], icons:[] } },
+//   list: { url,
+//           api: JS run in the signed-in page first, using the site's own data (names + real times): { items:[{id,title,t}] },
+//           ready: JS returning truthy when the page list is there, script: JS reading the page: { items:[{id,title,ago?,group?}], icons:[] } },
 // }
 const SYNC_EVERY = 5 * 60 * 1000;
 
@@ -91,12 +93,13 @@ module.exports = function create(cfg) {
     items.forEach((it, i) => {
       const o = old.get(it.id);
       let t = null;
-      const ago = parseAgo(it.ago); if (ago != null) t = now - ago;
+      if (it.t > 0) t = Math.min(now, it.t);                                            // the site's own time
+      const ago = parseAgo(it.ago); if (t == null && ago != null) t = now - ago;
       const title = cleanTitle(it.title) || (o && o.title !== UNTITLED ? o.title : '');
       if (t == null && o && o.idx <= i && (!cleanTitle(it.title) || o.title === title)) t = o.updatedAt; // unchanged
       if (t == null && o && i === 0 && o.idx > 0) t = now;                              // moved to the top
       if (t == null) { const g = groupAge(it.group); t = g != null ? now - g - i * 6e4 : (o ? o.updatedAt : now - i * 36e5); }
-      t = Math.min(t, prevT - (i ? 1000 : 0)); prevT = t;                                // keep the site's order
+      if (!(it.t > 0)) { t = Math.min(t, prevT - (i ? 1000 : 0)); } prevT = t;           // keep the site's order
       out.push({ id: it.id, title: title || UNTITLED, updatedAt: t, href: cfg.chatUrl(it.id) });
     });
     return out;
@@ -127,14 +130,25 @@ module.exports = function create(cfg) {
     syncing = (async () => {
       if (!(await cfg.session(fabro))) { if (fabro.settings.get().connected) await fabro.settings.set({ connected: false }); return state(); }
       if (!fabro.settings.get().connected) await fabro.settings.set({ connected: true });
-      const r = await fabro.web.scrape({ url: cfg.list.url, ready: cfg.list.ready, script: cfg.list.script, timeout: 30000 }).catch((e) => { fabro.log('sync failed', e.message); return null; });
+      // the site's own data first (exact names and times), the page's list if that fails
+      const script = `(async () => {
+        const icons = () => [...document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')].map((l) => l.href);
+        let err = '';
+        ${cfg.list.api ? `try { const r = await (${cfg.list.api}); if (r && r.items && r.items.length) return { ...r, icons: icons(), via: 'api' }; err = 'api: empty'; } catch (e) { err = 'api: ' + (e && e.message || e); }` : ''}
+        const t0 = Date.now(); while (!(${cfg.list.ready}) && Date.now() - t0 < 20000) await new Promise((r) => setTimeout(r, 400));
+        const r = await (${cfg.list.script});
+        return { ...(r || {}), icons: (r && r.icons) || icons(), via: 'page', err };
+      })()`;
+      let lastError = '';
+      const r = await fabro.web.scrape({ url: cfg.list.url, ready: 'document.readyState === "complete"', script, timeout: 30000 }).catch((e) => { lastError = e.message; fabro.log('sync failed', e.message); return null; });
+      if (r && r.err) fabro.log('sync:', r.err);
       if (r && Array.isArray(r.items) && r.items.length) {
         const seen = new Set(); const items = r.items.filter((x) => x && x.id && !seen.has(x.id) && seen.add(x.id));
         chats = merge(items);
         fabro.writeJSON('chats.json', chats);
         await fillNames().catch(() => {}); // before showing the list: no "Untitled" flash
-        await fabro.settings.set({ lastSync: Date.now() });
-      }
+        await fabro.settings.set({ lastSync: Date.now(), lastCount: chats.length, lastNamed: chats.filter((c) => c.title !== UNTITLED).length, lastVia: r.via || '', lastError: '' });
+      } else await fabro.settings.set({ lastError: lastError || (r && r.err) || 'no chats found on the page' });
       if (r && r.icons) await fetchIcon(r.icons);
       publish();
       return state();

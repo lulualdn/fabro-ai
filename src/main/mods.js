@@ -145,6 +145,7 @@ function view() {
     icon: m.icon ? (() => { try { const f = resolveFile(m, m.icon); const ext = path.extname(f).slice(1).replace('svg', 'svg+xml'); return `data:image/${ext};base64,${fs.readFileSync(f).toString('base64')}`; } catch { return ''; } })()
       : (() => { try { return JSON.parse(fs.readFileSync(path.join(dataRoot(), m.id, 'icon.json'), 'utf8')).icon || ''; } catch { return ''; } })(), // the site's own icon, once seen
     error: (active.get(m.id) || {}).error || '',
+    status: (({ connected, lastSync, lastCount, lastNamed, lastVia, lastError }) => ({ connected, lastSync, lastCount, lastNamed, lastVia, lastError }))(((ms().data || {})[m.id]) || {}),
   })).sort((a, b) => (b.builtin - a.builtin) || a.name.localeCompare(b.name));
 }
 

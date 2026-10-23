@@ -39,7 +39,15 @@ const srv = http.createServer((req, res) => {
       </script>`));
   }
   if (u.pathname === '/api/send') { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => { const id = 'aaaaaaaa-bbbb-cccc-dddd-' + String(Date.now()).padStart(12, '0').slice(-12); sent.push(b); chats.unshift({ id, title: b.slice(0, 40), ago: 'Last message just now' }); res.end(JSON.stringify({ id })); }); return; }
-  if (u.pathname.startsWith('/chat/')) { const c = chats.find((x) => x.id === u.pathname.slice(6)); return html(page((c ? c.title : 'Chat') + ' - Claude', `<h2>${c ? c.title : 'Unknown chat'}</h2><p>Messages of this chat.</p><button id="rename" onclick="document.title='Lisbon, 4 days - Claude'">Rename</button>`)); }
+  if (u.pathname.startsWith('/chat/')) { const c = chats.find((x) => x.id === u.pathname.slice(6)); return html(page((c ? c.title : 'Chat') + ' - Claude', `<h2>${c ? c.title : 'Unknown chat'}</h2><p>Messages of this chat.</p><button id="rename" onclick="fetch('/api/rename?id=${c ? c.id : ''}&name=' + encodeURIComponent('Lisbon, 4 days')).then(() => { document.title = 'Lisbon, 4 days - Claude'; })">Rename</button>`)); }
+  // claude.ai's own data (what the mod reads first): names and update times
+  if (u.pathname === '/api/organizations') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify([{ uuid: 'org-1', capabilities: ['chat'] }])); }
+  if (u.pathname === '/api/organizations/org-1/chat_conversations') {
+    const ago = (c) => ({ 'Last message just now': 0, 'Last message 2 hours ago': 2, 'Last message 3 days ago': 72, 'Last message 5 days ago': 120 }[c.ago] || 0) * 3600e3;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(chats.map((c) => ({ uuid: c.id, name: c.title, updated_at: new Date(Date.now() - ago(c)).toISOString() }))));
+  }
+  if (u.pathname === '/api/rename') { const c = chats.find((x) => x.id === u.searchParams.get('id')); if (c) c.title = u.searchParams.get('name'); return res.end('{}'); }
   if (u.pathname === '/recents') return html(page('Recents', `<main><h1>Your chat history</h1>${chats.map((c) => `<a href="/chat/${c.id}" style="display:block;padding:8px"><div>${c.hidden ? '' : c.title}</div><div>${c.ago}</div></a>`).join('')}</main>`));
   res.writeHead(404); res.end();
 });
@@ -155,6 +163,8 @@ async function until(fn, ms = 15000, what = 'condition') { const t0 = Date.now()
 
   // 10. Uninstall removes the chats and the sign-in
   await win.evaluate(() => { S.modView && fabro.view.close(); return openSettings('mods'); });
+  await until(() => win.evaluate(() => (S.modsList || []).find((m) => m.id === 'claude')?.status?.lastVia === 'api'), 8000, 'names read from the site data');
+  console.log('✓ sync used the site data:', await win.$eval('.mod-row small.muted', (e) => e.textContent).catch(() => ''));
   await win.waitForSelector('[data-action="mod-uninstall"][data-id="claude"]');
   win.once('dialog', (d) => d.accept());
   await win.click('[data-action="mod-uninstall"][data-id="claude"]');

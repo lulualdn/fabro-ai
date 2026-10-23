@@ -9,7 +9,7 @@ Object.assign(I18N.en, {
   mods_builtin: 'Built-in', mods_install: 'Install', mods_uninstall: 'Uninstall', mods_uninstallConfirm: 'Uninstall "{n}"? Its data and its sign-in are removed.',
   mods_fromFolder: 'Add from a folder', mods_fromZip: 'Add a .zip', mods_folder: 'Mods folder', mods_docs: 'How to make a mod',
   mods_installed: '"{n}" is installed', mods_reconnect: 'Sign in again', mods_sync: 'Sync now', mods_err: 'Error: {e}',
-  mods_synced: 'Chats synced', mods_none: 'No mods yet.', mods_by: 'by {a}', mods_cmds: 'Commands', mods_trust: 'This mod is not from UFStudios. It will have full access to Fabro and your files. Install it?',
+  mods_synced: 'Chats synced', mods_syncInfo: '{n} chats ({k} named) · synced at {w} · {v}', mods_syncErr: 'Sync failed: {e}', mods_viaApi: 'from the site’s data', mods_viaPage: 'from the page', mods_none: 'No mods yet.', mods_by: 'by {a}', mods_cmds: 'Commands', mods_trust: 'This mod is not from UFStudios. It will have full access to Fabro and your files. Install it?',
   cmd_hint: 'Commands', web_loading: 'Loading {n}…', web_back: 'Back to Fabro', link_send: 'Send prompts from fabro:// links right away', link_sendHint: 'Off: a link only fills in the message box and you press Enter yourself.',
   q_screen: 'Screen', q_screenHint: 'A screenshot of your screen is attached. Click × to remove it.', q_screenSetting: 'Attach a screenshot when the quick bar opens', q_screenSettingHint: 'Taken just before the bar appears, stays on your computer, and you can remove it before sending.',
   drop_here: 'Drop files to attach them',
@@ -19,7 +19,7 @@ Object.assign(I18N.fr, {
   mods_builtin: 'Intégré', mods_install: 'Installer', mods_uninstall: 'Désinstaller', mods_uninstallConfirm: 'Désinstaller « {n} » ? Ses données et sa connexion sont supprimées.',
   mods_fromFolder: 'Ajouter un dossier', mods_fromZip: 'Ajouter un .zip', mods_folder: 'Dossier des mods', mods_docs: 'Créer un mod',
   mods_installed: '« {n} » est installé', mods_reconnect: 'Se reconnecter', mods_sync: 'Synchroniser', mods_err: 'Erreur : {e}',
-  mods_synced: 'Conversations synchronisées', mods_none: 'Aucun mod pour l’instant.', mods_by: 'par {a}', mods_cmds: 'Commandes', mods_trust: 'Ce mod ne vient pas d’UFStudios. Il aura un accès complet à Fabro et à vos fichiers. L’installer ?',
+  mods_synced: 'Conversations synchronisées', mods_syncInfo: '{n} conversations ({k} nommées) · synchro à {w} · {v}', mods_syncErr: 'Échec de la synchro : {e}', mods_viaApi: 'depuis les données du site', mods_viaPage: 'depuis la page', mods_none: 'Aucun mod pour l’instant.', mods_by: 'par {a}', mods_cmds: 'Commandes', mods_trust: 'Ce mod ne vient pas d’UFStudios. Il aura un accès complet à Fabro et à vos fichiers. L’installer ?',
   cmd_hint: 'Commandes', web_loading: 'Chargement de {n}…', web_back: 'Revenir à Fabro', link_send: 'Envoyer tout de suite les messages des liens fabro://', link_sendHint: 'Désactivé : un lien remplit seulement la zone de message, vous appuyez vous-même sur Entrée.',
   q_screen: 'Écran', q_screenHint: 'Une capture de votre écran est jointe. Cliquez sur × pour la retirer.', q_screenSetting: 'Joindre une capture d’écran à l’ouverture de la barre rapide', q_screenSettingHint: 'Prise juste avant l’apparition de la barre, elle reste sur votre ordinateur et vous pouvez la retirer avant l’envoi.',
   drop_here: 'Déposez vos fichiers pour les joindre',
@@ -225,6 +225,7 @@ fabro.override('settingsBody', (orig) => function (tab) {
       <div class="m-text"><b>${esc(m.name)} ${m.builtin ? `<span class="src-badge">${esc(t('mods_builtin'))}</span>` : ''} <small class="muted mono">${esc(m.version)}</small></b>
         <small>${esc(m.description)}${m.author ? ' · ' + esc(t('mods_by', { a: m.author })) : ''}</small>
         ${m.commands.length ? `<small class="mono">${m.commands.map((c) => '/' + esc(c.name)).join(' · ')}</small>` : ''}
+        ${m.enabled && m.status && (m.status.lastSync || m.status.lastError) ? `<small class="${m.status.lastError ? 'err' : 'muted'}">${m.status.lastError ? esc(t('mods_syncErr', { e: m.status.lastError })) : esc(t('mods_syncInfo', { n: m.status.lastCount || 0, k: m.status.lastNamed || 0, w: new Date(m.status.lastSync).toLocaleTimeString(S.lang, { hour: '2-digit', minute: '2-digit' }), v: t(m.status.lastVia === 'api' ? 'mods_viaApi' : 'mods_viaPage') }))}</small>` : ''}
         ${m.error ? `<small class="err">${icon('warning', 12)} ${esc(t('mods_err', { e: m.error }))}</small>` : ''}</div>
       ${m.enabled && m.setup ? `<button class="btn sm" data-action="mod-call" data-id="${esc(m.id)}" data-m="sync" title="${esc(t('mods_sync'))}">${icon('refresh', 14)}</button><button class="btn sm" data-action="mod-relogin" data-id="${esc(m.id)}">${esc(t('mods_reconnect'))}</button>` : ''}
       ${m.enabled ? `<button class="icon-btn sm" data-action="mod-uninstall" data-id="${esc(m.id)}" data-n="${esc(m.name)}" title="${esc(t('mods_uninstall'))}">${icon('trash', 16)}</button>` : ''}
@@ -247,7 +248,7 @@ Object.assign(actions, {
   'mod-toggle': async (el) => { try { S.modsList = await api.mods.enable(el.dataset.id, el.dataset.value === 'true'); } catch (e) { toast(cleanErr(e), 'err'); } renderSettings(); },
   'mod-uninstall': async (el) => { if (!confirm(t('mods_uninstallConfirm', { n: el.dataset.n }))) return; S.modsList = await api.mods.uninstall(el.dataset.id); renderSettings(); },
   'mod-relogin': (el) => { closeSettings(); fabro.run('relogin:' + el.dataset.id); const ls = MODS.listeners.filter((l) => l.id === el.dataset.id && l.type === 'setup'); ls.forEach((l) => l.fn({})); },
-  'mod-call': async (el) => { try { await api.mods.call(el.dataset.id, el.dataset.m, []); toast(t('mods_synced')); } catch (e) { toast(cleanErr(e), 'err'); } },
+  'mod-call': async (el) => { try { await api.mods.call(el.dataset.id, el.dataset.m, []); toast(t('mods_synced')); S.modsList = await api.mods.list(); renderSettings(); } catch (e) { toast(cleanErr(e), 'err'); } },
   'mod-add': async (el) => {
     if (!confirm(t('mods_trust'))) return;
     try { const r = await api.mods.addFrom(el.dataset.k); if (r) { S.modsList = r.list; toast(t('mods_installed', { n: (r.list.find((m) => m.id === r.id) || {}).name || r.id })); renderSettings(); } } catch (e) { toast(cleanErr(e), 'err'); }
