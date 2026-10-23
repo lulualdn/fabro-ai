@@ -28,7 +28,7 @@ module.exports = require('../_shared/webchat-main')({
         const m = (a.getAttribute('href') || '').match(/\\/chat\\/([0-9a-f-]{20,})/i); if (!m || seen.has(m[1])) continue; seen.add(m[1]);
         const lines = (a.innerText || '').split('\\n').map((s) => s.trim()).filter(Boolean);
         const ago = lines.find((l) => /\\bago\\b|yesterday|just now|il y a|hier|à l.instant/i.test(l)) || '';
-        const title = lines.find((l) => l !== ago && !/^last message|^dernier message/i.test(l)) || '';
+        const title = lines.find((l) => l !== ago && !/^last message|^dernier message/i.test(l)) || a.getAttribute('title') || a.getAttribute('aria-label') || '';
         items.push({ id: m[1], title, ago });
       }
       return { items, icons: [...document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')].map((l) => l.href) };

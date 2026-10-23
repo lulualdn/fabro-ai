@@ -37,11 +37,51 @@ function groupAge(g) {
   return null;
 }
 
+const UNTITLED = 'Untitled';
+
 module.exports = function create(cfg) {
+  // A page title → the chat's name ("Trip to Lisbon - Claude" → "Trip to Lisbon"); '' for the site's generic titles.
+  const GENERIC = new RegExp(`^(${cfg.name}|google ${cfg.name}|new chat|nouvelle conversation|new conversation|untitled|sans titre|${cfg.name} \\(.*\\))$`, 'i');
+  function cleanTitle(s) {
+    s = String(s || '').replace(/\s+/g, ' ').trim().replace(new RegExp(`\\s*[-|·–—]\\s*(google\\s+)?${cfg.name}\\b.*$`, 'i'), '').trim();
+    return !s || GENERIC.test(s) ? '' : s.slice(0, 200);
+  }
   let fabro = null, timer = null, startTimer = null, chats = [], icon = '', syncing = null, loginWatch = null;
   const state = () => ({ connected: !!fabro.settings.get().connected, chats, icon, lastSync: fabro.settings.get().lastSync || 0, name: cfg.name });
 
   function publish() { fabro.emit('chats', { chats, icon }); }
+  function save() { fabro.writeJSON('chats.json', chats); publish(); }
+  let lastPrompt = '';
+
+  // Names follow the site live: whenever the open chat's page title changes (the site named it, or you
+  // renamed it there), the history is updated right away — no need to wait for the next sync.
+  function rename(id, title, bump) {
+    const name = cleanTitle(title); if (!id || !name) return;
+    const c = chats.find((x) => x.id === id);
+    if (c) { if (c.title === name) return; c.title = name; if (bump) c.updatedAt = Date.now(); }
+    else chats.unshift({ id, title: name, updatedAt: Date.now(), href: cfg.chatUrl(id) });
+    save();
+  }
+  let watched = null;
+  function view() {
+    const wc = fabro.web.ensure();
+    if (watched !== wc) {
+      watched = wc;
+      wc.on('page-title-updated', (_e, title) => rename(cfg.chatId(wc.getURL()), title));
+      wc.on('did-navigate-in-page', () => setTimeout(() => rename(cfg.chatId(wc.getURL()), wc.getTitle()), 1500));
+    }
+    return wc;
+  }
+
+  // Chats the list showed without a name: read the name from the chat's own page (a few per sync).
+  async function fillNames() {
+    const missing = chats.filter((c) => c.title === UNTITLED).slice(0, 6);
+    for (const c of missing) {
+      const t = await fabro.web.scrape({ url: cfg.chatUrl(c.id), ready: `document.title && !/^\\s*(${cfg.name}|google ${cfg.name}|new chat)\\s*$/i.test(document.title)`, script: 'document.title', timeout: 12000 }).catch(() => '');
+      const name = cleanTitle(t); if (name) c.title = name;
+    }
+    if (missing.length) save();
+  }
 
   // Merge a fresh list (most recent first) with what we knew: keeps stable times for chats that did not
   // move, bumps the ones that moved up, uses the site's own times when it shows them.
@@ -52,11 +92,12 @@ module.exports = function create(cfg) {
       const o = old.get(it.id);
       let t = null;
       const ago = parseAgo(it.ago); if (ago != null) t = now - ago;
-      if (t == null && o && o.idx <= i && o.title === it.title) t = o.updatedAt;      // unchanged
+      const title = cleanTitle(it.title) || (o && o.title !== UNTITLED ? o.title : '');
+      if (t == null && o && o.idx <= i && (!cleanTitle(it.title) || o.title === title)) t = o.updatedAt; // unchanged
       if (t == null && o && i === 0 && o.idx > 0) t = now;                              // moved to the top
       if (t == null) { const g = groupAge(it.group); t = g != null ? now - g - i * 6e4 : (o ? o.updatedAt : now - i * 36e5); }
       t = Math.min(t, prevT - (i ? 1000 : 0)); prevT = t;                                // keep the site's order
-      out.push({ id: it.id, title: (it.title || '').trim() || 'Untitled', updatedAt: t, href: cfg.chatUrl(it.id) });
+      out.push({ id: it.id, title: title || UNTITLED, updatedAt: t, href: cfg.chatUrl(it.id) });
     });
     return out;
   }
@@ -91,6 +132,7 @@ module.exports = function create(cfg) {
         const seen = new Set(); const items = r.items.filter((x) => x && x.id && !seen.has(x.id) && seen.add(x.id));
         chats = merge(items);
         fabro.writeJSON('chats.json', chats);
+        await fillNames().catch(() => {}); // before showing the list: no "Untitled" flash
         await fabro.settings.set({ lastSync: Date.now() });
       }
       if (r && r.icons) await fetchIcon(r.icons);
@@ -108,7 +150,7 @@ module.exports = function create(cfg) {
       if (done) return;
       const id = cfg.chatId(wc.getURL()); if (!id) return;
       done = true;
-      if (!chats.some((c) => c.id === id)) { chats = [{ id, title: (wc.getTitle() || '').replace(new RegExp(`\\s*[-|·–]\\s*${cfg.name}.*$`, 'i'), '') || cfg.name, updatedAt: Date.now(), href: cfg.chatUrl(id) }, ...chats]; publish(); }
+      if (!chats.some((c) => c.id === id)) { chats = [{ id, title: cleanTitle(wc.getTitle()) || (lastPrompt || '').slice(0, 60) || UNTITLED, updatedAt: Date.now(), href: cfg.chatUrl(id) }, ...chats]; save(); }
       setTimeout(() => sync(), 12000); // the site gives the chat its real title a few seconds later
     };
     wc.on('did-navigate-in-page', check); wc.on('did-navigate', check);
@@ -122,10 +164,10 @@ module.exports = function create(cfg) {
       icon = (fabro.readJSON('icon.json', {}) || {}).icon || '';
       fabro.handle('state', () => state());
       fabro.handle('sync', () => sync());
-      fabro.handle('home', async () => { fabro.web.ensure(); await fabro.web.load(cfg.home); return true; });
-      fabro.handle('openChat', async (id) => { fabro.web.ensure(); await fabro.web.load(cfg.chatUrl(id)); return true; });
+      fabro.handle('home', async () => { view(); await fabro.web.load(cfg.home); return true; });
+      fabro.handle('openChat', async (id) => { view(); await fabro.web.load(cfg.chatUrl(id)); return true; });
       fabro.handle('newChat', async (text) => {
-        fabro.web.ensure();
+        view(); lastPrompt = text || '';
         if (!text) { await fabro.web.load(cfg.home); return { ok: true }; }
         await fabro.web.load(cfg.newChat.url(text));
         watchNewChat();
@@ -133,7 +175,7 @@ module.exports = function create(cfg) {
       });
       // Install: show the sign-in page and wait until the site sends us to its new-chat page.
       fabro.handle('login', async () => {
-        fabro.web.ensure();
+        view();
         if (await cfg.session(fabro)) { await fabro.web.load(cfg.home); await fabro.settings.set({ connected: true }); fabro.emit('login-done', {}); sync(); return { already: true }; }
         await fabro.web.load(cfg.loginUrl);
         clearInterval(loginWatch);

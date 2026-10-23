@@ -10,7 +10,8 @@ const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'fabro-mods-e2e-'));
 fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpdate: false, language: 'en', userName: 'Lulu', theme: 'dark', onboarded: true, devModeReleased: true, hotkey: { enabled: false } }));
 
 // ── a tiny copy of claude.ai: sign-in, new chat from ?q=, chat pages, recents with times ──
-const chats = [{ id: '11111111-2222-3333-4444-555555555555', title: 'Trip to Lisbon', ago: 'Last message 2 hours ago' }, { id: '66666666-7777-8888-9999-000000000000', title: 'Old project notes', ago: 'Last message 3 days ago' }];
+const chats = [{ id: '11111111-2222-3333-4444-555555555555', title: 'Trip to Lisbon', ago: 'Last message 2 hours ago' }, { id: '66666666-7777-8888-9999-000000000000', title: 'Old project notes', ago: 'Last message 3 days ago' },
+  { id: '77777777-0000-0000-0000-000000000001', title: 'Name only on its page', ago: 'Last message 5 days ago', hidden: true }]; // listed without a name
 const sent = [];
 const page = (title, body) => `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><link rel="icon" href="/favicon.svg"><style>body{font:15px sans-serif;background:#faf9f5;color:#222;margin:0;padding:30px}[contenteditable]{border:1px solid #ccc;border-radius:12px;padding:14px;min-height:40px;background:#fff}</style></head><body>${body}</body></html>`;
 const srv = http.createServer((req, res) => {
@@ -38,8 +39,8 @@ const srv = http.createServer((req, res) => {
       </script>`));
   }
   if (u.pathname === '/api/send') { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => { const id = 'aaaaaaaa-bbbb-cccc-dddd-' + String(Date.now()).padStart(12, '0').slice(-12); sent.push(b); chats.unshift({ id, title: b.slice(0, 40), ago: 'Last message just now' }); res.end(JSON.stringify({ id })); }); return; }
-  if (u.pathname.startsWith('/chat/')) { const c = chats.find((x) => x.id === u.pathname.slice(6)); return html(page((c ? c.title : 'Chat') + ' - Claude', `<h2>${c ? c.title : 'Unknown chat'}</h2><p>Messages of this chat.</p>`)); }
-  if (u.pathname === '/recents') return html(page('Recents', `<main><h1>Your chat history</h1>${chats.map((c) => `<a href="/chat/${c.id}" style="display:block;padding:8px"><div>${c.title}</div><div>${c.ago}</div></a>`).join('')}</main>`));
+  if (u.pathname.startsWith('/chat/')) { const c = chats.find((x) => x.id === u.pathname.slice(6)); return html(page((c ? c.title : 'Chat') + ' - Claude', `<h2>${c ? c.title : 'Unknown chat'}</h2><p>Messages of this chat.</p><button id="rename" onclick="document.title='Lisbon, 4 days - Claude'">Rename</button>`)); }
+  if (u.pathname === '/recents') return html(page('Recents', `<main><h1>Your chat history</h1>${chats.map((c) => `<a href="/chat/${c.id}" style="display:block;padding:8px"><div>${c.hidden ? '' : c.title}</div><div>${c.ago}</div></a>`).join('')}</main>`));
   res.writeHead(404); res.end();
 });
 
@@ -79,7 +80,7 @@ async function until(fn, ms = 15000, what = 'condition') { const t0 = Date.now()
   await until(() => win.evaluate(() => !S.modView), 15000, 'back to Fabro after sign-in');
   await until(() => win.$$eval('.recent.ext', (x) => x.length >= 2), 20000, 'Claude chats in history');
   const ext = await win.$$eval('.recent.ext .r-title', (x) => x.map((e) => e.textContent));
-  assert(ext.includes('Trip to Lisbon') && ext.includes('Old project notes'), 'synced titles: ' + ext);
+  assert(ext.includes('Trip to Lisbon') && ext.includes('Old project notes') && ext.includes('Name only on its page') && !ext.includes('Untitled'), 'synced titles: ' + ext);
   const hasIcon = await win.$$eval('.recent.ext img.r-src', (x) => x.length);
   assert(hasIcon >= 2, 'site icon shown on synced chats');
   console.log('✓ signed in, chats synced with the site icon:', ext.join(', '));
@@ -114,6 +115,12 @@ async function until(fn, ms = 15000, what = 'condition') { const t0 = Date.now()
   await until(() => win.evaluate(() => !!S.modView && !!document.getElementById('mod-web') && !document.getElementById('app').classList.contains('sb-collapsed')), 5000, 'sidebar stays open');
   const b = await win.evaluate(() => { const r = document.getElementById('mod-web').getBoundingClientRect(); return { x: r.x, w: r.width }; });
   assert(b.x > 150, 'web view sits next to the sidebar');
+  // a chat the list showed without a name got its name from its own page
+  await until(() => win.$$eval('.recent.ext .r-title', (x) => x.some((e) => e.textContent === 'Name only on its page')), 20000, 'name read from the chat page');
+  // renaming on the site renames it in the history right away
+  await app.evaluate(({ webContents }, u) => webContents.getAllWebContents().find((x) => x.getURL() === u).executeJavaScript("document.getElementById('rename').click()"), base + '/chat/11111111-2222-3333-4444-555555555555');
+  await until(() => win.$$eval('.recent.ext .r-title', (x) => x.some((e) => e.textContent === 'Lisbon, 4 days') && !x.some((e) => e.textContent === 'Trip to Lisbon')), 8000, 'live rename');
+  console.log('✓ chat names synced (missing names, live renames)');
   await wait(600); await win.screenshot({ path: path.join(shots, '06-history-open.png') });
   console.log('✓ history chat opened next to the sidebar');
 

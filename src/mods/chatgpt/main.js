@@ -24,7 +24,7 @@ module.exports = require('../_shared/webchat-main')({
         if (/^H[1-6]$/.test(n.tagName) || (n.getAttribute && n.getAttribute('role') === 'heading')) { group = (n.innerText || '').trim(); continue; }
         if (n.tagName !== 'A') continue;
         const m = (n.getAttribute('href') || '').match(/\\/c\\/([0-9a-f-]{20,})/i); if (!m || seen.has(m[1])) continue; seen.add(m[1]);
-        items.push({ id: m[1], title: (n.innerText || '').split('\\n')[0].trim(), group });
+        items.push({ id: m[1], title: (n.innerText || '').split('\\n')[0].trim() || n.getAttribute('title') || n.getAttribute('aria-label') || '', group });
       }
       return { items, icons: [...document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')].map((l) => l.href) };
     })()`,
