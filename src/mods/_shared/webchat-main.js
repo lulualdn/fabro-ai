@@ -184,7 +184,7 @@ module.exports = function create(cfg) {
         const r = await fabro.web.importCookies({ browser: o.browser, profile: o.profile, domains: cfg.cookieDomains });
         const ok = await cfg.session(fabro);
         if (ok) { await fabro.settings.set({ connected: true }); fabro.emit('login-done', {}); sync(); }
-        return { ...r, connected: ok };
+        return { ...r, connected: ok }; // r.appBound > 0 → Chrome App-Bound Encryption blocked it
       });
       fabro.handle('home', async () => { view(); await fabro.web.load(cfg.home); return true; });
       fabro.handle('openChat', async (id) => { view(); await fabro.web.load(cfg.chatUrl(id)); return true; });

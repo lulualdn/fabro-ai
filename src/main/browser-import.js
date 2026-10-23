@@ -18,11 +18,13 @@ const APPDATA = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
 const LOCALAPPDATA = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
 
 // name → where its profiles live, per OS, and what kind of store it is.
+// winBase: 'local' (default, %LOCALAPPDATA%) or 'roaming' (%APPDATA%, where Opera keeps its profile).
 function families() {
-  const chromium = (id, name, winRel, macRel, linuxRels) => ({
+  const chromium = (id, name, winRel, macRel, linuxRels, winBase = 'local') => ({
     id, name, kind: 'chromium',
-    root: isWin ? path.join(LOCALAPPDATA, ...winRel) : isMac ? path.join(home, 'Library', 'Application Support', ...macRel) : null,
-    linuxRoots: linuxRels ? linuxRels.map((r) => path.join(home, '.config', r)) : [],
+    winRoots: (Array.isArray(winRel[0]) ? winRel : [winRel]).map((rel) => path.join(winBase === 'roaming' ? APPDATA : LOCALAPPDATA, ...rel)),
+    macRoots: (Array.isArray(macRel[0]) ? macRel : [macRel]).map((rel) => path.join(home, 'Library', 'Application Support', ...rel)),
+    linuxRoots: (linuxRels || []).map((r) => path.join(home, '.config', r)),
   });
   return [
     { id: 'firefox', name: 'Firefox', kind: 'firefox', roots: [
@@ -31,15 +33,18 @@ function families() {
     { id: 'librewolf', name: 'LibreWolf', kind: 'firefox', roots: [
       isWin ? path.join(APPDATA, 'librewolf', 'Profiles') : isMac ? path.join(home, 'Library', 'Application Support', 'LibreWolf', 'Profiles') : path.join(home, '.librewolf'),
     ] },
-    chromium('chrome', 'Google Chrome', ['Google', 'Chrome', 'User Data'], ['Google', 'Chrome'], ['google-chrome', 'google-chrome-beta']),
+    chromium('chrome', 'Google Chrome', [['Google', 'Chrome', 'User Data'], ['Google', 'Chrome Beta', 'User Data']], [['Google', 'Chrome'], ['Google', 'Chrome Beta']], ['google-chrome', 'google-chrome-beta']),
     chromium('chromium', 'Chromium', ['Chromium', 'User Data'], ['Chromium'], ['chromium']),
     chromium('edge', 'Microsoft Edge', ['Microsoft', 'Edge', 'User Data'], ['Microsoft Edge'], ['microsoft-edge']),
     chromium('brave', 'Brave', ['BraveSoftware', 'Brave-Browser', 'User Data'], ['BraveSoftware', 'Brave-Browser'], ['BraveSoftware/Brave-Browser']),
     chromium('vivaldi', 'Vivaldi', ['Vivaldi', 'User Data'], ['Vivaldi'], ['vivaldi']),
-    chromium('opera', 'Opera', ['Opera Software', 'Opera Stable'], ['com.operasoftware.Opera'], ['opera']),
+    // Opera keeps its profile in roaming AppData on Windows; Opera and Opera GX are separate installs.
+    chromium('opera', 'Opera', ['Opera Software', 'Opera Stable'], ['com.operasoftware.Opera'], ['opera'], 'roaming'),
+    chromium('opera-gx', 'Opera GX', ['Opera Software', 'Opera GX Stable'], ['com.operasoftware.OperaGX'], ['opera-gx'], 'roaming'),
   ];
 }
-const chromiumRoot = (f) => isWin || isMac ? f.root : (f.linuxRoots || []).find((d) => safe(() => fs.existsSync(d)));
+const chromiumRoots = (f) => (isWin ? f.winRoots : isMac ? f.macRoots : f.linuxRoots) || [];
+const chromiumRoot = (f) => chromiumRoots(f).find((d) => exists(d)) || null;
 
 function safe(fn, def) { try { return fn(); } catch { return def; } }
 const exists = (p) => p && safe(() => fs.existsSync(p), false);
@@ -114,57 +119,65 @@ function dpapiUnprotect(buf) {
 }
 function chromiumKey(root) {
   if (isWin) {
-    const ls = JSON.parse(fs.readFileSync(path.join(path.dirname(root) === root ? root : root, 'Local State'), 'utf8'));
-    const enc = Buffer.from(ls.os_crypt.encrypted_key, 'base64');
-    return { gcm: dpapiUnprotect(enc.subarray(5)) }; // strip "DPAPI" prefix → 32-byte AES-256-GCM key
+    const ls = JSON.parse(fs.readFileSync(path.join(root, 'Local State'), 'utf8'));
+    const enc = Buffer.from((ls.os_crypt || {}).encrypted_key || '', 'base64');
+    if (!enc.length) return {};
+    return { gcm: dpapiUnprotect(enc.subarray(5)) }; // strip "DPAPI" prefix → 32-byte AES-256-GCM key (v10/v11)
   }
   // mac / Linux: a passphrase run through PBKDF2 (AES-128-CBC).
   let secret = 'peanuts'; // Linux default when no keyring secret is set
   if (isMac) secret = safe(() => execFileSync('security', ['find-generic-password', '-w', '-s', 'Chrome Safe Storage'], { timeout: 8000 }).toString().trim(), 'peanuts');
   else {
-    const name = { chrome: 'Chrome', chromium: 'Chromium', edge: 'Chromium', brave: 'Chrome', vivaldi: 'Chrome', opera: 'Chromium' };
-    for (const label of ['Chrome Safe Storage', 'Chromium Safe Storage', 'Brave Safe Storage']) {
-      const s = safe(() => execFileSync('secret-tool', ['lookup', 'application', label.split(' ')[0].toLowerCase()], { timeout: 8000 }).toString(), '');
+    for (const app of ['chrome', 'chromium', 'brave', 'microsoft-edge', 'vivaldi', 'opera']) {
+      const s = safe(() => execFileSync('secret-tool', ['lookup', 'application', app], { timeout: 8000 }).toString(), '');
       if (s) { secret = s; break; }
     }
   }
   const iter = isMac ? 1003 : 1;
   return { cbc: crypto.pbkdf2Sync(secret, 'saltysalt', iter, 16, 'sha1') };
 }
+// Returns the value, or { appBound:true } for Chrome 127+ App-Bound (v20) cookies we can't read, or '' on failure.
 function decryptChromium(enc, key, host) {
   if (!enc || !enc.length) return '';
   const prefix = enc.subarray(0, 3).toString('latin1');
+  if (prefix === 'v20') return { appBound: true }; // App-Bound Encryption: the key is locked to Chrome itself
+  const strip = (out) => (out.length >= 32 && out.subarray(0, 32).equals(crypto.createHash('sha256').update(host).digest()) ? out.subarray(32) : out); // newer Chrome prepends sha256(host)
   if ((prefix === 'v10' || prefix === 'v11') && key.gcm) {
     const nonce = enc.subarray(3, 15), tag = enc.subarray(enc.length - 16), data = enc.subarray(15, enc.length - 16);
     const d = crypto.createDecipheriv('aes-256-gcm', key.gcm, nonce); d.setAuthTag(tag);
-    let out = Buffer.concat([d.update(data), d.final()]);
-    if (out.length >= 32 && out.subarray(0, 32).equals(crypto.createHash('sha256').update(host).digest())) out = out.subarray(32); // newer Chrome prepends sha256(host)
-    return out.toString('utf8');
+    return strip(Buffer.concat([d.update(data), d.final()])).toString('utf8');
   }
   if ((prefix === 'v10' || prefix === 'v11') && key.cbc) {
     const d = crypto.createDecipheriv('aes-128-cbc', key.cbc, Buffer.alloc(16, ' ')); d.setAutoPadding(true);
-    let out = Buffer.concat([d.update(enc.subarray(3)), d.final()]);
-    if (out.length >= 32 && out.subarray(0, 32).equals(crypto.createHash('sha256').update(host).digest())) out = out.subarray(32);
-    return out.toString('utf8');
+    return strip(Buffer.concat([d.update(enc.subarray(3)), d.final()])).toString('utf8');
   }
   if (isWin) return safe(() => dpapiUnprotect(enc).toString('utf8'), ''); // very old cookies: DPAPI on the whole value
   return '';
 }
+let lastChromiumStats = null; // readChromium records why some cookies were skipped, for a helpful message
 function readChromium(file, root, domains) {
   const key = chromiumKey(root);
+  const stats = { total: 0, matched: 0, read: 0, appBound: 0, failed: 0 };
+  lastChromiumStats = stats;
   const { db, cleanup } = openCopy(file);
   try {
     const stmt = db.prepare('SELECT host_key, name, encrypted_value, value, path, expires_utc, is_secure, is_httponly, samesite FROM cookies');
     stmt.setReadBigInts(true); // expires_utc (µs since 1601) overflows a JS number
     const num = (v) => (typeof v === 'bigint' ? Number(v) : v);
-    const rows = stmt.all();
+    const rows = stmt.all(); stats.total = rows.length;
     const out = [];
     for (const r of rows) {
       const host = String(r.host_key);
       if (!hostMatches(host, domains)) continue;
+      stats.matched++;
       let value = r.value;
-      if ((!value || !value.length) && r.encrypted_value && r.encrypted_value.length) value = safe(() => decryptChromium(Buffer.from(r.encrypted_value), key, host), '');
-      if (value == null) continue;
+      if ((!value || !value.length) && r.encrypted_value && r.encrypted_value.length) {
+        const d = safe(() => decryptChromium(Buffer.from(r.encrypted_value), key, host), '');
+        if (d && typeof d === 'object' && d.appBound) { stats.appBound++; continue; }
+        value = d;
+      }
+      if (value == null || value === '') { stats.failed++; continue; }
+      stats.read++;
       const exp = num(r.expires_utc);
       out.push({
         name: r.name, value, domain: host, path: r.path || '/',
@@ -178,6 +191,7 @@ function readChromium(file, root, domains) {
 
 // Read cookies for `domains` from one browser profile. Returns [] and a reason string on failure.
 function readProfile({ browser, profile, domains }) {
+  lastChromiumStats = null;
   const fk = fake();
   if (fk && browser === fk.id) return fk.kind === 'firefox' ? readFirefox(fk.cookies, domains) : readChromium(fk.cookies, path.dirname(fk.cookies), domains);
   const f = families().find((x) => x.id === browser);
@@ -206,7 +220,8 @@ async function importInto(ses, { browser, profile, domains }) {
     if (c.expirationDate && c.expirationDate > Date.now() / 1000) spec.expirationDate = c.expirationDate;
     try { await ses.cookies.set(spec); set++; } catch {}
   }
-  return { set, total: cookies.length };
+  const st = lastChromiumStats;
+  return { set, total: cookies.length, appBound: st ? st.appBound : 0, matched: st ? st.matched : undefined };
 }
 
-module.exports = { list, readProfile, importInto, _internal: { decryptChromium, hostMatches, readFirefox, readChromium } };
+module.exports = { list, readProfile, importInto, _internal: { decryptChromium, hostMatches, readFirefox, readChromium, get lastChromiumStats() { return lastChromiumStats; } } };

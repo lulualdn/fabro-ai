@@ -49,6 +49,12 @@ const decG = bi._internal.decryptChromium(encryptV10GCM('sk-gcm-9', gkey, 'www.c
 assert.strictEqual(decG, 'sk-gcm-9', 'chromium GCM decrypt with host-hash prefix stripped');
 console.log('✓ Chromium value decrypted (v10 AES-256-GCM, host prefix stripped)');
 
+// Chrome 127+ App-Bound Encryption (v20): we can't read it, and say so instead of returning junk
+const v20 = Buffer.concat([Buffer.from('v20'), crypto.randomBytes(40)]);
+const abRes = bi._internal.decryptChromium(v20, { gcm: crypto.randomBytes(32) }, 'x.claude.ai');
+assert(abRes && typeof abRes === 'object' && abRes.appBound === true, 'v20 reported as App-Bound, not decrypted');
+console.log('✓ Chrome App-Bound (v20) cookies detected, not mis-decrypted');
+
 // readChromium end to end against a fake Cookies DB, monkey-patching the key source
 const ck = path.join(tmp, 'Cookies');
 {
@@ -57,6 +63,7 @@ const ck = path.join(tmp, 'Cookies');
   const ins = db.prepare('INSERT INTO cookies (host_key,name,encrypted_value,value,path,expires_utc,is_secure,is_httponly,samesite) VALUES (?,?,?,?,?,?,?,?,?)');
   const future = (Date.now() / 1000 + 86400 + 11644473600) * 1e6;
   ins.run('.claude.ai', 'sessionKey', encryptV10CBC('sk-chrome-xyz'), '', '/', future, 1, 1, 1);
+  ins.run('.claude.ai', 'appbound', v20, '', '/', future, 1, 1, 1); // a v20 cookie that can't be read
   ins.run('.bing.com', 'x', encryptV10CBC('no'), '', '/', future, 1, 1, 1);
   db.close();
 }
@@ -68,10 +75,11 @@ const chromCookies = bi._internal.readChromium(ck, tmp, ['.claude.ai']);
 require('child_process').execFileSync = orig;
 if (process.platform === 'win32') { console.log('· skipping readChromium end-to-end on Windows (DPAPI)'); }
 else {
-  assert.strictEqual(chromCookies.length, 1, 'chromium: 1 claude.ai cookie');
+  assert.strictEqual(chromCookies.length, 1, 'chromium: 1 readable claude.ai cookie (the v20 one is skipped)');
   assert.strictEqual(chromCookies[0].value, 'sk-chrome-xyz', 'chromium: decrypted value');
   assert(chromCookies[0].expirationDate > Date.now() / 1000, 'chromium: expiry converted from 1601 epoch');
-  console.log('✓ Chromium Cookies DB read end to end (decrypt + domain filter + expiry)');
+  assert.strictEqual(bi._internal.lastChromiumStats.appBound, 1, 'chromium: the v20 cookie counted as App-Bound');
+  console.log('✓ Chromium Cookies DB read end to end (decrypt + domain filter + expiry + App-Bound skip)');
 }
 
 // ── importInto sets the cookies into a session ──

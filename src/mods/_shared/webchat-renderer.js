@@ -4,12 +4,12 @@ window.FabroWebChat = window.FabroWebChat || function FabroWebChat(fabro, cfg) {
     en: {
       desc: `Ask ${cfg.name} (opens ${cfg.site})`, signIn: `Sign in to ${cfg.name}`, connected: `${cfg.name} is connected. Type ${cfg.command} followed by your message.`, needLogin: `Sign in to ${cfg.name} first.`,
       setupTitle: `Connect ${cfg.name}`, setupBody: `Open ${cfg.site} inside Fabro and sign in, or import your sign-in from a browser where you are already signed in.`,
-      impFrom: 'Import from a browser', signInBtn: 'Sign in in Fabro', importing: 'Importing…', imported: `Imported — ${cfg.name} is connected.`, importNone: `No sign-in for ${cfg.site} found in that browser. Open it there, or sign in in Fabro.`, importErr: 'Import failed: {e}', noBrowsers: 'No browser with a saved sign-in was found.', profile: 'Profile', cancel: 'Cancel',
+      impFrom: 'Import from a browser', signInBtn: 'Sign in in Fabro', importing: 'Importing…', imported: `Imported — ${cfg.name} is connected.`, importNone: `No sign-in for ${cfg.site} found in that browser. Open it there, or sign in in Fabro.`, importAppBound: `This Chrome uses App-Bound Encryption, which locks its cookies to Chrome itself. Import from Firefox or Opera, or sign in in Fabro.`, importErr: 'Import failed: {e}', noBrowsers: 'No browser with a saved sign-in was found.', profile: 'Profile', cancel: 'Cancel',
     },
     fr: {
       desc: `Demander à ${cfg.name} (ouvre ${cfg.site})`, signIn: `Connexion à ${cfg.name}`, connected: `${cfg.name} est connecté. Tapez ${cfg.command} suivi de votre message.`, needLogin: `Connectez-vous d’abord à ${cfg.name}.`,
       setupTitle: `Connecter ${cfg.name}`, setupBody: `Ouvrez ${cfg.site} dans Fabro et connectez-vous, ou importez votre connexion depuis un navigateur où vous êtes déjà connecté.`,
-      impFrom: 'Importer depuis un navigateur', signInBtn: 'Se connecter dans Fabro', importing: 'Import…', imported: `Importé — ${cfg.name} est connecté.`, importNone: `Aucune connexion à ${cfg.site} trouvée dans ce navigateur. Ouvrez-le là-bas, ou connectez-vous dans Fabro.`, importErr: 'Échec de l’import : {e}', noBrowsers: 'Aucun navigateur avec une connexion enregistrée n’a été trouvé.', profile: 'Profil', cancel: 'Annuler',
+      impFrom: 'Importer depuis un navigateur', signInBtn: 'Se connecter dans Fabro', importing: 'Import…', imported: `Importé — ${cfg.name} est connecté.`, importNone: `Aucune connexion à ${cfg.site} trouvée dans ce navigateur. Ouvrez-le là-bas, ou connectez-vous dans Fabro.`, importAppBound: `Ce Chrome utilise le chiffrement App-Bound, qui verrouille ses cookies à Chrome. Importez depuis Firefox ou Opera, ou connectez-vous dans Fabro.`, importErr: 'Échec de l’import : {e}', noBrowsers: 'Aucun navigateur avec une connexion enregistrée n’a été trouvé.', profile: 'Profil', cancel: 'Annuler',
     },
   };
   const tr = (k, v) => { let s = (L[fabro.S.lang] || L.en)[k] || L.en[k] || k; if (v) s = s.replace(/\{(\w+)\}/g, (_, x) => v[x] ?? ''); return s; };
@@ -69,7 +69,7 @@ window.FabroWebChat = window.FabroWebChat || function FabroWebChat(fabro, cfg) {
       try {
         const r = await fabro.call('importCookies', { browser, profile });
         if (r && r.connected) { root.innerHTML = ''; fabro.toast(tr('imported')); fabro.view.close(); }
-        else { render(false); fabro.toast(tr('importNone'), 'err'); }
+        else { render(false); fabro.toast(tr(r && r.appBound ? 'importAppBound' : 'importNone'), 'err'); }
       } catch (e) { render(false); fabro.toast(tr('importErr', { e: String(e && e.message || e) }), 'err'); }
     };
     render(false);
