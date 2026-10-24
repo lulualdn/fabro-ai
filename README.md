@@ -56,6 +56,14 @@ Run the workflow manually (Actions › Build & release › Run workflow) to get 
 
 `site/` holds the Fabro website (home, feature pages, "Can my PC run it?", privacy, changelog, legal), in English, French, Spanish and German with light/dark themes. `node site/build.js` writes static pages to `site/dist`. The model list comes from the installer, the changelog from GitHub Releases. `netlify.toml` lets Netlify build it with no dependencies.
 
+## Computer Use
+
+The agent can see the screen and use the mouse and keyboard in any app (`src/main/computer/`). It gets a screenshot with numbered boxes on every control the app describes through accessibility (UI Automation on Windows), the list of those elements with their state, the windows and the focus, plus the text read on screen (built-in Windows OCR, tesseract on Linux) for apps that describe nothing (games, canvases). Actions — click, double/right click, long press, drag, scroll, typing, shortcuts, held keys, relative mouse moves, or a chained gesture in one call — move like a person (curved, minimum-jerk paths) and each returns the screen afterwards.
+
+Windows: a small helper compiled on first use with the C# compiler that ships with Windows (nothing to install). Linux (X11): XTEST through python-xlib, installed in Fabro's Python. macOS: not yet.
+
+Safety: asked once per conversation (Settings › Agent › Computer Use), Fabro minimizes itself and shows a frame hidden from its own screenshots, moving the mouse or pressing Esc hands control back at once, passwords and card numbers are never typed, sensitive clicks are confirmed, Fabro's own windows are off limits. Tests: `xvfb-run -a -s "-screen 0 1440x900x24" node scripts/computer-test.js` (Linux), `npx electron scripts/computer-win-test.js` (Windows).
+
 ## Mods
 
 Everything in Fabro can be modded: screens, commands, history, internals. Settings › Mods installs them (built-in: Claude, ChatGPT and Gemini for Fabro). Each web-chat mod keeps its own saved sign-in and can import it from your own browser (Firefox, Chrome, Edge, Brave…). How to write one: [MODDING.md](MODDING.md). Tests: `node scripts/browser-import-test.js`, `xvfb-run -a node scripts/mods-e2e.js`.
