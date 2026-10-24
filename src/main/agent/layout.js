@@ -224,7 +224,7 @@ agent.register({
     }
     if (text === art.versions[art.versions.length - 1].content) return { error: 'Nothing changed.' };
     const design = require('./design');
-    if (design.visual(art.type) && /data-photo=|data-icon=/.test(text)) text = (await require('../kit').bake(text).catch(() => ({ html: text }))).html;
+    if (design.visual(art.type) && /data-photo=|data-icon=|src\s*=\s*["']https?:|url\(\s*['"]?https?:/.test(text)) text = (await require('../kit').bake(text).catch(() => ({ html: text }))).html;
     art.versions.push({ content: text, at: Date.now(), by: 'ai' });
     db.saveArtifact(art);
     if (ctx.emit) ctx.emit({ type: 'artifact_updated', id: art.id });

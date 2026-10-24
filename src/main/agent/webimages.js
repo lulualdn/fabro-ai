@@ -82,10 +82,7 @@ async function frameAt(id, pct) {
   const sec = sb.len ? Math.round((pct / 100) * sb.len) : null;
   return { url: saveImg(crop.toJPEG(90)), im: crop, w: tw, h: th, title: `${sb.title || 'video'} — ${pct}%${sec != null ? ` (${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')})` : ''}`, page: `https://www.youtube.com/watch?v=${id}${sec ? `&t=${sec}s` : ''}`, source: 'YouTube', label: `${pct}%` };
 }
-// Pictures Fabro made itself (video frames) live on disk; artifacts point at them as fabro-img:<id>, and the kit
-// swaps that for the picture when the page is shown, printed or exported.
-function imgDir() { const d = path.join(require('electron').app.getPath('userData'), 'webimg'); fs.mkdirSync(d, { recursive: true }); return d; }
-function saveImg(buf) { const id = crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16); const f = path.join(imgDir(), id + '.jpg'); if (!fs.existsSync(f)) fs.writeFileSync(f, buf); return `fabro-img:${id}`; }
+const { saveImg } = require('../kit');
 
 async function pageImages(url, n) {
   const html = await text(url);
@@ -147,7 +144,25 @@ async function videoFrames({ query, url, at, block }) {
   return { list, sb: sbCache.get(id) };
 }
 
-async function find({ query, url, source = 'all', count = 8, at, block }) {
+// Is this picture about the subject? Judged on what its source says about it (page title, alt text, video
+// title, address): the words of the query must be there, and none of the words to avoid.
+const STOP = new Set('the and for with from that this les des une un le la de du et en au aux pour sur dans par avec jeu game gameplay video vidéo image images photo photos picture pictures screenshot screenshots capture captures official officiel trailer'.split(' '));
+const PLATFORMS = new Set('roblox minecraft fortnite youtube steam xbox playstation ps4 ps5 switch nintendo android ios pc mobile app'.split(' '));
+const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const stem = (w) => (w.length > 3 ? w.replace(/(es|s|x)$/, '') : w); // transports ≈ transport, jeux ≈ jeu
+const keyWords = (q) => [...new Set(norm(q).split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOP.has(w)))];
+function relevance(c, keys, avoid) {
+  const hay = norm(`${c.title} ${c.page} ${c.url} ${c.source}`);
+  if (avoid.some((w) => hay.includes(w))) return -1;
+  if (!keys.length) return 1;
+  // the name must be there as a name (all its words, together, in order), not scattered: "Paris Transports RER" ≠ "Paris Metro + RER"
+  const name = keys.filter((w) => !PLATFORMS.has(w)).map(stem); if (!name.length) return 1;
+  const flat = ` ${hay.split(/[^a-z0-9]+/).filter(Boolean).map(stem).join(' ')} `;
+  if (flat.includes(` ${name.join(' ')} `)) return 1;
+  return 0.5 * name.filter((w) => flat.includes(` ${w} `)).length / name.length;
+}
+
+async function find({ query, url, source = 'all', count = 8, at, block, avoid }) {
   const n = Math.max(1, Math.min(16, count | 0 || 8));
   if ((Array.isArray(at) && at.length) || block) {
     const r = await videoFrames({ query, url, at, block });
@@ -157,17 +172,25 @@ async function find({ query, url, source = 'all', count = 8, at, block }) {
   let cands = [];
   if (url) {
     const id = ytId(url);
-    if (id) cands = ytFrames(id);
-    else if (/\.(jpe?g|png|webp|gif|avif)(\?|$)/i.test(url)) cands = [{ url, title: '', page: url, source: host(url) }];
-    else cands = await pageImages(url, n).catch(() => []);
+    if (id) cands = ytFrames(id).map((c) => ({ ...c, given: true }));
+    else if (/\.(jpe?g|png|webp|gif|avif)(\?|$)/i.test(url)) cands = [{ url, title: '', page: url, source: host(url), given: true }];
+    else cands = (await pageImages(url, n).catch(() => [])).map((c) => ({ ...c, given: true }));
     if (!cands.length && !id) { const p = await probe(url); if (p) cands = [{ url, title: '', page: url, source: host(url) }]; }
   }
   if (query) {
     const wantYt = source === 'youtube' || source === 'all', wantWeb = source === 'web' || source === 'all';
-    const [web, vids] = await Promise.all([wantWeb ? webSearch(query, n) : [], wantYt ? ytSearch(query, source === 'youtube' ? Math.ceil(n / 3) + 1 : 2).catch(() => []) : []]);
-    const yt = vids.flatMap((v) => ytFrames(v.id, v.title).slice(source === 'youtube' ? 0 : 0, source === 'youtube' ? 4 : 2));
+    const [web, vids] = await Promise.all([wantWeb ? webSearch(query, n) : [], wantYt ? ytSearch(query, source === 'youtube' ? Math.ceil(n / 3) + 2 : 5).catch(() => []) : []]);
+    const yt = vids.flatMap((v) => ytFrames(v.id, v.title));
     // interleave so both kinds show up
     const a = [...web], b = [...yt]; while (a.length || b.length) { if (a.length) cands.push(a.shift()); if (b.length) cands.push(b.shift()); if (a.length) cands.push(a.shift()); }
+  }
+  // keep what is about the subject, best first (a page/video the user gave is trusted as is)
+  const keys = query ? keyWords(query) : [], av = (Array.isArray(avoid) ? avoid : String(avoid || '').split(',')).map(norm).map((w) => w.trim()).filter(Boolean);
+  if (query || av.length) {
+    const scored = cands.map((c, i) => ({ c, i, r: c.given ? 1 : relevance(c, keys, av) })).filter((x) => x.r >= 0);
+    const good = scored.filter((x) => x.r >= 0.6);
+    // only exact matches when there are some
+    cands = (good.length ? good : scored.filter((x) => x.r >= 0.4)).sort((a, b) => b.r - a.r || a.i - b.i).map((x) => ({ ...x.c, match: x.r }));
   }
   const ok = [];
   for (let i = 0; i < cands.length && ok.length < n; i += 6) {
@@ -175,7 +198,9 @@ async function find({ query, url, source = 'all', count = 8, at, block }) {
       let p = await probe(c.url), u = c.url;
       if (!p && c.alt) { p = await probe(c.alt); u = c.alt; }
       if (!p && c.thumb) { p = await probe(c.thumb); u = c.thumb; } // the search engine's own copy always loads
-      return p && (p.w === 0 || p.w >= 200) ? { ...c, url: u, w: p.w, h: p.h, im: p.im } : null;
+      if (!p || (p.w && p.w < 200)) return null;
+      const id = saveImg(p.buf); // kept by Fabro: shown as base64 in the page, never a broken link
+      return id ? { ...c, url: id, origin: u, w: p.w, h: p.h, im: p.im } : null;
     }));
     for (const x of batch) if (x && ok.length < n && !ok.some((o) => o.url === x.url)) ok.push(x);
   }
@@ -195,6 +220,7 @@ agent.register({
       url: { type: 'string', description: 'Optional: a YouTube video, a web page or an image URL to take pictures from' },
       source: { type: 'string', enum: ['all', 'web', 'youtube'], description: 'Default all. youtube = frames of matching videos (good for games, events, tutorials)' },
       count: { type: 'number', description: 'How many pictures (default 8, max 16)' },
+      avoid: { type: 'string', description: 'Comma-separated words: drop pictures whose source mentions them (e.g. "irl, real life, vraie vie, photo réelle" when only in-game pictures are wanted)' },
       at: { type: 'array', items: { type: 'number' }, description: 'Frames of ONE YouTube video (url, or the first video found for query) at these positions in % of the video, e.g. [5, 40, 72] (max 20)' },
       block: { type: 'number', description: 'Or a block of 10 frames of ONE video: 1 = 0-9%, 2 = 10-19% … 10 = 90-99%. For a long, detailed video you can go through all 10 blocks (100 frames) to find the best moments.' },
     },
@@ -206,12 +232,12 @@ agent.register({
     if (error && !list.length) return { error };
     if (sb) return { content: `${list.length} frame(s) of “${sb.title || 'the video'}”${sb.len ? ` (${Math.floor(sb.len / 60)} min ${sb.len % 60} s)` : ''}, ${list[0].w}×${list[0].h} each (small: fine for galleries, cards and thumbnails; for a big hero prefer the cover or 25/50/75% pictures, 1280×720):\n${list.map((p, i) => `${i + 1}. ${p.url} · ${p.title.split(' — ').pop()}`).join('\n')}\n\nLook at the contact sheet, keep the best moments, use them as <img src="fabro-img:…" alt="…" data-credit="YouTube"> (exact URLs). Other moments: at=[…] or another block.`, image: image || undefined };
     if (!list.length) return { content: `No picture found for ${a.url || `“${a.query}”`} (offline, or nothing usable). Try other words, source "youtube", or a page URL you found with web search.` };
-    const lines = list.map((p, i) => `${i + 1}. ${p.url}\n   ${p.w ? `${p.w}×${p.h} · ` : ''}${p.source || ''}${p.title ? ` · “${String(p.title).slice(0, 80)}”` : ''}${p.page && p.page !== p.url ? `\n   from: ${p.page}` : ''}`);
+    const lines = list.map((p, i) => `${i + 1}. ${p.url} — ${p.w ? `${p.w}×${p.h}` : 'size ?'}\n   shows (according to its source): ${p.title ? `“${String(p.title).slice(0, 110)}”` : '(no description)'}${p.match != null && p.match < 1 && !p.given ? ' — partly matches the search' : ''}\n   from: ${p.page || p.origin}`);
     return {
-      content: `${lines.join('\n')}\n\nLook at the contact sheet: keep only the pictures that truly show the subject (drop off-topic, real-life ones if not wanted, watermarked or tiny ones). Use them as <img src="URL" alt="…" data-credit="SOURCE"> (or style="--img:url('URL')" on a .hero.image). Never change the URLs.`,
+      content: `${lines.join('\n')}\n\nThe pictures are saved by Fabro (fabro-img:… = the picture itself, shown as base64 in the page — never a broken link). Choose with care: use a picture only if what it shows (above, and on the contact sheet if you can see images) matches exactly the place in the page where you put it; drop anything off-topic or not wanted (e.g. real-life photos). Write in alt what the picture shows. Use <img src="fabro-img:…" alt="…" data-credit="SOURCE"> (or style="--img:url('fabro-img:…')" on a .hero.image), with the exact ids.`,
       image: image || undefined,
     };
   },
 });
 
-module.exports = { find, ytFrames, pageImages, storyboard, frameAt, imgDir, _sb: sbCache };
+module.exports = { find, ytFrames, pageImages, storyboard, frameAt, _sb: sbCache };

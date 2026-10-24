@@ -154,12 +154,49 @@ async function bakePhotos(html) {
   return { html: s, photos: n };
 }
 
-// Network part, once, when an artifact is saved: extra icons + photos.
+// Every picture of an artifact is kept by Fabro itself (no hotlink that breaks later): it is downloaded once,
+// stored in userData/webimg and written as fabro-img:<id>; it becomes base64 inside the page when shown/exported.
+const IMG_EXT = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif' };
+function imgDir() { const d = path.join(require('electron').app.getPath('userData'), 'webimg'); fs.mkdirSync(d, { recursive: true }); return d; }
+function sniff(buf) { const h = buf.subarray(0, 12).toString('hex'); if (h.startsWith('89504e47')) return 'png'; if (h.startsWith('ffd8')) return 'jpg'; if (h.startsWith('47494638')) return 'gif'; if (buf.subarray(8, 12).toString() === 'WEBP') return 'webp'; if (buf.subarray(4, 12).toString().includes('ftypavi')) return 'avif'; return null; }
+function saveImg(buf, { maxW = 1600 } = {}) {
+  let ext = sniff(buf); if (!ext) return null;
+  if ((ext === 'jpg' || ext === 'png') && buf.length > 350000) { // big photo: resize so the page stays light
+    try { const { nativeImage } = require('electron'); let im = nativeImage.createFromBuffer(buf); if (!im.isEmpty()) { if (im.getSize().width > maxW) im = im.resize({ width: maxW, quality: 'best' }); const out = ext === 'png' ? im.toPNG() : im.toJPEG(86); if (out.length < buf.length) buf = out; } } catch {}
+  }
+  const id = require('crypto').createHash('sha1').update(buf).digest('hex').slice(0, 16);
+  const f = path.join(imgDir(), `${id}.${ext}`); if (!fs.existsSync(f)) fs.writeFileSync(f, buf);
+  return `fabro-img:${id}`;
+}
+function imgFile(id) { let d; try { d = imgDir(); } catch { return null; } for (const e of Object.keys(IMG_EXT)) { const f = path.join(d, `${id}.${e}`); if (fs.existsSync(f)) return { f, mime: IMG_EXT[e] }; } return null; }
+async function grab(url) {
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36', Accept: 'image/*,*/*;q=0.8' }, signal: AbortSignal.timeout(12000) });
+    if (!r.ok) return null; const buf = Buffer.from(await r.arrayBuffer()); if (buf.length < 200 || buf.length > 25e6) return null;
+    return saveImg(buf);
+  } catch { return null; }
+}
+async function embedRemote(html) {
+  let s = String(html); const urls = new Set();
+  for (const m of s.matchAll(/<img\b[^>]*?\bsrc\s*=\s*["'](https?:\/\/[^"']+)["']/gi)) urls.add(m[1]);
+  for (const m of s.matchAll(/url\(\s*['"]?(https?:\/\/[^'")\s]+)['"]?\s*\)/gi)) if (!/fonts\.googleapis|\.css(\?|$)|\.woff2?(\?|$)/i.test(m[1])) urls.add(m[1].replace(/&amp;/g, '&'));
+  for (const m of s.matchAll(/["'](https?:\/\/[^"'\s<>]+\.(?:jpe?g|png|webp|gif|avif)(?:\?[^"'\s<>]*)?)["']/gi)) urls.add(m[1]); // image URLs in scripts too
+  const list = [...urls].slice(0, 40); let n = 0;
+  for (let i = 0; i < list.length; i += 6) {
+    const got = await Promise.all(list.slice(i, i + 6).map(async (u) => [u, await grab(u)]));
+    for (const [u, id] of got) if (id) { s = s.split(u).join(id); s = s.split(u.replace(/&/g, '&amp;')).join(id); n++; }
+  }
+  return { html: s, n };
+}
+
+// Network part, once, when an artifact is saved: extra icons + photos, and every picture kept locally.
 async function bake(html) {
   const s = String(html || '');
-  if (!usesKit(s) && !/data-photo=/.test(s)) return { html: s, photos: 0, icons: 0 };
-  const icons = await fetchIcons(iconNames(s)).catch(() => 0);
-  const { html: out, photos } = /data-photo=/.test(s) ? await bakePhotos(s).catch(() => ({ html: s, photos: 0 })) : { html: s, photos: 0 };
+  const remote = /<img\b[^>]*\bsrc\s*=\s*["']https?:|url\(\s*['"]?https?:/i.test(s);
+  if (!usesKit(s) && !/data-photo=/.test(s) && !remote) return { html: s, photos: 0, icons: 0 };
+  const icons = usesKit(s) ? await fetchIcons(iconNames(s)).catch(() => 0) : 0;
+  let { html: out, photos } = /data-photo=/.test(s) ? await bakePhotos(s).catch(() => ({ html: s, photos: 0 })) : { html: s, photos: 0 };
+  out = (await embedRemote(out).catch(() => ({ html: out }))).html;
   return { html: out, photos, icons };
 }
 
@@ -167,8 +204,7 @@ async function bake(html) {
 // Pictures Fabro saved itself (video frames): fabro-img:<id> → the picture, inline, wherever the page goes.
 function resolveImgs(s) {
   if (!/fabro-img:/.test(s)) return s;
-  let dir; try { dir = path.join(require('electron').app.getPath('userData'), 'webimg'); } catch { return s; }
-  return s.replace(/fabro-img:([a-f0-9]{8,40})/g, (m, id) => { try { return 'data:image/jpeg;base64,' + fs.readFileSync(path.join(dir, id + '.jpg')).toString('base64'); } catch { return m; } });
+  return s.replace(/fabro-img:([a-f0-9]{8,40})/g, (m, id) => { const x = imgFile(id); if (!x) return m; try { return `data:${x.mime};base64,` + fs.readFileSync(x.f).toString('base64'); } catch { return m; } });
 }
 function inject(html, { force = false, mode = null, theme = null, markOnly = false } = {}) {
   let s = String(html || '');
@@ -192,4 +228,4 @@ function inject(html, { force = false, mode = null, theme = null, markOnly = fal
   return s;
 }
 
-module.exports = { inject, resolveImgs, bake, usesKit, searchPhotos, fetchIcons, iconNames, THEMES, ALIAS, _read: () => { read(); return { CSS, JS, ICONS }; } };
+module.exports = { inject, resolveImgs, saveImg, embedRemote, bake, usesKit, searchPhotos, fetchIcons, iconNames, THEMES, ALIAS, _read: () => { read(); return { CSS, JS, ICONS }; } };
