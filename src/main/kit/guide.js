@@ -34,7 +34,7 @@ const CHEAT = {
 - Blocks: .card (.hover) · .feature (icon + h3 + p) · .stats > .stat(.num .label) · .kpi(.label .num .delta[.down]) · ol.steps · ul.timeline (.when) · .pricing > .plan(.featured data-label="Popular", .price) · figure.quote(.who .avatar) · .faq > details/summary · .cta · .logos · .gallery · .callout(.info .ok .warn .danger) · .table-wrap > table.zebra · .progress(style="--value:70%") · .badge .tag · form.form > .field(label + input) · footer.footer(.cols)
 - Buttons: .btn · .btn.ghost · .btn.light · .btn.lg/.sm/.block
 - Icons: <i data-icon="NAME"></i> (rocket, zap, star, heart, check, mail, phone, pin, calendar, chart, user, globe, shield, sparkle, home, cart, tag, gift, award, target, truck, coffee, music, camera, book, code, cloud, lock, search, download, play…)
-- Photos: <img data-photo="2-4 concrete English words" alt="…"> → Fabro inserts a real free photo (with credit). Never invent image URLs.
+- Pictures of a specific real subject (game, product, place, person, brand…): call web_images first and use the URLs it returns (screenshots, YouTube frames, official pictures). Generic photos: <img data-photo="2-4 concrete English words" alt="…"> → Fabro inserts a real free photo (with credit). Never invent image URLs.
 - Charts: <figure class="chart" data-chart='{"type":"bar|hbar|line|area|pie|donut","title":"…","labels":["A","B"],"data":[3,5],"unit":"€"}'></figure> (several lines: "series":[{"name":"2025","data":[…]}])
 - Motion: add class="reveal" to blocks that should fade in.`,
   doc: `Fabro Kit for documents (included automatically; printed as PDF):

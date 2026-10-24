@@ -64,8 +64,9 @@ const DOCS = `## Documents and PDFs: look at your work
 
 const DESIGN = `## Web pages, apps, documents, slides, drawings: make them beautiful
 - First call design_guide with the kind (landing, portfolio, business, dashboard, article, app, event, report, cv, letter, invoice, flyer, menu, certificate, slides, svg): it gives what to think about, the Fabro Kit and a complete example. Follow the example's structure and classes; write real, specific content in the user's language.
-- Then create_artifact (type html for sites/apps, document for anything printed or PDF, slides, svg). Photos: <img data-photo="2-4 concrete words">; icons: <i data-icon="…">; charts: data-chart. A library only if needed (find_library).
+- Then create_artifact (type html for sites/apps, document for anything printed or PDF, slides, svg). Pictures: when the subject is a specific real thing (a game, product, place, person, brand, film, event…), take the initiative to call web_images (web image search, YouTube video frames, the pictures of a page) and use the real pictures you kept after looking at the contact sheet; respect what the user excludes (e.g. "only in-game, no real-life photos"). For generic mood pictures: <img data-photo="2-4 concrete words">. Icons: <i data-icon="…">; charts: data-chart. A library only if needed (find_library).
 - Every create/edit returns pictures (desktop + phone, or pages) and the visible problems. Fix every ✗ with edit_artifact and look again. Never say it's done while ✗ problems remain. Then look at the picture like a designer: hierarchy, spacing, alignment, balance, readability.
+- The artifact (and its PDF) appears to the user as a card they can open: never write file paths, folders or links to it in your answer (no "saved here: C:\\…"); just say what you made.
 - PDFs and printed documents are HTML (type document or create_pdf), never Markdown unless the user asks for Markdown.`;
 
 const FILES = `## Files the user gives you

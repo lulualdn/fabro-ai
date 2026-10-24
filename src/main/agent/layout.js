@@ -79,7 +79,7 @@ async function renderPdf(buf, { maxPages = 8, pages = null, width = null, keep =
 }
 
 function report({ file, pages, blank, issues, artifactId, shown }) {
-  const lines = [`PDF: ${file} — ${pages} page(s)${shown < pages ? ` (first ${shown} shown)` : ''}.`];
+  const lines = [`PDF: ${file} — ${pages} page(s)${shown < pages ? ` (first ${shown} shown)` : ''}. The user sees it as an artifact card: do not write this path in your answer.`];
   if (blank && blank.length) lines.push(`Nearly empty page(s): ${blank.join(', ')}.`);
   for (const i of issues || []) lines.push('Layout problem: ' + i);
   if (!(blank && blank.length) && !(issues || []).length) lines.push('No automatic layout problem found — still look at the picture.');
