@@ -1,5 +1,94 @@
 [
  {
+  "tag": "v0.1.38",
+  "date": "2026-10-24T13:56:15Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.38",
+  "prerelease": false,
+  "body": "Much better artifacts (Fabro Kit, visual check, real photos), new artifact cards, Code paused\n\nArtifacts\n- Fabro Kit: a design system injected into pages, documents and slides that use it — 11 themes (palettes + font pairs, accessible contrast), components (nav, hero, cards, features, stats, KPIs, pricing, testimonials, FAQ, timeline, steps, CTA, gallery, tables, forms, footer), A4 documents (cover, CV, letter, invoice, menu, poster, certificate, page sizes), 16:9 HTML decks, icons (<i data-icon>), SVG charts from data (data-chart, also in PDF), reveal motion, mobile nav\n- Real photos: <img data-photo=\"2-4 words\"> → a free photo (Pexels/Unsplash with a key, else Openverse/Wikimedia), checked to load, credited; missing icons fetched once (Iconify), cached\n- Design guide per kind (landing, portfolio, business, dashboard, article, app, event, report, CV, letter, invoice, flyer, menu, certificate, slides, svg): what to think about, kit reference and a complete example page; injected in chat when something visual is asked\n- Visual check: rendered on desktop + phone (or printed pages / slides), screenshots + problems (sideways scroll, cut text, overlapping text, contrast, broken images, JS errors, placeholders, empty pages, slide overflow). Agent tools design_guide, create_artifact, check_artifact, find_library (pinned CDN tags), find_images; edits are re-checked; the agent can't finish with problems left. In chat, Fabro checks each artifact and sends the model back to fix it (keeps the previous answer if the fix loses it)\n- New \"document\" type: printed things are HTML (PDF export with the kit), not Markdown\n- Markdown slides get automatic layouts (title, section, big number, quote, image split, cards)\n- Cards in chat, agent steps and the Artifacts page: pastel per artifact + picture of page 1 (cached per version), file icon for code\n- Settings › Agent › Design: automatic check on/off, optional Pexels / Unsplash keys\nOther\n- Fabro Code is paused (maintenance page) while it is reworked\n- e2e: artifacts-e2e (new, in CI); main e2e adapted",
+  "assets": [
+   {
+    "name": "Fabro-0.1.38-arm64-mac.zip",
+    "size": 139775784,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.38-arm64-mac.zip.blockmap",
+    "size": 146048,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.38-arm64.dmg",
+    "size": 140515828,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.38-arm64.dmg.blockmap",
+    "size": 148258,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.38-mac.zip",
+    "size": 143544764,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.38-mac.zip.blockmap",
+    "size": 151322,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.38.AppImage",
+    "size": 136967933,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38.AppImage"
+   },
+   {
+    "name": "Fabro-0.1.38.dmg",
+    "size": 144250926,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38.dmg"
+   },
+   {
+    "name": "Fabro-0.1.38.dmg.blockmap",
+    "size": 151279,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-0.1.38.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.38.exe",
+    "size": 118848145,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-Setup-0.1.38.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.38.exe.blockmap",
+    "size": 123581,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/Fabro-Setup-0.1.38.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 795,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/latest.yml"
+   },
+   {
+    "name": "sd-bin-Darwin-x86_64.zip",
+    "size": 33359819,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.38/sd-bin-Darwin-x86_64.zip"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.37",
   "date": "2026-10-24T12:11:27Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.37",

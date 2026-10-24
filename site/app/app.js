@@ -113,7 +113,8 @@
   function scheduleRetry() {
     clearTimeout(retryT);
     if (document.hidden) return;
-    const ms = [4000, 8000, 15000, 30000, 60000][Math.min(retryN++, 4)];
+    // a message waiting to go: keep trying often, so it leaves soon after the computer is back
+    const ms = Math.min([4000, 8000, 15000, 30000, 60000][Math.min(retryN++, 4)], S.outbox && S.outbox.length ? 6000 : Infinity);
     retryT = setTimeout(() => connect(), ms);
   }
   function dropped() {

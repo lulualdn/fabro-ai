@@ -239,7 +239,11 @@ function y4m(rgba, w, h, file) {
   await phone.screenshot({ path: path.join(shots, 'phone-queued.png') });
   step('queued while the computer is away');
   await win.evaluate(() => api.anywhere.configure({ enabled: true }));
-  await phone.waitForFunction(() => { const c = window.__fa.S.convs.get(window.__fa.S.cur); if (!c) return false; const p = window.FabroAnywhere.pathOf(c); const l = p[p.length - 1]; return p.length >= 8 && l.role === 'assistant' && !l.pending && /Paris/.test(l.content); }, null, { timeout: 90000 });
+  await phone.waitForFunction(() => { const c = window.__fa.S.convs.get(window.__fa.S.cur); if (!c) return false; const p = window.FabroAnywhere.pathOf(c); const l = p[p.length - 1]; return p.length >= 8 && l.role === 'assistant' && !l.pending && /Paris/.test(l.content); }, null, { timeout: 90000 }).catch(async (e) => {
+    await phone.screenshot({ path: path.join(shots, 'fail-phone-back.png') }).catch(() => {});
+    console.log('phone state:', await phone.evaluate(() => { const S = window.__fa.S, c = S.convs.get(S.cur); const p = c ? window.FabroAnywhere.pathOf(c) : []; return JSON.stringify({ conn: S.conn, len: p.length, tail: p.slice(-3).map((m) => ({ role: m.role, pending: m.pending, queued: m.queued, content: String(m.content || '').slice(0, 120) })) }); }).catch((x) => x.message));
+    throw e;
+  });
   step('sent and answered when the computer came back');
 
   // ── revoke from the computer ──

@@ -164,7 +164,7 @@ async function bake(html) {
 }
 
 // Offline part, every time the page is shown or exported: kit CSS + the icons it uses + kit runtime.
-function inject(html, { force = false, mode = null, theme = null } = {}) {
+function inject(html, { force = false, mode = null, theme = null, markOnly = false } = {}) {
   let s = String(html || '');
   if (/id=["']fabro-kit["']/.test(s)) return s;
   if (!force && !usesKit(s)) return s;
@@ -176,6 +176,7 @@ function inject(html, { force = false, mode = null, theme = null } = {}) {
   if (mode === 'deck' && !/<body[^>]*class\s*=\s*["'][^"']*\bdeck\b/i.test(s)) s = s.replace(/<body([^>]*)>/i, (m, a) => /class\s*=/.test(a) ? `<body${a.replace(/class\s*=\s*(["'])/, 'class=$1deck ')}>` : `<body class="deck"${a}>`);
   if (!/data-theme\s*=/.test(s)) s = s.replace(/<body([^>]*)>/i, `<body$1 data-theme="${THEMES.includes(theme) ? theme : 'fabro'}">`);
   if (!/<meta[^>]+viewport/i.test(s)) s = s.replace(/<head([^>]*)>/i, '<head$1><meta name="viewport" content="width=device-width, initial-scale=1">');
+  if (markOnly) return s; // source kept clean (classes/theme only): CSS + runtime are added when the page is shown or printed
   const icons = {}; for (const n of iconNames(s)) { const d = iconFor(n); if (d) icons[n] = d; }
   const head = `<style id="fabro-kit">${CSS}</style>`;
   const tail = `<script id="fabro-kit-js">window.__FK_ICONS=${JSON.stringify(icons).replace(/</g, '\\u003c')};${JS}</script>`;

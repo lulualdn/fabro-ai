@@ -64,7 +64,7 @@ fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpda
   console.log('• browser tools with selectors, wait, element screenshot, image download: ok');
   // files: ingest (copy + first look), convert, find text, edit keeping the layout, look at one page
   const ing = await app.evaluate(async (_e, { root, file }) => process.mainModule.require(root + '/src/main/agent/filetools.js').ingest({ path: file }), { root: path.join(__dirname, '..'), file });
-  assert.ok(/Workspace/.test(ing.path) && ing.pages === 2 && /Rapport annuel 2026/.test(ing.text) && /^data:image\/png/.test(ing.thumb), 'attachment ingested with text and thumbnail');
+  assert.ok(/Workspace/.test(ing.path) && ing.pages === 2 && /Rapport\s+annuel 2026/.test(ing.text) && /^data:image\/png/.test(ing.thumb), 'attachment ingested with text and thumbnail');
   const conv = await run('convert_file', { path: ing.path, to: 'images', pages: [2] });
   assert.match(conv.content, /page-002\.png/);
   const found = await run('pdf_find_text', { path: ing.path, text: '14000' });

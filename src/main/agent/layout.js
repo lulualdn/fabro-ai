@@ -16,11 +16,11 @@ const safeName = (s) => String(s || 'Document').replace(/[\\/:*?"<>|]+/g, '-').t
 // document the AI wrote is used as is (with the kit if it asks for it).
 function pageHtml({ title, html, css = '', size = 'A4', landscape = false, margin = 15, theme = 'fabro' }) {
   const kit = require('../kit');
-  if (/<html[\s>]/i.test(html)) return kit.inject(html, { mode: /class\s*=\s*["'][^"']*\b(doc|deck)\b/.test(html) ? null : 'doc' });
+  if (/<html[\s>]/i.test(html)) return kit.inject(html, { markOnly: true, mode: /class\s*=\s*["'][^"']*\b(doc|deck)\b/.test(html) ? null : 'doc' });
   const esc = (x) => String(x || '').replace(/</g, '&lt;');
-  if (size === 'slides') return kit.inject(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>${css ? `<style>${css}</style>` : ''}</head><body class="deck" data-theme="${esc(theme)}">${html}</body></html>`, { force: true, theme });
+  if (size === 'slides') return kit.inject(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>${css ? `\n<style>\n${css}\n</style>` : ''}\n</head>\n<body class="deck" data-theme="${esc(theme)}">\n${html}\n</body>\n</html>`, { force: true, theme, markOnly: true });
   const pageSize = { Letter: 'letter', Legal: 'legal' }[size] || size;
-  return kit.inject(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>${css ? `<style>${css}</style>` : ''}</head><body class="doc${landscape ? ' landscape' : ''}" data-theme="${esc(theme)}" data-page="${esc(pageSize)}">${html}</body></html>`, { force: true, theme });
+  return kit.inject(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>${css ? `\n<style>\n${css}\n</style>` : ''}\n</head>\n<body class="doc${landscape ? ' landscape' : ''}" data-theme="${esc(theme)}" data-page="${esc(pageSize)}">\n${html}\n</body>\n</html>`, { force: true, theme, markOnly: true });
 }
 function legacyPageHtml({ title, html, css = '', size = 'A4', landscape = false, margin = 15 }) {
   if (/<html[\s>]/i.test(html)) return html;
@@ -45,6 +45,7 @@ ${css}
 
 // Print HTML to PDF and collect layout problems seen in the page itself.
 async function printHtml(html, { landscape = false } = {}) {
+  html = require('../kit').inject(html); // the stored source stays clean; the kit is added for printing
   const w = new BrowserWindow({ show: false, width: 1000, height: 1400, webPreferences: { sandbox: true, javascript: true } });
   try {
     await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
