@@ -48,7 +48,7 @@ const step = (s) => console.log('✓', s); const wait = (ms) => new Promise((r) 
     // ask the AI about a selection
     await win.click('[data-action=fe-start]'); const ef2 = await (await win.waitForSelector('#fe-frame')).contentFrame(); await ef2.waitForSelector('p.lead[data-fe]');
     await ef2.click('p.lead'); await win.waitForSelector('[data-action=fe-ask]:not([disabled])'); await win.click('[data-action=fe-ask]');
-    await win.waitForFunction(() => /Un sous-titre/.test(($('#prompt') || {}).value || ''), null, { timeout: 8000 });
+    await win.waitForFunction(() => /art-ui1/.test((document.querySelector('#prompt') || {}).value || '') && /<(h1|p)\b/.test(document.querySelector('#prompt').value), null, { timeout: 8000 });
     step('ask the AI: the selected element is put in the message, with the artifact id');
     assert.deepStrictEqual(errs, []);
     console.log('office-ui-e2e: all passed →', shots);
