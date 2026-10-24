@@ -67,7 +67,7 @@ agent.register({
 
 // Text runs of a PDF with their position (PDF points, origin bottom-left) — pdf.js.
 async function textRuns(file) {
-  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const { getDocument } = await require('../pdfjs').load();
   const doc = await getDocument({ data: new Uint8Array(fs.readFileSync(file)), disableFontFace: true, isEvalSupported: false, verbosity: 0 }).promise;
   const out = [];
   for (let p = 1; p <= doc.numPages; p++) {

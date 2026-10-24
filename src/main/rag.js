@@ -18,7 +18,7 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|js|mjs|cjs|ts|tsx|jsx|py|lua|luau|html?|css|scss|xml|ya?ml|toml|ini|cfg|conf|sh|bat|ps1|c|h|cpp|hpp|cs|java|kt|go|rs|php|rb|sql|swift|log|vue|svelte|tex|rst|srt|vtt)$/i;
 async function extract(file) {
   if (/\.pdf$/i.test(file)) {
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const { getDocument } = await require('./pdfjs').load();
     const doc = await getDocument({ data: new Uint8Array(await fsp.readFile(file)), disableFontFace: true, isEvalSupported: false, verbosity: 0 }).promise;
     const pages = [];
     for (let i = 1; i <= Math.min(doc.numPages, 2000); i++) {
