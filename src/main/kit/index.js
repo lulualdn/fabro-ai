@@ -164,8 +164,15 @@ async function bake(html) {
 }
 
 // Offline part, every time the page is shown or exported: kit CSS + the icons it uses + kit runtime.
+// Pictures Fabro saved itself (video frames): fabro-img:<id> → the picture, inline, wherever the page goes.
+function resolveImgs(s) {
+  if (!/fabro-img:/.test(s)) return s;
+  let dir; try { dir = path.join(require('electron').app.getPath('userData'), 'webimg'); } catch { return s; }
+  return s.replace(/fabro-img:([a-f0-9]{8,40})/g, (m, id) => { try { return 'data:image/jpeg;base64,' + fs.readFileSync(path.join(dir, id + '.jpg')).toString('base64'); } catch { return m; } });
+}
 function inject(html, { force = false, mode = null, theme = null, markOnly = false } = {}) {
   let s = String(html || '');
+  if (!markOnly) s = resolveImgs(s);
   if (/id=["']fabro-kit["']/.test(s)) return s;
   if (!force && !usesKit(s)) return s;
   read();
@@ -185,4 +192,4 @@ function inject(html, { force = false, mode = null, theme = null, markOnly = fal
   return s;
 }
 
-module.exports = { inject, bake, usesKit, searchPhotos, fetchIcons, iconNames, THEMES, ALIAS, _read: () => { read(); return { CSS, JS, ICONS }; } };
+module.exports = { inject, resolveImgs, bake, usesKit, searchPhotos, fetchIcons, iconNames, THEMES, ALIAS, _read: () => { read(); return { CSS, JS, ICONS }; } };

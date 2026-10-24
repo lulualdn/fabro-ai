@@ -3,6 +3,9 @@
 // The model gets numbered URLs plus a contact sheet so it can keep only the right ones (e.g. game screenshots,
 // not real-life photos) before putting them in an artifact.
 const agent = require('./index');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const get = (url, opts = {}) => fetch(url, { ...opts, headers: { 'User-Agent': UA, 'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8', ...(opts.headers || {}) }, signal: AbortSignal.timeout(opts.timeout || 12000) });
@@ -41,6 +44,48 @@ async function ytSearch(q, nVideos) {
   while ((m = re.exec(html)) && vids.length < nVideos) if (!vids.some((v) => v.id === m[1])) { let t = m[2]; try { t = JSON.parse(`"${t}"`); } catch {} vids.push({ id: m[1], title: t }); }
   return vids;
 }
+
+// Any moment of a video: YouTube's storyboards (the preview strip shown when hovering the progress bar) are
+// sprite sheets covering the whole video; one tile = one moment (up to 320×180).
+const sbCache = new Map();
+async function storyboard(id) {
+  if (sbCache.has(id)) return sbCache.get(id);
+  let spec = null, len = 0, title = '';
+  try {
+    const h = await text(`https://www.youtube.com/watch?v=${id}&hl=en`);
+    spec = JSON.parse(`"${(h.match(/"playerStoryboardSpecRenderer":\{"spec":"((?:[^"\\]|\\.)*)"/) || [])[1] || ''}"`) || null;
+    len = +((h.match(/"lengthSeconds":"(\d+)"/) || [])[1] || 0); title = unesc((h.match(/<title>([^<]*)<\/title>/) || [])[1] || '').replace(/ - YouTube$/, '');
+  } catch {}
+  if (!spec) {
+    try {
+      const r = await get('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ videoId: id, context: { client: { clientName: 'WEB', clientVersion: '2.20240726.00.00', hl: 'en' } } }) });
+      const j = await r.json(); spec = (((j.storyboards || {}).playerStoryboardSpecRenderer) || {}).spec || null; len = +((j.videoDetails || {}).lengthSeconds || 0); title = (j.videoDetails || {}).title || '';
+    } catch {}
+  }
+  if (!spec) { sbCache.set(id, null); return null; }
+  const [base, ...lv] = spec.split('|');
+  const levels = lv.map((l, i) => { const [w, h, count, cols, rows, , name, sigh] = l.split('#'); return { i, w: +w, h: +h, count: +count, cols: +cols, rows: +rows, name, sigh }; }).filter((l) => l.count > 0 && l.cols > 0);
+  const best = levels.sort((a, b) => b.w - a.w)[0];
+  const sb = best ? { ...best, base, len, title } : null;
+  sbCache.set(id, sb); return sb;
+}
+const sheetCache = new Map();
+async function frameAt(id, pct) {
+  const sb = await storyboard(id); if (!sb) return null;
+  const k = Math.max(0, Math.min(sb.count - 1, Math.round((pct / 100) * (sb.count - 1))));
+  const per = sb.cols * sb.rows, sheetN = Math.floor(k / per), pos = k % per;
+  const url = sb.base.replace('$L', sb.i).replace('$N', sb.name.replace('$M', sheetN)) + (sb.sigh ? `${sb.base.includes('?') ? '&' : '?'}sigh=${encodeURIComponent(sb.sigh)}` : '');
+  let im = sheetCache.get(url);
+  if (!im) { const p = await probe(url); if (!p || !p.im) return null; im = p.im; sheetCache.set(url, im); if (sheetCache.size > 40) sheetCache.delete(sheetCache.keys().next().value); }
+  const size = im.getSize(), tw = Math.floor(size.width / sb.cols), th = Math.floor(size.height / sb.rows);
+  const crop = im.crop({ x: (pos % sb.cols) * tw, y: Math.floor(pos / sb.cols) * th, width: tw, height: th });
+  const sec = sb.len ? Math.round((pct / 100) * sb.len) : null;
+  return { url: saveImg(crop.toJPEG(90)), im: crop, w: tw, h: th, title: `${sb.title || 'video'} — ${pct}%${sec != null ? ` (${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')})` : ''}`, page: `https://www.youtube.com/watch?v=${id}${sec ? `&t=${sec}s` : ''}`, source: 'YouTube', label: `${pct}%` };
+}
+// Pictures Fabro made itself (video frames) live on disk; artifacts point at them as fabro-img:<id>, and the kit
+// swaps that for the picture when the page is shown, printed or exported.
+function imgDir() { const d = path.join(require('electron').app.getPath('userData'), 'webimg'); fs.mkdirSync(d, { recursive: true }); return d; }
+function saveImg(buf) { const id = crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16); const f = path.join(imgDir(), id + '.jpg'); if (!fs.existsSync(f)) fs.writeFileSync(f, buf); return `fabro-img:${id}`; }
 
 async function pageImages(url, n) {
   const html = await text(url);
@@ -91,8 +136,24 @@ async function sheet(items) {
   } finally { w.destroy(); }
 }
 
-async function find({ query, url, source = 'all', count = 8 }) {
+async function videoFrames({ query, url, at, block }) {
+  let id = url && ytId(url);
+  if (!id && query) { const v = await ytSearch(query, 1).catch(() => []); id = v[0] && v[0].id; }
+  if (!id) return { list: [], error: 'No YouTube video: give a video url (or a query that finds one).' };
+  const pcts = [...new Set((Array.isArray(at) && at.length ? at : Array.from({ length: 10 }, (_, j) => (Math.max(1, Math.min(10, block | 0 || 1)) - 1) * 10 + j)).map((p) => Math.max(0, Math.min(100, +p || 0))))].slice(0, 20);
+  const list = [];
+  for (const p of pcts) { const f = await frameAt(id, p).catch(() => null); if (f && !list.some((x) => x.url === f.url)) list.push(f); } // short videos: neighbouring % can be the same frame
+  if (!list.length) return { list: [], error: 'YouTube did not give this video’s frames (blocked or unavailable). The cover and the 25/50/75% pictures are still available without at/block.' };
+  return { list, sb: sbCache.get(id) };
+}
+
+async function find({ query, url, source = 'all', count = 8, at, block }) {
   const n = Math.max(1, Math.min(16, count | 0 || 8));
+  if ((Array.isArray(at) && at.length) || block) {
+    const r = await videoFrames({ query, url, at, block });
+    let image = null; try { if (r.list.length) image = await sheet(r.list.map((x) => ({ source: x.label, data: x.im.resize({ width: 320 }).toDataURL() }))); } catch {}
+    return { list: r.list.map(({ im, ...x }) => x), image, error: r.error, sb: r.sb };
+  }
   let cands = [];
   if (url) {
     const id = ytId(url);
@@ -126,7 +187,7 @@ async function find({ query, url, source = 'all', count = 8 }) {
 agent.register({
   name: 'web_images', category: 'design', risk: 'net', core: true,
   keywords: ['image', 'photo', 'capture', 'screenshot', 'youtube', 'vidéo', 'video', 'jeu', 'game', 'logo', 'affiche', 'poster', 'illustr'],
-  description: 'Real pictures of a real subject from the web: an image search (like Google Images), frames of YouTube videos (search or one video URL: cover + frames at 25/50/75%), all pictures of a web page, or one image URL. Returns numbered, checked URLs + a contact sheet to look at. Use it on your own initiative whenever a page/document is about a specific game, product, place, person, brand, film… — and only keep the pictures that really show it.',
+  description: 'Real pictures of a real subject from the web: an image search (like Google Images), frames of YouTube videos (search or one video URL: cover + frames at 25/50/75%; or any moment with at=[%] or block=1..10 of 10 frames), all pictures of a web page, or one image URL. Returns numbered, checked URLs + a contact sheet to look at. Use it on your own initiative whenever a page/document is about a specific game, product, place, person, brand, film… — and only keep the pictures that really show it.',
   parameters: {
     type: 'object',
     properties: {
@@ -134,12 +195,16 @@ agent.register({
       url: { type: 'string', description: 'Optional: a YouTube video, a web page or an image URL to take pictures from' },
       source: { type: 'string', enum: ['all', 'web', 'youtube'], description: 'Default all. youtube = frames of matching videos (good for games, events, tutorials)' },
       count: { type: 'number', description: 'How many pictures (default 8, max 16)' },
+      at: { type: 'array', items: { type: 'number' }, description: 'Frames of ONE YouTube video (url, or the first video found for query) at these positions in % of the video, e.g. [5, 40, 72] (max 20)' },
+      block: { type: 'number', description: 'Or a block of 10 frames of ONE video: 1 = 0-9%, 2 = 10-19% … 10 = 90-99%. For a long, detailed video you can go through all 10 blocks (100 frames) to find the best moments.' },
     },
   },
   summarize: (a) => a.url || `${a.query}${a.source && a.source !== 'all' ? ' · ' + a.source : ''}`,
   async run(a) {
     if (!a.query && !a.url) return { error: 'Give a query or a url.' };
-    const { list, image } = await find(a);
+    const { list, image, error, sb } = await find(a);
+    if (error && !list.length) return { error };
+    if (sb) return { content: `${list.length} frame(s) of “${sb.title || 'the video'}”${sb.len ? ` (${Math.floor(sb.len / 60)} min ${sb.len % 60} s)` : ''}, ${list[0].w}×${list[0].h} each (small: fine for galleries, cards and thumbnails; for a big hero prefer the cover or 25/50/75% pictures, 1280×720):\n${list.map((p, i) => `${i + 1}. ${p.url} · ${p.title.split(' — ').pop()}`).join('\n')}\n\nLook at the contact sheet, keep the best moments, use them as <img src="fabro-img:…" alt="…" data-credit="YouTube"> (exact URLs). Other moments: at=[…] or another block.`, image: image || undefined };
     if (!list.length) return { content: `No picture found for ${a.url || `“${a.query}”`} (offline, or nothing usable). Try other words, source "youtube", or a page URL you found with web search.` };
     const lines = list.map((p, i) => `${i + 1}. ${p.url}\n   ${p.w ? `${p.w}×${p.h} · ` : ''}${p.source || ''}${p.title ? ` · “${String(p.title).slice(0, 80)}”` : ''}${p.page && p.page !== p.url ? `\n   from: ${p.page}` : ''}`);
     return {
@@ -149,4 +214,4 @@ agent.register({
   },
 });
 
-module.exports = { find, ytFrames, pageImages };
+module.exports = { find, ytFrames, pageImages, storyboard, frameAt, imgDir, _sb: sbCache };

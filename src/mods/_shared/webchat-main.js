@@ -200,7 +200,8 @@ module.exports = function create(cfg) {
       fabro.handle('browsers', () => fabro.web.browsers());
       // import the site's cookies from one of the user's browsers → signed in without the login page
       fabro.handle('importCookies', async (o) => {
-        const r = await fabro.web.importCookies({ browser: o.browser, profile: o.profile, domains: cfg.cookieDomains });
+        const r = await fabro.web.importCookies({ browser: o.browser, profile: o.profile, domains: cfg.cookieDomains, close: !!o.close });
+        if (r && r.locked) return { ...r, connected: false };
         const ok = await cfg.session(fabro);
         if (ok) { await fabro.settings.set({ connected: true }); fabro.emit('login-done', {}); sync(); }
         return { ...r, connected: ok }; // r.appBound > 0 → Chrome App-Bound Encryption blocked it

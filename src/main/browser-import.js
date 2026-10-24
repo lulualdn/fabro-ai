@@ -88,7 +88,14 @@ function list() {
 
 function openCopy(src) {
   const tmp = path.join(os.tmpdir(), 'fabro-ck-' + crypto.randomBytes(6).toString('hex') + '.sqlite');
-  fs.copyFileSync(src, tmp);
+  try { fs.copyFileSync(src, tmp); } catch (e) {
+    if (!isWin || !/EBUSY|EPERM|EACCES/.test(e.code || e.message)) throw e;
+    // the browser is running and holds the file: try a shared read, else say so (the user can close it)
+    const ps = `$i=[IO.File]::Open('${src.replace(/'/g, "''")}','Open','Read','ReadWrite,Delete');$o=[IO.File]::Create('${tmp.replace(/'/g, "''")}');$i.CopyTo($o);$o.Close();$i.Close()`;
+    try { execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 15000, windowsHide: true }); } catch {
+      const err = new Error('BROWSER_LOCKED'); err.code = 'BROWSER_LOCKED'; throw err;
+    }
+  }
   for (const ext of ['-wal', '-shm']) if (exists(src + ext)) safe(() => fs.copyFileSync(src + ext, tmp + ext));
   const db = new DatabaseSync(tmp, { readOnly: true });
   return { db, cleanup: () => { safe(() => db.close()); for (const s of ['', '-wal', '-shm']) safe(() => fs.rmSync(tmp + s, { force: true })); } };
@@ -208,8 +215,18 @@ function readProfile({ browser, profile, domains }) {
 }
 
 // Read cookies and set them into an Electron session. Returns { set, total }.
-async function importInto(ses, { browser, profile, domains }) {
-  const cookies = module.exports.readProfile({ browser, profile, domains }); // module.exports so tests can override
+// Executables of each browser, to close it when it locks its cookies (only when the user asks).
+const EXES = { chrome: ['chrome.exe'], chromium: ['chromium.exe'], edge: ['msedge.exe'], brave: ['brave.exe'], vivaldi: ['vivaldi.exe'], opera: ['opera.exe'], 'opera-gx': ['opera.exe'] };
+async function closeBrowser(browser) {
+  const exes = EXES[browser]; if (!isWin || !exes) return;
+  for (const x of exes) { try { execFileSync('taskkill.exe', ['/IM', x, '/T', '/F'], { timeout: 10000, windowsHide: true }); } catch {} }
+  await new Promise((r) => setTimeout(r, 1500)); // let Windows release the files
+}
+async function importInto(ses, { browser, profile, domains, close = false }) {
+  if (close) await closeBrowser(browser);
+  let cookies;
+  try { cookies = module.exports.readProfile({ browser, profile, domains }); } // module.exports so tests can override
+  catch (e) { if (e.code === 'BROWSER_LOCKED') { const f = families().find((x) => x.id === browser); return { set: 0, total: 0, locked: true, name: f ? f.name : browser }; } throw e; }
   let set = 0;
   for (const c of cookies) {
     if (!c.value) continue;

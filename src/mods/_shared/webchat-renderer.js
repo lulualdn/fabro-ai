@@ -4,13 +4,13 @@ window.FabroWebChat = window.FabroWebChat || function FabroWebChat(fabro, cfg) {
     en: {
       desc: `Ask ${cfg.name} (opens ${cfg.site})`, signIn: `Sign in to ${cfg.name}`, connected: `${cfg.name} is connected. Type ${cfg.command} followed by your message.`, needLogin: `Sign in to ${cfg.name} first.`,
       setupTitle: `Connect ${cfg.name}`, setupBody: `Open ${cfg.site} inside Fabro and sign in, or import your sign-in from a browser where you are already signed in.`,
-      impFrom: 'Import from a browser', signInBtn: 'Sign in in Fabro', importing: 'Importing…', imported: `Imported — ${cfg.name} is connected.`, importNone: `No sign-in for ${cfg.site} found in that browser. Open it there, or sign in in Fabro.`, importAppBound: `This Chrome uses App-Bound Encryption, which locks its cookies to Chrome itself. Import from Firefox or Opera, or sign in in Fabro.`, importErr: 'Import failed: {e}', noBrowsers: 'No browser with a saved sign-in was found.', profile: 'Profile', cancel: 'Cancel',
+      impFrom: 'Import from a browser', signInBtn: 'Sign in in Fabro', importing: 'Importing…', imported: `Imported — ${cfg.name} is connected.`, importNone: `No sign-in for ${cfg.site} found in that browser. Open it there, or sign in in Fabro.`, importAppBound: `This Chrome uses App-Bound Encryption, which locks its cookies to Chrome itself. Import from Firefox or Opera, or sign in in Fabro.`, importErr: 'Import failed: {e}', lockedAsk: '{b} is open and keeps its cookies locked. Close {b} now and import? (unsaved work in {b} may be lost)', locked: 'Close {b}, then import again.', noBrowsers: 'No browser with a saved sign-in was found.', profile: 'Profile', cancel: 'Cancel',
       blockTitle: `${cfg.name} won’t sign in inside an app`, blockBody: `Google blocks sign-in from browsers embedded in another app — that’s their security policy, not something to work around. Sign in to ${cfg.site} in your normal browser, then bring that session into Fabro below.`, blockOpen: 'Open in my browser', blockThen: 'Then, once you’re signed in there, import it:', blockWin: 'On Windows, Chrome locks its own cookies (App-Bound Encryption) — sign in with Firefox or Opera to import.',
     },
     fr: {
       desc: `Demander à ${cfg.name} (ouvre ${cfg.site})`, signIn: `Connexion à ${cfg.name}`, connected: `${cfg.name} est connecté. Tapez ${cfg.command} suivi de votre message.`, needLogin: `Connectez-vous d’abord à ${cfg.name}.`,
       setupTitle: `Connecter ${cfg.name}`, setupBody: `Ouvrez ${cfg.site} dans Fabro et connectez-vous, ou importez votre connexion depuis un navigateur où vous êtes déjà connecté.`,
-      impFrom: 'Importer depuis un navigateur', signInBtn: 'Se connecter dans Fabro', importing: 'Import…', imported: `Importé — ${cfg.name} est connecté.`, importNone: `Aucune connexion à ${cfg.site} trouvée dans ce navigateur. Ouvrez-le là-bas, ou connectez-vous dans Fabro.`, importAppBound: `Ce Chrome utilise le chiffrement App-Bound, qui verrouille ses cookies à Chrome. Importez depuis Firefox ou Opera, ou connectez-vous dans Fabro.`, importErr: 'Échec de l’import : {e}', noBrowsers: 'Aucun navigateur avec une connexion enregistrée n’a été trouvé.', profile: 'Profil', cancel: 'Annuler',
+      impFrom: 'Importer depuis un navigateur', signInBtn: 'Se connecter dans Fabro', importing: 'Import…', imported: `Importé — ${cfg.name} est connecté.`, importNone: `Aucune connexion à ${cfg.site} trouvée dans ce navigateur. Ouvrez-le là-bas, ou connectez-vous dans Fabro.`, importAppBound: `Ce Chrome utilise le chiffrement App-Bound, qui verrouille ses cookies à Chrome. Importez depuis Firefox ou Opera, ou connectez-vous dans Fabro.`, importErr: 'Échec de l’import : {e}', lockedAsk: '{b} est ouvert et verrouille ses cookies. Fermer {b} maintenant et importer ? (ce qui n’est pas enregistré dans {b} peut être perdu)', locked: 'Fermez {b}, puis relancez l’import.', noBrowsers: 'Aucun navigateur avec une connexion enregistrée n’a été trouvé.', profile: 'Profil', cancel: 'Annuler',
       blockTitle: `${cfg.name} refuse la connexion dans une app`, blockBody: `Google bloque la connexion depuis les navigateurs intégrés à une autre application — c’est sa politique de sécurité, pas quelque chose à contourner. Connectez-vous à ${cfg.site} dans votre navigateur habituel, puis récupérez cette session dans Fabro ci-dessous.`, blockOpen: 'Ouvrir dans mon navigateur', blockThen: 'Ensuite, une fois connecté là-bas, importez-la :', blockWin: 'Sur Windows, Chrome verrouille ses propres cookies (chiffrement App-Bound) — connectez-vous avec Firefox ou Opera pour pouvoir importer.',
     },
   };
@@ -79,9 +79,10 @@ window.FabroWebChat = window.FabroWebChat || function FabroWebChat(fabro, cfg) {
     const doImport = async (browser, profile) => {
       render(browser);
       try {
-        const r = await fabro.call('importCookies', { browser, profile });
+        let r = await fabro.call('importCookies', { browser, profile });
+        if (r && r.locked) { if (!confirm(tr('lockedAsk', { b: r.name }))) { render(false); fabro.toast(tr('locked', { b: r.name }), 'err'); return; } r = await fabro.call('importCookies', { browser, profile, close: true }); }
         if (r && r.connected) { root.innerHTML = ''; fabro.toast(tr('imported')); fabro.view.close(); }
-        else { render(false); fabro.toast(tr(r && r.appBound ? 'importAppBound' : 'importNone'), 'err'); }
+        else { render(false); fabro.toast(r && r.locked ? tr('locked', { b: r.name }) : tr(r && r.appBound ? 'importAppBound' : 'importNone'), 'err'); }
       } catch (e) { render(false); fabro.toast(tr('importErr', { e: String(e && e.message || e) }), 'err'); }
     };
     render(false);
@@ -113,9 +114,10 @@ window.FabroWebChat = window.FabroWebChat || function FabroWebChat(fabro, cfg) {
       root.querySelectorAll('[data-wc-imp]').forEach((b) => b.onclick = async () => {
         render(b.dataset.wcImp);
         try {
-          const r = await fabro.call('importCookies', { browser: b.dataset.wcImp, profile: sel[b.dataset.wcImp] });
+          let r = await fabro.call('importCookies', { browser: b.dataset.wcImp, profile: sel[b.dataset.wcImp] });
+          if (r && r.locked) { if (!confirm(tr('lockedAsk', { b: r.name }))) { render(false); fabro.toast(tr('locked', { b: r.name }), 'err'); return; } r = await fabro.call('importCookies', { browser: b.dataset.wcImp, profile: sel[b.dataset.wcImp], close: true }); }
           if (r && r.connected) { root.innerHTML = ''; fabro.toast(tr('imported')); fabro.view.close(); }
-          else { render(false); fabro.toast(tr(r && r.appBound ? 'importAppBound' : 'importNone'), 'err'); }
+          else { render(false); fabro.toast(r && r.locked ? tr('locked', { b: r.name }) : tr(r && r.appBound ? 'importAppBound' : 'importNone'), 'err'); }
         } catch (e) { render(false); fabro.toast(tr('importErr', { e: String(e && e.message || e) }), 'err'); }
       });
     };

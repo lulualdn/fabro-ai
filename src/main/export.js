@@ -41,7 +41,7 @@ function setPreview(html) { const token = Date.now().toString(36) + Math.random(
 async function toPdf(html, { landscape = false } = {}) {
   const kit = require('./kit');
   const usesKit = kit.usesKit(html) || /id=["']fabro-kit["']/.test(html);
-  if (usesKit) html = kit.inject(html);
+  if (usesKit) html = kit.inject(html); else html = kit.resolveImgs(html);
   const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: true, offscreen: false } });
   try {
     const tmp = require('path').join(require('os').tmpdir(), `fabro-pdf-${process.pid}-${Date.now().toString(36)}.html`);
