@@ -348,7 +348,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   step('plus menu'); await win.screenshot({ path: `${shots}/21-plus.png` });
   await win.keyboard.press('Escape');
   // personalization
-  await win.click('.nav-item[data-mode=custom]');
+  await win.click('[data-action=user-menu]'); await win.waitForSelector('.popover'); await win.click('.pm-item[data-mode=custom]');
   await win.waitForSelector('.custom-page');
   await win.fill('.mem-add input', 'Préfère les réponses en français');
   await win.click('.mem-add button');
@@ -549,7 +549,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   }
   const codeRecents = await win.evaluate(() => S.convs.filter((c) => c.codeRoot).length);
   assert.strictEqual(codeRecents, 1, 'code session saved with its project');
-  await win.click('[data-action=mode][data-mode=chat]');
+  await win.click('[data-action=home]');
   await win.waitForTimeout(300);
 
   // MCP: a local stdio server, its tools become agent tools

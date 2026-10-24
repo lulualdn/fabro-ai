@@ -5,6 +5,7 @@
    (fabro.override), and add CSS. See MODDING.md. */
 
 Object.assign(I18N.en, {
+  apps: 'Apps', appsGet: 'Get apps', appsEmpty: 'No apps yet', chats: 'Chats', mods_web: 'Web assistants',
   tab_mods: 'Mods', mods_intro: 'Mods change how Fabro looks and works: new commands, screens, history sources, anything. They run with full access to the app, so only install mods you trust.',
   mods_builtin: 'Built-in', mods_install: 'Install', mods_uninstall: 'Uninstall', mods_uninstallConfirm: 'Uninstall "{n}"? Its data and its sign-in are removed.',
   mods_fromFolder: 'Add from a folder', mods_fromZip: 'Add a .zip', mods_folder: 'Mods folder', mods_docs: 'How to make a mod',
@@ -15,6 +16,7 @@ Object.assign(I18N.en, {
   drop_here: 'Drop files to attach them',
 });
 Object.assign(I18N.fr, {
+  apps: 'Apps', appsGet: 'Ajouter des apps', appsEmpty: 'Aucune app', chats: 'Conversations', mods_web: 'Assistants web',
   tab_mods: 'Mods', mods_intro: 'Les mods changent l’apparence et le fonctionnement de Fabro : commandes, écrans, sources d’historique, tout. Ils ont un accès complet à l’app : n’installez que des mods de confiance.',
   mods_builtin: 'Intégré', mods_install: 'Installer', mods_uninstall: 'Désinstaller', mods_uninstallConfirm: 'Désinstaller « {n} » ? Ses données et sa connexion sont supprimées.',
   mods_fromFolder: 'Ajouter un dossier', mods_fromZip: 'Ajouter un .zip', mods_folder: 'Dossier des mods', mods_docs: 'Créer un mod',
@@ -26,7 +28,7 @@ Object.assign(I18N.fr, {
 });
 
 // ───────────────────────────── The fabro API ─────────────────────────────
-const MODS = { commands: new Map(), sources: new Map(), hooks: new Map(), listeners: [], list: [] };
+const MODS = { commands: new Map(), sources: new Map(), hooks: new Map(), listeners: [], list: [], apps: new Map(), models: new Map() };
 const fabro = window.fabro = {
   version: 1,
   get S() { return S; },
@@ -53,6 +55,19 @@ const fabro = window.fabro = {
   },
   history: { register(id, src) { src.id = id; MODS.sources.set(id, src); renderRecents(); }, refresh: () => renderRecents() },
   view: { open: (o) => openModView(o), close: () => closeModView(), get current() { return S.modView; } },
+  // Fabro apps: a full-screen tool that gets its own entry in the sidebar's "Apps" section.
+  // app = { id, name, icon (name|dataURL), color?, mount(el), unmount?(), badge?() }
+  apps: {
+    register(app) { MODS.apps.set(app.id, app); renderSidebar(); return () => { MODS.apps.delete(app.id); if (S.mode === 'app:' + app.id) newChat(); else renderSidebar(); }; },
+    open(id) { openApp(id); },
+    list: () => [...MODS.apps.values()],
+  },
+  // A chat model that routes to something other than the local engine (the Claude/ChatGPT/Gemini mods).
+  // m = { id, label, sub, icon, color?, connected():bool, run(text) }
+  models: {
+    register(m) { MODS.models.set(m.id, m); if (typeof renderComposer === 'function') refreshComposer(); return () => MODS.models.delete(m.id); },
+    list: () => [...MODS.models.values()],
+  },
   forMod(id) {
     return {
       id, ...this, get S() { return S; },
@@ -60,6 +75,8 @@ const fabro = window.fabro = {
       on: (type, fn) => { MODS.listeners.push({ id, type, fn }); },
       commands: { ...this.commands, register: (n, c) => { c.mod = id; return fabro.commands.register(n, c); } },
       history: { ...this.history, register: (src) => fabro.history.register(id, Object.assign(src, { mod: id })) },
+      apps: { ...this.apps, register: (a) => fabro.apps.register(Object.assign(a, { mod: id })) },
+      models: { ...this.models, register: (m) => fabro.models.register(Object.assign(m, { mod: id })) },
       view: { open: (o) => openModView({ mod: id, ...o }), close: () => { if (S.modView && S.modView.mod === id) closeModView(); }, get current() { return S.modView && S.modView.mod === id ? S.modView : null; } },
     };
   },
@@ -142,7 +159,7 @@ fabro.override('renderRecents', (orig) => function () {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   el.innerHTML = `
     ${pinned.length ? `<div class="sb-section"><span>${esc(t('pinned'))}</span></div>${pinned.map(recentItem).join('')}` : ''}
-    ${rest.length ? `<div class="sb-section"><span>${esc(t('recents'))}</span></div>${rest.map((x, i) => (x._ext ? extItem(x, i) : recentItem(x))).join('')}` : ''}
+    ${rest.length ? `<div class="sb-section"><span>${esc(t('chats'))}</span></div>${rest.map((x, i) => (x._ext ? extItem(x, i) : recentItem(x))).join('')}` : ''}
     ${q && !pinned.length && !rest.length ? `<div class="sb-empty">${esc(t('noResults'))}</div>` : ''}`;
 });
 actions['mod-hist'] = (el) => {
@@ -207,6 +224,43 @@ actions['new-chat'] = () => newChat();
 // settings saved while a web view is open must not undo its sidebar state
 fabro.override('saveSettings', (orig) => async function (patch) { await orig(patch); if (S.modView) S.settings.sidebarCollapsed = S.modView.sb; });
 fabro.override('openSettings', (orig) => async function (tab) { const r = await orig(tab); if (tab === 'mods') loadMods(); syncModWeb(); return r; });
+
+// ───────────────────────────── Fabro apps ─────────────────────────────
+// An app takes over the main view (#view) and gets a sidebar entry under "Apps".
+let mountedApp = null;
+function openApp(id) {
+  const app = MODS.apps.get(id); if (!app) return;
+  closeModView(false);
+  S.conv = null; S.mode = 'app:' + id;
+  navTo(S.mode, null);
+  vt(() => { renderSidebar(); renderView(); });
+}
+function unmountApp() { if (mountedApp && mountedApp.unmount) { try { mountedApp.unmount(); } catch {} } mountedApp = null; }
+fabro.override('renderView', (orig) => function () {
+  if (!String(S.mode || '').startsWith('app:')) { if (mountedApp) unmountApp(); return orig(); }
+  const app = MODS.apps.get(S.mode.slice(4));
+  if (!app) { S.mode = 'chat'; return orig(); }
+  renderTopbar(); reportQuick();
+  const v = $('#view'); v.className = 'view app-view';
+  if (mountedApp && mountedApp.id !== app.id) unmountApp();
+  v.innerHTML = `<div id="app-host" class="app-host"></div>`;
+  mountedApp = app;
+  try { app.mount($('#app-host')); } catch (e) { console.error('app mount', e); v.innerHTML = `<div class="app-host"><div class="empty-note">${esc(cleanErr(e))}</div></div>`; }
+});
+fabro.override('renderTopbar', (orig) => function () {
+  if (!String(S.mode || '').startsWith('app:')) return orig();
+  const app = MODS.apps.get(S.mode.slice(4)) || {};
+  $('#topbar').innerHTML = `<div class="tb-left">${sbHidden() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}<span class="tb-title">${esc(app.name || '')}</span></div><div class="tb-right" id="app-tbr"></div>`;
+  if (app.topbar) try { $('#app-tbr').innerHTML = app.topbar(); } catch {}
+});
+fabro.override('openConv', (orig) => async function (id) { if (mountedApp) { unmountApp(); S.mode = 'chat'; } return orig(id); });
+{ const nc = window.newChat; window.newChat = function () { if (mountedApp) unmountApp(); return nc(); }; }
+actions['open-app'] = (el) => openApp(el.dataset.id);
+actions['apps-get'] = () => openSettings('mods'); // browse/install apps (mods)
+// Chat models contributed by mods (Claude/ChatGPT/Gemini): shown in the model picker, clickable.
+window.modChatModels = () => [...MODS.models.values()].filter((m) => { try { return m.connected ? m.connected() : true; } catch { return false; } });
+window.runModChatModel = (id, text) => { const m = MODS.models.get(id); if (m) m.run(text); };
+window.modChatModel = (id) => MODS.models.get(id);
 
 // ───────────────────────────── Settings › Mods ─────────────────────────────
 TABS.splice(TABS.findIndex((x) => x.id === 'agent') + 1, 0, { id: 'mods', icon: 'puzzle' });

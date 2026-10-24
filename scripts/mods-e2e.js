@@ -94,6 +94,20 @@ async function until(fn, ms = 15000, what = 'condition') { const t0 = Date.now()
   console.log('✓ signed in, chats synced with the site icon:', ext.join(', '));
   await win.screenshot({ path: path.join(shots, '03-history.png') });
 
+  // 3b. Claude appears in the model picker; selecting it and sending talks to it directly (no /command)
+  await win.click('.model-pill');
+  await win.waitForSelector('.models-pop');
+  assert(await win.$$eval('.models-pop .pm-item b', (b) => b.map((x) => x.textContent).includes('Claude')), 'Claude in the model picker');
+  await win.screenshot({ path: path.join(shots, '03b-modelpicker.png') });
+  await win.locator('.models-pop .pm-item', { hasText: 'Claude' }).click();
+  assert(await win.evaluate(() => (S.settings.selectedModel || {}).backend === 'mod'), 'Claude selected as the model');
+  await win.click('#prompt'); await win.fill('#prompt', 'Direct to Claude as model');
+  await win.click('#send-btn');
+  await until(() => sent.includes('Direct to Claude as model'), 25000, 'sent via model select');
+  assert(await win.evaluate(() => !!S.modView), 'picking Claude + send opened the web view');
+  console.log('✓ Claude selectable as a model; sending routes to it');
+  await win.evaluate(() => { S.settings.selectedModel = null; fabro.view.close(); });
+
   // 4. /claude in the message box → new chat on the site, Enter pressed automatically
   await win.click('#prompt'); await win.keyboard.type('/cla');
   await win.waitForSelector('.cmd-menu .cm-item');

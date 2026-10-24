@@ -30,6 +30,16 @@ window.FabroWebChat = window.FabroWebChat || function FabroWebChat(fabro, cfg) {
     },
   });
 
+  // Appears in the model picker: selecting it and sending a message talks to the site directly (no /command).
+  const runChat = async (text) => {
+    if (!st.connected) st = await fabro.call('state');
+    if (!st.connected) { fabro.toast(tr('needLogin')); return connect(); }
+    open('hide');
+    const r = await fabro.call('newChat', text);
+    if (r && r.ok === false) fabro.toast(`${cfg.name}: ${r.reason}`, 'err');
+  };
+  fabro.models.register({ id: fabro.id, label: cfg.name, sub: cfg.site, get icon() { return st.icon; }, connected: () => st.connected, run: runChat });
+
   fabro.history.register({
     label: cfg.name,
     list: () => st.chats.map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, href: c.href, icon: st.icon })),

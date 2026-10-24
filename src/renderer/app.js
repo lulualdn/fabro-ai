@@ -152,8 +152,12 @@ function allModels() {
 const refKey = (r) => !r ? '' : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
 const sameRef = (a, b) => !!a && !!b && refKey(a) === refKey(b);
 function currentModel() {
-  const list = allModels();
-  return list.find((m) => sameRef(m.ref, S.settings.selectedModel)) || null;
+  const sel = S.settings.selectedModel;
+  if (sel && sel.backend === 'mod' && window.modChatModel) {
+    const m = window.modChatModel(sel.id);
+    if (m) return { ref: sel, label: m.label, sub: m.sub || '', mod: true, modId: m.id, icon: m.icon };
+  }
+  return allModels().find((m) => sameRef(m.ref, sel)) || null;
 }
 async function refreshModels() {
   [S.installed, S.provModels] = await Promise.all([api.models.installed(), api.providers.models()]);
@@ -198,7 +202,7 @@ function renderRecents() {
   const pinned = list.filter((c) => c.pinned), rest = list.filter((c) => !c.pinned);
   el.innerHTML = `
     ${pinned.length ? `<div class="sb-section"><span>${esc(t('pinned'))}</span></div>${pinned.map(recentItem).join('')}` : ''}
-    ${rest.length ? `<div class="sb-section"><span>${esc(S.mode === 'code' && S.cx.root ? t('cx_sessions') : t('recents'))}</span><button class="icon-btn xs" data-action="noop" title="${esc(t('filter'))}">${icon('filter', 14)}</button></div>${rest.map(recentItem).join('')}` : ''}
+    ${rest.length ? `<div class="sb-section"><span>${esc(S.mode === 'code' && S.cx.root ? t('cx_sessions') : t('chats'))}</span></div>${rest.map(recentItem).join('')}` : ''}
     ${q && !list.length ? `<div class="sb-empty">${esc(t('noResults'))}</div>` : ''}`;
 }
 
@@ -212,37 +216,32 @@ function renderSidebar() {
   const installed = S.settings.installedModes || ['chat'];
   const eng = S.engine;
   const cm = currentModel();
-  const ws = MODES.includes(MODES.find((m) => m.id === S.mode)) ? S.mode : 'chat';
   const name = userFirstName() || 'Fabro';
+  const apps = (window.fabro && fabro.apps) ? fabro.apps.list() : [];
 
-  const toggle = `<div class="ws-toggle" role="tablist" aria-label="${esc(t('workspace'))}">${MODES.map((m) =>
-    `<button role="tab" aria-selected="${ws === m.id}" class="${ws === m.id ? 'on' : ''}" data-action="mode" data-mode="${m.id}" title="${esc(t('mode_' + m.id))}">${icon(m.icon, 16)}</button>`).join('')}</div>`;
-
-  const pages = PAGES.map((p) => `<button class="nav-item ${S.mode === p.id ? 'active' : ''}" data-action="mode" data-mode="${p.id}" title="${esc(t('nav_' + p.id))}">
-      ${icon(p.icon)}<span class="label">${esc(t('nav_' + p.id))}</span>${p.locked && !installed.includes(p.id) ? `<span class="lock">${icon('lock', 13)}</span>` : ''}</button>`).join('');
-
-  const more = S.moreOpen ? `<div class="nav-sub">
-      <button class="nav-item sub" data-action="settings" data-tab="models">${icon('box', 16)}<span class="label">${esc(t('tab_models'))}</span></button>
-      <button class="nav-item sub" data-action="settings" data-tab="engine">${icon('zap', 16)}<span class="label">${esc(t('tab_engine'))}</span></button>
-      <button class="nav-item sub" data-action="soon">${icon('cpu', 16)}<span class="label">${esc(t('nav_extensions'))}</span></button>
-    </div>` : '';
+  const navItem = (id, ic, label, locked) => `<button class="nav-item ${S.mode === id ? 'active' : ''}" data-action="mode" data-mode="${id}" title="${esc(label)}">${icon(ic, 18)}<span class="label">${esc(label)}</span>${locked && !installed.includes(id) ? `<span class="lock">${icon('lock', 13)}</span>` : ''}</button>`;
+  const appIco = (a) => `<span class="app-ic" style="${a.color ? `background:${esc(a.color)};color:#fff` : ''}">${a.icon && String(a.icon).startsWith('data:') ? `<img src="${esc(a.icon)}" alt="">` : icon(a.icon || 'shapes', 16)}</span>`;
 
   sb.innerHTML = `
-    <div class="sb-top">
-      <button class="icon-btn" data-action="toggle-sidebar" title="${esc(t(collapsed ? 'expandSidebar' : 'collapseSidebar'))}">${icon('panel')}</button>
-      <button class="icon-btn hide-c" data-action="hist-back" ${S.histIdx > 0 ? '' : 'disabled'} title="${esc(t('back'))}">${icon('back', 17)}</button>
-      <button class="icon-btn hide-c" data-action="hist-fwd" ${S.histIdx < S.hist.length - 1 ? '' : 'disabled'} title="${esc(t('forward'))}">${icon('forward', 17)}</button>
-      <span class="grow hide-c"></span>
-      <span class="hide-c">${toggle}</span>
+    <div class="sb-head">
+      <button class="brand" data-action="home" title="Fabro">${logo(23)}<span class="label bw">Fabro</span></button>
+      <span class="grow"></span>
+      <button class="icon-btn sm hide-c" data-action="hist-back" ${S.histIdx > 0 ? '' : 'disabled'} title="${esc(t('back'))}">${icon('back', 17)}</button>
+      <button class="icon-btn sm" data-action="new-chat" title="${esc(t('newChat'))}">${icon('edit', 18) || icon('plus', 18)}</button>
+      <button class="icon-btn sm" data-action="toggle-sidebar" title="${esc(t(collapsed ? 'expandSidebar' : 'collapseSidebar'))}">${icon('panel')}</button>
     </div>
     <label class="sb-search hide-c">${icon('search', 16)}<input id="sb-q" type="search" placeholder="${esc(t('searchChats'))}" value="${esc(S.sbQuery)}" aria-label="${esc(t('searchChats'))}"><kbd>Ctrl K</kbd></label>
-    <nav class="nav">
-      <button class="nav-item new" data-action="new-chat" title="${esc(t('newChat'))}"><span class="nc-ico">${icon('plus', 15)}</span><span class="label">${esc(t(S.mode === 'code' && S.cx.root ? 'cx_newSession' : 'newChat'))}</span></button>
-      ${pages}
-      <button class="nav-item muted-item" data-action="toggle-more" aria-expanded="${S.moreOpen}">${icon(S.moreOpen ? 'down' : 'right', 16)}<span class="label">${esc(t('nav_more'))}</span></button>
-      ${more}
+    <nav class="sb-nav hide-c">
+      ${navItem('code', 'code', t('mode_code'), true)}
+      ${PAGES.filter((p) => p.id !== 'custom').map((p) => navItem(p.id, p.icon, t('nav_' + p.id), p.locked)).join('')}
     </nav>
-    <div class="recents-wrap"><div class="recents" id="sb-lists"></div></div>
+    <div class="sb-apps hide-c">
+      <div class="sb-section"><span>${esc(t('apps'))}</span><button class="icon-btn xs" data-action="apps-get" title="${esc(t('appsGet'))}">${icon('plus', 14)}</button></div>
+      <div class="apps-list">${apps.length ? apps.map((a) => `<button class="nav-item app-item ${S.mode === 'app:' + a.id ? 'active' : ''}" data-action="open-app" data-id="${esc(a.id)}" title="${esc(a.name)}">${appIco(a)}<span class="label">${esc(a.name)}</span></button>`).join('') : `<button class="apps-empty" data-action="apps-get">${esc(t('appsEmpty'))}</button>`}</div>
+    </div>
+    <div class="recents-wrap">
+      <div class="recents" id="sb-lists"></div>
+    </div>
     <button class="sb-user" data-action="user-menu" title="${esc(cm ? cm.label + ' · ' + engineLabel() : t('noModelShort'))}">
       <span class="avatar">${esc((name[0] || 'F').toUpperCase())}${['loading', 'installing'].includes(eng.status) ? `<span class="av-spin">${spinner(18)}</span>` : `<span class="av-dot st-${eng.status}"></span>`}</span>
       <span class="label u-text"><b>${esc(name)}</b><small>${esc(cm ? cm.label : t('noModelShort'))} · ${esc(engineLabel())}</small></span>
@@ -258,6 +257,7 @@ function openUserMenu(anchor) {
   const th = S.settings.theme;
   $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
     <div class="popover" style="left:${r.left}px; bottom:${innerHeight - r.top + 8}px; min-width:${Math.max(240, r.width)}px">
+      <button class="pm-item" data-action="mode" data-mode="custom">${icon('brush', 16)}<span class="pm-text"><b>${esc(t('nav_custom'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="general">${icon('settings', 16)}<span class="pm-text"><b>${esc(t('settings'))}</b></span><kbd>Ctrl ,</kbd></button>
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
       <button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'dark' ? 'light' : 'dark'}">${icon(th === 'dark' ? 'sun' : 'moon', 16)}<span class="pm-text"><b>${esc(t(th === 'dark' ? 'themeLight' : 'themeDark'))}</b></span></button>
@@ -769,14 +769,20 @@ function openModelMenu(anchor) {
   const r = anchor.getBoundingClientRect();
   const local = list.filter((m) => m.src === 'local');
   const groups = {}; list.filter((m) => m.src !== 'local').forEach((m) => { (groups[m.src] ||= { name: m.provider, items: [] }).items.push(m); });
+  const mods = (window.modChatModels ? window.modChatModels() : []); // Claude / ChatGPT / Gemini when connected
   const item = (m) => `<button class="pm-item ${sameRef(m.ref, S.settings.selectedModel) ? 'sel' : ''}" data-action="pick-model" data-ref="${esc(JSON.stringify(m.ref))}">
       <span class="pm-text"><b>${esc(m.label)}</b><small>${esc(m.sub)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></span>
       ${sameRef(m.ref, S.settings.selectedModel) ? icon('check', 16) : ''}</button>`;
+  const modItem = (m) => { const ref = { backend: 'mod', id: m.id }; return `<button class="pm-item ${sameRef(ref, S.settings.selectedModel) ? 'sel' : ''}" data-action="pick-model" data-ref="${esc(JSON.stringify(ref))}">
+      <span class="pm-ic">${m.icon && String(m.icon).startsWith('data:') ? `<img src="${esc(m.icon)}" alt="">` : icon(m.icon || 'globe', 16)}</span>
+      <span class="pm-text"><b>${esc(m.label)}</b><small>${esc(m.sub || '')}</small></span>
+      ${sameRef(ref, S.settings.selectedModel) ? icon('check', 16) : ''}</button>`; };
   $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
     <div class="popover models-pop" style="right:${Math.max(12, innerWidth - r.right)}px; bottom:${innerHeight - r.top + 8}px">
       ${local.length ? `<div class="pm-sec">${esc(t('builtInModels'))}</div>${local.map(item).join('')}` : ''}
       ${Object.values(groups).map((g) => `<div class="pm-sec">${esc(g.name)}</div>${g.items.map(item).join('')}`).join('')}
-      ${!list.length ? `<div class="pm-empty">${esc(t('noModelsYet'))}</div>` : ''}
+      ${mods.length ? `<div class="pm-sec">${esc(t('mods_web'))}</div>${mods.map(modItem).join('')}` : ''}
+      ${!list.length && !mods.length ? `<div class="pm-empty">${esc(t('noModelsYet'))}</div>` : ''}
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="providers">${icon('cloud', 16)}<span class="pm-text"><b>${esc(t('tab_providers'))}</b></span></button>
@@ -1000,6 +1006,9 @@ async function sendPrompt(textOverride, opts = {}) {
   const ta = $('#prompt');
   const text = (textOverride ?? (ta ? ta.value : '')).trim();
   if (!text && !S.pending.length) return;
+  // A chat mod (Claude / ChatGPT / Gemini) is the selected model: hand the message to its web view.
+  const selMod = S.settings.selectedModel && S.settings.selectedModel.backend === 'mod';
+  if (selMod && text && window.runModChatModel) { if (ta) { ta.value = ''; ta.style.height = 'auto'; } S._draft = ''; window.runModChatModel(S.settings.selectedModel.id, text); return; }
   if (!currentModel()) { toast(t('noModel'), 'err'); openSettings('models'); return; }
   if (!S.conv) S.conv = newConv();
   if (S.mode === 'projects') { S.mode = 'chat'; navTo('chat', S.conv.id); }
@@ -1071,7 +1080,8 @@ const actions = {
     renderSidebar(); renderTopbar();
   },
   'new-chat': newChat,
-  'mode': (el) => { S.mode = el.dataset.mode; if (S.mode === 'projects') { S.prj.current = null; S.prj.list = null; } if (S.conv && !!S.conv.code !== (S.mode === 'code')) S.conv = null; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); vt(() => { renderSidebar(); renderView(); }); },
+  'home': () => { if (window.fabro && String(S.mode||'').startsWith('app:')) {} S.mode = 'chat'; newChat(); },
+  'mode': (el) => { closePopover(); S.mode = el.dataset.mode; if (S.mode === 'projects') { S.prj.current = null; S.prj.list = null; } if (S.conv && !!S.conv.code !== (S.mode === 'code')) S.conv = null; navTo(S.mode, S.mode === 'chat' && S.conv ? S.conv.id : null); vt(() => { renderSidebar(); renderView(); }); },
   'hist-back': () => histGo(-1),
   'hist-fwd': () => histGo(1),
   'toggle-more': () => { S.moreOpen = !S.moreOpen; renderSidebar(); },

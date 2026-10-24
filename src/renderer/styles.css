@@ -1535,3 +1535,46 @@ body.drop-on .drop-veil { opacity: 1; }
 .wc-ic { width: 32px; height: 32px; border-radius: 9px; flex: none; display: grid; place-items: center; color: #fff; font-weight: 700; }
 .wc-bt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .wc-bt select { max-width: 180px; }
+
+/* ───────── Sidebar (redesigned: branded, discreet, chats forward) ───────── */
+.sb-head { display: flex; align-items: center; gap: 2px; height: 52px; padding: 0 8px 0 14px; -webkit-app-region: drag; }
+.sb-head > * { -webkit-app-region: no-drag; }
+.sb-head .grow { -webkit-app-region: drag; align-self: stretch; }
+.platform-darwin .sb-head { padding-left: 80px; }
+.brand { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 4px 6px; border-radius: 9px; color: var(--text); }
+.brand:hover { background: var(--hover); }
+.brand .bw { font-weight: 600; font-size: 16.5px; letter-spacing: -.02em; }
+.brand .logo { flex: none; }
+.sb-collapsed .sb-head { justify-content: center; padding: 0; }
+.sb-collapsed .brand { padding: 4px; } .sb-collapsed .brand .bw { display: none; }
+
+.sb-nav { display: flex; flex-direction: column; gap: 1px; padding: 2px 8px 6px; }
+.sb-nav .nav-item { padding: 6px 9px; color: var(--muted); font-size: 13.5px; }
+.sb-nav .nav-item:hover { color: var(--text); background: var(--hover); }
+.sb-nav .nav-item.active { color: var(--text); background: var(--active); font-weight: 500; }
+.sb-nav .nav-item .ico { color: var(--text-2); }
+
+.sb-apps { padding: 0 8px 4px; }
+.sb-apps .sb-section { display: flex; align-items: center; padding: 8px 9px 4px; }
+.sb-apps .sb-section span { flex: 1; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.apps-list { display: flex; flex-direction: column; gap: 1px; }
+.app-item { padding: 6px 8px; }
+.app-ic { width: 26px; height: 26px; border-radius: 8px; flex: none; display: grid; place-items: center; background: var(--elev-2); color: var(--text-2); }
+.app-ic img { width: 18px; height: 18px; border-radius: 5px; object-fit: cover; }
+.app-item.active .app-ic { background: var(--accent); color: #fff; }
+.apps-empty { width: 100%; text-align: left; padding: 6px 9px; font-size: 12.5px; color: var(--muted); border-radius: 9px; }
+.apps-empty:hover { background: var(--hover); color: var(--text); }
+.sb-collapsed .sb-apps .sb-section, .sb-collapsed .apps-empty { display: none; }
+.sb-collapsed .app-item { justify-content: center; padding: 6px 0; }
+
+.recents-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); margin-top: 2px; }
+.recents-wrap .sb-section:first-child { padding-top: 10px; }
+
+/* model picker: web-assistant rows with an icon */
+.pm-ic { width: 24px; height: 24px; border-radius: 7px; flex: none; display: grid; place-items: center; background: var(--elev-2); color: var(--text-2); margin-right: 2px; }
+.pm-ic img { width: 16px; height: 16px; border-radius: 4px; }
+.models-pop .pm-item { display: flex; align-items: center; gap: 8px; }
+
+/* Fabro app full view */
+.view.app-view { padding: 0; }
+.app-host { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
