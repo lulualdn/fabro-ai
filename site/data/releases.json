@@ -1,5 +1,261 @@
 [
  {
+  "tag": "v0.1.35",
+  "date": "2026-10-24T10:43:18Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.35",
+  "prerelease": false,
+  "body": "Agents app, Google sign-in block handled honestly\n\n- New built-in app \"Agents\": named agents with roles, DMs and group chats, agents address each other, use tools, learn per role, plan messages, background reflection with proactive proposals, watchdog relaunch, ask_user redirected to a plain question\n- Google \"use a supported browser\" block (page or sign-in popup) is detected: popup closed, offer to sign in in the real browser then import the session\n- e2e: agents-e2e (new, in CI), mods-e2e step for the Google block",
+  "assets": [
+   {
+    "name": "Fabro-0.1.35-arm64-mac.zip",
+    "size": 139708482,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/Fabro-0.1.35-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.35-arm64-mac.zip.blockmap",
+    "size": 146208,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/Fabro-0.1.35-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.35-arm64.dmg",
+    "size": 140466737,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/Fabro-0.1.35-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.35-arm64.dmg.blockmap",
+    "size": 147399,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/Fabro-0.1.35-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.35.AppImage",
+    "size": 136901770,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/Fabro-0.1.35.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.35.exe",
+    "size": 118789224,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/Fabro-Setup-0.1.35.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.35.exe.blockmap",
+    "size": 123515,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/Fabro-Setup-0.1.35.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.35/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.34",
+  "date": "2026-10-24T01:45:09Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.34",
+  "prerelease": false,
+  "body": "Sidebar repensée, section Fabro Apps, modèles Claude/ChatGPT/Gemini en 1 clic\n\n- Sidebar refaite : marque Fabro en haut, navigation discrète, les conversations prennent la place principale (Personnalisation déplacée dans le menu du profil)\n- Nouvelle section « Apps » dans la sidebar + cadre pour les Fabro Apps (une app ouvre son propre écran plein)\n- Choix du modèle : groupe « Assistants web » — cliquer Claude, ChatGPT ou Gemini en fait le modèle actif, et envoyer leur parle directement, sans taper /claude\n- API mods étendue : fabro.apps.register, fabro.models.register\n- Tests : le e2e des mods vérifie Claude dans le choix des modèles + l'envoi qui route vers la vue web",
+  "assets": [
+   {
+    "name": "Fabro-0.1.34-arm64-mac.zip",
+    "size": 139696817,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/Fabro-0.1.34-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.34-arm64-mac.zip.blockmap",
+    "size": 145981,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/Fabro-0.1.34-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.34-arm64.dmg",
+    "size": 140426440,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/Fabro-0.1.34-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.34-arm64.dmg.blockmap",
+    "size": 148161,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/Fabro-0.1.34-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.34.AppImage",
+    "size": 136889295,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/Fabro-0.1.34.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.34.exe",
+    "size": 118779582,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/Fabro-Setup-0.1.34.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.34.exe.blockmap",
+    "size": 123706,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/Fabro-Setup-0.1.34.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.34/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.33",
+  "date": "2026-10-24T01:20:13Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.33",
+  "prerelease": false,
+  "body": "Bump de version (l'import Opera + correctif Windows était déjà dans le commit précédent)",
+  "assets": [
+   {
+    "name": "Fabro-0.1.33-arm64-mac.zip",
+    "size": 139694261,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/Fabro-0.1.33-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.33-arm64-mac.zip.blockmap",
+    "size": 145517,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/Fabro-0.1.33-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.33-arm64.dmg",
+    "size": 140431715,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/Fabro-0.1.33-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.33-arm64.dmg.blockmap",
+    "size": 147835,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/Fabro-0.1.33-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.33.AppImage",
+    "size": 136889189,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/Fabro-0.1.33.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.33.exe",
+    "size": 118778047,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/Fabro-Setup-0.1.33.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.33.exe.blockmap",
+    "size": 123828,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/Fabro-Setup-0.1.33.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.33/latest.yml"
+   }
+  ]
+ },
+ {
+  "tag": "v0.1.32",
+  "date": "2026-10-23T22:01:27Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.32",
+  "prerelease": false,
+  "body": "Importer la connexion des mods depuis vos navigateurs\n\n- La connexion de chaque mod (Claude, ChatGPT, Gemini) était déjà conservée entre les lancements ; c'est confirmé par les tests\n- À la connexion d'un mod, avant la page de login, Fabro propose d'importer votre session depuis un navigateur où vous êtes déjà connecté : Firefox, Chrome, Edge, Brave, Chromium, Vivaldi, Opera, LibreWolf\n- Firefox : cookies lus directement ; navigateurs Chromium : cookies déchiffrés comme le fait le navigateur (Keychain macOS, secret de session Linux, DPAPI Windows ; AES-GCM et AES-CBC)\n- Seuls les cookies des domaines du site sont lus, rien n'est réécrit dans le navigateur, et la base est copiée d'abord (fonctionne navigateur ouvert)\n- Aucune nouvelle dépendance : utilise le lecteur SQLite déjà fourni avec l'app\n- Tests : scripts/browser-import-test.js (déchiffrement + filtre domaine), et le e2e des mods couvre le choix du navigateur → import → connecté",
+  "assets": [
+   {
+    "name": "Fabro-0.1.32-arm64-mac.zip",
+    "size": 139694250,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/Fabro-0.1.32-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.32-arm64-mac.zip.blockmap",
+    "size": 146193,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/Fabro-0.1.32-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.32-arm64.dmg",
+    "size": 140431680,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/Fabro-0.1.32-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.32-arm64.dmg.blockmap",
+    "size": 147790,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/Fabro-0.1.32-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.32.AppImage",
+    "size": 136889214,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/Fabro-0.1.32.AppImage"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.32.exe",
+    "size": 118778071,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/Fabro-Setup-0.1.32.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.32.exe.blockmap",
+    "size": 123799,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/Fabro-Setup-0.1.32.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 503,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.32/latest.yml"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.31",
   "date": "2026-10-23T21:37:46Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.31",

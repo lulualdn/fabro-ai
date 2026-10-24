@@ -9,8 +9,26 @@ on:
 permissions:
   contents: write
 
+env:
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]') }}
+
 jobs:
+  # One draft release up front: every platform uploads into it (no race creating it), and it is only
+  # published at the end, once everything is attached, so auto-update never sees a half-filled release.
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Draft release
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v="v$(node -p "require('./package.json').version")"
+          gh release view "$v" >/dev/null 2>&1 || gh release create "$v" --draft --target "$GITHUB_SHA" --title "$v" --notes ""
+
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +45,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false   # no code signing for now
-        run: npx electron-builder --publish ${{ (startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')) && 'always' || 'never' }}
+        run: npx electron-builder --publish ${{ env.PUBLISH == 'true' && 'always' || 'never' }}
       - uses: actions/upload-artifact@v4
         with:
           name: fabro-${{ matrix.os }}
@@ -38,6 +56,52 @@ jobs:
             dist/*.AppImage
             dist/latest*.yml
           if-no-files-found: ignore
+
+  sd-intel-mac:
+    # stable-diffusion.cpp publishes no Intel Mac build: compile it on an Intel runner (generic AVX2,
+    # not tuned to the runner's CPU), generate one real image with it, then attach it to the release.
+    needs: prepare
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Build stable-diffusion.cpp (x86_64)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=$(gh release view -R leejet/stable-diffusion.cpp --json tagName -q .tagName)
+          echo "stable-diffusion.cpp $tag"
+          git clone --depth 1 --recursive --branch "$tag" https://github.com/leejet/stable-diffusion.cpp sdcpp
+          cmake -S sdcpp -B sdcpp/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+            -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_METAL=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON
+          cmake --build sdcpp/build --config Release -j 4
+          mkdir pkg && cp sdcpp/build/bin/* pkg/ && (cd pkg && file * && otool -L sd* | grep -v /usr/lib/ | grep -v /System/ || true)
+          (cd pkg && zip -9 -r ../sd-bin-Darwin-x86_64.zip .)
+      - name: Generate a real image with it
+        run: node scripts/images-smoke.js
+        env:
+          SHOTS: .
+          FABRO_SD_ZIP: sd-bin-Darwin-x86_64.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sd-intel-mac
+          path: |
+            sd-bin-Darwin-x86_64.zip
+            generated.png
+          if-no-files-found: ignore
+      - name: Attach to release
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v$(node -p "require('./package.json').version")" sd-bin-Darwin-x86_64.zip --clobber
 
   installer:
     # Fabro-Installer.exe: standalone bootstrapper with Fabro's own UI (Rust + WebView2).
@@ -60,16 +124,29 @@ jobs:
           name: fabro-installer
           path: installer/target/release/Fabro-Installer.exe
       - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
+        if: env.PUBLISH == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "v$(node -p "require('./package.json').version")" installer/target/release/Fabro-Installer.exe --clobber
       - name: Release notes from the commit message
-        if: startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
+        if: env.PUBLISH == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           v="v$(node -p "require('./package.json').version")"
           if [ -z "$(gh release view "$v" --json body -q .body)" ]; then node scripts/release-notes.js > notes.md && gh release edit "$v" --notes-file notes.md; fi
+
+  publish:
+    # Everything is attached: publish the draft (it becomes "latest", so auto-update picks it up).
+    needs: [build, sd-intel-mac, installer]
+    if: always() && needs.build.result == 'success' && needs.installer.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "v$(node -p "require('./package.json').version")" --draft=false --latest

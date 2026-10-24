@@ -66,9 +66,21 @@
     if (/linux|x11|cros/.test(p + ua)) return 'linux';
     return 'win';
   }
+  // Apple Silicon or Intel Mac: Chromium tells the CPU architecture; Safari/Firefox only reveal it
+  // through the GPU name (Apple GPU = Apple Silicon). Unknown → Apple Silicon, the common case today.
+  async function macArch() {
+    try { const h = await navigator.userAgentData.getHighEntropyValues(['architecture']); if (h.architecture) return /arm/i.test(h.architecture) ? 'mac' : 'macIntel'; } catch {}
+    try {
+      const gl = document.createElement('canvas').getContext('webgl'); const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      const r = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+      if (/intel|amd|radeon|nvidia/i.test(r) && !/apple/i.test(r)) return 'macIntel';
+    } catch {}
+    return 'mac';
+  }
   const PICK = {
     win: [/^Fabro-Installer\.exe$/i, /^Fabro-Setup-.*\.exe$/i],
-    mac: [/\.dmg$/i, /mac\.zip$/i],
+    mac: [/arm64\.dmg$/i, /arm64-mac\.zip$/i],
+    macIntel: [/^Fabro-[\d.]+\.dmg$/i, /^Fabro-[\d.]+-mac\.zip$/i],
     linux: [/\.AppImage$/i],
   };
   const ICON = {
@@ -76,10 +88,12 @@
     mac: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.2-2.8.8-3.5.8-.7 0-1.9-.8-3-.8-1.6 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.6zM14.1 5.6c.6-.8 1.1-1.8 1-2.9-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.8 1 .1 2.1-.5 2.7-1.3z"/></svg>',
     linux: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c-2 0-3.3 1.7-3.3 4.2 0 1.4.3 2.3-.5 3.6C7 11.7 5.5 13.6 5.6 16c-.6.4-1.6.7-1.6 1.6 0 .9.8 1.2 1.4 1.6.6.4.8 1.3 1.9 1.5 1 .2 2-.4 2.8-.5.9-.1 2 .2 3.8.2s2.7-.3 3.6-.2c.8.1 1.8.7 2.8.5 1.1-.2 1.3-1.1 1.9-1.5.6-.4 1.4-.7 1.4-1.6 0-.9-1-1.2-1.6-1.6.1-2.4-1.4-4.3-2.6-6.2-.8-1.3-.5-2.2-.5-3.6C15.3 3.7 14 2 12 2zm-1.6 4.1c.4 0 .7.5.7 1.1s-.3 1.1-.7 1.1-.7-.5-.7-1.1.3-1.1.7-1.1zm3.2 0c.4 0 .7.5.7 1.1s-.3 1.1-.7 1.1-.7-.5-.7-1.1.3-1.1.7-1.1zM12 9.3c.9 0 2 .6 2 1 0 .5-1.2 1.1-2 1.1s-2-.6-2-1.1c0-.4 1.1-1 2-1z"/></svg>',
   };
-  const NOTE = { win: 'dl_win_note', mac: 'dl_mac_note', linux: 'dl_linux_note' };
+  ICON.macIntel = ICON.mac;
+  const NOTE = { win: 'dl_win_note', mac: 'dl_mac_note', macIntel: 'dl_mac_intel_note', linux: 'dl_linux_note' };
   const pickAsset = (rel, os) => { for (const re of PICK[os] || []) { const a = rel.assets.find((x) => re.test(x.name)); if (a) return a; } return null; };
   async function renderDownloads() {
-    const os = detectOS();
+    let os = detectOS();
+    if (os === 'mac') os = await macArch();
     const { list } = await releases();
     const rel = list.find((r) => !r.prerelease && r.assets.length) || null;
     for (const box of $$('.dl')) {
@@ -88,15 +102,16 @@
       const a = rel && target ? pickAsset(rel, target) : null;
       if (os === 'mobile') { btn.href = `https://github.com/${REPO}/releases/latest`; $('span', btn).textContent = t('dl_all'); meta.innerHTML = t('dl_mobile'); }
       else {
-        btn.innerHTML = ICON[target] + `<span>${t('dl_for', { os: t('os_' + target) })}</span>`;
+        btn.innerHTML = ICON[target] + `<span>${t('dl_for', { os: t(target === 'macIntel' ? 'os_mac_intel' : 'os_' + target) })}</span>`;
         btn.href = a ? a.url : `https://github.com/${REPO}/releases/latest`;
         meta.innerHTML = rel ? `${t('dl_meta', { v: rel.tag.replace(/^v/, ''), size: a ? fmtSize(a.size) : '' }).replace(/ · $/, '')}<span class="free">${t('dl_free')}</span>` : `<a href="https://github.com/${REPO}/releases">${t('dl_offline')}</a>`;
       }
       if (others) {
         const rows = [];
-        for (const o of ['win', 'mac', 'linux']) {
+        for (const o of ['win', 'mac', 'macIntel', 'linux']) {
           const x = rel && pickAsset(rel, o);
-          rows.push(`<a href="${x ? x.url : `https://github.com/${REPO}/releases/latest`}">${ICON[o]}<span><b>${t('os_' + o)}${x ? ` · ${x.name.replace(/^Fabro-/, '')}` : ''}</b><small>${t(NOTE[o])}${x ? ' · ' + fmtSize(x.size) : ''}</small></span></a>`);
+          if (o === 'macIntel' && !x) continue; // releases before Intel builds existed
+          rows.push(`<a href="${x ? x.url : `https://github.com/${REPO}/releases/latest`}">${ICON[o]}<span><b>${t(o === 'macIntel' ? 'os_mac_intel' : 'os_' + o)}${x ? ` · ${x.name.replace(/^Fabro-/, '')}` : ''}</b><small>${t(NOTE[o])}${x ? ' · ' + fmtSize(x.size) : ''}</small></span></a>`);
           if (o === 'win' && rel) { const full = rel.assets.find((y) => /^Fabro-Setup-.*\.exe$/i.test(y.name)); if (full) rows.push(`<a href="${full.url}">${ICON.win}<span><b>${t('dl_win_full')}</b><small>${full.name} · ${fmtSize(full.size)}</small></span></a>`); }
         }
         rows.push(`<a href="https://github.com/${REPO}/releases">${ICON.linux.replace(/<path[^>]*>/, '<path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"/>')}<span><b>${t('dl_all')}</b><small>GitHub Releases</small></span></a>`);
@@ -116,7 +131,7 @@
       <article class="rel ${r === firstStable ? 'latest' : ''}">
         <h2><a href="${r.url}">${esc(r.tag)}</a> <time datetime="${r.date}">${fmtDate(r.date)}</time>${r === firstStable ? ` <span class="tag">${t('cl_latest')}</span>` : ''}</h2>
         <div class="notes">${md(r.body || notes[r.tag] || '')}</div>
-        ${r.assets.filter((a) => !/\.(blockmap|yml)$/.test(a.name)).length ? `<div class="assets" aria-label="${t('cl_downloads')}">${r.assets.filter((a) => !/\.(blockmap|yml)$/.test(a.name)).map((a) => `<a href="${a.url}">${esc(a.name)} · ${fmtSize(a.size)}</a>`).join('')}</div>` : ''}
+        ${r.assets.filter((a) => !/\.(blockmap|yml)$|^sd-bin-/.test(a.name)).length ? `<div class="assets" aria-label="${t('cl_downloads')}">${r.assets.filter((a) => !/\.(blockmap|yml)$|^sd-bin-/.test(a.name)).map((a) => `<a href="${a.url}">${esc(a.name)} · ${fmtSize(a.size)}</a>`).join('')}</div>` : ''}
       </article>`).join('');
   }
 

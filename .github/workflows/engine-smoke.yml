@@ -3,7 +3,7 @@ name: Engine smoke test
 on:
   push:
     branches: [main]
-    paths: ['src/main/**', 'scripts/engine-smoke.js', '.github/workflows/engine-smoke.yml']
+    paths: ['src/main/**', 'scripts/engine-smoke.js', '.github/workflows/engine-smoke.yml', 'package.json']
   workflow_dispatch:
 
 jobs:
@@ -16,6 +16,7 @@ jobs:
           - { os: windows-latest, accel: cuda }   # exercises CUDA build + CPU fallback on a GPU-less runner
           - { os: ubuntu-latest, accel: '' }
           - { os: macos-latest, accel: '' }
+          - { os: macos-15-intel, accel: '' }   # Intel Mac: llama.cpp macos-x64 build, CPU
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:

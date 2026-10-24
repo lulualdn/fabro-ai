@@ -62,7 +62,7 @@ async function pickAsset(rel) {
     if (sp.accel === 'cuda') { a = find(/bin-win-cuda12-x64\.zip$/); extra = find(/^cudart-sd-bin-win-cu12-x64\.zip$/); }
     if (!a && sp.accel !== 'cpu') a = find(/bin-win-vulkan-x64\.zip$/);
     if (!a) a = find(/bin-win-(cpu|avx2)-x64\.zip$/) || find(/bin-win-.*avx.*-x64\.zip$/);
-  } else if (process.platform === 'darwin') a = find(/bin-Darwin-.*arm64\.zip$/);
+  } else if (process.platform === 'darwin') a = process.arch === 'arm64' ? find(/bin-Darwin-.*arm64\.zip$/) : find(/^sd-bin-Darwin-x86_64\.zip$/);
   else {
     if (sp.accel !== 'cpu') a = find(/bin-Linux-.*x86_64-vulkan\.zip$/);
     if (!a) a = find(/bin-Linux-.*x86_64\.zip$/);
@@ -87,11 +87,17 @@ async function latestRelease(repo) {
   const names = [...new Set([...html.matchAll(/\/releases\/download\/[^/"]+\/([^"?]+)"/g)].map((m) => decodeURIComponent(m[1])))];
   return { tag_name: tag, assets: names.map((name) => ({ name, browser_download_url: `https://github.com/${repo}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(name)}` })) };
 }
+// stable-diffusion.cpp ships no Intel Mac build: Fabro's own release CI compiles one and attaches it.
+const OWN_REPO = (() => { const p = (require('../../package.json').build || {}).publish; const g = [].concat(p || [])[0] || {}; return g.owner ? `${g.owner}/${g.repo}` : 'lulualdn/fabro-ai'; })();
+const intelMac = () => process.platform === 'darwin' && process.arch !== 'arm64';
 async function installEngine(onProgress = () => {}) {
-  const rel = await latestRelease('leejet/stable-diffusion.cpp');
+  // FABRO_SD_ZIP: a local build (release CI tests the Intel Mac binary before attaching it)
+  const rel = process.env.FABRO_SD_ZIP ? { tag_name: 'local', assets: [{ name: path.basename(process.env.FABRO_SD_ZIP), local: process.env.FABRO_SD_ZIP }] }
+    : await latestRelease(intelMac() ? OWN_REPO : 'leejet/stable-diffusion.cpp');
   const { a, extra } = await pickAsset(rel);
   const dir = path.join(root(), rel.tag_name); fs.mkdirSync(dir, { recursive: true });
   for (const [i, asset] of [a, extra].filter(Boolean).entries()) {
+    if (asset.local) { await require('extract-zip')(path.resolve(asset.local), { dir }); continue; }
     const zip = path.join(root(), asset.name);
     await downloadFile(asset.browser_download_url, zip, { onProgress: (n, t) => onProgress((i + (t ? n / t : 0)) / (extra ? 2 : 1)) });
     await require('extract-zip')(zip, { dir });
