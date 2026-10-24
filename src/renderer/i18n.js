@@ -2,6 +2,7 @@
 // To add a language: copy the `en` block, translate, and add it to LANGS in app.js.
 const I18N = {
   en: {
+    remoteLite: 'Light phone view', remoteLiteHint: 'Works offline too',
     rt_title: 'Tool runtime', rt_runtime: 'Commands run in', rt_isolated: 'a separate process (pid {p})', rt_inprocess: 'the app process', rt_hint: 'Terminal, Python, tests and git commands started by tools run in their own process: a stuck command can never freeze Fabro.', tel_title: 'Privacy & crash reports', tel_hint: 'Fabro collects nothing and sends nothing by default.', tel_crash: 'Offer to send crash reports', tel_crashHint: 'After a crash, Fabro opens a pre-filled GitHub report that you read and send yourself. Paths to your home folder are hidden.', tel_saved: '{n} saved report(s)', tel_send: 'Send the latest',
     a11y_skip: 'Skip to the message box', a11y_answered: 'Fabro answered.', a11y_error: 'Error: {m}', a11y_permission: 'Fabro asks for permission: {s}', reduceMotion: 'Reduce animations', reduceMotionHint: 'Fewer moving effects (also follows your system setting).',
     ag_run_img: 'Creating an image: {p}…', ag_done_img: 'Created an image: {p}', img_preparing: 'Preparing…', img_tool: 'Image creation', img_toolHint: 'Local images with stable-diffusion.cpp', img_title: 'Image creation', img_hint: 'Images are made on your computer with stable-diffusion.cpp. Pick a model: SD Turbo works everywhere, Z-Image Turbo needs a graphics card with 6 GB or more.', img_active: 'In use', img_use: 'Use', 'img_sd-turbo': 'Fast, 512 px, works without a GPU', 'img_z-image-turbo': 'High quality, 1024 px, text in images',
@@ -223,6 +224,7 @@ const I18N = {
   },
 
   fr: {
+    remoteLite: 'Vue téléphone allégée', remoteLiteHint: 'Fonctionne aussi hors ligne',
     rt_title: 'Runtime des outils', rt_runtime: 'Les commandes tournent dans', rt_isolated: 'un processus séparé (pid {p})', rt_inprocess: 'le processus de l’app', rt_hint: 'Les commandes terminal, Python, tests et git lancées par les outils tournent dans leur propre processus : une commande bloquée ne peut jamais figer Fabro.', tel_title: 'Confidentialité et rapports', tel_hint: 'Par défaut, Fabro ne collecte et n’envoie rien.', tel_crash: 'Proposer d’envoyer les rapports de plantage', tel_crashHint: 'Après un plantage, Fabro ouvre un rapport GitHub prérempli que tu relis et envoies toi-même. Les chemins de ton dossier personnel sont masqués.', tel_saved: '{n} rapport(s) enregistré(s)', tel_send: 'Envoyer le dernier',
     a11y_skip: 'Aller à la zone de saisie', a11y_answered: 'Fabro a répondu.', a11y_error: 'Erreur : {m}', a11y_permission: 'Fabro demande une autorisation : {s}', reduceMotion: 'Réduire les animations', reduceMotionHint: 'Moins d’effets de mouvement (suit aussi le réglage du système).',
     ag_run_img: 'Création d’une image : {p}…', ag_done_img: 'Image créée : {p}', img_preparing: 'Préparation…', img_tool: 'Création d’images', img_toolHint: 'Images locales avec stable-diffusion.cpp', img_title: 'Création d’images', img_hint: 'Les images sont créées sur ton ordinateur avec stable-diffusion.cpp. Choisis un modèle : SD Turbo marche partout, Z-Image Turbo demande une carte graphique de 6 Go ou plus.', img_active: 'Utilisé', img_use: 'Utiliser', 'img_sd-turbo': 'Rapide, 512 px, marche sans carte graphique', 'img_z-image-turbo': 'Haute qualité, 1024 px, texte dans l’image',
@@ -444,6 +446,7 @@ const I18N = {
   },
 
   es: {
+    remoteLite: 'Vista ligera del móvil', remoteLiteHint: 'También funciona sin conexión',
     a11y_skip: 'Ir al cuadro de mensaje', a11y_answered: 'Fabro ha respondido.', reduceMotion: 'Reducir animaciones',
     sp_title: 'Sesión', sp_progress: 'Progreso', sp_prev: '{n} pasos anteriores', sp_noSteps: 'Los pasos aparecerán aquí.', sp_outputs: 'Resultados', sp_artifact: 'Artefacto', sp_document: 'Documento', sp_used: 'Usado en esta sesión', sp_uploads: 'Archivos subidos', sp_connectors: 'Conectores', sp_websearch: 'Búsqueda web', sp_browser: 'Navegador', sp_memory: 'Memoria', sp_memN: '{n} recuerdos', sp_skills: 'Skills', sp_subagents: 'Subagentes', sp_terminal: 'Terminal', sp_cmdN: '{n} comandos', ab_newtab: 'Nueva pestaña', ag_run_sub: 'Subagente: {d}…', ag_done_sub: 'Subagente: {d}', ag_plan: 'Plan actualizado · {d}/{n}',
     openAtLogin: 'Iniciar con el equipo', openAtLoginHint: 'Fabro se inicia oculto en la bandeja.',
@@ -507,6 +510,7 @@ const I18N = {
   },
 
   de: {
+    remoteLite: 'Leichte Handy-Ansicht', remoteLiteHint: 'Funktioniert auch offline',
     a11y_skip: 'Zum Eingabefeld springen', a11y_answered: 'Fabro hat geantwortet.', reduceMotion: 'Animationen reduzieren',
     sp_title: 'Sitzung', sp_progress: 'Fortschritt', sp_prev: '{n} vorherige Schritte', sp_noSteps: 'Schritte erscheinen hier.', sp_outputs: 'Ergebnisse', sp_artifact: 'Artefakt', sp_document: 'Dokument', sp_used: 'In dieser Sitzung verwendet', sp_uploads: 'Uploads', sp_connectors: 'Konnektoren', sp_websearch: 'Websuche', sp_browser: 'Browser', sp_memory: 'Erinnerung', sp_memN: '{n} Erinnerungen', sp_skills: 'Skills', sp_subagents: 'Sub-Agenten', sp_terminal: 'Terminal', sp_cmdN: '{n} Befehle', ab_newtab: 'Neuer Tab', ag_run_sub: 'Sub-Agent: {d}…', ag_done_sub: 'Sub-Agent: {d}', ag_plan: 'Plan aktualisiert · {d}/{n}',
     openAtLogin: 'Mit dem Computer starten', openAtLoginHint: 'Fabro startet versteckt im Infobereich.',

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<!-- Runs the computer's own interface (sent over the encrypted session). This frame is sandboxed without
+     allow-same-origin: an opaque origin with no access to the phone app's storage or pairing keys. -->
+<meta http-equiv="Content-Security-Policy" content="default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; base-uri 'none'; form-action 'none'">
+<title>Fabro</title>
+<style>html,body{margin:0;height:100%;background:#12161d}@media (prefers-color-scheme: light){html,body{background:#f6f5f1}}</style>
+</head>
+<body>
+<script>
+'use strict';
+/* Boot of the full interface inside the phone app: builds window.api from the computer's API map (each call
+   goes to the parent page, which forwards it over the encrypted session), injects the interface's styles and
+   scripts in order, then starts it. Local files the interface shows (file://, fabro-art://) are fetched from
+   the computer and turned into blob: URLs. */
+(() => {
+  const P = window.parent;
+  const post = (m) => P.postMessage(m, '*');
+  const wait = new Map(); const listeners = new Map(); let seq = 0, booted = false;
+
+  // ── binary over JSON: { __u8: base64 } ──
+  const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = (s) => { const b = atob(s); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+  function enc(v, d = 0) {
+    if (v == null || typeof v !== 'object' || d > 40) return v;
+    if (v instanceof Uint8Array) return { __u8: b64(v) };
+    if (v instanceof ArrayBuffer) return { __u8: b64(new Uint8Array(v)) };
+    if (ArrayBuffer.isView(v)) return { __u8: b64(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)) };
+    if (Array.isArray(v)) return v.map((x) => enc(x, d + 1));
+    const o = {}; for (const k of Object.keys(v)) { const x = v[k]; if (typeof x !== 'function' && x !== undefined) o[k] = enc(x, d + 1); } return o;
+  }
+  function dec(v, d = 0) {
+    if (v == null || typeof v !== 'object' || d > 40) return v;
+    if (typeof v.__u8 === 'string' && Object.keys(v).length === 1) return unb64(v.__u8);
+    if (Array.isArray(v)) return v.map((x) => dec(x, d + 1));
+    const o = {}; for (const k of Object.keys(v)) o[k] = dec(v[k], d + 1); return o;
+  }
+
+  // ── calls ──
+  function req(t, payload) {
+    return new Promise((resolve, reject) => { const id = ++seq; wait.set(id, { resolve, reject }); post({ t, id, ...payload }); });
+  }
+  function applyOps(ops) {
+    for (const o of ops || []) {
+      if (o.css) { const st = document.createElement('style'); st.textContent = o.css; document.head.appendChild(st); }
+      else if (o.js) { const sc = document.createElement('script'); sc.textContent = o.js; document.body.appendChild(sc); sc.remove(); }
+      else if (o.reload) setTimeout(() => post({ t: 'reload' }), 300);
+    }
+  }
+  const NEEDS = (window.FA_NEEDS || 'Only on the computer');
+  async function call(ch, args) {
+    try { const r = await req('call', { ch, args: enc(args) }); applyOps(r.ops); return dec(r.r); }
+    catch (e) { const m = String(e && e.message || e); if (m.startsWith('NEEDS_COMPUTER')) { const er = new Error(window.FA_T ? window.FA_T.needsPc : NEEDS); er.code = 'NEEDS_COMPUTER'; er.channel = ch; console.info('needs the computer:', ch); throw er; } throw e; }
+  }
+  window.addEventListener('message', (e) => {
+    if (e.source !== P) return;
+    const m = e.data || {};
+    if (m.t === 'res') { const w = wait.get(m.id); if (!w) return; wait.delete(m.id); m.ok ? w.resolve(m.r) : w.reject(new Error(m.e || 'error')); return; }
+    if (m.t === 'ev') { for (const [ch, data] of m.evs || []) for (const cb of listeners.get(ch) || []) { try { cb(dec(data)); } catch (er) { console.error(er); } } return; }
+    if (m.t === 'conn') { document.documentElement.classList.toggle('remote-off', m.state === 'off'); return; }
+    if (m.t === 'boot' && !booted) { booted = true; boot(m); }
+  });
+
+  // ── window.api ──
+  function buildApi(map) {
+    const api = {};
+    const set = (key, fn) => { const parts = key.split('.'); let o = api; while (parts.length > 1) { const k = parts.shift(); o = o[k] = o[k] || {}; } o[parts[0]] = fn; };
+    for (const [key, ch] of Object.entries(map)) {
+      if (ch === '#on') set(key, (channel, cb) => { const l = listeners.get(channel) || []; l.push(cb); listeners.set(channel, l); return () => { const i = l.indexOf(cb); if (i >= 0) l.splice(i, 1); }; });
+      else if (ch.startsWith('#local')) set(key, () => '');
+      else set(key, (...a) => call(ch, a));
+    }
+    // things that happen on the phone instead of the computer
+    const view = (p) => { post({ t: 'view', path: String(p || '') }); return Promise.resolve(true); };
+    api.shell = { ...api.shell, open: (u) => { if (/^https?:/i.test(String(u))) window.open(String(u), '_blank', 'noopener'); else view(u); return Promise.resolve(true); }, openPath: view, reveal: view };
+    api.win = { theme: async () => null, buttons: async () => null, devtools: async () => null };
+    api.notify = async () => true;
+    api.quit = async () => null;
+    api.link = { ready: async () => true };
+    api.quick = Object.fromEntries(Object.keys(api.quick || {}).map((k) => [k, async () => null]));
+    api.hotkey = { apply: async () => ({ ok: false }), status: async () => ({ ok: false, remote: true }) };
+    return api;
+  }
+
+  // ── files from the computer ──
+  const blobs = new Map(); // path → Promise<blob url>
+  const fileUrl = (u) => { const p = decodeURI(String(u).replace(/^file:\/\//, '')); return /^\/[A-Za-z]:\//.test(p) ? p.slice(1) : p; };
+  function fetchFile(p) {
+    if (!blobs.has(p)) blobs.set(p, req('file', { path: p }).then((f) => URL.createObjectURL(new Blob([unb64(f.data)], { type: f.mime }))).catch((e) => { blobs.delete(p); throw e; }));
+    return blobs.get(p);
+  }
+  const arts = new Map();
+  function fix(el) {
+    if (!el || el.nodeType !== 1) return;
+    const list = el.matches && el.matches('img,audio,video,source,iframe,embed') ? [el] : [];
+    if (el.querySelectorAll) list.push(...el.querySelectorAll('img,audio,video,source,iframe,embed'));
+    for (const x of list) {
+      const src = x.getAttribute('src') || '';
+      if (/^file:/i.test(src)) { x.removeAttribute('src'); x.dataset.fsrc = src; fetchFile(fileUrl(src)).then((u) => { if (x.dataset.fsrc === src) x.src = u; }).catch(() => x.classList.add('remote-missing')); }
+      else if (/^fabro-art:/i.test(src) && x.tagName === 'IFRAME') {
+        x.removeAttribute('src'); x.dataset.fsrc = src;
+        if (!arts.has(src)) arts.set(src, req('art', { url: src }));
+        arts.get(src).then((r) => { if (x.dataset.fsrc === src) x.srcdoc = r.html; }).catch(() => {});
+        setTimeout(() => arts.delete(src), 3000); // a new version may come later
+      } else if (/^https?:\/\/(127\.0\.0\.1|localhost)[:/]/i.test(src) && x.tagName === 'IFRAME') {
+        x.removeAttribute('src'); x.srcdoc = `<p style="font:14px system-ui;color:#888;padding:20px;text-align:center">${(window.FA_T && window.FA_T.onPc) || 'This preview runs on the computer.'}</p>`;
+      }
+    }
+  }
+  new MutationObserver((ms) => { for (const m of ms) { if (m.type === 'attributes') fix(m.target); else m.addedNodes.forEach(fix); } })
+    .observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
+  // links to local files open on the phone
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[href]'); if (!a) return;
+    const h = a.getAttribute('href');
+    if (/^file:/i.test(h)) { e.preventDefault(); post({ t: 'view', path: fileUrl(h) }); }
+    else if (/^https?:/i.test(h)) { e.preventDefault(); window.open(h, '_blank', 'noopener'); }
+  }, true);
+
+  // ── storage: an opaque origin has none; the interface only keeps small hints there ──
+  try { window.localStorage.getItem('x'); } catch {
+    const mem = new Map();
+    const fake = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k), clear: () => mem.clear(), key: (i) => [...mem.keys()][i] ?? null, get length() { return mem.size; } };
+    try { Object.defineProperty(window, 'localStorage', { value: fake, configurable: true }); } catch {}
+  }
+
+  function boot({ bundle, info }) {
+    window.FA_T = info.t || {};
+    window.FABRO_REMOTE = { pcName: info.pcName || '', lite: () => post({ t: 'lite' }) };
+    document.documentElement.classList.add('remote', 'platform-remote');
+    document.body.insertAdjacentHTML('afterbegin', bundle.body);
+    window.api = buildApi(bundle.api);
+    for (const f of bundle.files) {
+      if (f.kind === 'css') { const st = document.createElement('style'); st.textContent = f.text; document.head.appendChild(st); continue; }
+      const sc = document.createElement('script'); sc.textContent = f.text + '\n//# sourceURL=fabro/' + f.src.replace(/^(\.\.\/)+/, '');
+      document.body.appendChild(sc);
+    }
+    document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+    post({ t: 'booted' });
+  }
+  post({ t: 'hello' });
+})();
+</script>
+</body>
+</html>

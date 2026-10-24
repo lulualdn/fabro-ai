@@ -3,6 +3,10 @@
    decrypts their messages and hands them to the main process (window.host). */
 (async () => {
   const A = window.FabroAnywhere;
+  // Commands can arrive while this page is still starting (e.g. "start pairing" right after the window
+  // opens): keep them until the relay and the phones are set up, then run them in order.
+  const early = []; let onCmd = null;
+  host.onCommand((c) => (onCmd ? onCmd(c) : early.push(c)));
   let boot = await host.boot();
   const identity = await A.importPriv(boot.identity);
   let relay = null, hub = null, pairing = null, relayUrls = boot.relays, ice = boot.ice;
@@ -39,7 +43,7 @@
     });
   }
 
-  host.onCommand(async (c) => {
+  const handle = async (c) => {
     if (c.cmd === 'send') { const s = hub && hub.session(c.deviceId); if (s) await s.send(c.msg); }
     else if (c.cmd === 'pair-start') { if (c.relays && JSON.stringify(c.relays) !== JSON.stringify(relayUrls)) { relayUrls = c.relays; await restart(); } await startPairing(c.secret); }
     else if (c.cmd === 'pair-stop') { if (pairing) pairing.stop(); pairing = null; }
@@ -47,7 +51,7 @@
     else if (c.cmd === 'remove') { await hub.remove(c.deviceId, c.notify); }
     else if (c.cmd === 'bye-all') { for (const id of hub ? hub.ids() : []) { const s = hub.session(id); if (s) s.send({ t: 'bye' }); } }
     else if (c.cmd === 'config') { relayUrls = c.relays; ice = c.ice; await restart(); }
-  });
+  };
   async function restart() {
     const ids = hub ? hub.ids() : [];
     if (relay) relay.close();
@@ -57,4 +61,8 @@
     for (const id of ids) if (!boot.devices.some((d) => d.id === id)) host.state(id, 'off');
   }
   await startAll();
+  // control commands one at a time, in order; messages to phones go straight out (a big file must not hold up the rest)
+  let chain = Promise.resolve();
+  onCmd = (c) => { if (c.cmd === 'send') return handle(c).catch(() => {}); chain = chain.then(() => handle(c)).catch((e) => console.error('peer command', e)); return chain; };
+  for (const c of early.splice(0)) onCmd(c);
 })();

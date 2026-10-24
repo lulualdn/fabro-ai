@@ -66,6 +66,8 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
           xvfb-run -a -s "-screen 0 1440x900x24" node scripts/anywhere-e2e.js anywhere-shots
+      - name: The computer's full interface on the phone (sandboxed frame, files, zoom, away/back)
+        run: xvfb-run -a -s "-screen 0 1440x900x24" node scripts/anywhere-full-e2e.js anywhere-shots/full
       - uses: actions/upload-artifact@v4
         if: always()
         with:

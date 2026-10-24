@@ -1,4 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell, nativeTheme, Menu, dialog } = require('electron');
+// Fabro Anywhere full interface: must see every ipcMain.handle() registration, so it goes first.
+const remoteUi = require('./remote-ui'); remoteUi.capture();
 const path = require('path');
 const store = require('./store');
 const system = require('./system');
@@ -102,6 +104,7 @@ function createWindow() {
     },
   });
   desktop.attachMain(win);
+  remoteUi.tee(win.webContents); // paired phones showing the full interface get the same events
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   // Developer mode: F12 / Ctrl+Shift+I devtools, Ctrl+R reload.
   win.webContents.on('before-input-event', (e, input) => {

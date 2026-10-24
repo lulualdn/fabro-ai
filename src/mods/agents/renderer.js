@@ -6,10 +6,10 @@
   const L = {
     en: { title: 'Agents', newAgent: 'New agent', newGroup: 'New group', team: 'Team', chats: 'Chats', noChats: 'No conversations yet. Create an agent, then start a chat.',
       name: 'Name', role: 'Role (what it does)', prompt: 'Extra instructions (optional)', model: 'Model', emoji: 'Emoji', color: 'Color', save: 'Save', cancel: 'Cancel', create: 'Create', del: 'Delete', edit: 'Edit',
-      placeholder: 'Message…', groupName: 'Group name', pickAgents: 'Pick the agents', startDm: 'Message', members: 'members', thinking: 'thinking…', empty: 'Pick a conversation or start a new one.', defaultModel: 'Default model', learned: 'learned', proactive: 'proactive', roleEx: 'e.g. Developer, researcher, copywriter…' },
+      back: 'Back', placeholder: 'Message…', groupName: 'Group name', pickAgents: 'Pick the agents', startDm: 'Message', members: 'members', thinking: 'thinking…', empty: 'Pick a conversation or start a new one.', defaultModel: 'Default model', learned: 'learned', proactive: 'proactive', roleEx: 'e.g. Developer, researcher, copywriter…' },
     fr: { title: 'Agents', newAgent: 'Nouvel agent', newGroup: 'Nouveau groupe', team: 'Équipe', chats: 'Conversations', noChats: 'Aucune conversation. Crée un agent, puis lance une conversation.',
       name: 'Nom', role: 'Rôle (ce qu\'il fait)', prompt: 'Instructions en plus (optionnel)', model: 'Modèle', emoji: 'Émoji', color: 'Couleur', save: 'Enregistrer', cancel: 'Annuler', create: 'Créer', del: 'Supprimer', edit: 'Modifier',
-      placeholder: 'Message…', groupName: 'Nom du groupe', pickAgents: 'Choisis les agents', startDm: 'Écrire', members: 'membres', thinking: 'réfléchit…', empty: 'Choisis une conversation ou lances-en une.', defaultModel: 'Modèle par défaut', learned: 'appris', proactive: 'spontané', roleEx: 'ex. Développeur, chercheur, rédacteur…' },
+      back: 'Retour', placeholder: 'Message…', groupName: 'Nom du groupe', pickAgents: 'Choisis les agents', startDm: 'Écrire', members: 'membres', thinking: 'réfléchit…', empty: 'Choisis une conversation ou lances-en une.', defaultModel: 'Modèle par défaut', learned: 'appris', proactive: 'spontané', roleEx: 'ex. Développeur, chercheur, rédacteur…' },
   };
   const t = (k) => (L[fabro.S.lang] || L.en)[k] || L.en[k] || k;
 
@@ -64,11 +64,13 @@
   // ───────── right pane ─────────
   async function renderMain() {
     const m = $('.ag-main'); if (!m) return;
+    const w = $('.ag-wrap'); if (w) w.classList.toggle('chat-open', !!(active && st.chats.find((c) => c.id === active))); // phone: list or conversation
     if (!active || !st.chats.find((c) => c.id === active)) { m.innerHTML = `<div class="ag-blank">${av(null, 54)}<p>${esc(t('empty'))}</p></div>`; return; }
     const c = st.chats.find((x) => x.id === active);
     const members = c.members.map(byId).filter(Boolean);
     m.innerHTML = `
       <header class="ag-top">
+        <button class="icon-btn sm ag-back" data-ag="back" title="${esc(t('back'))}" aria-label="${esc(t('back'))}">${fabro.icon('back', 18)}</button>
         <span class="ag-av ${c.type === 'group' ? 'grp' : ''}" style="--c:${esc(members[0] ? members[0].color : '#888')};width:34px;height:34px">${esc(c.type === 'group' ? (c.emoji || '👥') : (members[0] ? members[0].emoji : '🤖'))}</span>
         <span class="ag-top-t"><b>${esc(c.title)}</b><small>${c.type === 'group' ? members.map((a) => a.name).join(', ') : esc(members[0] ? members[0].role : '')}</small></span>
         <span class="grow"></span>
@@ -146,6 +148,7 @@
     const b = e.target.closest('[data-ag]'); if (!b || !root.contains(b)) return;
     const act = b.dataset.ag, id = b.dataset.id;
     if (act === 'open') { active = id; typing = {}; renderSide(); renderMain(); }
+    else if (act === 'back') { active = null; typing = {}; renderSide(); renderMain(); }
     else if (act === 'open-agent') { const ex = st.chats.find((c) => c.type === 'dm' && c.members[0] === id); if (ex) active = ex.id; else { const r = await fabro.call('createChat', { members: [id] }); st = await fabro.call('state'); active = r.id; } typing = {}; renderSide(); renderMain(); }
     else if (act === 'edit-agent') { e.stopPropagation(); const a = await fabro.call('getAgent', id); openAgent(a); }
     else if (act === 'new-agent') openAgent(null);

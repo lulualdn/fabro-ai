@@ -331,9 +331,10 @@ function buildApp() {
   const walk = (d, rel = '') => { for (const e of fs.readdirSync(path.join(d, rel), { withFileTypes: true })) { const r = path.join(rel, e.name); if (e.isDirectory()) walk(d, r); else copy(path.join(d, r), path.join(out, r)); } };
   walk(src);
   copy(path.join(ROOT, 'src', 'anywhere', 'core.js'), path.join(out, 'core.js'));
+  copy(path.join(ROOT, 'src', 'renderer', 'zoom.js'), path.join(out, 'zoom.js')); // same zoom as the desktop viewer
   // the service worker's cache name follows the app's content, so phones pick up new versions
   const h = require('crypto').createHash('sha256');
-  for (const f of ['index.html', 'app.js', 'app.css', 'i18n.js', 'core.js', 'theme.js', 'scan-worker.js']) h.update(fs.readFileSync(path.join(out, f)));
+  for (const f of ['index.html', 'app.js', 'app.css', 'i18n.js', 'core.js', 'theme.js', 'scan-worker.js', 'full.js', 'full.html', 'zoom.js']) h.update(fs.readFileSync(path.join(out, f)));
   const sw = path.join(out, 'sw.js'); fs.writeFileSync(sw, fs.readFileSync(sw, 'utf8').replace('__VERSION__', h.digest('hex').slice(0, 12)));
 }
 
@@ -365,7 +366,7 @@ function buildApp() {
   fs.writeFileSync(path.join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
   fs.writeFileSync(path.join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Object.keys(pages).map((f) => `<url><loc>${SITE_URL}/${f === 'index' ? '' : f + '.html'}</loc></url>`).join('')}</urlset>\n`);
   // Each page carries its own Content-Security-Policy (<meta>): the phone app needs relays, WebGPU models…
-  fs.writeFileSync(path.join(OUT, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n/img/*\n  Cache-Control: public, max-age=604800\n/app/sw.js\n  Cache-Control: no-cache\n  Service-Worker-Allowed: /app/\n/app/manifest.webmanifest\n  Content-Type: application/manifest+json\n`);
+  fs.writeFileSync(path.join(OUT, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: SAMEORIGIN\n  Referrer-Policy: strict-origin-when-cross-origin\n/img/*\n  Cache-Control: public, max-age=604800\n/app/sw.js\n  Cache-Control: no-cache\n  Service-Worker-Allowed: /app/\n/app/manifest.webmanifest\n  Content-Type: application/manifest+json\n`);
   buildApp();
   console.log(`site: ${Object.keys(pages).length} pages, ${rel.length} releases, ${cat.length} models → ${path.relative(ROOT, OUT)}`);
 })().catch((e) => { console.error(e); process.exit(1); });

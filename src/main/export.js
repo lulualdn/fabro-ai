@@ -11,18 +11,23 @@ const previews = new Map(); // token → html (unsaved previews from code cards)
 function registerScheme() {
   protocol.registerSchemesAsPrivileged([{ scheme: 'fabro-art', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } }]);
 }
+// The HTML a fabro-art:// URL shows (also sent to Fabro Anywhere, which can't load the protocol).
+function artHtml(url) {
+  const u = new URL(url);
+  let html = '';
+  if (u.hostname === 'preview') html = previews.get(u.pathname.slice(1)) || '';
+  else {
+    const a = db.getArtifact(u.hostname);
+    const v = Math.max(0, Math.min((a && a.versions.length - 1) || 0, +(u.searchParams.get('v') ?? (a ? a.versions.length - 1 : 0))));
+    html = a ? a.versions[v].content : '<p>Not found</p>';
+    if (a && a.type === 'svg') html = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100vh}</style>${html}`;
+  }
+  if (!/<html|<!doctype/i.test(html)) html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${html}</body></html>`;
+  return html;
+}
 function handleProtocol() {
   protocol.handle('fabro-art', (req) => {
-    const u = new URL(req.url);
-    let html = '';
-    if (u.hostname === 'preview') html = previews.get(u.pathname.slice(1)) || '';
-    else {
-      const a = db.getArtifact(u.hostname);
-      const v = Math.max(0, Math.min((a && a.versions.length - 1) || 0, +(u.searchParams.get('v') ?? (a ? a.versions.length - 1 : 0))));
-      html = a ? a.versions[v].content : '<p>Not found</p>';
-      if (a && a.type === 'svg') html = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100vh}</style>${html}`;
-    }
-    if (!/<html|<!doctype/i.test(html)) html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${html}</body></html>`;
+    const html = artHtml(req.url);
     return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; frame-ancestors 'self' file:" } });
   });
 }
@@ -110,4 +115,4 @@ async function save(win, { name, format, content, html, blocks, landscape, ext }
   return r.filePath;
 }
 
-module.exports = { registerScheme, handleProtocol, setPreview, save, toDocx, zip, toPdf };
+module.exports = { registerScheme, handleProtocol, artHtml, setPreview, save, toDocx, zip, toPdf };

@@ -208,11 +208,18 @@ function renderRecents() {
 
 // Code mode with a file open on a narrow window: the app sidebar steps aside (like an IDE).
 const sbAuto = () => S.mode === 'code' && !!S.viewer && S.viewer.type === 'codefile' && innerWidth < 1500;
-const sbHidden = () => !!S.settings.sidebarCollapsed || (sbAuto() && !S.sbForce);
+// Phone-sized window (Fabro Anywhere on a phone, or a very narrow window): the sidebar is a drawer, closed
+// by default and independent from the desktop's collapsed setting.
+const compactMq = matchMedia('(max-width: 760px)');
+const compact = () => compactMq.matches;
+const sbHidden = () => (compact() ? !S.drawer : !!S.settings.sidebarCollapsed || (sbAuto() && !S.sbForce));
+compactMq.addEventListener && compactMq.addEventListener('change', () => { S.drawer = false; if (S.settings) { renderSidebar(); renderTopbar(); } });
 function renderSidebar() {
   const sb = $('#sidebar');
   const collapsed = sbHidden();
   $('#app').classList.toggle('sb-collapsed', collapsed);
+  $('#app').classList.toggle('drawer-open', compact() && !collapsed);
+  if (!$('#sb-scrim')) $('#app').insertAdjacentHTML('beforeend', '<div id="sb-scrim" class="sb-scrim" data-action="toggle-sidebar" aria-hidden="true"></div>');
   const installed = S.settings.installedModes || ['chat'];
   const eng = S.engine;
   const cm = currentModel();
@@ -263,6 +270,7 @@ function openUserMenu(anchor) {
       <button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'dark' ? 'light' : 'dark'}">${icon(th === 'dark' ? 'sun' : 'moon', 16)}<span class="pm-text"><b>${esc(t(th === 'dark' ? 'themeLight' : 'themeDark'))}</b></span></button>
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="settings" data-tab="about">${icon('info', 16)}<span class="pm-text"><b>${esc(t('tab_about'))}</b></span></button>
+      ${window.FABRO_REMOTE ? `<div class="pm-sep"></div><button class="pm-item" data-action="remote-lite">${icon('phone', 16)}<span class="pm-text"><b>${esc(t('remoteLite'))}</b><small>${esc(t('remoteLiteHint'))}</small></span></button>` : ''}
     </div>`;
 }
 
@@ -280,7 +288,7 @@ function renderTopbar() {
     : S.mode === 'code' ? (S.cx.root ? `${S.cx.info ? S.cx.info.name : ''}${S.conv && S.conv.messages.length ? ' · ' + (S.conv.title || t('untitled')) : ''}` : t('mode_code')) : t('nav_' + S.mode);
   $('#topbar').innerHTML = `
     <div class="tb-left">
-      ${S.settings.sidebarCollapsed ? '' : ''}
+      ${compact() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}" aria-label="${esc(t('expandSidebar'))}">${icon('panel', 20)}</button>` : ''}
       <span class="tb-title">${esc(title)}</span>
       ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="chip agent-chip" data-action="open-workspace" title="${esc(t('ws_title'))}">${icon('agent', 13)} ${esc(t('agentBadge'))}</button>` : ''}
       ${S.mode === 'chat' && S.conv && S.conv.project ? `<button class="chip prj-chip" data-action="open-project" data-id="${esc(S.conv.project)}">${icon('folder', 13)} ${esc(((S.prj.list || []).find((p) => p.id === S.conv.project) || S.prj.current || {}).name || t('nav_projects'))}</button>` : ''}
@@ -289,7 +297,8 @@ function renderTopbar() {
     <div class="tb-right">
       ${S.updater.state === 'ready' ? `<button class="chip accent upd-chip" data-action="upd-open">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
       ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="icon-btn ${S.spOpen !== false ? 'on' : ''}" data-action="sp-toggle" title="${esc(t('sp_title'))}">${icon('plan', 18)}</button>` : ''}
-      ${sbHidden() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
+      ${sbHidden() && !compact() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
+      ${compact() && S.mode === 'chat' && S.conv ? `<button class="icon-btn" data-action="new-chat" title="${esc(t('newChat'))}" aria-label="${esc(t('newChat'))}">${icon('edit', 19)}</button>` : ''}
     </div>`;
   if (typeof renderSessionPanel === 'function') renderSessionPanel();
 }
@@ -759,6 +768,7 @@ function renderViewer() {
   el.innerHTML = `<div class="v-head"><span class="v-title">${esc(v.title || '')}</span><div class="v-tools">${tools}
       <button class="icon-btn sm" data-action="viewer-close" title="${esc(t('close'))}">${icon('x', 17)}</button></div></div>
     <div class="v-body">${body}</div>`;
+  if (window.FabroZoom) el.querySelectorAll('.v-media img, .v-pages img').forEach((img) => FabroZoom(img)); // pinch, wheel, double-tap
 }
 
 // ───────────────────────────── Popover (model menu) ─────────────────────────────
@@ -1074,8 +1084,10 @@ function onChatEvent(ev) {
 
 // ───────────────────────────── Actions ─────────────────────────────
 const actions = {
+  'remote-lite': () => { closePopover(); if (window.FABRO_REMOTE) window.FABRO_REMOTE.lite(); }, // Fabro Anywhere: back to the phone's light view
   'toggle-sidebar': async () => {
-    if (sbAuto() && !S.settings.sidebarCollapsed) S.sbForce = !S.sbForce; // auto-hidden in Code mode: just show it for now
+    if (compact()) S.drawer = !S.drawer; // phone: open / close the drawer
+    else if (sbAuto() && !S.settings.sidebarCollapsed) S.sbForce = !S.sbForce; // auto-hidden in Code mode: just show it for now
     else await saveSettings({ sidebarCollapsed: !S.settings.sidebarCollapsed });
     renderSidebar(); renderTopbar();
   },
@@ -1274,6 +1286,9 @@ document.addEventListener('click', (e) => {
   if (!el) { return; }
   const fn = actions[el.dataset.action];
   if (fn) fn(el, e);
+  // phone drawer: picking something in it (a chat, a section, an app) closes it
+  const keep = ['toggle-sidebar', 'user-menu', 'focus-search', 'toggle-more', 'pin-conv', 'del-conv', 'close-pop', 'apps-get'];
+  if (S.drawer && compact() && el.closest('#sidebar') && !keep.includes(el.dataset.action)) { S.drawer = false; renderSidebar(); renderTopbar(); }
 });
 
 document.addEventListener('change', (e) => {
@@ -1369,7 +1384,7 @@ api.on('updater:status', (u) => { const was = S.updater.state; S.updater = u; if
 // Boot once every renderer script (chat-ui, models-ui…) is loaded.
 window.addEventListener('DOMContentLoaded', async function boot() {
   [S.info, S.settings] = await Promise.all([api.info(), api.settings.get()]);
-  document.body.classList.add('platform-' + S.info.platform, 'booting');
+  document.body.classList.add(S.info.remote ? 'platform-remote' : 'platform-' + S.info.platform, 'booting'); // remote: Fabro Anywhere on a phone, no window buttons
   setTimeout(() => document.body.classList.remove('booting'), 1600);
   S.lang = resolveLang();
   document.documentElement.lang = S.lang;

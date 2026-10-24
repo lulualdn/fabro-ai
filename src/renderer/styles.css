@@ -1582,3 +1582,67 @@ body.drop-on .drop-veil { opacity: 1; }
 /* Fabro app full view */
 .view.app-view { padding: 0; }
 .app-host { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ───────── Phone layout (Fabro Anywhere on a phone, or a very narrow window) ─────────
+   The sidebar becomes a drawer, panels and dialogs go full screen, text fields are 16px so phones don't zoom
+   in on focus, and what only shows on hover stays visible on touch screens. */
+.sb-scrim { display: none; }
+.platform-remote { --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px); }
+.platform-remote .topbar, .platform-remote .sb-head { -webkit-app-region: none; }
+.v-media { overflow: hidden; } .v-pages figure { overflow: hidden; }
+@media (max-width: 760px) {
+  html, body { height: 100%; }
+  .app { height: 100vh; height: 100dvh; padding: 0; gap: 0; }
+  .main { width: 100%; }
+  .viewer { margin: 0; }
+  .tb-left { display: flex; align-items: center; flex: 1; min-width: 0; gap: 4px; } .tb-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .sidebar kbd, .sb-search kbd { display: none; }
+  /* drawer */
+  .sidebar, .sb-collapsed .sidebar { position: fixed; z-index: 60; top: 0; bottom: 0; left: 0; width: min(86vw, 330px) !important; margin: 0 !important; opacity: 1; pointer-events: auto;
+    border-width: 0 1px 0 0; border-radius: 0 var(--r-lg) var(--r-lg) 0; padding-top: var(--safe-t, 0px); padding-bottom: var(--safe-b, 0px);
+    transform: translateX(0); transition: transform .28s var(--ease), box-shadow .28s; box-shadow: var(--shadow-lg); }
+  .sb-collapsed .sidebar { transform: translateX(-105%); box-shadow: none; visibility: hidden; transition: transform .28s var(--ease), visibility 0s .28s; }
+  .sb-collapsed .sidebar .label, .sb-collapsed .sidebar .lock, .sb-collapsed .recents-wrap { opacity: 1; }
+  .sb-scrim { display: block; position: fixed; inset: 0; z-index: 59; background: rgba(4, 6, 10, .45); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .drawer-open .sb-scrim { opacity: 1; pointer-events: auto; }
+  .sb-head .icon-btn[data-action=toggle-sidebar] { display: inline-flex; }
+  .r-tools { display: flex; } .recent .r-tools .icon-btn { opacity: .55; }
+  .nav-item, .recent, .app-item { min-height: 40px; }
+  /* top bar */
+  .topbar, .platform-win32 .topbar, .platform-linux .topbar, .platform-darwin.sb-collapsed .topbar, .platform-darwin .sb-collapsed .topbar { height: calc(52px + var(--safe-t, 0px)); padding: var(--safe-t, 0px) 8px 0; gap: 6px; }
+  .topbar .icon-btn { width: 40px; height: 40px; }
+  .tb-title { font-size: 15px; }
+  /* chat */
+  .welcome { width: calc(100% - 32px); padding: 2vh 0 4vh; gap: 16px; }
+  .greet { font-size: 30px; flex-wrap: wrap; text-align: center; }
+  .suggestions { gap: 6px; } .suggestions > * { font-size: 14px; }
+  .dock { padding: 0 8px calc(8px + var(--safe-b, 0px)); }
+  .composer { border-radius: 22px; padding: 8px 8px 6px 12px; }
+  .composer textarea { font-size: 16px; max-height: 40vh; }
+  .composer:focus-within { transform: none; }
+  .msg-actions { opacity: 1; }
+  /* viewer, dialogs, settings: full screen */
+  .with-viewer .viewer, .platform-win32 .with-viewer .viewer, .platform-linux .with-viewer .viewer, .wide-viewer .viewer { position: fixed; inset: 0; width: auto !important; margin: 0; z-index: 50; border-radius: 0; border-width: 0;
+    padding-top: var(--safe-t, 0px); padding-bottom: var(--safe-b, 0px); }
+  .modal { width: calc(100vw - 16px); max-height: calc(100dvh - 16px - var(--safe-t, 0px)); }
+  .overlay { padding: 0; }
+  .st-panel { width: 100%; height: 100%; border-radius: 0; border: 0; flex-direction: column; padding-top: var(--safe-t, 0px); }
+  .st-nav { width: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; gap: 4px; scrollbar-width: none; }
+  .st-nav::-webkit-scrollbar { display: none; }
+  .st-heading { display: none; }
+  .st-tab { flex: none; white-space: nowrap; padding: 8px 12px; }
+  .st-top { padding: 10px 8px 4px 16px; }
+  .st-content { padding: 4px 16px calc(24px + var(--safe-b, 0px)); }
+  .st-row { flex-wrap: wrap; gap: 10px; }
+  .st-control { flex: 1 1 auto; justify-content: flex-end; flex-wrap: wrap; }
+  .input { min-width: 0; max-width: 100%; }
+  input.input, select.input, textarea, .input.area, .ag-composer textarea, .ag-f input, .ag-f textarea { font-size: 16px; }
+  .popover { max-width: calc(100vw - 16px); }
+  .toasts { left: 8px; right: 8px; bottom: calc(8px + var(--safe-b, 0px)); }
+  .toast { max-width: 100%; }
+}
+/* touch screens: no hover, so what appears on hover is always there */
+@media (hover: none) {
+  .msg-actions, .att-x, .r-del, .sc-del, .ag-edit { opacity: 1; }
+  .r-tools { display: flex; }
+}

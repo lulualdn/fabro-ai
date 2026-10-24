@@ -66,6 +66,16 @@
 .ag-pk:hover { background: var(--hover); } .ag-pk span { flex: 1; font-size: 14px; }
 .ag-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 
-@media (max-width: 720px) {
-  .ag-side { width: 100%; } .ag-main { display: none; }
+.ag-back { display: none; }
+/* phone: the list, or one conversation with a back button */
+@media (max-width: 760px) {
+  .ag-side { width: 100%; border-right: 0; } .ag-main { display: none; }
+  .ag-wrap.chat-open .ag-side { display: none; } .ag-wrap.chat-open .ag-main { display: flex; }
+  .ag-back { display: inline-flex; margin-left: -6px; }
+  .ag-top { padding: 8px 10px; } .ag-msgs { padding: 12px 10px; } .ag-m { max-width: 92%; }
+  .ag-composer { padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .ag-composer textarea { font-size: 16px; }
+  .ag-team-item, .ag-chat { min-height: 44px; }
+  .ag-dialog { width: calc(100% - 16px); max-height: calc(100% - 16px); padding: 16px; }
+  .ag-f2 { flex-direction: column; gap: 0; }
 }

@@ -1,5 +1,94 @@
 [
  {
+  "tag": "v0.1.36",
+  "date": "2026-10-24T11:10:59Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.36",
+  "prerelease": false,
+  "body": "Intel Mac support\n\n- macOS builds for both Apple Silicon (arm64) and Intel (x64); auto-update picks the right one\n- Image generation on Intel Macs: stable-diffusion.cpp ships no Intel build, so the release CI compiles one on an Intel runner (generic AVX2), generates a real image with it, and attaches it\n- Engine smoke test now also runs on an Intel Mac runner\n- Releases are drafted first, filled by every platform, then published (fixes the race where two platforms created the release at once, and auto-update never sees a half-filled release)\n- Website: detects Apple Silicon vs Intel and offers the matching download",
+  "assets": [
+   {
+    "name": "Fabro-0.1.36-arm64-mac.zip",
+    "size": 139708694,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.36-arm64-mac.zip.blockmap",
+    "size": 146109,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.36-arm64.dmg",
+    "size": 140467029,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.36-arm64.dmg.blockmap",
+    "size": 147440,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.36-mac.zip",
+    "size": 143477674,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.36-mac.zip.blockmap",
+    "size": 151359,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.36.AppImage",
+    "size": 136901770,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36.AppImage"
+   },
+   {
+    "name": "Fabro-0.1.36.dmg",
+    "size": 144172643,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36.dmg"
+   },
+   {
+    "name": "Fabro-0.1.36.dmg.blockmap",
+    "size": 151183,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-0.1.36.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.36.exe",
+    "size": 118789313,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-Setup-0.1.36.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.36.exe.blockmap",
+    "size": 123533,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/Fabro-Setup-0.1.36.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 795,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/latest.yml"
+   },
+   {
+    "name": "sd-bin-Darwin-x86_64.zip",
+    "size": 33359819,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.36/sd-bin-Darwin-x86_64.zip"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.35",
   "date": "2026-10-24T10:43:18Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.35",

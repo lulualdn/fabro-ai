@@ -452,3 +452,27 @@ html, body { overflow-x: hidden; }
 .c-talk { display: none; width: 42px; height: 42px; border-radius: 50%; place-items: center; }
 @media (max-width: 819px) { .c-talk { display: grid; } .composer.has-text .c-talk, .composer:has(.send.stop) .c-talk { display: none; } }
 .c-row .c-talk, .c-row .send { order: 10; }
+
+/* ───────── Full Fabro interface (the computer's own UI in a sandboxed frame) ───────── */
+#full { position: fixed; inset: 0; width: 100%; height: 100%; height: 100dvh; border: 0; z-index: 30; background: var(--bg); display: block; }
+body.full-on > #app, body.full-on > #sheet-root { display: none; }
+body.full-loading #full { visibility: hidden; }
+.full-load { position: fixed; inset: 0; z-index: 31; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--muted); font-size: 15px; padding: 24px; text-align: center; }
+body:not(.full-loading) .full-load { display: none; }
+.full-spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border-strong); border-top-color: var(--accent); animation: fspin .9s linear infinite; }
+@keyframes fspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .full-spin { animation-duration: 3s; } }
+.full-offbar { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); top: calc(8px + var(--safe-t)); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px);
+  padding: 6px 6px 6px 14px; border-radius: 999px; background: var(--elev); border: 1px solid var(--border); box-shadow: var(--shadow); font-size: 13.5px; }
+.full-offbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); flex: none; }
+.full-offbar span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.full-offbar .btn.sm { padding: 5px 12px; font-size: 13px; min-height: 0; white-space: nowrap; flex: none; }
+.full-fv { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; display: flex; flex-direction: column; }
+.full-fv header { display: flex; align-items: center; gap: 8px; padding: calc(6px + var(--safe-t)) 8px 6px; background: rgba(0, 0, 0, .6); }
+.full-fv header b { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.full-fv .icon-btn { color: #fff; }
+.full-fv .fv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding-bottom: var(--safe-b); }
+.full-fv .fv-body > iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.full-fv .fv-body > video { max-width: 100%; max-height: 100%; }
+.full-fv .fv-zoom { width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: none; }
+.full-fv .fv-zoom img { max-width: 100%; max-height: 100%; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; }

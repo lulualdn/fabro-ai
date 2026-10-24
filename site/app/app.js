@@ -79,7 +79,7 @@
     relay = new A.Relay(relayUrls(), { onState: () => { if (S.conn.state === 'off' || S.conn.state === 'connecting') render(); } });
     return relay;
   }
-  function setConn(state, extra = {}) { S.conn = { ...S.conn, state, ...extra }; renderHeader(); if (S.view === 'main') renderComposer(); }
+  function setConn(state, extra = {}) { S.conn = { ...S.conn, state, ...extra }; renderHeader(); if (S.view === 'main') renderComposer(); if (window.FAFull) FAFull.conn(state); }
   async function connect(force) {
     if (!S.link) return;
     if (connecting && !force) return connecting;
@@ -131,6 +131,7 @@
       if (info.pcName && S.link.pcName !== info.pcName) { S.link.pcName = info.pcName; await kv.set('link', S.link); }
       if (!S.settings.model || !S.models.some((m) => refKey(m.ref) === refKey(S.settings.model))) { if (S.settings.model !== 'phone') S.settings.model = info.model || (S.models[0] && S.models[0].ref) || null; }
       renderHeader();
+      if (window.FAFull && info.ui) FAFull.connected(info).catch((e) => console.warn('full ui', e)); // the computer's full interface
       await syncNow();
       await flushOutbox();
       ensurePush(false);
@@ -145,6 +146,7 @@
       if (m.k === 'run.done') return onRunDone(m);
       if (m.k === 'ask') return onAsk(m);
       if (m.k === 'toast') { toast(`${m.title || ''} — ${m.body || ''}`); syncNow(); return; }
+      if (m.k === 'ui') { window.FAFull && FAFull.events(m.evs || []); return; }
     }
   }
   const refKey = (r) => !r ? '' : r === 'phone' ? 'phone' : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
@@ -914,6 +916,7 @@
     return `<h2>${esc(t('settings'))}</h2>
       ${!S.link ? `<div class="card pc-card">${ic('phone', 26)}<div><b>${esc(t('guestMode'))}</b><small>${esc(t('guestHint'))}</small></div></div><button class="btn primary" data-act="pair-pc">${ic('pc', 18)} ${esc(t('pairPc'))}</button>` : ''}
       ${S.link ? `<div class="card pc-card">${ic('pc', 26)}<div><b>${esc((S.link && S.link.pcName) || 'PC')}</b><small>${esc(st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : t('offlineShort'))}${info.version ? ' · Fabro ' + esc(info.version) : ''}</small></div></div>` : ''}
+      ${S.link && info.ui ? `<div class="set-row"><span>${ic('pc', 18)} ${esc(t('fullUi'))}</span><button class="switch ${(S.settings.ui || 'full') !== 'lite' ? 'on' : ''}" data-act="full-ui" role="switch" aria-checked="${(S.settings.ui || 'full') !== 'lite'}"><i></i></button></div><p class="hint">${esc(t('fullUiHint'))}</p>` : ''}
       <div class="set-row"><span>${ic('bell', 18)} ${esc(t('notifications'))}</span>${pushOk ? `<button class="switch ${notifyOn ? 'on' : ''}" data-act="${notifyOn ? 'notify-off' : 'notify-on'}" role="switch" aria-checked="${notifyOn}"><i></i></button>` : `<small class="muted">${esc(t('noPush'))}</small>`}</div>
       ${pushOk && /iPhone|iPad/.test(navigator.userAgent) && !(matchMedia('(display-mode: standalone)').matches || navigator.standalone) ? `<p class="hint">${esc(t('iosPush'))}</p>` : ''}
       <h3>${esc(t('localTitle'))}</h3>
@@ -961,6 +964,7 @@
     'notify-on': async () => { const ok = await ensurePush(true); if (S.view === 'paired') { S.view = 'main'; render(); } else renderSheet(); if (ok) toast(t('notifyReady')); },
     'notify-off': async () => { await disablePush(); renderSheet(); },
     start: () => { S.view = 'main'; render(); },
+    'full-ui': async () => { if ((S.settings.ui || 'full') !== 'lite') { S.settings.ui = 'lite'; await saveSettings(); window.FAFull && FAFull.close(); renderSheet(); } else { S.sheet = null; renderSheet(); window.FAFull && FAFull.open(); } },
     new: () => { S.cur = null; S.drawer = false; render(); setTimeout(() => $('#prompt') && $('#prompt').focus(), 50); },
     open: (el) => openConv(el.dataset.id),
     drawer: () => { S.drawer = true; $('.shell') && $('.shell').classList.add('drawer-open'); },
@@ -1139,4 +1143,9 @@
     if (S.settings.localModel) S.local = { status: 'idle', progress: 0, text: '' };
     window.__fa = { S, send, connect, syncNow, pairWith, rpc, decode: A.decodeRingCode }; // tests & debugging
   })();
+  // what the full interface (full.js) uses from this app
+  window.FAHost = {
+    rpc: (m, p, ms) => rpc(m, p, ms), get conn() { return S.conn; }, get settings() { return S.settings; }, saveSettings,
+    t: (k, v) => t(k, v), esc, ic, toast, saveBlob, render: () => render(), kv,
+  };
 })();

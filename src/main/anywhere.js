@@ -11,6 +11,7 @@ const db = require('./db');
 const chat = require('./chat');
 const webpush = require('./webpush');
 const A = require('../anywhere/core.js');
+const remoteUi = require('./remote-ui');
 
 const SITE = 'https://fabro.ufstudios.eu';
 const APP_URL = `${SITE}/app/`;
@@ -125,7 +126,7 @@ async function revoke(id) {
   const d = load().devices.find((x) => x.id === id);
   if (d) data.revoked = [{ id, k: d.k, at: Date.now() }, ...data.revoked.filter((r) => r.id !== id)].slice(0, 50);
   data.devices = data.devices.filter((x) => x.id !== id); save();
-  live.delete(id); emitStatus();
+  live.delete(id); remoteUi.drop(id); emitStatus();
   if (!data.devices.length && !data.revoked.length) setTimeout(() => { if (!data.devices.length && !pairing) stop(); }, 2000);
   return true;
 }
@@ -305,7 +306,7 @@ async function handle(deviceId, method, p = {}) {
       if (p.name && p.name !== dev.name && !dev.renamed) { /* keep the PC-side name */ }
       const voice = require('./voice').status();
       const ctx = await askRenderer('context').catch(() => null);
-      return { pcName: pcName(), models: await modelList(), model: (ctx && ctx.model) || store.getSettings().selectedModel, voice: { ready: !!(voice.runtime && voice.whisperReady), voice: voice.voice }, vapid: load().vapid.publicKey, ice: iceServers(), deviceName: dev.name, version: app.getVersion() };
+      return { ui: 1, pcName: pcName(), models: await modelList(), model: (ctx && ctx.model) || store.getSettings().selectedModel, voice: { ready: !!(voice.runtime && voice.whisperReady), voice: voice.voice }, vapid: load().vapid.publicKey, ice: iceServers(), deviceName: dev.name, version: app.getVersion() };
     }
     case 'state': live.set(deviceId, { ...(live.get(deviceId) || {}), visible: !!p.visible, at: Date.now() }); return true;
     case 'sync': return sync(p);
@@ -343,13 +344,16 @@ async function handle(deviceId, method, p = {}) {
     case 'push.sub': { dev.push = p.sub && p.sub.endpoint && p.sub.keys ? { endpoint: String(p.sub.endpoint), keys: { p256dh: String(p.sub.keys.p256dh), auth: String(p.sub.keys.auth) } } : null; save(); emitStatus(); return true; }
     case 'unpair': setTimeout(() => revoke(deviceId), 300); return true;
     case 'push.test': return notify(deviceId, { title: pcName(), body: p.body || 'Fabro Anywhere ✓', tag: 'test' });
-    default: throw new Error('unknown method ' + method);
+    default:
+      if (method.startsWith('ui.')) { const r = await remoteUi.handle(deviceId, method, p); if (r !== undefined) return r; }
+      throw new Error('unknown method ' + method);
   }
 }
 
 // ───────────────────────────── init ─────────────────────────────
 function init({ emit, ask }) {
   toRenderer = emit; askRenderer = ask;
+  remoteUi.init({ send: (id, msg) => sendTo(id, msg) });
   const fromPeer = (ch, fn) => ipcMain.handle(ch, (e, ...a) => { if (!peer || e.sender !== peer.webContents) throw new Error('forbidden'); return fn(...a); });
   fromPeer('aw:boot', () => bootInfo());
   fromPeer('aw:paired', (dev) => onPaired(dev));
@@ -357,7 +361,7 @@ function init({ emit, ask }) {
   fromPeer('aw:state', ({ deviceId, state }) => {
     const d = load().devices.find((x) => x.id === deviceId); if (!d) return false;
     live.set(deviceId, { ...(live.get(deviceId) || {}), state, at: Date.now() });
-    if (state !== 'off') { d.lastSeen = Date.now(); save(); }
+    if (state !== 'off') { d.lastSeen = Date.now(); save(); } else remoteUi.drop(deviceId);
     emitStatus(); return true;
   });
   fromPeer('aw:msg', async ({ deviceId, msg }) => {

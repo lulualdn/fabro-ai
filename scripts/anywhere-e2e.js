@@ -126,7 +126,8 @@ function y4m(rgba, w, h, file) {
   await phone.waitForSelector('[data-act=scan]');
   await phone.screenshot({ path: path.join(shots, 'phone-welcome.png') });
   await audit(phone, 'phone welcome');
-  await phone.evaluate((u) => { window.__fa.S.settings.customRelay = u; }, relay.url);
+  // this test covers the light phone view; the computer's full interface has its own (anywhere-full-e2e.js)
+  await phone.evaluate((u) => { window.__fa.S.settings.customRelay = u; window.__fa.S.settings.ui = 'lite'; }, relay.url);
   await phone.click('[data-act=scan]');
   await phone.waitForFunction(() => ['pairing', 'paired'].includes(window.__fa.S.view), null, { timeout: 30000 });
   step('code read by the camera');
