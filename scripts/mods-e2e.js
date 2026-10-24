@@ -21,6 +21,9 @@ const srv = http.createServer((req, res) => {
   const html = (s) => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(s); };
   if (u.pathname === '/favicon.svg') { res.writeHead(200, { 'Content-Type': 'image/svg+xml' }); return res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#d97757"/></svg>'); }
   if (u.pathname === '/login') return html(page('Sign in', '<h1>Sign in</h1><form method="post" action="/do-login"><input name="email" value="lulu@example.com"><button id="go">Continue</button></form>'));
+  // a stand-in for Google's "use a supported browser" page, opened as a sign-in popup
+  if (u.pathname === '/login/rejected') return html(page('Connexion', '<h1>Se connecter avec un navigateur compatible</h1><p>Pour protéger votre compte, Google ne vous autorise pas à vous connecter à partir de certains navigateurs.</p>'));
+  if (u.pathname === '/pop') return html(page('Pop', '<button id="g">Sign in with Google</button><script>document.getElementById("g").onclick = () => window.open("/login/rejected?continue=1", "g", "width=500,height=600")</script>'));
   if (u.pathname === '/do-login') { res.writeHead(302, { 'Set-Cookie': 'sessionKey=ok; Path=/; HttpOnly', Location: '/new?onboarding=1' }); return res.end(); }
   if (!authed) { res.writeHead(302, { Location: '/login' }); return res.end(); }
   if (u.pathname === '/new') {
@@ -208,6 +211,22 @@ async function until(fn, ms = 15000, what = 'condition') { const t0 = Date.now()
   const ext2 = await win.$$eval('.recent.ext .r-title', (x) => x.map((e) => e.textContent));
   assert(ext2.includes('Old project notes'), 'chats synced after import: ' + ext2);
   console.log('✓ imported the sign-in from Firefox, connected without the login page');
+
+  // 12. Google refuses sign-in inside an embedded browser: the popup is closed and Fabro offers the
+  // honest route (sign in in the real browser, then import) instead of leaving the user stuck.
+  const opened = await app.evaluate(({ webContents }, b) => {
+    const ws = webContents.getAllWebContents().filter((x) => x.getURL().startsWith(b));
+    ws.forEach((w) => w.loadURL(b + '/pop')); return ws.length;
+  }, base);
+  if (!opened) console.log('WCS', await app.evaluate(({ webContents }) => webContents.getAllWebContents().map((w) => w.getType() + ' ' + w.getURL())));
+  assert(opened > 0, 'mod view found');
+  await wait(1500);
+  await app.evaluate(({ webContents }, b) => webContents.getAllWebContents().filter((x) => x.getURL() === b + '/pop')
+    .forEach((w) => w.executeJavaScript('document.getElementById("g").click()', true)), base);
+  await win.waitForSelector('.wc-import [data-wc="ext"]', { timeout: 15000 });
+  await until(async () => !(await webUrls()).some((u) => u.includes('/login/rejected')), 10000, 'blocked popup closed');
+  await win.screenshot({ path: path.join(shots, '09-blocked.png') });
+  console.log('✓ Google-style block detected in a popup → popup closed, browser sign-in + import offered');
 
   await app.close(); srv.close();
   console.log('ALL OK →', shots);

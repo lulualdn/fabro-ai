@@ -163,6 +163,7 @@ agent.register({ name: 'ask_user', category: 'core', risk: 'read', core: true,
   parameters: { type: 'object', properties: { question: { type: 'string' }, options: { type: 'array', items: { type: 'string' }, description: '2-4 short likely answers' } }, required: ['question'] },
   summarize: (a) => a.question,
   async run(a, ctx) {
+    if (ctx.agentsApp) return { content: 'There is no separate user to query with this tool here. You are chatting directly with the person (and maybe other agents). If you need something from them, simply ask it in your next message, in plain words. Do not call ask_user again.' };
     if (ctx.unattended || !ctx.ask) return { content: 'Nobody can answer right now (unattended run). Pick the most reasonable option yourself and say which one you chose.' };
     const opts = (a.options || []).map(String).filter(Boolean).slice(0, 4);
     const v = await ctx.ask({ kind: 'question', tool: 'ask_user', question: String(a.question || '').slice(0, 500), options: opts, summary: String(a.question || '') });

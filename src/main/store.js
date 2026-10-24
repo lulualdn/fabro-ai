@@ -32,6 +32,7 @@ const DEFAULTS = {
   telemetry: { crashReports: false },             // nothing is sent; opt-in offers a GitHub report after a crash
   reduceMotion: false,
   agent: { enabled: true, folders: [], permissions: {}, disabledTools: [] },
+  mods: { enabled: { agents: true } },
   mcp: { servers: [] },
   skills: { disabled: [], extraDirs: [] },
 };

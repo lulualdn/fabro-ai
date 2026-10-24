@@ -88,6 +88,7 @@ function fabroFor(m) {
       clear: () => web.clear(partition),
       browsers: () => browserImport.list(),                                  // the user's installed browsers
       importCookies: (o) => browserImport.importInto(require('electron').session.fromPartition(partition), o), // { browser, profile, domains }
+      openExternal: (url) => { if (/^https?:/.test(String(url || ''))) require('electron').shell.openExternal(url); }, // the user's real default browser
     },
   };
   return { api, handlers, cleanups };

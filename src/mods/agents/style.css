@@ -1,0 +1,71 @@
+/* Agents app */
+.ag-wrap { display: flex; height: 100%; min-height: 0; }
+.ag-side { width: 290px; flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-height: 0; }
+.ag-side-h { display: flex; align-items: center; gap: 6px; padding: 12px 14px; }
+.ag-side-h b { font-size: 16px; font-weight: 600; }
+.ag-side-h .grow, .ag-top .grow, .ag-actions .grow { flex: 1; }
+.ag-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px; }
+.ag-empty { color: var(--muted); font-size: 13px; padding: 16px 10px; line-height: 1.5; }
+.ag-chat { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 11px; text-align: left; color: var(--text); }
+.ag-chat:hover { background: var(--hover); }
+.ag-chat.on { background: var(--active); }
+.ag-av { border-radius: 50%; flex: none; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 22%, transparent); }
+.ag-av.grp, .ag-av.grp.on { background: var(--elev-2); }
+.ag-chat-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.ag-chat-t b { font-weight: 500; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-chat-t small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-team-h { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 12px 14px 6px; border-top: 1px solid var(--border); }
+.ag-team { padding: 0 8px 10px; max-height: 38%; overflow-y: auto; }
+.ag-team-item { width: 100%; display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 10px; text-align: left; color: var(--text); }
+.ag-team-item:hover { background: var(--hover); }
+.ag-edit { margin-left: auto; opacity: 0; color: var(--muted); }
+.ag-team-item:hover .ag-edit { opacity: 1; }
+.ag-team-add { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border-radius: 10px; color: var(--muted); font-size: 13px; }
+.ag-team-add:hover { background: var(--hover); color: var(--text); }
+
+.ag-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ag-blank { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); }
+.ag-top { display: flex; align-items: center; gap: 11px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.ag-top-t { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.ag-top-t b { font-weight: 600; } .ag-top-t small { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.ag-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.ag-m { display: flex; gap: 9px; max-width: 78%; }
+.ag-m.me { align-self: flex-end; }
+.ag-mc { min-width: 0; }
+.ag-who { font-size: 12.5px; font-weight: 600; margin: 0 0 2px 2px; }
+.ag-b { background: var(--elev-2); border: 1px solid var(--border); border-radius: 4px 14px 14px 14px; padding: 8px 12px; font-size: 14.5px; line-height: 1.5; }
+.ag-m.me .ag-b { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 14px 14px 4px 14px; }
+.ag-b > :first-child { margin-top: 0; } .ag-b > :last-child { margin-bottom: 0; }
+.ag-b p { margin: 0 0 .5em; } .ag-b pre { background: var(--code); padding: 8px 10px; border-radius: 9px; overflow: auto; }
+.ag-tag { font-size: 10.5px; font-weight: 500; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 6px; vertical-align: middle; }
+.ag-typing { min-height: 0; padding: 0 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+.ag-typ { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; padding-bottom: 6px; }
+.ag-typ .ag-av { animation: pulse 1.2s infinite; }
+.ag-composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 16px 14px; border-top: 1px solid var(--border); }
+.ag-composer textarea { flex: 1; resize: none; border: 1px solid var(--border); background: var(--elev); color: var(--text); border-radius: 14px; padding: 10px 14px; font: inherit; font-size: 14.5px; max-height: 160px; outline: 0; }
+.ag-composer textarea:focus { border-color: var(--border-strong); }
+.ag-send { width: 38px; height: 38px; flex: none; border-radius: 12px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
+.ag-send:active { transform: scale(.92); }
+
+/* dialogs */
+.ag-ov { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(2px); z-index: 10; }
+.ag-dialog { position: absolute; z-index: 11; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(460px, 92%); max-height: 86%; overflow-y: auto; background: var(--elev); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 20px; }
+.ag-dialog h3 { margin: 0 0 14px; font-size: 18px; }
+.ag-f { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.ag-f > span { font-size: 12.5px; color: var(--muted); }
+.ag-f input, .ag-f textarea { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 10px; padding: 8px 11px; font: inherit; font-size: 14px; outline: 0; }
+.ag-f input:focus, .ag-f textarea:focus { border-color: var(--border-strong); }
+.ag-f2 { display: flex; gap: 14px; } .ag-f2 .ag-f { flex: 1; }
+.ag-emojis, .ag-colors { display: flex; flex-wrap: wrap; gap: 5px; }
+.ag-emojis button { width: 32px; height: 32px; border-radius: 9px; font-size: 17px; background: var(--bg); border: 1px solid var(--border); }
+.ag-emojis button.on { border-color: var(--accent); background: var(--accent-soft); }
+.ag-colors button { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; }
+.ag-colors button.on { border-color: var(--text); }
+.ag-pick { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; margin-top: 6px; }
+.ag-pk { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 10px; cursor: pointer; }
+.ag-pk:hover { background: var(--hover); } .ag-pk span { flex: 1; font-size: 14px; }
+.ag-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+
+@media (max-width: 720px) {
+  .ag-side { width: 100%; } .ag-main { display: none; }
+}

@@ -92,8 +92,11 @@ a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: un
 .sb-head > * { -webkit-app-region: no-drag; }
 .platform-darwin .sb-head { padding-left: 82px; }
 .platform-darwin.sb-collapsed .sb-head, .platform-darwin .sb-collapsed .sb-head { padding-left: 9px; }
-.brand { display: flex; align-items: center; gap: 9px; font-family: var(--serif); font-size: 19px; font-weight: 600; letter-spacing: -.01em; min-width: 0; }
-.sb-collapsed .brand { display: none; }
+.brand { display: flex; align-items: center; gap: 9px; font-family: var(--serif); font-size: 19px; font-weight: 600; letter-spacing: -.01em; min-width: 0; border-radius: 9px; padding: 4px 6px; }
+.brand:hover { background: var(--hover); }
+/* Collapsed: keep the logo as a clickable "home" affordance, drop only the wordmark. */
+.sb-collapsed .brand { gap: 0; padding: 6px; }
+.sb-collapsed .brand .bw { display: none; }
 .sb-collapsed .sb-head { justify-content: center; padding: 0; }
 
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; color: var(--text-2); transition: background .12s, color .12s; flex: none; }
@@ -1535,6 +1538,7 @@ body.drop-on .drop-veil { opacity: 1; }
 .wc-ic { width: 32px; height: 32px; border-radius: 9px; flex: none; display: grid; place-items: center; color: #fff; font-weight: 700; }
 .wc-bt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .wc-bt select { max-width: 180px; }
+.wc-note { display: block; color: var(--muted); line-height: 1.5; margin: 10px 2px; font-size: 12.5px; }
 
 /* ───────── Sidebar (redesigned: branded, discreet, chats forward) ───────── */
 .sb-head { display: flex; align-items: center; gap: 2px; height: 52px; padding: 0 8px 0 14px; -webkit-app-region: drag; }

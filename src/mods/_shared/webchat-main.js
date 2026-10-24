@@ -65,12 +65,31 @@ module.exports = function create(cfg) {
     save();
   }
   let watched = null;
+  // Some providers (Google above all) refuse to sign in inside an app-embedded browser and show a
+  // "use a supported browser" page. That is their policy, not something to spoof around: the honest
+  // route is to sign in in the real browser and bring the session back in. We detect that block page
+  // and tell the renderer, which offers exactly that.
+  async function detectBlock(wc) {
+    try {
+      if (!/accounts\.google\.com|\/login\b.*(continue|rejected)/i.test(wc.getURL())) return;
+      const hit = await wc.executeJavaScript(`(() => { const t = (document.body && document.body.innerText || '').slice(0, 4000);
+        return /n.est pas s.curis|navigateur compatible|certains navigateurs|int.gr. . une autre application|couldn.t sign you in|this browser or app may not be secure|disallowed_useragent|browser or app may not be secure/i.test(t); })()`, true).catch(() => false);
+      if (hit) fabro.emit('blocked', { reason: 'google', site: cfg.name });
+      return hit;
+    } catch { return false; }
+  }
   function view() {
     const wc = fabro.web.ensure();
     if (watched !== wc) {
       watched = wc;
       wc.on('page-title-updated', (_e, title) => rename(cfg.chatId(wc.getURL()), title));
       wc.on('did-navigate-in-page', () => setTimeout(() => rename(cfg.chatId(wc.getURL()), wc.getTitle()), 1500));
+      wc.on('did-stop-loading', () => detectBlock(wc));
+      // "Sign in with Google" usually opens a popup window: watch it too, and close it once blocked.
+      wc.on('did-create-window', (w) => {
+        const c = w.webContents;
+        c.on('did-stop-loading', async () => { if (await detectBlock(c) && !w.isDestroyed()) w.close(); });
+      });
     }
     return wc;
   }
@@ -213,6 +232,8 @@ module.exports = function create(cfg) {
         }, 800);
         return { waiting: true };
       });
+      // Sign in in the user's real default browser (where the provider allows it), then they import.
+      fabro.handle('loginExternal', async () => { fabro.web.openExternal(cfg.loginUrl); return { opened: true }; });
       fabro.handle('logout', async () => { await fabro.web.clear(); await fabro.settings.set({ connected: false }); chats = []; fabro.writeJSON('chats.json', chats); publish(); return state(); });
       // background sync: shortly after launch, then every 5 minutes
       startTimer = setTimeout(() => sync(), 6000);

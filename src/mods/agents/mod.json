@@ -1,0 +1,11 @@
+{
+  "id": "agents",
+  "name": "Agents",
+  "version": "1.0.0",
+  "author": "UFStudios",
+  "description": "A team of AI agents with roles that chat with you and with each other — DMs and group chats, tools, a watchdog, and background reflection.",
+  "main": "main.js",
+  "renderer": ["renderer.js"],
+  "styles": ["style.css"],
+  "app": true
+}

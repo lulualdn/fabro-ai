@@ -72,7 +72,7 @@ const fabro = window.fabro = {
     return {
       id, ...this, get S() { return S; },
       call: (method, ...args) => api.mods.call(id, method, args),
-      on: (type, fn) => { MODS.listeners.push({ id, type, fn }); },
+      on: (type, fn) => { const l = { id, type, fn }; MODS.listeners.push(l); return () => { const i = MODS.listeners.indexOf(l); if (i >= 0) MODS.listeners.splice(i, 1); }; },
       commands: { ...this.commands, register: (n, c) => { c.mod = id; return fabro.commands.register(n, c); } },
       history: { ...this.history, register: (src) => fabro.history.register(id, Object.assign(src, { mod: id })) },
       apps: { ...this.apps, register: (a) => fabro.apps.register(Object.assign(a, { mod: id })) },
