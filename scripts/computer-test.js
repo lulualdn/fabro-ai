@@ -95,13 +95,14 @@ const srv = http.createServer((req, res) => {
   const t0 = Date.now();
 
   // 1. look: a marked screenshot + OCR text
-  let r = await run('computer_look', {});
-  assert.ok(!r.error, r.error);
+  let r;
+  for (let i = 0; i < 3; i++) { r = await run('computer_look', { wait_ms: i ? 1500 : 0 }); assert.ok(!r.error, r.error); if (/VALIDER/.test(r.content)) break; }
   console.log(r.content.split('\n').slice(0, 14).join('\n'));
   assert.ok(r.image && r.image.startsWith('data:image/jpeg'), 'screenshot returned');
   assert.match(r.content, /screenshot 1280×800 px \(real screen 1440×900\)/);
   save(r, '1-look.jpg');
   const m = (await marks()).find((x) => /VALIDER/i.test(x.name));
+  if (!m) console.log(r.content);
   assert.ok(m, 'the button text is found on screen (OCR)');
 
   // 2. click it by id

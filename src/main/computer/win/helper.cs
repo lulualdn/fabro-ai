@@ -197,7 +197,7 @@ namespace FabroCU
             {
                 using (var g = Graphics.FromImage(bmp))
                 {
-                    g.CopyFromScreen(x, y, 0, 0, new Size(w, h), CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt);
+                    g.CopyFromScreen(x, y, 0, 0, new Size(w, h), CopyPixelOperation.SourceCopy);
                     if (!r.ContainsKey("cursor") || Bool(r, "cursor")) DrawCursor(g, x, y);
                 }
                 bmp.Save(path, ImageFormat.Png);

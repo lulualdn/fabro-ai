@@ -271,7 +271,7 @@ async function look(o = {}, ctx) {
   }
   if (raw.truncated) lines.push('(This window is very large: only part of it was read.)');
   if (raw.error) lines.push(`(The app's elements could not be read: ${q(raw.error, 120)})`);
-  if (ocrNote && wantOcr && o.read_text) lines.push(`(${ocrNote})`);
+  if (ocrNote && wantOcr && (o.read_text || c.ocr === 'always' || !marks.length)) lines.push(`(${ocrNote})`);
   return { L, text: lines.join('\n'), image: painted.image, thumb: painted.thumb };
 }
 
