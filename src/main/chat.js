@@ -296,7 +296,21 @@ async function completeAnthropic(be, messages, params, signal, acc, tools) {
 // ───────────────────────────── context budget ─────────────────────────────
 // Long agent runs overflow small context windows: shorten old tool results first, then drop the oldest
 // exchanges (the system prompt, the first request and the recent steps are always kept).
-const estTok = (x) => Math.ceil((typeof x === 'string' ? x : JSON.stringify(x || '')).length / 3.3);
+// Pictures count as what the model really spends on them (~1k tokens), not their base64 length.
+const estTok = (x) => Array.isArray(x)
+  ? x.reduce((n, p) => n + (p && p.type === 'image_url' ? 1000 : Math.ceil(String((p && p.text) || '').length / 3.3)), 0)
+  : Math.ceil((typeof x === 'string' ? x : JSON.stringify(x || '')).length / 3.3);
+// Screens and pictures returned by tools: the model keeps the latest few, older ones become a note
+// (Computer Use returns a screenshot after every action).
+function pruneToolImages(msgs, keep = 3) {
+  let seen = 0;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const c = msgs[i].content;
+    if (msgs[i].role !== 'user' || !Array.isArray(c) || !c.some((p) => p && p.type === 'image_url')) continue;
+    if (!/^\(Image returned by /.test(String((c[0] && c[0].text) || ''))) continue;
+    if (++seen > keep) msgs[i].content = String(c[0].text).replace(/\)$/, ' — older picture removed to save memory)');
+  }
+}
 function compact(msgs, schemas, be, ratio = 0.72) {
   const ctx = (be.inst && be.inst.plan && be.inst.plan.ctx) || (be.kind === 'local' ? 8192 : 120000);
   const budget = Math.floor(ctx * ratio) - estTok(schemas);
@@ -399,7 +413,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
     const src = { n: 0 };
-    const ctxBase = { src, taskId: meta.taskId, unattended: !!meta.unattended, agentsApp: !!meta.agentsApp, emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
+    const ctxBase = { src, reqId, taskId: meta.taskId, unattended: !!meta.unattended, agentsApp: !!meta.agentsApp, emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
     if (codeCtx) {
       ctxBase.projectRoot = codeCtx.root;
       ctxBase.checkpoint = parent && parent.checkpoint ? parent.checkpoint : (p, before) => { if (!(p in cpFiles)) cpFiles[p] = before; };
@@ -443,6 +457,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     let qaBad = null; // { id, title, n }: the last visual check of an artifact still found problems
     for (;;) {
       if (!parent) { const pm = takeInjected(reqId, out); if (pm) msgs.push(pm); }
+      pruneToolImages(msgs);
       compact(msgs, toolSchemas, be);
       let r;
       try { r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas); }
@@ -573,6 +588,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     }
   } finally {
     active.delete(reqId); injected.delete(reqId);
+    if (!parent) { try { const cu = require.cache[require.resolve('./computer')]; if (cu) cu.exports.turnEnded(reqId); } catch {} } // Computer Use: hand the screen back
     if (be && be.inst) engine.release(be.inst);
     flushCp(); // Code mode: this turn's checkpoint (files as they were before the agent changed them)
   }

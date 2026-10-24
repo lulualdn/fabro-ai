@@ -2,11 +2,12 @@
 /* Agent mode UI: automatic switch, tool steps (files, terminal, browser, documents, Python, MCP, skills),
    permission cards, on-demand dependencies, and the workspace panel with the live browser. */
 
-const AGENT_ICONS = { design: 'brush', files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git', code: 'flask', image: 'image' };
+const AGENT_ICONS = { design: 'brush', files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git', code: 'flask', image: 'image', computer: 'monitor' };
 const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p;
 function catOf(name) {
   if (name.startsWith('mcp__')) return 'mcp';
   if (name.startsWith('browser_')) return 'browser';
+  if (name.startsWith('computer_')) return 'computer';
   if (['list_dir', 'read_file', 'write_file', 'edit_file', 'delete_file', 'search_files'].includes(name)) return 'files';
   if (name === 'run_command') return 'shell';
   if (name === 'create_document') return 'documents';
@@ -21,6 +22,7 @@ function catOf(name) {
   return 'mcp';
 }
 const state0 = () => S.browser || {};
+const cuTarget = (a, p = '') => (a[p + 'element'] != null ? `[${a[p + 'element']}]` : a[p + 'x'] != null ? `${Math.round(a[p + 'x'])}, ${Math.round(a[p + 'y'])}` : '');
 function stepLabel(st) {
   const a = st.args || {}, v = st.view || {}, run = st.status === 'running' || st.status === 'asking';
   const k = (key, vars) => t((run ? 'ag_run_' : 'ag_done_') + key, vars);
@@ -72,6 +74,16 @@ function stepLabel(st) {
     case 'wait': return `⏳ ${a.seconds || 1} s${a.reason ? ' · ' + a.reason : ''}`;
     case 'browser_back': return k('back');
     case 'browser_script': return k('script');
+    case 'computer_look': return k('cu_look');
+    case 'computer_zoom': return k('cu_zoom');
+    case 'computer_click': return k(a.button === 'right' ? 'cu_rclick' : a.clicks === 2 ? 'cu_dclick' : 'cu_click', { l: v.target || cuTarget(a) });
+    case 'computer_drag': return k('cu_drag', { l: v.from || cuTarget(a) || '…', d: v.target || cuTarget(a, 'to_') || '…' });
+    case 'computer_type': return k('cu_type', { t: String(a.text || '').slice(0, 50) });
+    case 'computer_key': return k('cu_key', { k: a.keys || '' });
+    case 'computer_scroll': return k('cu_scroll');
+    case 'computer_actions': return k('cu_actions', { n: (a.actions || []).length });
+    case 'computer_open_app': return k('cu_open', { a: a.name || base(a.path_or_url || '') });
+    case 'computer_window': return k('cu_window', { w: a.window || '' });
     default: if (st.name.startsWith('mcp__')) { const [, srv, tool] = st.name.split('__'); return `${srv} · ${tool}`; } return st.name;
   }
 }
@@ -86,13 +98,13 @@ function permCard(st, m) {
   const p = st.perm;
   if (p.kind === 'question') return questionCard(st);
   const danger = p.risk === 'danger';
-  const title = p.reason === 'folder' ? t('perm_folder') : danger ? t('perm_danger') : t('perm_' + (catOf(p.tool) || 'mcp'));
+  const title = p.reason === 'folder' ? t('perm_folder') : p.reason === 'computer_use' ? t('perm_computer') : danger ? t('perm_danger') : t('perm_' + (catOf(p.tool) || 'mcp'));
   return `<div class="perm-card ${danger ? 'danger' : ''}">
     <div class="pc-head">${icon(danger ? 'warning' : 'shield', 16)}<b>${esc(title)}</b></div>
     <pre class="pc-what">${esc(p.summary || '')}</pre>
-    ${p.reason && p.reason !== 'folder' ? `<div class="pc-why">${esc(t('perm_why_' + (p.reason === 'danger_command' ? 'cmd' : p.reason === 'delete' ? 'delete' : p.reason === 'outside_project' ? 'outside' : 'sensitive'), { r: p.reason }))}</div>` : ''}
+    ${p.reason && p.reason !== 'folder' ? `<div class="pc-why">${esc(t('perm_why_' + (p.reason === 'danger_command' ? 'cmd' : p.reason === 'delete' ? 'delete' : p.reason === 'outside_project' ? 'outside' : p.reason === 'computer_use' ? 'computer' : p.reason === 'run_program' ? 'program' : 'sensitive'), { r: p.reason }))}</div>` : ''}
     <div class="pc-actions">
-      <button class="btn sm primary" data-action="perm" data-id="${esc(st.id)}" data-v="once">${esc(t('perm_once'))}</button>
+      <button class="btn sm primary" data-action="perm" data-id="${esc(st.id)}" data-v="once">${esc(t(p.reason === 'computer_use' ? 'perm_cu_allow' : 'perm_once'))}</button>
       ${!danger ? `<button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="always">${esc(t(p.reason === 'folder' ? 'perm_always_folder' : p.project ? 'perm_always_project' : 'perm_always'))}</button>` : ''}
       <button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="deny">${esc(t('perm_deny'))}</button>
     </div></div>`;

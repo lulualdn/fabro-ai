@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('api', {
   chat: { send: i('chat:send'), abort: i('chat:abort'), inject: i('chat:inject'), answer: i('chat:answer') },
   agent: { tools: i('agent:tools'), policy: i('agent:policy'), addFolder: i('agent:addFolder'), removeFolder: i('agent:removeFolder') },
   browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
+  computer: { test: i('computer:test'), status: i('computer:status') },
   deps: { status: i('deps:status'), install: i('deps:install'), remove: i('deps:remove') },
   search: { test: i('search:test') },
   runtime: { status: i('runtime:status') },

@@ -105,6 +105,38 @@ jobs:
         if: runner.os == 'Windows'
         run: node scripts/search-smoke.js
 
+  computer:
+    # Computer Use: the real helper drives the real mouse and keyboard (SendInput + UI Automation on
+    # Windows, XTEST on Linux) in a separate app, and the app checks what it received.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Computer Use (Linux, X11)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb tesseract-ocr > /dev/null
+          pip install --quiet python-xlib
+          xvfb-run -a -s "-screen 0 1440x900x24" node scripts/computer-test.js computer-shots
+      - name: Computer Use (Windows)
+        if: runner.os == 'Windows'
+        run: npx electron scripts/computer-win-test.js computer-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: computer-shots-${{ runner.os }}
+          path: computer-shots
+          if-no-files-found: ignore
+
   agent-real:
     # A real 4B model on Fabro's own engine must use its tools (reads, writes, runs) — not refuse or invent.
     runs-on: ubuntu-latest

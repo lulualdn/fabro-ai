@@ -32,6 +32,8 @@ const DEFAULTS = {
   telemetry: { crashReports: false },             // nothing is sent; opt-in offers a GitHub report after a crash
   reduceMotion: false,
   agent: { enabled: true, folders: [], permissions: {}, disabledTools: [] },
+  // Computer Use: the AI sees the screen and uses the mouse and keyboard (asked once per conversation)
+  computer: { enabled: true, confirm: true, hideFabro: true, speed: 'natural', ocr: 'auto', width: 1280, overlay: true },
   mods: { enabled: { agents: true } },
   mcp: { servers: [] },
   skills: { disabled: [], extraDirs: [] },

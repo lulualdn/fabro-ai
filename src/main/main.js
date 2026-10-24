@@ -20,6 +20,7 @@ const agent = require('./agent');
 require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
+const computer = require('./computer');
 const skills = require('./agent/skills');
 const python = require('./agent/python');
 const mcp = require('./agent/mcp');
@@ -274,6 +275,8 @@ function registerIpc() {
   h('browser:bounds', (b) => browser.setBounds(b));
   h('browser:control', (action, arg) => browser.control(action, arg));
   h('browser:state', () => browser.state());
+  h('computer:test', () => computer.test());
+  h('computer:status', () => computer.status());
   h('deps:status', async () => ({ ...python.deps(), searxng: searxng.status(), git: (await code.deps()).git }));
   h('deps:install', async (dep) => {
     const prog = (p) => send('deps:progress', { dep, p });
@@ -422,6 +425,7 @@ app.whenReady().then(async () => {
   updater.init(send);
   createWindow();
   browser.init(win, send);
+  computer.init({ getMain: () => win });
   mcp.init(send);
   code.init(send);
   rag.init(send);
@@ -443,5 +447,5 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => { if (!isMac) app.quit(); });
 app.on('activate', () => { if (win) desktop.showMain(); else createWindow(); });
-app.on('before-quit', () => { engine.stop(); searxng.stop(); voice.stop(); runtime.stop(); });
+app.on('before-quit', () => { computer.shutdown();  engine.stop(); searxng.stop(); voice.stop(); runtime.stop(); });
 app.on('will-quit', () => { engine.stop(); mcp.stopAll(); db.close(); });

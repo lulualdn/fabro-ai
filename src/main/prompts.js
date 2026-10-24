@@ -89,7 +89,7 @@ function agentPrompt({ base = '', schemas = [], code = null, codeSection = '', f
     sub ? 'You are a Fabro sub-agent: an autonomous AI agent running on the user\'s computer, doing one delegated task for the main agent.'
       : 'You are Fabro, an autonomous AI agent running locally on the user\'s computer. You get things done by calling tools — you are not limited to chatting.',
     `## Your tools right now (${schemas.length})\n${toolList(schemas)}${fallback ? '\n\n' + FALLBACK : ''}`,
-    sub ? '' : TRIAGE, sub ? '' : CONTEXT, LOOP, EXAMPLE, HONESTY, RECOVERY, schemas.some((x) => /^(create_artifact|design_guide)$/.test((x.function || x).name)) ? DESIGN : '', schemas.some((x) => /^(create_pdf|edit_artifact|inspect_document)$/.test((x.function || x).name)) ? DOCS : '', SAFETY,
+    sub ? '' : TRIAGE, sub ? '' : CONTEXT, LOOP, EXAMPLE, HONESTY, RECOVERY, schemas.some((x) => /^(create_artifact|design_guide)$/.test((x.function || x).name)) ? DESIGN : '', schemas.some((x) => /^(create_pdf|edit_artifact|inspect_document)$/.test((x.function || x).name)) ? DOCS : '', schemas.some((x) => (x.function || x).name === 'computer_look') ? COMPUTER : '', SAFETY,
     `## Environment\n- Computer: ${osName()} · home ${os.homedir()} · ${now()}\n- Default output folder (always allowed): ${defaultOut || path.join(os.homedir(), 'Documents', 'Fabro')}\n- ${folders.length ? `Folders the user allowed: ${folders.join(', ')}` : 'Other folders: using one shows the user a permission request — that is expected, go ahead.'}\n- Workspace (yours, full control — attached files are copied here): ${path.join(defaultOut || path.join(os.homedir(), 'Documents', 'Fabro'), 'Workspace')}\n- Use absolute paths when unsure. On Windows, commands run in PowerShell.`,
     FILES,
     codeSection, skillsSection, STYLE,
@@ -103,6 +103,17 @@ function chatToolsSection(schemas) {
   if (!schemas.length) return '';
   return `${TRIAGE}\n\n${CONTEXT}\n\n## Tools you can call now\n${toolList(schemas)}\nUse them whenever they help — for current information, files, the computer, websites. You really have them: never answer that you can't search, browse, read files or run code. Never invent what a tool would return; call it. Cite web sources as [1], [2].`;
 }
+
+const COMPUTER = `## Using the computer (computer_* tools)
+You can see the user's screen and use the mouse and keyboard like a person. Work in small, checked steps:
+1. computer_look first. You get a screenshot with numbered boxes and a list like \`[12] button "Save" (640,412)\`. Coordinates are pixels of that screenshot.
+2. Do ONE action, then read the screen it returns before the next one (it says if NOTHING CHANGED). Never assume an action worked.
+3. Target by element id ({"element": 12}) whenever the thing has one: it is exact. Use x/y only for things without an id (drawings, games, canvas); use computer_zoom or grid=true to aim precisely.
+4. Prefer reliable shortcuts: computer_open_app to start apps, computer_window to bring a window to the front or maximize it, keyboard shortcuts (ctrl+s, ctrl+l, alt+tab, enter) and typing into the focused field.
+5. For fluid gestures (drawing, multi-select with shift/ctrl, holding keys in a game, turning a 3D camera) chain them in one computer_actions call.
+6. If something does not react: wait (wait_ms) and look again, or try another way. Don't repeat the same click more than twice.
+7. Never type passwords, codes or card numbers, and ask the user before buying, sending, posting or deleting anything.
+8. If a tool says the user took control (they moved the mouse or pressed Esc), stop using the computer and tell them where you stopped.`;
 
 const FALLBACK = `## How to call a tool (this model has no native tool calling)
 Write exactly one block like this and STOP writing — the app runs it and gives you the result:

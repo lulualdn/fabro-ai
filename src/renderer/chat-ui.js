@@ -59,15 +59,16 @@ const STEP_KIND = {
   edit: ['edit_file', 'edit_artifact', 'pdf_edit', 'delete_file'],
   cmd: ['run_command', 'run_python', 'browser_script'],
   web: ['browser_click', 'browser_type', 'browser_select', 'browser_key', 'browser_scroll', 'browser_wait', 'browser_tabs', 'browser_zoom', 'browser_screenshot', 'browser_back', 'browser_find'],
+  computer: ['computer_click', 'computer_drag', 'computer_type', 'computer_key', 'computer_scroll', 'computer_actions', 'computer_open_app', 'computer_window'],
   sub: ['run_subagent'],
-  skip: ['update_plan', 'load_skill', 'wait'],
+  skip: ['update_plan', 'load_skill', 'wait', 'computer_look', 'computer_zoom'],
 };
 const kindOf = (name) => Object.keys(STEP_KIND).find((k) => STEP_KIND[k].includes(name)) || 'other';
 // "Recherché 2 fois, lu 3 documents, exécuté 6 commandes"
 function stepsSummary(list) {
   const n = {};
   for (const st of list) { const k = kindOf(st.name); if (k !== 'skip') n[k] = (n[k] || 0) + 1; }
-  const parts = ['search', 'read', 'create', 'edit', 'cmd', 'web', 'sub', 'other'].filter((k) => n[k]).map((k) => t(`sum_${k}${n[k] === 1 ? '1' : 'n'}`, { n: n[k] }));
+  const parts = ['search', 'read', 'create', 'edit', 'cmd', 'web', 'computer', 'sub', 'other'].filter((k) => n[k]).map((k) => t(`sum_${k}${n[k] === 1 ? '1' : 'n'}`, { n: n[k] }));
   const txt = parts.join(', ');
   return txt ? txt[0].toUpperCase() + txt.slice(1) : '';
 }

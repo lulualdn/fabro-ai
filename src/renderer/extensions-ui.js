@@ -9,7 +9,31 @@ async function loadAgentSettings() {
 }
 api.on('mcp:status', (v) => { S.mcp = v; if (S.settingsTab === 'agent') renderSettings(); });
 
-const CAT_ORDER = ['files', 'shell', 'browser', 'documents', 'python', 'skills'];
+const CAT_ORDER = ['files', 'shell', 'browser', 'computer', 'documents', 'python', 'skills'];
+// Computer Use: the AI sees the screen and uses the mouse and keyboard.
+function computerSection() {
+  const c = S.settings.computer || {};
+  const sel = (key, val, opts) => `<select class="input" data-input="computer.${key}" ${key === 'width' ? 'data-type="int"' : ''}>${opts.map(([v, l]) => `<option value="${v}" ${String(val) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  const plat = S.info && S.info.platform;
+  const ok = plat === 'win32' || plat === 'linux';
+  const tr = S.cuTest;
+  return `
+    <div class="st-sec">${esc(t('cuTitle'))}</div>
+    <p class="muted small st-intro">${esc(t(ok ? 'cuHint' : 'cuUnsupported'))}</p>
+    ${ok ? `
+    ${row(t('cuEnable'), toggle('computer.enabled', c.enabled !== false), t('cuEnableHint'))}
+    ${c.enabled !== false ? `
+    ${row(t('cuConfirm'), toggle('computer.confirm', c.confirm !== false), t('cuConfirmHint'))}
+    ${row(t('cuHide'), toggle('computer.hideFabro', c.hideFabro !== false), t('cuHideHint'))}
+    ${row(t('cuOverlay'), toggle('computer.overlay', c.overlay !== false), t('cuOverlayHint'))}
+    ${row(t('cuSpeed'), sel('speed', c.speed || 'natural', [['natural', t('cuSpeed_natural')], ['fast', t('cuSpeed_fast')], ['instant', t('cuSpeed_instant')]]), t('cuSpeedHint'))}
+    ${row(t('cuOcr'), sel('ocr', c.ocr || 'auto', [['auto', t('cuOcr_auto')], ['always', t('cuOcr_always')], ['off', t('cuOcr_off')]]), t('cuOcrHint'))}
+    ${row(t('cuWidth'), sel('width', c.width || 1280, [[1024, '1024 px'], [1280, '1280 px'], [1600, '1600 px'], [1920, '1920 px']]), t('cuWidthHint'))}
+    <div class="st-row"><div class="st-label"><span>${esc(t('cuTest'))}</span>${tr && !tr.busy ? `<small>${esc(tr.ok ? t('cuTestOk', { s: tr.size, e: tr.elements, o: tr.ocr || t('cuNoOcr'), ms: tr.ms }) : tr.error)}</small>` : `<small>${esc(t('cuTestHint'))}</small>`}</div>
+      <div class="st-control"><button class="btn sm" data-action="cu-test" ${tr && tr.busy ? 'disabled' : ''}>${tr && tr.busy ? spinner(14) : icon('monitor', 14)} ${esc(t('cuTestGo'))}</button></div></div>
+    ${tr && tr.thumb ? `<img class="step-img" src="${tr.thumb}" alt="" style="max-width:420px;margin:4px 0 10px">` : ''}` : ''}` : ''}`;
+}
+
 function agentTab() {
   const ag = S.settings.agent || {};
   const tools = S.agentTools || [];
@@ -67,6 +91,8 @@ function agentTab() {
     ${row(t('brClear'), `<button class="btn sm" data-action="br-clear">${icon('trash', 14)} ${esc(t('brClearGo'))}</button>`, t('brClearHint'))}
     ${row(t('subagents'), toggle('agent.subagents', ag.subagents !== false), t('subagentsHint'))}
 
+    ${computerSection()}
+
     <div class="st-sec">${esc(t('mcpTitle'))}<span class="grow"></span>
       <button class="btn sm" data-action="mcp-claude">${icon('download', 14)} ${esc(t('mcpImport'))}</button>
       <button class="btn sm" data-action="mcp-add-open">${icon('plus', 14)} ${esc(t('mcpAdd'))}</button></div>
@@ -106,6 +132,11 @@ Object.assign(actions, {
   'img-install': async (el) => { S.depsBusy = 'images:' + el.dataset.k; S.depsP = 0; renderSettings(); try { S.imgStatus = await api.images.install(el.dataset.k); toast(t('depsDone')); } catch (e) { toast(cleanErr(e), 'err'); } S.depsBusy = false; renderSettings(); },
   'img-use': async (el) => { S.depsBusy = 'images:' + el.dataset.k; renderSettings(); try { S.imgStatus = await api.images.install(el.dataset.k); } catch (e) { toast(cleanErr(e), 'err'); } S.depsBusy = false; renderSettings(); },
   'deps-rm': async (el) => { await api.deps.remove(el.dataset.dep); S.deps = await api.deps.status(); renderSettings(); },
+  'cu-test': async () => {
+    S.cuTest = { busy: true }; renderSettings();
+    try { S.cuTest = await api.computer.test(); } catch (e) { S.cuTest = { ok: false, error: cleanErr(e) }; }
+    renderSettings();
+  },
   'srch-test': async () => {
     S.srchTesting = true; S.srchTest = ''; renderSettings();
     const t0 = Date.now();

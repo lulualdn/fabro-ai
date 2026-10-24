@@ -3,7 +3,7 @@
 const store = require('../store');
 
 const registry = new Map(); // name → tool
-// tool = { name, category, description, parameters, risk: 'read'|'write'|'exec'|'net'|'danger', core?, keywords?, summarize(args), run(args, ctx), guard?(args, ctx) }
+// tool = { name, category, description, parameters, risk: 'read'|'write'|'exec'|'net'|'control'|'danger', core?, keywords?, summarize(args), run(args, ctx), guard?(args, ctx) }
 function register(tool) { registry.set(tool.name, tool); }
 function unregisterWhere(fn) { for (const [k, t] of registry) if (fn(t)) registry.delete(k); }
 const get = (name) => registry.get(name);
@@ -41,7 +41,8 @@ function select({ agentMode, text = '', used = [], sub = false, code = false }) 
 
 // ───────────────────────────── permissions ─────────────────────────────
 // settings.agent.permissions[toolName] = 'always' | 'never' | 'ask' (default by risk)
-const DEFAULT_POLICY = { read: 'always', net: 'always', write: 'ask', exec: 'ask', danger: 'ask' };
+// 'control' (Computer Use) is allowed by default: its tools ask once per conversation themselves.
+const DEFAULT_POLICY = { read: 'always', net: 'always', control: 'always', write: 'ask', exec: 'ask', danger: 'ask' };
 function policyFor(tool) {
   const p = ((store.getSettings().agent || {}).permissions || {})[tool.name];
   return p || DEFAULT_POLICY[tool.risk] || 'ask';
