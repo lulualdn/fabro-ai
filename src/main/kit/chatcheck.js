@@ -6,6 +6,7 @@ const qa = require('./qa');
 const attrs = (s) => { const o = {}; for (const m of String(s).matchAll(/(\w+)\s*=\s*"([^"]*)"/g)) o[m[1].toLowerCase()] = m[2]; return o; };
 function normType(t, body) { // same rules as the renderer (artifacts-ui.js)
   t = String(t || '').toLowerCase();
+  if (/sheet|calc|spreadsheet|excel|xlsx|csv|tableur|table/.test(t)) return 'sheet';
   if (/slide|deck|present/.test(t)) return 'slides';
   if (/svg|draw/.test(t)) return 'svg';
   if (/^(document|doc|pdf|print|report|cv|letter|invoice|flyer|poster|menu)/.test(t)) return 'document';

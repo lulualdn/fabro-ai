@@ -82,7 +82,7 @@ agent.register({
   },
 });
 
-const TYPES = ['html', 'document', 'slides', 'svg', 'markdown', 'code'];
+const TYPES = ['html', 'document', 'slides', 'sheet', 'svg', 'markdown', 'code'];
 const visual = (t) => ['html', 'document', 'slides', 'svg'].includes(t);
 
 async function checkResult(art, extra = '') {
@@ -96,21 +96,37 @@ async function checkResult(art, extra = '') {
 
 agent.register({
   name: 'create_artifact', category: 'design', risk: 'read', core: true,
-  description: 'Create an artifact the user can open, edit and export: a web page/app (type html), a document printed as PDF (type document: CV, letter, report, invoice, flyer, menu…), a slide deck (type slides, HTML with the Fabro Kit), an SVG drawing, Markdown notes (only if asked) or code. Visual ones are rendered and checked automatically: you get pictures and the problems to fix with edit_artifact.',
+  description: 'Create an artifact the user can open, edit and export: a web page/app (type html), Fabro Docs (type document: report, CV, letter, invoice… — exports to PDF, Word .docx, OpenDocument .odt), Fabro Slides (type slides — exports to PDF, PowerPoint .pptx, .odp), Fabro Calc (type sheet: a spreadsheet with formulas — exports to Excel .xlsx, .ods, CSV), an SVG drawing, Markdown notes (only if asked) or code. Or open a file the user gave (from_file: Word, PowerPoint, Excel, OpenDocument, CSV, HTML, code…): it becomes an artifact; documents and decks keep their original layout and you change their text with edit_artifact. Visual ones are rendered and checked automatically.',
   parameters: {
     type: 'object',
     properties: {
       type: { type: 'string', enum: TYPES },
       title: { type: 'string' },
-      content: { type: 'string', description: 'The full content: a complete HTML page (Fabro Kit: <body data-theme="…">, class "doc" for documents, "deck" for slides), an <svg>, Markdown or code' },
+      content: { type: 'string', description: 'The full content: a complete HTML page (Fabro Kit: <body data-theme="…">, class "doc" for documents, "deck" for slides), for sheet a JSON workbook {"sheets":[{"name":"…","rows":[["Item","Price"],["A",12],["Total","=SUM(B2:B2)"]],"cols":[160,90],"style":{"1":{"b":1,"bg":"#f2efe8"},"B3":{"fmt":"# ##0.00 €"}},"freeze":1}]} (or CSV), an <svg>, Markdown or code' },
       lang: { type: 'string', description: 'For code: the language' },
+      from_file: { type: 'string', description: 'Instead of content: path of a file to open as an artifact (docx, odt, pptx, odp, xlsx, ods, csv, html, md, svg, code)' },
     },
-    required: ['type', 'title', 'content'],
+    required: ['title'],
   },
   summarize: (a) => `${a.title} (${a.type})`,
   async run(a, ctx) {
+    if (a.from_file) {
+      const files = require('./files'); const f = files.resolvePath(a.from_file, ctx); await files.access(f, ctx, false);
+      let art; try { art = require('../office').importFile(f, { convId: ctx.convId || null }); } catch (e) { return { error: e.message }; }
+      if (a.title) art.title = String(a.title).slice(0, 120);
+      db.saveArtifact(art); if (ctx.emit) ctx.emit({ type: 'artifact_updated', id: art.id });
+      const head = `Opened “${require('path').basename(f)}” as artifact ${art.id} (${art.type}${art.office ? `, original ${art.office.ext.toUpperCase()} layout kept` : ''}). Read it with read_artifact; change it with edit_artifact.`;
+      if (art.type === 'sheet' || !visual(art.type)) return { content: head, view: { kind: 'artifact', artifactId: art.id, title: art.title, type: art.type, v: 0 } };
+      return checkResult(art, head);
+    }
     const type = TYPES.includes(a.type) ? a.type : 'html';
     let content = String(a.content || '');
+    if (type === 'sheet') {
+      const office = require('../office'); const wb = office.calc.normalize(content);
+      const art = db.saveArtifact({ id: 'art-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), convId: ctx.convId || null, type, title: String(a.title || 'Untitled').slice(0, 120), versions: [{ content: JSON.stringify(wb), at: Date.now(), by: 'ai' }] });
+      if (ctx.emit) ctx.emit({ type: 'artifact_updated', id: art.id });
+      return { content: `Created Fabro Calc ${art.id} “${art.title}”.\n${sheetText(wb, 30)}`, view: { kind: 'artifact', artifactId: art.id, title: art.title, type, v: 0 } };
+    }
     if (!content.trim()) return { error: 'Empty content.' };
     if (visual(type) && type !== 'svg' && /^\s*(#|\*|-)\s/m.test(content) && !/<[a-z][\s\S]*>/i.test(content)) return { error: 'This looks like Markdown. Visual artifacts are HTML: call design_guide for the example to follow, or use type "markdown" if the user asked for Markdown.' };
     const baked = visual(type) ? await kit.bake(content).catch(() => ({ html: content })) : { html: content };
@@ -134,4 +150,32 @@ agent.register({
   },
 });
 
-module.exports = { checkResult, visual, LIBS };
+// A workbook as text for the AI: each non-empty cell with its reference, formula and value.
+function sheetText(wbIn, maxRows = 200) {
+  const office = require('../office'), C = office.calc, book = new C.Workbook(wbIn);
+  return book.wb.sheets.map((sh, si) => {
+    const vals = book.computed(si), lines = [`Sheet “${sh.name}” (${sh.rows.length} rows)`];
+    sh.rows.slice(0, maxRows).forEach((row, r) => { const cells = row.map((raw, c) => { if (raw === '' || raw == null) return null; const v = vals[r][c], f = typeof raw === 'string' && raw[0] === '=' ? `${raw} → ${C.format(v, C.styleOf(sh, r, c).fmt)}` : JSON.stringify(raw); return `${C.ref(r, c)}: ${f}`; }).filter(Boolean); if (cells.length) lines.push(cells.join(' | ')); });
+    if (sh.rows.length > maxRows) lines.push(`… ${sh.rows.length - maxRows} more rows`);
+    return lines.join('\n');
+  }).join('\n\n');
+}
+
+agent.register({
+  name: 'export_artifact', category: 'documents', risk: 'write', keywords: ['export', 'docx', 'word', 'excel', 'xlsx', 'powerpoint', 'pptx', 'odt', 'ods', 'odp', 'libreoffice', 'opendocument', 'fichier', 'file', 'télécharg', 'download', 'csv'],
+  description: 'Save an artifact as a file: Fabro Docs → docx / odt, Fabro Slides → pptx / odp, Fabro Calc → xlsx / ods / csv (PDF: the user exports it from the artifact). A file that was imported keeps its exact original layout in its own format.',
+  parameters: { type: 'object', properties: { artifact: { type: 'string', description: 'Artifact id or title' }, format: { type: 'string', enum: ['docx', 'odt', 'pptx', 'odp', 'xlsx', 'ods', 'csv'] }, folder: { type: 'string', description: 'Optional folder (default Documents/Fabro)' } }, required: ['artifact', 'format'] },
+  summarize: (a) => `${a.artifact} → .${a.format}`,
+  async run(a, ctx) {
+    const art = require('./layout').findArtifact(a.artifact, ctx); if (!art) return { error: `No artifact "${a.artifact}".` };
+    const files = require('./files'), fs = require('fs'), path = require('path');
+    const dir = a.folder ? files.resolvePath(a.folder, ctx) : files.defaultOut(); fs.mkdirSync(dir, { recursive: true }); if (a.folder) await files.access(path.join(dir, 'x'), ctx, true);
+    const safe = String(art.title || 'Fabro').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'Fabro';
+    let file = path.join(dir, `${safe}.${a.format}`); for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${safe} (${i}).${a.format}`);
+    let buf; try { buf = await require('../office').exportArtifact(art, a.format); } catch (e) { return { error: e.message }; }
+    fs.writeFileSync(file, buf); files.touched(ctx, file, 'created');
+    return { content: `Saved ${path.basename(file)} (${Math.round(buf.length / 1024)} KB). The user sees the artifact card; mention the file name only.`, view: { kind: 'artifact', artifactId: art.id, title: art.title, type: art.type, v: art.versions.length - 1 } };
+  },
+});
+
+module.exports = { checkResult, visual, LIBS, sheetText };

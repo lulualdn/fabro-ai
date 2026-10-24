@@ -37,6 +37,10 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1440x900x24" node scripts/artifacts-e2e.js e2e-shots/artifacts
       - name: Agents app e2e
         run: xvfb-run -a -s "-screen 0 1440x900x24" node scripts/agents-e2e.js e2e-shots/agents
+      - name: Fabro Docs / Slides / Calc ⇄ Office & OpenDocument (export, import, edits keeping the layout)
+        run: xvfb-run -a npx electron scripts/office-test.js e2e-shots/office --no-sandbox
+      - name: Fabro Calc grid + visual editor in the app
+        run: xvfb-run -a -s "-screen 0 1440x900x24" node scripts/office-ui-e2e.js e2e-shots/office-ui
       - name: Designed PDFs the AI can see and fix
         run: xvfb-run -a node scripts/layout-test.js e2e-shots
       - uses: actions/upload-artifact@v4

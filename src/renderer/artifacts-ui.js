@@ -2,7 +2,7 @@
 /* Artifacts: documents, slides, web pages, SVG drawings and code the AI creates.
    Shown as cards in the chat, opened in the side panel, editable (text + colors), versioned, exportable. */
 
-const ART_TYPES = { markdown: 'file', document: 'filePdf', slides: 'slides', html: 'globe', svg: 'brush', code: 'code' };
+const ART_TYPES = { markdown: 'file', document: 'filePdf', slides: 'slides', sheet: 'table', html: 'globe', svg: 'brush', code: 'code' };
 const typeIcon = (t) => ART_TYPES[t] || 'file';
 const htmlSlides = (c) => /^\s*(<!doctype|<html|<body|<section)/i.test(String(c || '')); // slides written as HTML (Fabro Kit deck)
 
@@ -68,6 +68,7 @@ function splitArtifacts(content) {
 }
 function normType(t, body) { // same rules as the computer side (kit/chatcheck.js)
   t = String(t || '').toLowerCase();
+  if (/sheet|calc|spreadsheet|excel|xlsx|csv|tableur|table/.test(t)) return 'sheet';
   if (/slide|deck|present/.test(t)) return 'slides';
   if (/svg|draw/.test(t)) return 'svg';
   if (/^(document|doc|pdf|print|report|cv|letter|invoice|flyer|poster|menu)/.test(t)) return 'document';
@@ -242,19 +243,22 @@ function artifactViewer() {
   const hasCode = a.type !== 'code';
   const editable = true;
   let body = '';
-  if (v.editing) body = artEditor(a, ver);
+  const visualOk = /^(html|document|slides)$/.test(a.type) && (a.type !== 'slides' || htmlSlides(ver.content));
+  if (v.visual) body = `${visualBar()}<iframe class="art-frame fe-frame" id="fe-frame" sandbox="allow-scripts" src="fabro-art://${esc(a.id)}/?v=${v.v}&edit=1"></iframe>`;
+  else if (v.editing) body = artEditor(a, ver);
   else if (v.tab === 'code' || a.type === 'code') body = `<div class="v-code"><pre><code class="hljs">${highlight(ver.content, a.type === 'code' ? a.lang : a.type === 'slides' || a.type === 'markdown' ? 'markdown' : a.type === 'svg' ? 'xml' : 'html').split('\n').map((l, i) => `<span class="ln" data-n="${i + 1}">${l || ' '}</span>`).join('\n')}</code></pre></div>`;
   else if (a.type === 'markdown') body = `<div class="v-doc md art-doc">${md(ver.content, 'art')}</div>`;
   else if (a.type === 'slides' && !htmlSlides(ver.content)) body = `<div class="deck">${splitSlides(ver.content).map((s, i) => slideHtml(s, i, a.style || DECK_THEMES[0])).join('')}</div>`;
   else body = `<iframe class="art-frame" sandbox="allow-scripts allow-forms allow-modals allow-popups" src="fabro-art://${esc(a.id)}/?v=${v.v}"></iframe>`;
-  const tabs = hasCode && !v.editing ? `<div class="seg sm">${['preview', 'code'].map((k) => `<button class="${v.tab === k ? 'on' : ''}" data-action="art-tab" data-tab="${k}">${esc(t('artTab_' + k))}</button>`).join('')}</div>` : '';
+  const tabs = hasCode && !v.editing && !v.visual && a.type !== 'sheet' ? `<div class="seg sm">${['preview', 'code'].map((k) => `<button class="${v.tab === k ? 'on' : ''}" data-action="art-tab" data-tab="${k}">${esc(t('artTab_' + k))}</button>`).join('')}</div>` : '';
   return `<div class="v-head art-head">
       <span class="ah-ico">${icon(typeIcon(a.type), 16)}</span>
       <span class="v-title" title="${esc(a.title)}">${esc(a.title)}</span>
       ${n > 1 ? `<span class="branch-nav"><button class="icon-btn xs" data-action="art-ver" data-dir="-1" ${v.v <= 0 ? 'disabled' : ''}>${icon('back', 13)}</button><span class="bn-n">v${v.v + 1}/${n}</span><button class="icon-btn xs" data-action="art-ver" data-dir="1" ${v.v >= n - 1 ? 'disabled' : ''}>${icon('forward', 13)}</button></span>` : ''}
       <div class="v-tools">${tabs}
-        ${v.editing ? `<button class="btn sm" data-action="art-cancel">${esc(t('cancel'))}</button><button class="btn sm primary" data-action="art-save">${icon('check', 14)} ${esc(t('save'))}</button>`
-          : `${editable ? `<button class="icon-btn sm" data-action="art-edit" title="${esc(t('artEdit'))}">${icon('edit', 16)}</button>` : ''}
+        ${v.visual ? `<button class="btn sm" data-action="art-source" title="${esc(t('artSource'))}">&lt;/&gt;</button><button class="btn sm" data-action="fe-cancel">${esc(t('cancel'))}</button><button class="btn sm primary" data-action="fe-save" id="fe-save" ${(v.ops || []).length ? '' : 'disabled'}>${icon('check', 14)} ${esc(t('save'))}${(v.ops || []).length ? ` (${v.ops.length})` : ''}</button>`
+          : v.editing ? `<button class="btn sm" data-action="art-cancel">${esc(t('cancel'))}</button><button class="btn sm primary" data-action="art-save">${icon('check', 14)} ${esc(t('save'))}</button>`
+          : `${editable && a.type !== 'sheet' ? `<button class="icon-btn sm" data-action="${visualOk ? 'fe-start' : 'art-edit'}" title="${esc(t('artEdit'))}">${icon('edit', 16)}</button>` : ''}
              ${a.type === 'slides' && !htmlSlides(ver.content) ? `<button class="icon-btn sm" data-action="art-present" title="${esc(t('artPresent'))}">${icon('play', 16)}</button>` : ''}
              <button class="icon-btn sm" data-action="viewer-copy" title="${esc(t('copy'))}">${icon('copy', 16)}</button>
              <button class="icon-btn sm" data-action="art-export" title="${esc(t('artExport'))}">${icon('download', 16)}</button>`}
@@ -322,10 +326,12 @@ function docHtml(a, content, style) {
 const EXT = { python: 'py', py: 'py', javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts', lua: 'lua', luau: 'luau', rust: 'rs', go: 'go', java: 'java', cpp: 'cpp', c: 'c', csharp: 'cs', cs: 'cs', bash: 'sh', sh: 'sh', powershell: 'ps1', json: 'json', css: 'css', sql: 'sql', php: 'php', ruby: 'rb' };
 function openExportMenu(anchor) {
   const a = curArt(); const r = anchor.getBoundingClientRect();
-  const opts = a.type === 'markdown' ? [['docx', 'Word (.docx)'], ['pdf', 'PDF'], ['md', 'Markdown (.md)'], ['html', 'HTML']]
-    : a.type === 'slides' ? (htmlSlides(a.versions[S.viewer.v].content) ? [['pdf', 'PDF'], ['html', 'HTML']] : [['pdf', 'PDF'], ['html', 'HTML'], ['md', 'Markdown (.md)']])
-    : a.type === 'document' ? [['pdf', 'PDF'], ['html', 'HTML']]
-    : a.type === 'html' ? [['html', 'HTML'], ['pdf', 'PDF']]
+  const W = ['o:docx', 'Word (.docx)'], ODT = ['o:odt', 'OpenDocument (.odt)'];
+  const opts = a.type === 'markdown' ? [['docx', 'Word (.docx)'], ODT, ['pdf', 'PDF'], ['md', 'Markdown (.md)'], ['html', 'HTML']]
+    : a.type === 'slides' ? [['pdf', 'PDF'], ['o:pptx', 'PowerPoint (.pptx)'], ['o:odp', 'OpenDocument (.odp)'], ['html', 'HTML'], ...(htmlSlides(a.versions[S.viewer.v].content) ? [] : [['md', 'Markdown (.md)']])]
+    : a.type === 'document' ? [['pdf', 'PDF'], W, ODT, ['html', 'HTML']]
+    : a.type === 'sheet' ? [['o:xlsx', 'Excel (.xlsx)'], ['o:ods', 'OpenDocument (.ods)'], ['o:csv', 'CSV']]
+    : a.type === 'html' ? [['html', 'HTML'], ['pdf', 'PDF'], W, ODT]
     : a.type === 'svg' ? [['svg', 'SVG'], ['pdf', 'PDF']]
     : [['code', `${t('artType_code')} (.${EXT[(a.lang || '').toLowerCase()] || 'txt'})`]];
   $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
@@ -338,6 +344,7 @@ async function exportAs(fmt) {
   const a = curArt(); const ver = a.versions[S.viewer.v]; const c = ver.content;
   closePopover();
   let r;
+  if (fmt.startsWith('o:')) { try { r = await api.artifacts.exportOffice(a.id, S.viewer.v, fmt.slice(2)); } catch (e) { return toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'err'); } if (r) toast(t('artExported')); return; }
   if (fmt === 'docx') r = await api.exporter.save({ name: a.title, format: 'docx', blocks: mdToBlocks(c) });
   else if (fmt === 'pdf') r = await api.exporter.save({ name: a.title, format: 'pdf', html: docHtml(a, c, a.style), landscape: a.type === 'slides' });
   else if (fmt === 'html') r = await api.exporter.save({ name: a.title, format: 'html', content: docHtml(a, c, a.style) });
@@ -370,8 +377,8 @@ function renderArtifactsPage() {
   const counts = S.artList.reduce((o, a) => { o[a.type] = (o[a.type] || 0) + 1; return o; }, {});
   return `<div class="page art-page">
     <header class="pg-head"><div class="pg-ico">${icon('shapes', 22)}</div><div><h1>${esc(t('nav_artifacts'))}</h1><p>${esc(t('artLead'))}</p></div></header>
-    <div class="art-filters">${['all', 'document', 'html', 'slides', 'svg', 'markdown', 'code'].filter((k) => k === 'all' || counts[k]).map((k) => `<button class="chip-btn ${f === k ? 'on' : ''}" data-action="art-filter" data-f="${k}">${k === 'all' ? esc(t('all')) : `${icon(typeIcon(k), 13)} ${esc(t('artType_' + k))}`} <small>${k === 'all' ? S.artList.length : counts[k]}</small></button>`).join('')}
-      <span class="grow"></span><label class="sb-search art-search">${icon('search', 15)}<input id="art-q" type="search" value="${esc(S.artQuery || '')}" placeholder="${esc(t('artSearch'))}"></label></div>
+    <div class="art-filters">${['all', 'document', 'slides', 'sheet', 'html', 'svg', 'markdown', 'code'].filter((k) => k === 'all' || counts[k]).map((k) => `<button class="chip-btn ${f === k ? 'on' : ''}" data-action="art-filter" data-f="${k}">${k === 'all' ? esc(t('all')) : `${icon(typeIcon(k), 13)} ${esc(t('artType_' + k))}`} <small>${k === 'all' ? S.artList.length : counts[k]}</small></button>`).join('')}
+      <span class="grow"></span><button class="btn sm" data-action="art-import" title="${esc(t('artImportHint'))}">${icon('upload', 14)} ${esc(t('artImport'))}</button><label class="sb-search art-search">${icon('search', 15)}<input id="art-q" type="search" value="${esc(S.artQuery || '')}" placeholder="${esc(t('artSearch'))}"></label></div>
     ${list.length ? `<div class="art-grid">${list.map((a, i) => `<div class="art-tile t-${a.type}" style="--i:${i}" data-action="art-open" data-id="${esc(a.id)}">
         <div class="at-prev">${artThumb(a.id, a.type, Math.max(0, (a.versions || 1) - 1), a.lang || '')}<span class="at-type">${icon(typeIcon(a.type), 14)}</span></div>
         <div class="at-meta"><b>${esc(a.title)}</b><small>${esc(t('artType_' + a.type))} · ${esc(new Date(a.updated).toLocaleDateString(S.lang, { day: 'numeric', month: 'short' }))}${a.versions > 1 ? ` · ${a.versions} versions` : ''}</small></div>
@@ -395,6 +402,26 @@ Object.assign(actions, {
   'deck-theme': async (el) => { const a = curArt(); a.style = { ...DECK_THEMES[+el.dataset.i] }; const keep = $$('#art-deck .slide-in').map((x) => x.innerHTML); S.artCache[a.id] = await api.artifacts.save(a); renderViewer(); $$('#art-deck .slide-in').forEach((x, i) => { if (keep[i] != null) x.innerHTML = keep[i]; }); },
   'slide-add': () => { const deck = $('#art-deck'); const a = curArt(); const i = deck.children.length; deck.insertAdjacentHTML('beforeend', slideHtml(`## ${t('artNewSlide')}\n\n- …`, i, a.style || DECK_THEMES[0], true)); deck.lastElementChild.scrollIntoView({ behavior: 'smooth' }); },
   'art-filter': (el) => { S.artFilter = el.dataset.f; renderView(); },
+  'art-import': async () => { let r; try { r = await api.artifacts.import(); } catch (e) { return toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'err'); } if (!r || !r.length) return; await loadArtifacts(); openArtifact(r[0].id); },
+  'fe-start': () => { Object.assign(S.viewer, { visual: true, ops: [], sel: [] }); renderViewer(); },
+  'fe-cancel': () => { if ((S.viewer.ops || []).length && !confirm(t('artDiscard'))) return; Object.assign(S.viewer, { visual: false, ops: [], sel: [] }); renderViewer(); },
+  'art-source': () => { if ((S.viewer.ops || []).length && !confirm(t('artDiscard'))) return; Object.assign(S.viewer, { visual: false, ops: [], editing: true }); renderViewer(); },
+  'fe-save': async () => { const a = curArt(), v = S.viewer; if (!(v.ops || []).length) return; const saved = await api.artifacts.applyEdits(a.id, v.v, v.ops); S.artCache[a.id] = saved; Object.assign(v, { visual: false, ops: [], sel: [], v: saved.versions.length - 1 }); renderViewer(); toast(t('artSaved')); },
+  'fe-delete': () => feSend({ type: 'delete' }),
+  'fe-bold': () => { const it = (S.viewer.sel || [])[0]; feSend({ type: 'style', props: { 'font-weight': it && it.bold ? '400' : '700' } }); },
+  'fe-italic': () => { const it = (S.viewer.sel || [])[0]; feSend({ type: 'style', props: { 'font-style': it && it.italic ? 'normal' : 'italic' } }); },
+  'fe-size': (el) => { const it = (S.viewer.sel || [])[0]; if (!it) return; const n = Math.max(6, Math.round((it.size || 16) * (+el.dataset.d > 0 ? 1.12 : 0.89))); it.size = n; feSend({ type: 'style', props: { 'font-size': n + 'px' } }); },
+  'fe-align': (el) => feSend({ type: 'style', props: { 'text-align': el.dataset.a } }),
+  'fe-reset-move': () => feSend({ type: 'style', props: { translate: 'none' } }),
+  'fe-image': () => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.onchange = () => { const f = inp.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = async () => { const url = await api.artifacts.saveImage(rd.result); if (url) feSend({ type: 'src', url, preview: rd.result }); }; rd.readAsDataURL(f); }; inp.click(); },
+  'fe-ask': async () => {
+    const a = curArt(), v = S.viewer, sel = v.sel || []; if (!sel.length) return;
+    const src = await api.artifacts.describe(a.id, v.v, sel.map((x) => x.id)).catch(() => []);
+    const ctx = `[${t('artAskCtx', { title: a.title, id: a.id })}]\n${src.map((h, i) => `${i + 1}. ${h}`).join('\n')}\n\n`;
+    if ((v.ops || []).length && confirm(t('artSaveFirst'))) await actions['fe-save']();
+    if (S.mode !== 'chat' || !$('#prompt')) { try { if (a.convId) await openConv(a.convId); else newChat(); } catch {} }
+    setTimeout(() => { const ta = $('#prompt'); if (!ta) return toast(t('artAskOpenChat')); ta.value = ctx + ta.value; ta.dispatchEvent(new Event('input', { bubbles: true })); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 60);
+  },
   'art-delete': async (el, e) => { e.stopPropagation(); if (!confirm(t('artDeleteConfirm'))) return; await api.artifacts.delete(el.dataset.id); if (S.viewer && S.viewer.id === el.dataset.id) closeViewer(); loadArtifacts(); },
   'code-preview': async (el) => { const c = S.code.get(el.closest('.code-card').dataset.key); if (!c) return; const url = await api.exporter.preview(c.code); S.viewer = { type: 'htmlpreview', url, title: t('artPreview'), code: c.code }; renderViewer(); },
   'code-keep': async (el) => {
@@ -430,3 +457,44 @@ document.addEventListener('input', (e) => { if (e.target.id === 'art-q') { S.art
     }
   };
 }
+
+
+// ───────────────────────────── visual editor (select, move, colours, fonts, text, images, delete, ask the AI) ─────────────────────────────
+const FONTS = ['', 'Inter', 'system-ui', 'Georgia', 'Times New Roman', 'Arial', 'Verdana', 'Trebuchet MS', 'Courier New', 'Playfair Display', 'Montserrat', 'Poppins', 'Lora', 'Roboto'];
+function visualBar() {
+  const sel = S.viewer.sel || [], it = sel[0], dis = sel.length ? '' : 'disabled';
+  const hex = (c) => { const m = String(c || '').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/); return m ? '#' + [m[1], m[2], m[3]].map((x) => (+x).toString(16).padStart(2, '0')).join('') : '#000000'; };
+  return `<div class="fe-bar" id="fe-bar">
+    <span class="fe-info">${sel.length ? esc(sel.length > 1 ? t('artSelN', { n: sel.length }) : `<${it.tag}> ${it.text ? '« ' + it.text.slice(0, 40) + ' »' : ''}`) : esc(t('artSelHint'))}</span>
+    <label class="fe-c" title="${esc(t('artText'))}">A<input type="color" data-fe-prop="color" value="${it ? hex(it.color) : '#000000'}" ${dis}></label>
+    <label class="fe-c" title="${esc(t('artBg'))}">▧<input type="color" data-fe-prop="background-color" value="${it ? hex(it.bg) : '#ffffff'}" ${dis}></label>
+    <select data-fe-prop="font-family" title="${esc(t('artFont'))}" ${dis}>${FONTS.map((f) => `<option value="${esc(f)}" ${it && f && it.font.includes(f) ? 'selected' : ''}>${esc(f || t('artFont'))}</option>`).join('')}</select>
+    <button class="icon-btn xs" data-action="fe-size" data-d="-1" ${dis} title="−">A−</button><button class="icon-btn xs" data-action="fe-size" data-d="1" ${dis} title="+">A+</button>
+    <button class="icon-btn xs" data-action="fe-bold" ${dis}><b>B</b></button><button class="icon-btn xs" data-action="fe-italic" ${dis}><i>I</i></button>
+    ${['left', 'center', 'right'].map((a) => `<button class="icon-btn xs" data-action="fe-align" data-a="${a}" ${dis} title="${a}">${a === 'left' ? '⇤' : a === 'center' ? '↔' : '⇥'}</button>`).join('')}
+    <button class="btn xs" data-action="fe-image" ${dis}>${icon('image', 13)} ${esc(t('artImage'))}</button>
+    <button class="btn xs" data-action="fe-reset-move" ${dis} title="${esc(t('artResetMove'))}">⤺</button>
+    <button class="btn xs danger" data-action="fe-delete" ${dis}>${icon('trash', 13)}</button>
+    <button class="btn xs primary" data-action="fe-ask" ${dis}>${icon('sparkle', 13)} ${esc(t('artAskAi'))}</button>
+    <small class="fe-tip">${esc(t('artEditTip'))}</small>
+  </div>`;
+}
+function feSend(m) { const f = $('#fe-frame'); if (f && f.contentWindow) f.contentWindow.postMessage({ fe: true, ...m }, '*'); }
+function feRefreshBar() { const b = $('#fe-bar'); if (b) b.outerHTML = visualBar(); const sv = $('#fe-save'); const n = (S.viewer.ops || []).length; if (sv) { sv.disabled = !n; sv.innerHTML = `${icon('check', 14)} ${esc(t('save'))}${n ? ` (${n})` : ''}`; } }
+document.addEventListener('change', (e) => { const p = e.target.dataset && e.target.dataset.feProp; if (p) feSend({ type: 'style', props: { [p]: e.target.value } }); });
+document.addEventListener('input', (e) => { const p = e.target.dataset && e.target.dataset.feProp; if (p && e.target.type === 'color') feSend({ type: 'style', props: { [p]: e.target.value } }); });
+let calcSaveT = 0;
+window.addEventListener('message', (e) => {
+  const m = e.data || {}; const v = S.viewer; if (!v || v.type !== 'artifact') return;
+  if (m.fe && v.visual) {
+    if (m.type === 'select') { v.sel = m.items || []; feRefreshBar(); }
+    if (m.type === 'op') { v.ops.push(m.op); feRefreshBar(); }
+    if (m.type === 'askDelete') feSend({ type: 'delete' });
+    return;
+  }
+  if (m.fabroCalc === 'save') {
+    const a = curArt(); if (!a || a.type !== 'sheet') return;
+    clearTimeout(calcSaveT);
+    calcSaveT = setTimeout(async () => { a.versions.push({ content: m.content, at: Date.now(), by: 'user' }); S.artCache[a.id] = await api.artifacts.save(a); v.v = S.artCache[a.id].versions.length - 1; const n = $('.art-head .bn-n'); if (n) n.textContent = `v${v.v + 1}/${S.artCache[a.id].versions.length}`; }, 900);
+  }
+});

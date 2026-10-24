@@ -20,6 +20,14 @@ function artHtml(url) {
     const a = db.getArtifact(u.hostname);
     const v = Math.max(0, Math.min((a && a.versions.length - 1) || 0, +(u.searchParams.get('v') ?? (a ? a.versions.length - 1 : 0))));
     html = a ? a.versions[v].content : '<p>Not found</p>';
+    if (a && a.type === 'sheet') return require('./office/calcpage').calcPage(html, { title: a.title, editable: u.searchParams.get('ro') !== '1' && v === a.versions.length - 1 });
+    if (a && u.searchParams.get('edit') === '1' && /^(html|document|slides)$/.test(a.type)) {
+      // visual editing: numbered elements + the editor script (see office/editor.js)
+      const ed = require('./office/editor');
+      html = ed.annotate(html);
+      const tag = `<script>${ed.EDITOR_JS}</script>`;
+      html = /<\/body>/i.test(html) ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${tag}</body>`) : html + tag;
+    }
     if (a && a.type === 'svg') html = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100vh}</style>${html}`;
   }
   if (!/<html|<!doctype/i.test(html)) html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${html}</body></html>`;

@@ -209,6 +209,7 @@ function resolveImgs(s) {
 function inject(html, { force = false, mode = null, theme = null, markOnly = false } = {}) {
   let s = String(html || '');
   if (!markOnly) s = resolveImgs(s);
+  if (/<meta[^>]+name=["']fabro-kit["'][^>]+content=["']none/i.test(s)) return s; // a page with its own layout (imported Office files)
   if (/id=["']fabro-kit["']/.test(s)) return s;
   if (!force && !usesKit(s)) return s;
   read();

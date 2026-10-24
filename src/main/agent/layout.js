@@ -183,7 +183,12 @@ agent.register({
   async run(a, ctx) {
     const art = findArtifact(a.artifact, ctx);
     if (!art) return { error: `No artifact "${a.artifact}".` };
-    const lines = art.versions[art.versions.length - 1].content.split('\n');
+    const office = require('../office');
+    const last = art.versions[art.versions.length - 1];
+    if (art.type === 'sheet') return { content: `Fabro Calc ${art.id} “${art.title}” (version ${art.versions.length}). Change cells with edit_artifact { cells: { "B3": 42, "C5": "=SUM(C2:C4)" } } (other sheet: "Sheet name!A1"), styles with { styles: { "A1": { "b": 1, "bg": "#f2efe8", "fmt": "0.00 €" } } }.\n${require('./design').sheetText(last.content)}` };
+    const pkg = art.office && office.loadPkg(art);
+    if (pkg) return { content: `Artifact ${art.id} “${art.title}”: an imported ${art.office.ext.toUpperCase()} file (version ${art.versions.length}). Its text, paragraph by paragraph${/pptx|odp/.test(art.office.ext) ? ', slide by slide' : ''}. Change it with edit_artifact old_text/new_text (exact text below): the original layout and styles are kept. new_text "" on a whole paragraph deletes it; several lines in new_text on a whole paragraph make new paragraphs with the same style.\n\n${office.outline(pkg, art.office.ext)}` };
+    const lines = last.content.split('\n');
     const s = Math.max(1, a.start_line | 0 || 1), e = Math.min(lines.length, a.end_line | 0 || s + 399);
     return { content: `Artifact ${art.id} “${art.title}” (${art.type}, version ${art.versions.length}, ${lines.length} lines)${e < lines.length ? ` — lines ${s}-${e}` : ''}\n` + lines.slice(s - 1, e).map((l, i) => `${String(s + i).padStart(4)}| ${l}`).join('\n') };
   },
@@ -197,13 +202,35 @@ agent.register({
     properties: {
       artifact: { type: 'string', description: 'Artifact id or title' },
       edits: { type: 'array', description: 'Applied in order', items: { type: 'object', properties: { old_text: { type: 'string' }, new_text: { type: 'string' }, start_line: { type: 'number' }, end_line: { type: 'number' } } } },
+      cells: { type: 'object', description: 'Fabro Calc only: { "B3": 42, "C5": "=SUM(C2:C4)", "Sheet2!A1": "x" } ("" empties a cell)' },
+      styles: { type: 'object', description: 'Fabro Calc only: { "A1": { "b": 1, "bg": "#f2efe8", "color": "#bf4f25", "fmt": "0.00 €", "align": "right" }, "1": {…whole row}, "B": {…whole column} }' },
     },
-    required: ['artifact', 'edits'],
+    required: ['artifact'],
   },
   summarize: (a) => `${a.artifact} · ${(a.edits || []).length} edit(s)`,
   async run(a, ctx) {
     const art = findArtifact(a.artifact, ctx);
     if (!art) return { error: `No artifact "${a.artifact}". Use read_artifact with its id or title.` };
+    const office = require('../office');
+    if (art.type === 'sheet') {
+      const C = office.calc, wb = C.normalize(art.versions[art.versions.length - 1].content); let n = 0;
+      for (const [k, v] of Object.entries(a.cells || {})) { const m = /^(?:(.+)!)?([A-Za-z]{1,3}\d+)$/.exec(k.trim()); if (!m) return { error: `Bad cell reference "${k}" (use B3 or Sheet!B3).` }; let sh = m[1] ? wb.sheets.find((x) => x.name.toLowerCase() === m[1].replace(/^'|'$/g, '').toLowerCase()) : wb.sheets[0]; if (!sh) { sh = { name: m[1], rows: [], cols: [], style: {}, merge: [], freeze: 0 }; wb.sheets.push(sh); } const p = C.parseRef(m[2]); while (sh.rows.length <= p.r) sh.rows.push([]); const row = sh.rows[p.r]; while (row.length <= p.c) row.push(''); row[p.c] = v; n++; }
+      for (const [k, v] of Object.entries(a.styles || {})) { const m = /^(?:(.+)!)?([A-Za-z]{1,3}\d+|[A-Za-z]{1,3}|\d+)$/.exec(k.trim()); const sh = m && (m[1] ? wb.sheets.find((x) => x.name.toLowerCase() === m[1].toLowerCase()) : wb.sheets[0]); if (!sh) return { error: `Bad style target "${k}".` }; sh.style[m[2].toUpperCase()] = { ...(sh.style[m[2].toUpperCase()] || {}), ...v }; n++; }
+      let json = JSON.stringify(wb);
+      if (Array.isArray(a.edits) && a.edits.length) { for (const [i, ed] of a.edits.entries()) { if (ed.old_text == null || !json.includes(ed.old_text)) return { error: `Edit ${i + 1}: text not found (for cells, use the cells parameter).` }; json = json.replace(ed.old_text, ed.new_text ?? ''); n++; } try { C.normalize(JSON.parse(json)); } catch { return { error: 'The edits broke the workbook JSON; use cells/styles instead.' }; } }
+      if (!n) return { error: 'Nothing to change: give cells, styles or edits.' };
+      art.versions.push({ content: json, at: Date.now(), by: 'ai' }); db.saveArtifact(art); if (ctx.emit) ctx.emit({ type: 'artifact_updated', id: art.id });
+      return { content: `${n} change(s) applied (version ${art.versions.length}).\n${require('./design').sheetText(json, 60)}`, view: { kind: 'artifact', title: art.title, artifactId: art.id, type: art.type, v: art.versions.length - 1 } };
+    }
+    if (!Array.isArray(a.edits) || !a.edits.length) return { error: 'Give edits.' };
+    const pkg = art.office && office.loadPkg(art);
+    if (pkg) {
+      const r = office.editPackage(pkg, art.office.ext, a.edits); if (r.error) return { error: r.error };
+      const n = art.versions.length + 1, name = office.storePkg(art.id, n, art.office.ext, r.buf);
+      art.versions.push({ content: office.previewOf(r.buf, art.office.ext, art.title), pkg: name, at: Date.now(), by: 'ai' }); db.saveArtifact(art);
+      if (ctx.emit) ctx.emit({ type: 'artifact_updated', id: art.id });
+      return require('./design').checkResult(art, `${r.done.length} edit(s) applied in the original ${art.office.ext.toUpperCase()} (layout kept), version ${art.versions.length}.`);
+    }
     let text = art.versions[art.versions.length - 1].content;
     const done = [];
     for (const [i, ed] of (Array.isArray(a.edits) ? a.edits : []).entries()) {

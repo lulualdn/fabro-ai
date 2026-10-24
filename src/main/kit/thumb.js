@@ -14,6 +14,7 @@ let running = 0; const queue = [];
 const limit = (fn) => new Promise((res, rej) => { const go = () => { running++; fn().then(res, rej).finally(() => { running--; const n = queue.shift(); if (n) n(); }); }; if (running < 2) go(); else queue.push(go); });
 
 function htmlFor(a, content) {
+  if (a.type === 'sheet') return require('../office/calcpage').calcPage(content, { title: a.title, editable: false });
   if (a.type === 'svg') return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#fff;display:grid;place-items:center}svg{width:70%;height:70%}</style></head><body>${content}</body></html>`;
   if (a.type === 'markdown') {
     let md = null; try { md = require('marked').marked; } catch {}

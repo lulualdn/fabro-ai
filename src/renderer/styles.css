@@ -1679,3 +1679,16 @@ body.drop-on .drop-veil { opacity: 1; }
 
 .maint-badge { margin-left: auto; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; color: #b45309; background: color-mix(in srgb, #f59e0b 16%, transparent); }
 .sb-collapsed .maint-badge { display: none; }
+
+/* visual editor of artifacts */
+.fe-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--elev); font-size: 12.5px; }
+.fe-bar .fe-info { color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 4px; }
+.fe-bar select { font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--elev-2); color: var(--text); max-width: 140px; }
+.fe-bar .fe-c { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-weight: 600; }
+.fe-bar .fe-c input { width: 18px; height: 16px; padding: 0; border: 0; background: none; cursor: pointer; }
+.fe-bar .fe-tip { color: var(--muted); margin-left: auto; }
+.fe-bar .btn.danger { color: var(--err); }
+.fe-bar [disabled] { opacity: .45; pointer-events: none; }
+.art-body:has(> .fe-bar) { overflow: hidden; }
+.fe-bar { flex: none; }
+.art-frame.fe-frame { min-height: 0; }

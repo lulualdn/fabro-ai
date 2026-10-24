@@ -165,6 +165,32 @@ function registerIpc() {
   h('artifacts:delete', (id) => db.deleteArtifact(id));
   h('artifacts:thumb', (id, v) => require('./kit/thumb').thumb(db.getArtifact(id), v)); // card picture (page 1)
   h('artifacts:check', async (id) => { const a = db.getArtifact(id); if (!a) return null; const r = await require('./kit/qa').check(a.versions[a.versions.length - 1].content, { type: a.type, title: a.title }); return { ok: r.ok, errors: r.errors, warnings: r.warnings, image: r.image }; });
+  // Fabro Docs / Slides / Calc: import Office & OpenDocument files, export to them, visual edits
+  h('artifacts:import', async (paths) => {
+    if (!paths || !paths.length) { const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Documents', extensions: ['docx', 'odt', 'pptx', 'odp', 'xlsx', 'ods', 'csv', 'html', 'htm', 'md', 'txt', 'svg', 'js', 'ts', 'py', 'lua', 'json', 'css'] }, { name: '*', extensions: ['*'] }] }); if (r.canceled) return []; paths = r.filePaths; }
+    const office = require('./office'), out = [];
+    for (const f of paths) { const a = office.importFile(f); db.saveArtifact(a); out.push({ id: a.id, title: a.title, type: a.type }); }
+    return out;
+  });
+  h('artifacts:exportOffice', async (id, v, fmt) => {
+    const a = db.getArtifact(id); if (!a) throw new Error('Artifact not found');
+    const names = { docx: 'Word', odt: 'OpenDocument Text', pptx: 'PowerPoint', odp: 'OpenDocument Presentation', xlsx: 'Excel', ods: 'OpenDocument Spreadsheet', csv: 'CSV' };
+    const safe = String(a.title || 'Fabro').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'Fabro';
+    const r = await dialog.showSaveDialog(win, { defaultPath: `${safe}.${fmt}`, filters: [{ name: names[fmt] || fmt, extensions: [fmt] }] });
+    if (r.canceled || !r.filePath) return null;
+    require('fs').writeFileSync(r.filePath, await require('./office').exportArtifact(a, fmt, v));
+    return r.filePath;
+  });
+  h('artifacts:applyEdits', (id, v, ops) => {
+    const a = db.getArtifact(id); if (!a) throw new Error('Artifact not found');
+    const base = a.versions[v ?? a.versions.length - 1];
+    const r = require('./office/editor').applyOps(base.content, ops || []);
+    if (!r.applied) return a;
+    a.versions.push({ content: r.html, at: Date.now(), by: 'user' }); // visual edits: the page becomes the source (an imported file's text edits are done by the AI)
+    return db.saveArtifact(a);
+  });
+  h('artifacts:describe', (id, v, ids) => { const a = db.getArtifact(id); if (!a) return []; return require('./office/editor').describe(a.versions[v ?? a.versions.length - 1].content, ids || []); });
+  h('artifacts:saveImage', (dataUrl) => { const m = /^data:[^;]+;base64,(.*)$/.exec(dataUrl || ''); if (!m) return null; return require('./kit').saveImg(Buffer.from(m[1], 'base64')); });
   h('export:save', (o) => exporter.save(win, o));
   h('art:preview', (html) => exporter.setPreview(html));
   h('brain:title', (o) => brain.title(o));
