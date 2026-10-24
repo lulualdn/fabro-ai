@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('api', {
   system: { specs: i('system:specs') },
   conv: { list: i('conv:list'), get: i('conv:get'), save: i('conv:save'), delete: i('conv:delete'), patch: i('conv:patch'), search: i('conv:search') },
   memory: { list: i('memory:list'), add: i('memory:add'), update: i('memory:update'), delete: i('memory:delete'), clear: i('memory:clear') },
-  artifacts: { list: i('artifacts:list'), get: i('artifacts:get'), save: i('artifacts:save'), delete: i('artifacts:delete') },
+  artifacts: { list: i('artifacts:list'), get: i('artifacts:get'), save: i('artifacts:save'), delete: i('artifacts:delete'), thumb: i('artifacts:thumb'), check: i('artifacts:check') },
   exporter: { save: i('export:save'), preview: i('art:preview') },
   brain: { title: i('brain:title'), memories: i('brain:memories'), style: i('brain:style') },
   models: {

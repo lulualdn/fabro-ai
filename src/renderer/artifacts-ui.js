@@ -2,8 +2,49 @@
 /* Artifacts: documents, slides, web pages, SVG drawings and code the AI creates.
    Shown as cards in the chat, opened in the side panel, editable (text + colors), versioned, exportable. */
 
-const ART_TYPES = { markdown: 'file', slides: 'slides', html: 'globe', svg: 'brush', code: 'code' };
+const ART_TYPES = { markdown: 'file', document: 'filePdf', slides: 'slides', html: 'globe', svg: 'brush', code: 'code' };
 const typeIcon = (t) => ART_TYPES[t] || 'file';
+const htmlSlides = (c) => /^\s*(<!doctype|<html|<body|<section)/i.test(String(c || '')); // slides written as HTML (Fabro Kit deck)
+
+// ───────────────────────────── card picture ─────────────────────────────
+// Each artifact gets its own soft pastel and a picture of its first page (rendered by the computer, cached).
+const PASTELS = ['#fde2e4', '#dfe7fd', '#e2f0e8', '#fff1c1', '#ece2fb', '#ffe4d1', '#d8f0f6', '#f9e0f0'];
+const artTint = (id) => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PASTELS[h % PASTELS.length]; };
+const CODE_EXT = { python: 'PY', py: 'PY', javascript: 'JS', js: 'JS', typescript: 'TS', ts: 'TS', lua: 'LUA', luau: 'LUAU', rust: 'RS', go: 'GO', java: 'JAVA', cpp: 'C++', c: 'C', csharp: 'C#', cs: 'C#', bash: 'SH', sh: 'SH', powershell: 'PS1', json: 'JSON', css: 'CSS', sql: 'SQL', php: 'PHP', ruby: 'RB', html: 'HTML' };
+function artThumb(id, type, v, lang = '', live = false) {
+  const tint = artTint(id || type);
+  if (type === 'code') return `<div class="art-thumb is-code" style="--tint:${tint}"><span class="at-file">${icon('fileCode', 30)}<b>${esc(CODE_EXT[String(lang).toLowerCase()] || 'CODE')}</b></span></div>`;
+  if (live || !id) return `<div class="art-thumb is-live" style="--tint:${tint}">${spinner(22)}</div>`;
+  const key = `${id}:${v}`; const src = (S.thumbs || {})[key];
+  return `<div class="art-thumb t-${esc(type)}" style="--tint:${tint}" ${src ? '' : `data-thumb="${esc(id)}" data-v="${v}"`}>${src ? `<img src="${src}" alt="">` : `<span class="at-skel">${icon(typeIcon(type), 22)}</span>`}</div>`;
+}
+S.thumbs = S.thumbs || {};
+function hydrateThumbs(root = document) {
+  for (const el of root.querySelectorAll('.art-thumb[data-thumb]:not([data-loading])')) {
+    el.dataset.loading = '1';
+    const id = el.dataset.thumb, v = +el.dataset.v, key = `${id}:${v}`;
+    api.artifacts.thumb(id, v).then((src) => {
+      if (!src) { el.querySelector('.at-skel') && el.classList.add('no-img'); return; }
+      S.thumbs[key] = src;
+      for (const x of document.querySelectorAll(`.art-thumb[data-thumb="${CSS.escape(id)}"][data-v="${v}"]`)) { x.removeAttribute('data-thumb'); x.innerHTML = `<img src="${src}" alt="">`; }
+    }).catch(() => {});
+  }
+}
+new MutationObserver(() => { if (document.querySelector('.art-thumb[data-thumb]:not([data-loading])')) hydrateThumbs(); }).observe(document.documentElement, { childList: true, subtree: true });
+
+// A card for an artifact (chat, agent steps): picture on its pastel, title, kind, version, check status.
+function artCardFor({ id, type, title, v = 0, lang = '', live = false, lines = null, check = null }) {
+  const label = t('artType_' + type);
+  const chk = check === 'checking' ? `<span class="ac-chk run">${spinner(12)} ${esc(t('artChecking'))}</span>`
+    : check === 'fixing' ? `<span class="ac-chk run">${spinner(12)} ${esc(t('artFixing'))}</span>`
+    : check === 'ok' ? `<span class="ac-chk ok">${icon('check', 12)} ${esc(t('artChecked'))}</span>`
+    : typeof check === 'number' && check > 0 ? `<span class="ac-chk bad">${icon('warning', 12)} ${esc(t('artProblems', { n: check }))}</span>` : '';
+  return `<div class="art-card ${live ? 'live' : ''}" ${id && !live ? `data-action="art-open" data-id="${esc(id)}" data-v="${v}"` : ''}>
+    ${artThumb(id, type, v, lang, live)}
+    <div class="ac-text"><b>${esc(title || label)}</b><small>${icon(typeIcon(type), 12)} ${esc(label)}${v > 0 ? ` · v${v + 1}` : ''}${lines ? ` · ${esc(t('lines', { n: lines }))}` : ''}${live ? ' · ' + esc(t('artWriting')) : ''}</small>
+      ${chk}${id && !live ? `<span class="ac-open">${esc(t('open'))} ${icon('expand', 13)}</span>` : ''}</div>
+  </div>`;
+}
 
 // ───────────────────────────── parsing ─────────────────────────────
 // <artifact type="markdown|slides|html|svg|code" title="…" lang="py">…</artifact>
@@ -25,14 +66,15 @@ function splitArtifacts(content) {
   }
   return out;
 }
-function normType(t, body) {
+function normType(t, body) { // same rules as the computer side (kit/chatcheck.js)
   t = String(t || '').toLowerCase();
   if (/slide|deck|present/.test(t)) return 'slides';
   if (/svg|draw/.test(t)) return 'svg';
-  if (/html|page|web|site/.test(t)) return 'html';
+  if (/^(document|doc|pdf|print|report|cv|letter|invoice|flyer|poster|menu)/.test(t)) return 'document';
+  if (/html|page|web|site|app/.test(t)) return 'html';
   if (/code|script|program/.test(t)) return 'code';
   if (/^\s*<svg/i.test(body)) return 'svg';
-  if (/^\s*(<!doctype|<html)/i.test(body)) return 'html';
+  if (/^\s*(<!doctype|<html)/i.test(body)) return /<body[^>]*class\s*=\s*["'][^"']*\bdoc\b/i.test(body) ? 'document' : 'html';
   return 'markdown';
 }
 const hasArtifacts = (m) => /<artifact\b/i.test(m.content || '');
@@ -40,13 +82,9 @@ const hasArtifacts = (m) => /<artifact\b/i.test(m.content || '');
 // Card shown in the conversation in place of the artifact.
 function artCard(m, seg) {
   const ref = (m.artifacts || [])[seg.i];
-  const lines = seg.body.split('\n').length;
-  const label = t('artType_' + seg.type);
-  return `<div class="art-card ${seg.open && m.pending ? 'live' : ''}" ${ref ? `data-action="art-open" data-id="${esc(ref.id)}" data-v="${ref.v}"` : ''}>
-    <div class="ac-ico">${seg.open && m.pending ? spinner(20) : icon(typeIcon(seg.type), 20)}</div>
-    <div class="ac-text"><b>${esc(seg.title || label)}</b><small>${esc(label)}${ref && ref.v > 0 ? ` · v${ref.v + 1}` : ''} · ${esc(t('lines', { n: lines }))}${seg.open && m.pending ? ' · ' + esc(t('artWriting')) : ''}</small></div>
-    ${ref ? `<span class="ac-open">${esc(t('open'))} ${icon('expand', 14)}</span>` : ''}
-  </div>`;
+  const live = !!(m.pending && (seg.open || !ref));
+  const check = m.artCheck && (m.pending || m.artCheck.status === 'ok') ? m.artCheck.status : null;
+  return artCardFor({ id: ref && ref.id, type: seg.type, title: seg.title, v: ref ? ref.v : 0, lang: seg.lang, live, lines: seg.body.split('\n').length, check });
 }
 
 function renderWithArtifacts(m) {
@@ -85,10 +123,34 @@ const DECK_THEMES = [
   { name: 'Forêt', bg: '#0f2a22', fg: '#eef5ef', accent: '#7fd4a5' },
 ];
 const splitSlides = (src) => String(src).split(/\n-{3,}\n|\n\*\*\*\n/).map((s) => s.trim()).filter(Boolean);
+// Automatic layout from what a Markdown slide contains, so even a small model's plain bullets look designed:
+// opening title, section break, one big number, a quote, text + picture, or 2-4 bold-led points as cards.
+function slideLayout(src, i) {
+  const s = String(src || '').trim(); const lines = s.split('\n').filter((l) => l.trim());
+  const heads = lines.filter((l) => /^#{1,3}\s/.test(l)); const body = lines.filter((l) => !/^#{1,3}\s/.test(l));
+  if (/!\[[^\]]*\]\([^)]+\)/.test(s)) return 'l-split';
+  if (body.length && /^>\s?/.test(body[0]) && body.filter((l) => /^>/.test(l)).length >= body.length - 1) return 'l-quote';
+  if (i === 0 && /^#\s/.test(lines[0] || '')) return 'l-title';
+  if (heads.length && body.length <= 1 && (body[0] || '').length < 90) return /^#\s/.test(lines[0] || '') ? 'l-title' : 'l-section';
+  if (/^\*\*\s*[\d][\d\s.,]*\s?(%|€|\$|k|K|M|Md|x|×|h|min|ans|years)?\s*\*\*/.test(body[0] || '') && body.length <= 2) return 'l-big';
+  const items = body.filter((l) => /^\s*[-*]\s/.test(l));
+  if (items.length >= 2 && items.length <= 4 && items.length === body.length && items.every((l) => /^\s*[-*]\s+\*\*/.test(l))) return 'l-cards';
+  return '';
+}
+const SLIDE_LAYOUT_CSS = `.slide-in.l-title{justify-content:flex-end;padding-bottom:9%;background:radial-gradient(circle at 88% 12%,color-mix(in srgb,var(--sa) 32%,transparent),transparent 55%)}
+.slide-in.l-title h1{font-size:8cqw;max-width:14ch}.slide-in.l-title p{color:color-mix(in srgb,var(--sf) 70%,transparent);font-size:2.6cqw}
+.slide-in.l-section{background:var(--sa);color:var(--sb)}.slide-in.l-section h1,.slide-in.l-section h2{color:var(--sb);font-size:7cqw;max-width:15ch}.slide-in.l-section p{color:color-mix(in srgb,var(--sb) 80%,transparent)}
+.slide-in.l-big{align-items:center;text-align:center}.slide-in.l-big p:first-of-type strong:first-child{display:block;font:600 16cqw/1 var(--serif,Georgia,serif);letter-spacing:-.04em;color:var(--sa)}
+.slide-in.l-quote blockquote{border:0;margin:0;padding:0;font:500 4.6cqw/1.25 var(--serif,Georgia,serif)}.slide-in.l-quote blockquote::before{content:"“";display:block;font-size:12cqw;line-height:.6;color:var(--sa)}.slide-in.l-quote blockquote p{color:var(--sf)}
+.slide-in.l-split{display:grid;grid-template-columns:1fr 1fr;gap:5%;align-items:center}.slide-in.l-split img{width:100%;height:78cqh;max-height:100%;object-fit:cover;border-radius:2cqw}.slide-in.l-split p:has(img){grid-column:2;grid-row:1/span 9;margin:0}
+.slide-in.l-cards ul{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));grid-auto-flow:column;gap:2cqw}.slide-in.l-cards li{background:color-mix(in srgb,var(--sf) 6%,transparent);border:1px solid color-mix(in srgb,var(--sf) 14%,transparent);border-radius:1.6cqw;padding:2.4cqw;margin:0;font-size:2.3cqw}.slide-in.l-cards li strong:first-child{display:block;font-size:3cqw;margin-bottom:.4em}
+.slide-in>h2:first-child{position:relative;padding-top:2.2cqw}.slide-in:not(.l-section)>h2:first-child::before{content:"";position:absolute;top:0;left:0;width:6cqw;height:.6cqw;border-radius:1cqw;background:var(--sa)}`;
+{ const st = document.createElement('style'); st.id = 'slide-layouts'; st.textContent = SLIDE_LAYOUT_CSS; document.head.appendChild(st); }
 function slideHtml(src, i, style, editable = false) {
+  const lay = editable ? '' : slideLayout(src, i);
   return `<div class="slide" data-i="${i}" style="--sb:${esc(style.bg)};--sf:${esc(style.fg)};--sa:${esc(style.accent)}">
-    <div class="slide-in md ${editable ? 'editable' : ''}" ${editable ? 'contenteditable="true" spellcheck="true"' : ''}>${DOMPurify.sanitize(marked.parse(src))}</div>
-    <span class="slide-n">${i + 1}</span></div>`;
+    <div class="slide-in md ${lay} ${editable ? 'editable' : ''}" ${editable ? 'contenteditable="true" spellcheck="true"' : ''}>${DOMPurify.sanitize(marked.parse(src))}</div>
+    ${lay === 'l-title' ? '' : `<span class="slide-n">${i + 1}</span>`}</div>`;
 }
 
 // ───────────────────────────── HTML → Markdown (for rich editing) ─────────────────────────────
@@ -183,7 +245,7 @@ function artifactViewer() {
   if (v.editing) body = artEditor(a, ver);
   else if (v.tab === 'code' || a.type === 'code') body = `<div class="v-code"><pre><code class="hljs">${highlight(ver.content, a.type === 'code' ? a.lang : a.type === 'slides' || a.type === 'markdown' ? 'markdown' : a.type === 'svg' ? 'xml' : 'html').split('\n').map((l, i) => `<span class="ln" data-n="${i + 1}">${l || ' '}</span>`).join('\n')}</code></pre></div>`;
   else if (a.type === 'markdown') body = `<div class="v-doc md art-doc">${md(ver.content, 'art')}</div>`;
-  else if (a.type === 'slides') body = `<div class="deck">${splitSlides(ver.content).map((s, i) => slideHtml(s, i, a.style || DECK_THEMES[0])).join('')}</div>`;
+  else if (a.type === 'slides' && !htmlSlides(ver.content)) body = `<div class="deck">${splitSlides(ver.content).map((s, i) => slideHtml(s, i, a.style || DECK_THEMES[0])).join('')}</div>`;
   else body = `<iframe class="art-frame" sandbox="allow-scripts allow-forms allow-modals allow-popups" src="fabro-art://${esc(a.id)}/?v=${v.v}"></iframe>`;
   const tabs = hasCode && !v.editing ? `<div class="seg sm">${['preview', 'code'].map((k) => `<button class="${v.tab === k ? 'on' : ''}" data-action="art-tab" data-tab="${k}">${esc(t('artTab_' + k))}</button>`).join('')}</div>` : '';
   return `<div class="v-head art-head">
@@ -193,7 +255,7 @@ function artifactViewer() {
       <div class="v-tools">${tabs}
         ${v.editing ? `<button class="btn sm" data-action="art-cancel">${esc(t('cancel'))}</button><button class="btn sm primary" data-action="art-save">${icon('check', 14)} ${esc(t('save'))}</button>`
           : `${editable ? `<button class="icon-btn sm" data-action="art-edit" title="${esc(t('artEdit'))}">${icon('edit', 16)}</button>` : ''}
-             ${a.type === 'slides' ? `<button class="icon-btn sm" data-action="art-present" title="${esc(t('artPresent'))}">${icon('play', 16)}</button>` : ''}
+             ${a.type === 'slides' && !htmlSlides(ver.content) ? `<button class="icon-btn sm" data-action="art-present" title="${esc(t('artPresent'))}">${icon('play', 16)}</button>` : ''}
              <button class="icon-btn sm" data-action="viewer-copy" title="${esc(t('copy'))}">${icon('copy', 16)}</button>
              <button class="icon-btn sm" data-action="art-export" title="${esc(t('artExport'))}">${icon('download', 16)}</button>`}
         <button class="icon-btn sm" data-action="viewer-close" title="${esc(t('close'))}">${icon('x', 17)}</button></div></div>
@@ -242,9 +304,16 @@ async function saveArtifactVersion(content, by = 'user') {
 // ───────────────────────────── export ─────────────────────────────
 function docHtml(a, content, style) {
   const css = `body{font:15px/1.6 "Segoe UI",system-ui,sans-serif;color:#1f1e1b;max-width:760px;margin:40px auto;padding:0 24px}h1,h2,h3{font-family:Georgia,serif;line-height:1.2}code{background:#f2f0ea;padding:1px 5px;border-radius:4px}pre{background:#f2f0ea;padding:12px;border-radius:8px;white-space:pre-wrap}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:6px 10px}`;
+  if (a.type === 'slides' && htmlSlides(content)) return /<body/i.test(content) ? content : `<!doctype html><html><head><meta charset="utf-8"></head><body class="deck">${content}</body></html>`;
+  if (a.type === 'document') return /<body/i.test(content) ? content : `<!doctype html><html><head><meta charset="utf-8"></head><body class="doc">${content}</body></html>`;
   if (a.type === 'slides') {
     const st = style || DECK_THEMES[0];
-    return `<!doctype html><meta charset="utf-8"><style>@page{size:13.333in 7.5in;margin:0}body{margin:0;font-family:"Segoe UI",system-ui,sans-serif}.s{width:13.333in;height:7.5in;box-sizing:border-box;padding:.8in 1in;background:${st.bg};color:${st.fg};page-break-after:always;display:flex;flex-direction:column;justify-content:center;font-size:24px}.s h1{font:600 54px/1.1 Georgia,serif;margin:0 0 .3em;color:${st.fg}}.s h2{font:600 40px/1.15 Georgia,serif;margin:0 0 .4em;color:${st.accent}}.s li{margin:.25em 0}.s strong{color:${st.accent}}</style>${splitSlides(content).map((s) => `<section class="s">${DOMPurify.sanitize(marked.parse(s))}</section>`).join('')}`;
+    // printed deck: same slides, same automatic layouts as in the app
+    return `<!doctype html><meta charset="utf-8"><style>@page{size:13.333in 7.5in;margin:0}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .slide{position:relative;width:13.333in;height:7.5in;overflow:hidden;background:var(--sb);color:var(--sf);break-after:page;container-type:size}
+      .slide-in{position:absolute;inset:0;padding:7% 8%;display:flex;flex-direction:column;justify-content:center;font-size:3cqw;line-height:1.4}
+      .slide-in h1{font:600 6.5cqw/1.08 Georgia,serif;margin:0 0 .3em}.slide-in h2{font:600 4.6cqw/1.12 Georgia,serif;margin:0 0 .45em;color:var(--sa)}.slide-in strong{color:var(--sa)}.slide-in li{margin:.25em 0}.slide-in li::marker{color:var(--sa)}
+      .slide-n{position:absolute;right:2.4%;bottom:3%;font-size:1.6cqw;opacity:.55}${SLIDE_LAYOUT_CSS}</style>${splitSlides(content).map((s, i) => slideHtml(s, i, st)).join('')}`;
   }
   if (a.type === 'markdown') return `<!doctype html><meta charset="utf-8"><title>${esc(a.title)}</title><style>${css}</style>${DOMPurify.sanitize(marked.parse(content))}`;
   if (a.type === 'svg') return `<!doctype html><meta charset="utf-8"><style>body{margin:0;display:grid;place-items:center;height:100vh}</style>${content}`;
@@ -254,7 +323,8 @@ const EXT = { python: 'py', py: 'py', javascript: 'js', js: 'js', typescript: 't
 function openExportMenu(anchor) {
   const a = curArt(); const r = anchor.getBoundingClientRect();
   const opts = a.type === 'markdown' ? [['docx', 'Word (.docx)'], ['pdf', 'PDF'], ['md', 'Markdown (.md)'], ['html', 'HTML']]
-    : a.type === 'slides' ? [['pdf', 'PDF'], ['html', 'HTML'], ['md', 'Markdown (.md)']]
+    : a.type === 'slides' ? (htmlSlides(a.versions[S.viewer.v].content) ? [['pdf', 'PDF'], ['html', 'HTML']] : [['pdf', 'PDF'], ['html', 'HTML'], ['md', 'Markdown (.md)']])
+    : a.type === 'document' ? [['pdf', 'PDF'], ['html', 'HTML']]
     : a.type === 'html' ? [['html', 'HTML'], ['pdf', 'PDF']]
     : a.type === 'svg' ? [['svg', 'SVG'], ['pdf', 'PDF']]
     : [['code', `${t('artType_code')} (.${EXT[(a.lang || '').toLowerCase()] || 'txt'})`]];
@@ -300,10 +370,10 @@ function renderArtifactsPage() {
   const counts = S.artList.reduce((o, a) => { o[a.type] = (o[a.type] || 0) + 1; return o; }, {});
   return `<div class="page art-page">
     <header class="pg-head"><div class="pg-ico">${icon('shapes', 22)}</div><div><h1>${esc(t('nav_artifacts'))}</h1><p>${esc(t('artLead'))}</p></div></header>
-    <div class="art-filters">${['all', 'markdown', 'slides', 'html', 'svg', 'code'].filter((k) => k === 'all' || counts[k]).map((k) => `<button class="chip-btn ${f === k ? 'on' : ''}" data-action="art-filter" data-f="${k}">${k === 'all' ? esc(t('all')) : `${icon(typeIcon(k), 13)} ${esc(t('artType_' + k))}`} <small>${k === 'all' ? S.artList.length : counts[k]}</small></button>`).join('')}
+    <div class="art-filters">${['all', 'document', 'html', 'slides', 'svg', 'markdown', 'code'].filter((k) => k === 'all' || counts[k]).map((k) => `<button class="chip-btn ${f === k ? 'on' : ''}" data-action="art-filter" data-f="${k}">${k === 'all' ? esc(t('all')) : `${icon(typeIcon(k), 13)} ${esc(t('artType_' + k))}`} <small>${k === 'all' ? S.artList.length : counts[k]}</small></button>`).join('')}
       <span class="grow"></span><label class="sb-search art-search">${icon('search', 15)}<input id="art-q" type="search" value="${esc(S.artQuery || '')}" placeholder="${esc(t('artSearch'))}"></label></div>
     ${list.length ? `<div class="art-grid">${list.map((a, i) => `<div class="art-tile t-${a.type}" style="--i:${i}" data-action="art-open" data-id="${esc(a.id)}">
-        <div class="at-prev">${a.type === 'svg' ? `<div class="at-svg">${DOMPurify.sanitize(a.preview.includes('</svg>') ? a.preview : '', { USE_PROFILES: { svg: true } })}</div>` : `<pre>${esc(a.preview.slice(0, 260))}</pre>`}<span class="at-type">${icon(typeIcon(a.type), 14)}</span></div>
+        <div class="at-prev">${artThumb(a.id, a.type, Math.max(0, (a.versions || 1) - 1), a.lang || '')}<span class="at-type">${icon(typeIcon(a.type), 14)}</span></div>
         <div class="at-meta"><b>${esc(a.title)}</b><small>${esc(t('artType_' + a.type))} · ${esc(new Date(a.updated).toLocaleDateString(S.lang, { day: 'numeric', month: 'short' }))}${a.versions > 1 ? ` · ${a.versions} versions` : ''}</small></div>
         <button class="icon-btn xs at-del" data-action="art-delete" data-id="${esc(a.id)}" title="${esc(t('delete'))}">${icon('trash', 13)}</button>
       </div>`).join('')}</div>` : `<div class="empty-note">${esc(S.artList.length ? t('noResults') : t('artEmpty'))}</div>`}

@@ -17,7 +17,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/extras'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/extras'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const skills = require('./agent/skills');
@@ -154,8 +154,17 @@ function registerIpc() {
     return { text: String(await require('./rag').extract(p).catch(() => '') || '').slice(0, 200000) };
   });
   h('artifacts:get', (id) => db.getArtifact(id));
-  h('artifacts:save', async (a) => { const saved = db.saveArtifact(a); if (saved && saved.pdf && saved.pdf.file) { try { await require('./agent/layout').buildPdf(db.getArtifact(saved.id), null); } catch (e) { console.error('pdf rebuild', e); } } return saved; });
+  h('artifacts:save', async (a) => {
+    // an artifact written in chat: real photos and missing icons are fetched once, now (Fabro Kit)
+    const last = a && a.versions && a.versions[a.versions.length - 1];
+    if (last && last.by === 'ai' && !last.baked && ['html', 'document', 'slides', 'svg'].includes(a.type)) {
+      try { const b = await require('./kit').bake(last.content); last.content = b.html; } catch {}
+      last.baked = true;
+    }
+    const saved = db.saveArtifact(a); if (saved && saved.pdf && saved.pdf.file) { try { await require('./agent/layout').buildPdf(db.getArtifact(saved.id), null); } catch (e) { console.error('pdf rebuild', e); } } return saved; });
   h('artifacts:delete', (id) => db.deleteArtifact(id));
+  h('artifacts:thumb', (id, v) => require('./kit/thumb').thumb(db.getArtifact(id), v)); // card picture (page 1)
+  h('artifacts:check', async (id) => { const a = db.getArtifact(id); if (!a) return null; const r = await require('./kit/qa').check(a.versions[a.versions.length - 1].content, { type: a.type, title: a.title }); return { ok: r.ok, errors: r.errors, warnings: r.warnings, image: r.image }; });
   h('export:save', (o) => exporter.save(win, o));
   h('art:preview', (html) => exporter.setPreview(html));
   h('brain:title', (o) => brain.title(o));

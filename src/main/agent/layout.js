@@ -12,7 +12,17 @@ const SIZES = { A4: [210, 297], A3: [297, 420], A5: [148, 210], Letter: [215.9, 
 const safeName = (s) => String(s || 'Document').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'Document';
 
 // The page every create_pdf starts from: good defaults the AI can override with its own CSS.
-function pageHtml({ title, html, css = '', size = 'A4', landscape = false, margin = 15 }) {
+// Pages are built with the Fabro Kit (body.doc: A4 sheets, print sizes, themes, components); a full <html>
+// document the AI wrote is used as is (with the kit if it asks for it).
+function pageHtml({ title, html, css = '', size = 'A4', landscape = false, margin = 15, theme = 'fabro' }) {
+  const kit = require('../kit');
+  if (/<html[\s>]/i.test(html)) return kit.inject(html, { mode: /class\s*=\s*["'][^"']*\b(doc|deck)\b/.test(html) ? null : 'doc' });
+  const esc = (x) => String(x || '').replace(/</g, '&lt;');
+  if (size === 'slides') return kit.inject(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>${css ? `<style>${css}</style>` : ''}</head><body class="deck" data-theme="${esc(theme)}">${html}</body></html>`, { force: true, theme });
+  const pageSize = { Letter: 'letter', Legal: 'legal' }[size] || size;
+  return kit.inject(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>${css ? `<style>${css}</style>` : ''}</head><body class="doc${landscape ? ' landscape' : ''}" data-theme="${esc(theme)}" data-page="${esc(pageSize)}">${html}</body></html>`, { force: true, theme });
+}
+function legacyPageHtml({ title, html, css = '', size = 'A4', landscape = false, margin = 15 }) {
   if (/<html[\s>]/i.test(html)) return html;
   const [w, h] = SIZES[size] || SIZES.A4;
   const pw = landscape ? Math.max(w, h) : w, ph = landscape ? Math.min(w, h) : h;
@@ -38,7 +48,7 @@ async function printHtml(html, { landscape = false } = {}) {
   const w = new BrowserWindow({ show: false, width: 1000, height: 1400, webPreferences: { sandbox: true, javascript: true } });
   try {
     await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    await w.webContents.executeJavaScript('document.fonts ? document.fonts.ready.then(() => true) : true', true).catch(() => {});
+    await w.webContents.executeJavaScript('Promise.race([Promise.resolve(window.fabroKitReady || (document.fonts ? document.fonts.ready : true)), new Promise((r) => setTimeout(r, 8000))])', true).catch(() => {});
     await new Promise((r) => setTimeout(r, 300));
     const issues = await w.webContents.executeJavaScript(`(() => {
       const out = [], seen = new Set();
@@ -104,7 +114,7 @@ function findArtifact(ref, ctx) {
 
 agent.register({
   name: 'create_pdf', category: 'documents', risk: 'write', core: true,
-  description: 'Create a designed PDF from HTML + CSS (reports, CVs, flyers, invoices, menus, posters, slide decks). You control the whole layout: grids, columns, colours, cover pages, tables; put <div class="page-break"></div> between pages. Returns a picture of the pages and layout problems so you can check and fix it with edit_artifact.',
+  description: 'Create a designed PDF from HTML using the Fabro Kit (call design_guide first for the matching example: report, cv, letter, invoice, flyer, menu, certificate, slides). Each <section class="page"> is one A4 page; without them the content flows over pages. Returns a picture of the pages and layout problems: fix them with edit_artifact.',
   parameters: {
     type: 'object',
     properties: {
@@ -114,6 +124,7 @@ agent.register({
       page_size: { type: 'string', enum: ['A4', 'A3', 'A5', 'Letter', 'Legal', 'slides'], description: 'Default A4; slides = 16:9, one <section> per slide' },
       landscape: { type: 'boolean' },
       margin_mm: { type: 'number', description: 'Page margin in mm (default 15)' },
+      theme: { type: 'string', enum: ['fabro', 'ocean', 'forest', 'sunset', 'midnight', 'luxe', 'mono', 'candy', 'paper', 'tech', 'corporate'], description: 'Fabro Kit theme (colours + fonts). Default fabro.' },
       folder: { type: 'string', description: 'Where to save (default: Documents/Fabro)' },
     },
     required: ['title', 'html'],
@@ -127,7 +138,8 @@ agent.register({
     for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${safeName(a.title)} (${i}).pdf`);
     const size = a.page_size === 'slides' ? 'slides' : (SIZES[a.page_size] ? a.page_size : 'A4');
     const landscape = size === 'slides' ? true : !!a.landscape;
-    const html = pageHtml({ title: a.title, html: String(a.html || ''), css: a.css || '', size, landscape: size === 'slides' ? false : landscape, margin: Number.isFinite(+a.margin_mm) ? Math.max(0, Math.min(40, +a.margin_mm)) : 15 });
+    const baked = await require('../kit').bake(String(a.html || '')).catch(() => ({ html: String(a.html || '') }));
+    const html = pageHtml({ title: a.title, html: baked.html, css: a.css || '', size, landscape: size === 'slides' ? false : landscape, margin: Number.isFinite(+a.margin_mm) ? Math.max(0, Math.min(40, +a.margin_mm)) : 15, theme: a.theme || 'fabro' });
     const art = db.saveArtifact({ id: 'art-' + Date.now().toString(36), convId: ctx.convId || null, type: 'html', title: a.title, pdf: { file, landscape: size === 'slides' ? false : landscape }, versions: [{ content: html, at: Date.now(), by: 'ai' }] });
     const out = await buildPdf(art, ctx);
     return resultOf(art, out, a.title);
@@ -210,11 +222,14 @@ agent.register({
       done.push(i + 1);
     }
     if (text === art.versions[art.versions.length - 1].content) return { error: 'Nothing changed.' };
+    const design = require('./design');
+    if (design.visual(art.type) && /data-photo=|data-icon=/.test(text)) text = (await require('../kit').bake(text).catch(() => ({ html: text }))).html;
     art.versions.push({ content: text, at: Date.now(), by: 'ai' });
     db.saveArtifact(art);
     if (ctx.emit) ctx.emit({ type: 'artifact_updated', id: art.id });
     if (art.pdf && art.pdf.file) { const out = await buildPdf(art, ctx); const res = resultOf(art, out, art.title); res.content = `${done.length} edit(s) applied (version ${art.versions.length}).\n` + res.content; return res; }
-    return { content: `${done.length} edit(s) applied to “${art.title}” (version ${art.versions.length}).`, view: { kind: 'document', title: art.title, artifactId: art.id, format: art.type } };
+    if (design.visual(art.type)) return design.checkResult(art, `${done.length} edit(s) applied (version ${art.versions.length}).`); // look again after every change
+    return { content: `${done.length} edit(s) applied to “${art.title}” (version ${art.versions.length}).`, view: { kind: 'artifact', title: art.title, artifactId: art.id, type: art.type, v: art.versions.length - 1 } };
   },
 });
 

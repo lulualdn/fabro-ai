@@ -384,7 +384,17 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     let promptSig = '';
     const applyAgentPrompt = () => { setSystem(sysAgent()); promptSig = toolSig(); };
     if (parent || agentMode) applyAgentPrompt();
-    else if (toolSchemas.length) { const sys = msgs.find((m) => m.role === 'system'); const sec = prompts.chatToolsSection(toolSchemas) + (params.voiceMode ? '\n\n' + prompts.VOICE : ''); if (sys) sys.content = sys.content.replace(/(\n\n# Project: [\s\S]*)?$/, (tail) => `\n\n${sec}${tail || ''}`); else msgs.unshift({ role: 'system', content: sec }); }
+    // Something visual asked in chat (site, document, slides, drawing): the Fabro Kit + an example of the same kind.
+    if (!parent && !agentMode && params.artifactGuide !== false) {
+      let ds = '';
+      try {
+        const g = require('./kit/guide');
+        ds = g.chatSection(userText);
+        if (!ds) { const last = messages.filter((m) => m.role === 'assistant').map(txt).reverse().find((t) => /<artifact\b/i.test(t)); const m = last && last.match(/<artifact\b[^>]*type\s*=\s*"([^"]*)"[^>]*?(?:title\s*=\s*"([^"]*)")?/i); if (m) ds = g.chatSection(`${m[2] || ''} ${({ html: 'site', document: 'pdf', slides: 'slides', svg: 'svg' })[String(m[1]).toLowerCase()] || ''}`); }
+      } catch {}
+      if (ds) { const sys = msgs.find((m) => m.role === 'system'); if (sys) sys.content = sys.content.replace(/(\n\n# Project: [\s\S]*)?$/, (tail) => `\n\n${ds}${tail || ''}`); else msgs.unshift({ role: 'system', content: ds }); }
+    }
+    if (!parent && !agentMode && toolSchemas.length) { const sys = msgs.find((m) => m.role === 'system'); const sec = prompts.chatToolsSection(toolSchemas) + (params.voiceMode ? '\n\n' + prompts.VOICE : ''); if (sys) sys.content = sys.content.replace(/(\n\n# Project: [\s\S]*)?$/, (tail) => `\n\n${sec}${tail || ''}`); else msgs.unshift({ role: 'system', content: sec }); }
     const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
@@ -430,6 +440,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     const maxSteps = () => (parent ? 30 : agentMode ? 60 : 12);
     // Runtime guards: a model that gives up, claims work it didn't do, or stops mid-plan is sent back to work.
     const turnTools = []; let lastError = null; let lastPlan = null; let nudges = 0; const guardUsed = {}; const failCount = new Map();
+    let qaBad = null; // { id, title, n }: the last visual check of an artifact still found problems
     for (;;) {
       if (!parent) { const pm = takeInjected(reqId, out); if (pm) msgs.push(pm); }
       compact(msgs, toolSchemas, be);
@@ -453,8 +464,25 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           out({ type: 'precision_round' });
           continue;
         }
+        // Fabro looks at the artifacts written in the answer: visibly broken → back to the model with the problems.
+        // a fix round that came back without the artifact: keep the previous answer rather than lose the work
+        if (acc.artPrev && !/<artifact\b/i.test(r.content || '')) { if (r.content) out({ type: 'retract', text: r.content }); out({ type: 'token', text: acc.artPrev }); r.content = acc.artPrev; acc.artPrev = null; out({ type: 'artifact_check', status: 'kept' }); break; }
+        if (!parent && !ctrl.signal.aborted && params.artifactCheck !== false && !params.voiceMode && (acc.artRounds || 0) < 2 && /<artifact\b/i.test(r.content || '')) {
+          const cc = require('./kit/chatcheck');
+          const res = await cc.review(r.content, { onStatus: (st) => out({ type: 'artifact_check', status: st }) }).catch(() => null);
+          if (res && !res.ok && !ctrl.signal.aborted) {
+            acc.artRounds = (acc.artRounds || 0) + 1;
+            out({ type: 'artifact_check', status: 'fixing', count: res.count, round: acc.artRounds });
+            msgs.push({ role: 'assistant', content: r.content }); out({ type: 'retract', text: r.content }); acc.artPrev = r.content;
+            const fm = cc.fixMessage(res, !!params.vision);
+            msgs.push(params.vision && res.image ? { role: 'user', content: [{ type: 'text', text: fm }, { type: 'image_url', image_url: { url: res.image } }] } : { role: 'user', content: fm });
+            continue;
+          }
+          acc.artPrev = null;
+          if (res) out({ type: 'artifact_check', status: 'ok', rounds: acc.artRounds || 0 });
+        }
         const nudge = nudges < 3 && !ctrl.signal.aborted && !(acc.noTools && !acc.fallback) && steps < maxSteps()
-          ? prompts.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText }) : null;
+          ? prompts.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText, qaBad }) : null;
         if (!nudge) break;
         nudges++;
         if (r.content) { msgs.push({ role: 'assistant', content: r.content }); out({ type: 'retract', text: r.content }); }
@@ -503,6 +531,8 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           const same = turnTools.slice(-3).filter((x) => x.sig === c.name + ':' + (c.args || '')).length;
           if (same >= 3 && typeof result.content === 'string') result.content += '\n\n[Fabro runtime] You made this exact call 3 times in a row and got the same result. Stop repeating it: use what you already have, or do the next step of the task.';
           if (c.name === 'update_plan' && Array.isArray(args.steps)) lastPlan = args.steps;
+          const vq = result.view && result.view.kind === 'artifact' && result.view.qa;
+          if (vq) qaBad = vq.ok ? (qaBad && qaBad.id === result.view.artifactId ? null : qaBad) : { id: result.view.artifactId, title: result.view.title, n: vq.errors };
         } catch (e) {
           if (ctrl.signal.aborted) throw e;
           const sig = c.name + ':' + (c.args || '');

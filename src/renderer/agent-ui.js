@@ -2,7 +2,7 @@
 /* Agent mode UI: automatic switch, tool steps (files, terminal, browser, documents, Python, MCP, skills),
    permission cards, on-demand dependencies, and the workspace panel with the live browser. */
 
-const AGENT_ICONS = { files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git', code: 'flask', image: 'image' };
+const AGENT_ICONS = { design: 'brush', files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git', code: 'flask', image: 'image' };
 const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p;
 function catOf(name) {
   if (name.startsWith('mcp__')) return 'mcp';
@@ -10,6 +10,7 @@ function catOf(name) {
   if (['list_dir', 'read_file', 'write_file', 'edit_file', 'delete_file', 'search_files'].includes(name)) return 'files';
   if (name === 'run_command') return 'shell';
   if (name === 'create_document') return 'documents';
+  if (['design_guide', 'create_artifact', 'check_artifact', 'find_library', 'find_images'].includes(name)) return 'design';
   if (name === 'run_python') return 'python';
   if (name === 'load_skill') return 'skills';
   if (name === 'update_plan') return 'plan';
@@ -57,6 +58,11 @@ function stepLabel(st) {
     case 'browser_zoom': return k('zoom', { z: Math.round((a.factor || 1) * 100) });
     case 'browser_screenshot': return a.selector ? `${k('shot')} · ${a.selector}` : k('shot');
     case 'create_pdf': return `PDF · ${a.title || ''}`;
+    case 'design_guide': return `${t('ag_k_guide')} · ${a.kind || ''}`;
+    case 'create_artifact': return `${t('artType_' + (a.type || 'html'))} · ${a.title || ''}`;
+    case 'check_artifact': return `👁 ${a.artifact || ''}`;
+    case 'find_library': return `📦 ${a.need || ''}`;
+    case 'find_images': return `🖼 ${a.query || ''}`;
     case 'inspect_document': return `👁 ${a.artifact || base(a.path || '')}`;
     case 'read_artifact': return `${a.artifact || ''}`;
     case 'edit_artifact': return `✎ ${a.artifact || ''} · ${(a.edits || []).length}`;
@@ -108,6 +114,7 @@ function isDeliverable(st) {
   if (st.status !== 'done') return false;
   if ((st.name === 'write_file' || st.name === 'edit_file') && v.path && S.conv && S.conv.code) return true;
   if (['create_document', 'create_pdf', 'edit_artifact', 'generate_speech'].includes(st.name) && v.path) return true;
+  if (['create_artifact', 'edit_artifact'].includes(st.name) && v.kind === 'artifact') return true;
   return st.name === 'generate_image' && !!v.image;
 }
 function stepOutputs(steps) { return steps.filter(isDeliverable).map((st) => stepDetail(st, true)).join(''); }
@@ -127,6 +134,11 @@ function stepDetail(st, force) {
   if ((st.name === 'write_file' || st.name === 'edit_file') && v.path) {
     return `<div class="file-chip" data-action="reveal-path" data-path="${esc(v.path)}">${icon('file', 13)}<span>${esc(v.path)}</span>${v.add != null ? `<b class="add">+${v.add}</b><b class="del">−${v.del}</b>` : ''}</div>
       ${v.before != null ? `<details class="diff"><summary>${esc(t('ag_diff'))}</summary><pre>${esc(v.before).split('\n').map((l) => `<span class="dl">- ${l}</span>`).join('\n')}\n${esc(v.after).split('\n').map((l) => `<span class="al">+ ${l}</span>`).join('\n')}</pre></details>` : ''}`;
+  }
+  // an artifact made or changed by the agent: its card (picture of page 1), and in the details what the check saw
+  if (v.kind === 'artifact' && v.artifactId) {
+    const card = artCardFor({ id: v.artifactId, type: v.type || 'html', title: v.title, v: v.v || 0, check: v.qa ? (v.qa.ok ? 'ok' : v.qa.errors) : null });
+    return force || !v.shot ? card : card + `<img class="step-img" src="${v.shot}" alt="" data-action="shot-open" title="${esc(t('open'))}">`;
   }
   // what the AI looked at (pages of a document, a page element…) is shown too
   const seen = v.shot || (v.kind === 'shot' && v.image) ? `<img class="step-img" src="${v.shot || v.image}" alt="" data-action="shot-open" title="${esc(t('open'))}">` : '';

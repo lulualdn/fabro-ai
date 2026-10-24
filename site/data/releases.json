@@ -1,5 +1,94 @@
 [
  {
+  "tag": "v0.1.37",
+  "date": "2026-10-24T12:11:27Z",
+  "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.37",
+  "prerelease": false,
+  "body": "The full Fabro interface on Fabro Anywhere\n\n- A paired phone loads the computer's own interface (sent over the encrypted session, cached per version, gzipped) and runs it in a sandboxed frame with an opaque origin: no access to the phone app's storage or pairing keys. Every api.* call runs the desktop's own handler on the computer; events the desktop window gets are mirrored to the phone. Agent mode, the Agents app, projects, artifacts, settings, mods: everything.\n- Computer-only actions (window controls, dialogs, \"open with\", pairing) do nothing or refuse cleanly from a phone (marked async context), instead of popping up on the computer\n- Files: images/audio/artifacts the interface shows are fetched from the computer; a phone can only get files it was shown or Fabro's own folders. \"Open\" a file → viewer on the phone (share/download)\n- Zoom: pinch, drag, double-tap, wheel in the image viewer (desktop too)\n- Phone layout: sidebar as a drawer, full-screen viewer/settings/dialogs, safe areas, 16px fields (no zoom on focus), touch-visible actions; Agents app navigates list ↔ conversation\n- \"Computer unreachable\" bar with a switch to the offline light view; the interface reloads from the computer when it's back. Light view still available from the user menu / settings\n- Fix: \"start pairing\" sent right after the network window opened could be lost (peer queues commands)\n- e2e: anywhere-full-e2e (new, in CI)",
+  "assets": [
+   {
+    "name": "Fabro-0.1.37-arm64-mac.zip",
+    "size": 139717638,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37-arm64-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.37-arm64-mac.zip.blockmap",
+    "size": 145722,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37-arm64-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.37-arm64.dmg",
+    "size": 140459556,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37-arm64.dmg"
+   },
+   {
+    "name": "Fabro-0.1.37-arm64.dmg.blockmap",
+    "size": 148881,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37-arm64.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.37-mac.zip",
+    "size": 143486618,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37-mac.zip"
+   },
+   {
+    "name": "Fabro-0.1.37-mac.zip.blockmap",
+    "size": 151065,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37-mac.zip.blockmap"
+   },
+   {
+    "name": "Fabro-0.1.37.AppImage",
+    "size": 136910184,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37.AppImage"
+   },
+   {
+    "name": "Fabro-0.1.37.dmg",
+    "size": 144190540,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37.dmg"
+   },
+   {
+    "name": "Fabro-0.1.37.dmg.blockmap",
+    "size": 150593,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-0.1.37.dmg.blockmap"
+   },
+   {
+    "name": "Fabro-Installer.exe",
+    "size": 1214976,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-Installer.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.37.exe",
+    "size": 118796298,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-Setup-0.1.37.exe"
+   },
+   {
+    "name": "Fabro-Setup-0.1.37.exe.blockmap",
+    "size": 123914,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/Fabro-Setup-0.1.37.exe.blockmap"
+   },
+   {
+    "name": "latest-linux.yml",
+    "size": 365,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/latest-linux.yml"
+   },
+   {
+    "name": "latest-mac.yml",
+    "size": 795,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/latest-mac.yml"
+   },
+   {
+    "name": "latest.yml",
+    "size": 342,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/latest.yml"
+   },
+   {
+    "name": "sd-bin-Darwin-x86_64.zip",
+    "size": 33359819,
+    "url": "https://github.com/lulualdn/fabro-ai/releases/download/v0.1.37/sd-bin-Darwin-x86_64.zip"
+   }
+  ]
+ },
+ {
   "tag": "v0.1.36",
   "date": "2026-10-24T11:10:59Z",
   "url": "https://github.com/lulualdn/fabro-ai/releases/tag/v0.1.36",

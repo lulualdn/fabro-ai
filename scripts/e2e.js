@@ -89,6 +89,8 @@ const srv = http.createServer((req, res) => {
       if (/version B/.test(ut)) return one('Réponse à la version B.');
       if (/rédige/i.test(ut)) return one('Voici la lettre.\n\n<artifact type="markdown" title="Lettre de motivation">\n# Lettre de motivation\n\nMadame, Monsieur,\n\nJe souhaite rejoindre **votre équipe**.\n\n- Motivé\n- Curieux\n</artifact>\n\nDites-moi si vous voulez l’ajuster.');
       if (/diapos/i.test(ut)) return one('Voici le deck.\n<artifact type="slides" title="Présentation Fabro">\n# Fabro\nLift off, locally.\n\n---\n\n## Pourquoi\n- Local\n- **Rapide**\n- Privé\n\n---\n\n## Merci\n</artifact>');
+      // Fabro's visual check of the counter page (it had no styling at all): the fixed version uses the Fabro Kit
+      if (/\[Fabro visual check\]/.test(ut)) return one('Voici la version corrigée.\n<artifact type="html" title="Compteur">\n<!doctype html><html lang="fr"><body data-theme="ocean"><main class="narrow section"><h1 id="n">0</h1><button class="btn" onclick="n.textContent=+n.textContent+1">+1</button></main></body></html>\n</artifact>');
       if (/page web/i.test(ut)) return one('<artifact type="html" title="Compteur">\n<!doctype html><html><body><h1 id="n">0</h1><button onclick="n.textContent=+n.textContent+1">+1</button></body></html>\n</artifact>');
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const parts = reply.match(/.{1,6}/gs);
@@ -410,6 +412,10 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await frame.waitForSelector('button');
   await frame.click('button'); await frame.click('button');
   await frame.waitForFunction(() => document.querySelector('#n').textContent === '2', null, { timeout: 5000 });
+  // Fabro looked at the first version (no styling at all), sent it back once, and kept the fixed one
+  const chk = await win.evaluate(() => { const m = S.conv.messages.at(-1); return { st: m.artCheck && m.artCheck.status, kit: /data-theme/.test(m.content) }; });
+  assert.deepStrictEqual(chk, { st: 'ok', kit: true }, 'artifact checked and fixed: ' + JSON.stringify(chk));
+  await win.waitForFunction(() => { const i = document.querySelector('.msg.assistant:last-child .art-card .art-thumb img'); return i && i.naturalWidth > 0; }, null, { timeout: 20000 });
   step('html artifact'); await win.screenshot({ path: `${shots}/27-html.png` });
   await win.click('[data-action=viewer-close]');
   await win.click('.nav-item[data-mode=artifacts]');
@@ -491,65 +497,13 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.waitForSelector('.prj-chat', { timeout: 8000 });
   assert.strictEqual(await win.$$eval('.prj-chat', (x) => x.length), 1, 'conversation listed in the project');
 
-  // ── Code mode: project, session, edit card, tests, diff, editor, git, undo ──
-  win.on('dialog', (d) => d.accept());
+  // ── Code mode: paused for rework — its entry explains it and leads back to the chat ──
   await win.click('[data-action=mode][data-mode=code]');
-  await win.waitForSelector('.cx-welcome', { timeout: 8000 });
-  await win.waitForTimeout(500); step('code welcome'); await win.screenshot({ path: `${shots}/33-code-welcome.png` });
-  await win.evaluate(async (p) => { await cxOpen(p); renderSidebar(); renderView(); }, proj);
-  await win.waitForSelector('.cx-node', { timeout: 8000 });
-  assert.ok(await win.$('.cx-start'), 'project start screen');
-  await win.fill('#prompt', 'Corrige le bug dans add');
-  await win.keyboard.press('Enter');
-  await win.waitForSelector('.perm-card [data-v=once]', { timeout: 15000 }); // run_tests asks (accept-edits mode)
-  assert.ok(await win.$('.cx-fcard'), 'modified-file card');
-  assert.match(fs.readFileSync(path.join(proj, 'src', 'math.js'), 'utf8'), /a \+ b/, 'edit applied without asking (accept edits)');
-  assert.match(await win.textContent('.perm-card'), /Toujours pour ce projet/);
-  await win.click('.perm-card [data-v=once]');
-  await win.waitForFunction(() => /Les tests passent/.test(S.conv.messages.at(-1).content || '') && !document.querySelector('.msg.assistant.pending'), null, { timeout: 25000 });
-  await win.waitForSelector('.cx-turn', { timeout: 5000 });
-  await win.waitForFunction(() => S.cx.tests && S.cx.tests.summary && S.cx.tests.summary.ok, null, { timeout: 8000 });
-  const sum = await win.evaluate(() => S.cx.tests.summary);
-  assert.strictEqual(sum.passed, 2, 'tests summary: ' + JSON.stringify(sum));
-  if (gitOk) await win.waitForFunction(() => S.cx.git && S.cx.git.files && Object.keys(S.cx.git.files).some((f) => /math\.js$/.test(f)), null, { timeout: 8000 });
-  await win.waitForTimeout(300);
-  step('code session'); await win.screenshot({ path: `${shots}/34-code-session.png` });
-  await win.click('.cx-fcard');
-  await win.waitForSelector('.cx-diff .dl.ins', { timeout: 8000 });
-  assert.match(await win.textContent('.cx-diff .dl.ins'), /a \+ b/);
-  await win.waitForTimeout(500); step('code diff'); await win.screenshot({ path: `${shots}/35-code-diff.png` });
-  await win.click('[data-action=cx-vtab][data-tab=file]');
-  await win.waitForSelector('#cx-ta');
-  await win.focus('#cx-ta'); await win.keyboard.press('Control+End'); await win.keyboard.type('\n// édité à la main\n');
-  await win.keyboard.press('Control+s');
-  await win.waitForFunction(() => S.viewer && !S.viewer.dirty, null, { timeout: 5000 });
-  assert.match(fs.readFileSync(path.join(proj, 'src', 'math.js'), 'utf8'), /édité à la main/, 'editor saved');
-  await win.waitForTimeout(500); step('code editor'); await win.screenshot({ path: `${shots}/36-code-editor.png` });
-  // terminal
-  await win.click('[data-action=viewer-close]');
-  await win.click('[data-action=cx-term-tab][data-tab=terminal]');
-  await win.fill('#cx-cmd', 'node -e "console.log(40+2)"');
-  await win.keyboard.press('Enter');
-  await win.waitForFunction(() => /\b42\b/.test(document.querySelector('#cx-out')?.textContent || ''), null, { timeout: 10000 });
-  step('code terminal'); await win.screenshot({ path: `${shots}/37-code-terminal.png` });
-  // undo the agent turn → file back to its original content
-  await win.click('[data-action=cx-revert]');
-  await win.waitForFunction(() => document.querySelector('.cx-turn.reverted'), null, { timeout: 8000 });
-  assert.match(fs.readFileSync(path.join(proj, 'src', 'math.js'), 'utf8'), /a - b/, 'turn undone');
-  if (gitOk) {
-    await win.waitForFunction(() => !Object.keys((S.cx.git || {}).files || {}).length, null, { timeout: 8000 });
-    // commit flow: change a file, commit from the panel
-    fs.writeFileSync(path.join(proj, 'NOTES.md'), '# Notes\n');
-    await win.waitForSelector('.cx-commit', { timeout: 8000 });
-    await win.fill('.cx-commit input', 'Ajoute des notes');
-    await win.click('.cx-commit [type=submit]');
-    await win.waitForSelector('.cx-clean', { timeout: 8000 });
-    const log = require('child_process').execFileSync('git', ['log', '-1', '--pretty=%s'], { cwd: proj }).toString().trim();
-    assert.strictEqual(log, 'Ajoute des notes');
-  }
-  const codeRecents = await win.evaluate(() => S.convs.filter((c) => c.codeRoot).length);
-  assert.strictEqual(codeRecents, 1, 'code session saved with its project');
-  await win.click('[data-action=home]');
+  await win.waitForSelector('.view .locked [data-action=home]', { timeout: 8000 });
+  assert.match(await win.textContent('.view .locked h2'), /maintenance/i);
+  assert.ok(await win.$('.nav-item[data-mode=code] .maint-badge'), 'Code shows a maintenance badge');
+  step('code maintenance'); await win.screenshot({ path: `${shots}/28-code-maintenance.png` });
+  await win.click('.view .locked [data-action=home]');
   await win.waitForTimeout(300);
 
   // MCP: a local stdio server, its tools become agent tools
@@ -593,7 +547,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   assert.deepStrictEqual(axe.filter((v) => v.impact === 'critical' || v.impact === 'serious'), [], 'no serious accessibility violations');
   step('accessibility');
   const rt = await win.evaluate(() => api.runtime.status());
-  assert.ok(rt.isolated && rt.pid && rt.restarts === 0, 'tool commands ran in the separate runtime process: ' + JSON.stringify(rt));
+  assert.ok(rt.isolated && rt.restarts === 0, 'tool commands run in a separate runtime process (started on demand): ' + JSON.stringify(rt));
   await win.evaluate(() => openSettings('system'));
   await win.waitForFunction(() => S.rt && document.querySelector('[data-key="telemetry.crashReports"]'), null, { timeout: 5000 });
   assert.strictEqual(await win.evaluate(() => !!(S.settings.telemetry || {}).crashReports), false, 'no crash reports by default');

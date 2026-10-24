@@ -45,6 +45,12 @@ function agentTab() {
     ${(() => { const im = S.imgStatus || {}; const pr = im.presets || {}; return Object.entries(pr).map(([k, p]) => `<div class="lib-row"><div class="m-ico">${icon('image', 17)}</div><div class="m-text"><b>${esc(p.name)}${k === im.recommended ? ` <span class="chip accent">${esc(t('recommended'))}</span>` : ''}</b><small>${esc(t('img_' + k))} · ≈ ${p.sizeGB} GB</small></div>
       ${p.ready && im.engine ? (im.preset === k ? `<span class="chip ok">${icon('check', 13)} ${esc(t('img_active'))}</span>` : `<button class="btn sm" data-action="img-use" data-k="${k}">${esc(t('img_use'))}</button>`) : S.depsBusy === 'images:' + k ? `<span class="muted small">${spinner(14)} ${Math.round((S.depsP || 0) * 100)} %</span>` : `<button class="btn sm" data-action="img-install" data-k="${k}" ${S.depsBusy ? 'disabled' : ''}>${icon('download', 14)} ${esc(t('installDeps'))}</button>`}</div>`).join(''); })()}
 
+    <div class="st-sec">${esc(t('dsgTitle'))}</div>
+    <p class="muted small st-intro">${esc(t('dsgHint'))}</p>
+    ${row(t('dsgCheck'), toggle('design.autoCheck', (S.settings.design || {}).autoCheck !== false), t('dsgCheckHint'))}
+    ${row(t('dsgPexels'), `<input class="input mono" type="password" autocomplete="off" data-input="design.pexelsKey" value="${esc((S.settings.design || {}).pexelsKey || '')}" placeholder="${esc(t('dsgOptional'))}">`, t('dsgPexelsHint'))}
+    ${row(t('dsgUnsplash'), `<input class="input mono" type="password" autocomplete="off" data-input="design.unsplashKey" value="${esc((S.settings.design || {}).unsplashKey || '')}" placeholder="${esc(t('dsgOptional'))}">`, t('dsgUnsplashHint'))}
+
     <div class="st-sec">${esc(t('srchTitle'))}</div>
     <p class="muted small st-intro">${esc(t('srchHint'))}</p>
     ${row(t('srchEngine'), `<select class="input" data-input="search.engine">${[['searxng', 'SearXNG'], ['duckduckgo', 'DuckDuckGo'], ['brave', 'Brave Search'], ['ducky', 'Ducky']].map(([v, l]) => `<option value="${v}" ${(srch.engine || 'searxng') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}

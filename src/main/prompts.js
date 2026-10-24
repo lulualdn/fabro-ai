@@ -62,6 +62,12 @@ const DOCS = `## Documents and PDFs: look at your work
 - If anything is not good, fix it with edit_artifact (change only the lines that need it, using the line numbers from read_artifact) — the PDF is regenerated and shown again. Repeat until it looks right (at most 3 rounds), then tell the user briefly what you improved.
 - For other documents (Word, slides, Markdown) you can check them with inspect_document too.`;
 
+const DESIGN = `## Web pages, apps, documents, slides, drawings: make them beautiful
+- First call design_guide with the kind (landing, portfolio, business, dashboard, article, app, event, report, cv, letter, invoice, flyer, menu, certificate, slides, svg): it gives what to think about, the Fabro Kit and a complete example. Follow the example's structure and classes; write real, specific content in the user's language.
+- Then create_artifact (type html for sites/apps, document for anything printed or PDF, slides, svg). Photos: <img data-photo="2-4 concrete words">; icons: <i data-icon="…">; charts: data-chart. A library only if needed (find_library).
+- Every create/edit returns pictures (desktop + phone, or pages) and the visible problems. Fix every ✗ with edit_artifact and look again. Never say it's done while ✗ problems remain. Then look at the picture like a designer: hierarchy, spacing, alignment, balance, readability.
+- PDFs and printed documents are HTML (type document or create_pdf), never Markdown unless the user asks for Markdown.`;
+
 const FILES = `## Files the user gives you
 - Attached files are in your workspace; their path is in the message. Turn them into data you can read with convert_file: PDF/Word/Excel/PowerPoint → text, audio/video → transcript, PDF → page images. You can also write and run Python or commands there for any other conversion.
 - To change a PDF while keeping its layout: look at the page (inspect_document with pages, zoom for details), find the words with pdf_find_text, change them with pdf_edit, then look at the result again and fix it if needed.
@@ -81,7 +87,7 @@ function agentPrompt({ base = '', schemas = [], code = null, codeSection = '', f
     sub ? 'You are a Fabro sub-agent: an autonomous AI agent running on the user\'s computer, doing one delegated task for the main agent.'
       : 'You are Fabro, an autonomous AI agent running locally on the user\'s computer. You get things done by calling tools — you are not limited to chatting.',
     `## Your tools right now (${schemas.length})\n${toolList(schemas)}${fallback ? '\n\n' + FALLBACK : ''}`,
-    sub ? '' : TRIAGE, sub ? '' : CONTEXT, LOOP, EXAMPLE, HONESTY, RECOVERY, schemas.some((x) => /^(create_pdf|edit_artifact|inspect_document)$/.test(x.name)) ? DOCS : '', SAFETY,
+    sub ? '' : TRIAGE, sub ? '' : CONTEXT, LOOP, EXAMPLE, HONESTY, RECOVERY, schemas.some((x) => /^(create_artifact|design_guide)$/.test((x.function || x).name)) ? DESIGN : '', schemas.some((x) => /^(create_pdf|edit_artifact|inspect_document)$/.test((x.function || x).name)) ? DOCS : '', SAFETY,
     `## Environment\n- Computer: ${osName()} · home ${os.homedir()} · ${now()}\n- Default output folder (always allowed): ${defaultOut || path.join(os.homedir(), 'Documents', 'Fabro')}\n- ${folders.length ? `Folders the user allowed: ${folders.join(', ')}` : 'Other folders: using one shows the user a permission request — that is expected, go ahead.'}\n- Workspace (yours, full control — attached files are copied here): ${path.join(defaultOut || path.join(os.homedir(), 'Documents', 'Fabro'), 'Workspace')}\n- Use absolute paths when unsure. On Windows, commands run in PowerShell.`,
     FILES,
     codeSection, skillsSection, STYLE,
@@ -109,7 +115,7 @@ const ACTION = /\b(cr[ée]e|cr[ée]er|fais|faire|ouvre|ouvrir|lance|lancer|ex[é
 const FUTURE = /\b(i will now|i'll now|let me now|next,? i (will|'ll)|je vais (maintenant |d'abord )?(créer|écrire|ouvrir|lancer|exécuter|chercher|lire|modifier)|ensuite,? je vais)\b/i;
 
 // Decide whether the model stopped too early. Returns a nudge (user message) or null.
-function guard({ text, schemas, turnTools, lastError, plan, used, agentMode, userText = '' }) {
+function guard({ text, schemas, turnTools, lastError, plan, used, agentMode, userText = '', qaBad = null }) {
   const t = String(text || '');
   if (!schemas.length) return null;
   const names = schemas.map((s) => (s.function || s).name);
@@ -135,6 +141,10 @@ function guard({ text, schemas, turnTools, lastError, plan, used, agentMode, use
     used.future = true;
     return '[Fabro runtime] You announced a next step but stopped. Do it now with a tool call instead of describing it.';
   }
+  if (agentMode && qaBad && (used.qa || 0) < 2) {
+    used.qa = (used.qa || 0) + 1;
+    return `[Fabro runtime] The last visual check of “${qaBad.title}” still shows ${qaBad.n} problem(s) (✗). Don't stop yet: fix them with edit_artifact (or rewrite the part that is wrong), then look at the new check.`;
+  }
   if (agentMode && lastError && !used.error) {
     used.error = true;
     return `[Fabro runtime] Your last tool call failed (${lastError.name}: ${String(lastError.error).slice(0, 300)}). Don't give up yet: fix the cause and try again, or try another approach/tool. Only stop if you've tried twice; then explain exactly what failed.`;
@@ -155,4 +165,4 @@ const VOICE = `## Voice conversation (your words are spoken aloud)
 - If something is easier to see than to hear, call show_on_scene: kind "images" with a query for photos, "video" for a video, "web" for a page, or "svg"/"html" to draw a diagram, a schema or a little visual yourself. Then talk about it.
 - If the user interrupts, stop and answer the new request. Ask short questions when you need details.`;
 
-module.exports = { TRIAGE, DOCS, VOICE, agentPrompt, chatToolsSection, guard, toolList, GIVE_UP, CLAIM, ACTION };
+module.exports = { TRIAGE, DOCS, DESIGN, VOICE, agentPrompt, chatToolsSection, guard, toolList, GIVE_UP, CLAIM, ACTION };

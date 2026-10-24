@@ -226,7 +226,7 @@ function renderSidebar() {
   const name = userFirstName() || 'Fabro';
   const apps = (window.fabro && fabro.apps) ? fabro.apps.list() : [];
 
-  const navItem = (id, ic, label, locked) => `<button class="nav-item ${S.mode === id ? 'active' : ''}" data-action="mode" data-mode="${id}" title="${esc(label)}">${icon(ic, 18)}<span class="label">${esc(label)}</span>${locked && !installed.includes(id) ? `<span class="lock">${icon('lock', 13)}</span>` : ''}</button>`;
+  const navItem = (id, ic, label, locked) => `<button class="nav-item ${S.mode === id ? 'active' : ''}" data-action="mode" data-mode="${id}" title="${esc(label)}">${icon(ic, 18)}<span class="label">${esc(label)}</span>${id === 'code' && CODE_MAINTENANCE ? `<span class="maint-badge">${esc(t('maintBadge'))}</span>` : locked && !installed.includes(id) ? `<span class="lock">${icon('lock', 13)}</span>` : ''}</button>`;
   const appIco = (a) => `<span class="app-ic" style="${a.color ? `background:${esc(a.color)};color:#fff` : ''}">${a.icon && String(a.icon).startsWith('data:') ? `<img src="${esc(a.icon)}" alt="">` : icon(a.icon || 'shapes', 16)}</span>`;
 
   sb.innerHTML = `
@@ -350,6 +350,7 @@ function renderView() {
   renderTopbar();
   reportQuick();
   const v = $('#view');
+  if (S.mode === 'code' && CODE_MAINTENANCE) { v.className = 'view'; v.innerHTML = renderMaintenance(); return; }
   if (S.mode === 'code') {
     v.className = 'view code-view' + (S.cx.root ? '' : ' cx-none');
     v.innerHTML = renderCodeView();
@@ -437,6 +438,16 @@ function renderProgress(d) {
   </div>`;
 }
 
+// Fabro Code is paused while it is reworked (too unstable): its entry stays, with an explanation.
+const CODE_MAINTENANCE = true;
+function renderMaintenance() {
+  return `<div class="locked">
+    <div class="lk-ico">${icon('wrench', 30)}</div>
+    <h2>${esc(t('maintTitle'))}</h2>
+    <p class="lk-desc">${esc(t('maintDesc'))}</p>
+    <button class="btn primary" data-action="home">${icon('chat', 16)} ${esc(t('maintBack'))}</button>
+  </div>`;
+}
 function renderSoon(mode) {
   return `<div class="locked">
     <div class="lk-ico">${icon(pageIcon(mode), 30)}</div>
@@ -502,6 +513,8 @@ function injectPrecision() {
 }
 function assistantBody(m) {
   let html = renderThinking(m) + renderSteps(m) + renderPrecisions(m);
+  // Fabro looked at the artifact and sent the model back to fix what was broken
+  if (m.pending && m.artCheck && m.artCheck.status === 'fixing') html += `<div class="art-checkline">${spinner(16)}<span>${esc(t('artFixingN', { n: m.artCheck.count || 1 }))}</span></div>`;
   if (m.content) { MD_CITES = sourceMap(m); try { html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.content, m.id)}</div>`) + citedSources(m); } finally { MD_CITES = null; } }
   else if (m.pending && !m.reasoning && !(m.steps || []).length) {
     const st = m.status === 'loading' ? t('loadingModel') : '';
@@ -1039,7 +1052,7 @@ function generate(opts = {}) {
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
   const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
-  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {
@@ -1075,6 +1088,7 @@ function onChatEvent(ev) {
     case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; st.error = ev.error; st.perm = null; st.deps = null; if (st.view && st.view.out == null && st.live) st.view.out = st.live; delete st.live; delete st.subText; } scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab !== 'browser') renderViewer(); break; }
     case 'agent_switch': case 'tools_info': case 'permission': case 'deps_needed': case 'tool_progress': case 'retract': case 'plan': case 'sub_token': onAgentEvent(ev, m); break;
     case 'checkpoint': m.checkpoint = { id: ev.id, files: ev.files }; cxRefreshSoon(); break;
+    case 'artifact_check': m.artCheck = { status: ev.status, count: ev.count, round: ev.round || (m.artCheck && m.artCheck.round) }; scheduleStreamRender(); break;
     case 'precision_used': { let n = ev.count; for (const p of m.precisions || []) if (!p.used && n-- > 0) p.used = true; scheduleStreamRender(); break; }
     case 'precision_round': case 'tool_round': if (m.content && !/\n\n$/.test(m.content)) m.content += '\n\n'; break;
     case 'done': m.stats = ev.stats; finishStream(); break;

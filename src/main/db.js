@@ -133,7 +133,7 @@ function getArtifact(id) { const r = q('SELECT data FROM artifacts WHERE id = ?'
 function listArtifacts() {
   return q('SELECT id, conv_id, type, title, created, updated, data FROM artifacts ORDER BY updated DESC').all().map((r) => {
     const d = JSON.parse(r.data); const last = (d.versions || [])[d.versions.length - 1] || {};
-    return { id: r.id, convId: r.conv_id, type: r.type, title: r.title, created: r.created, updated: r.updated, versions: (d.versions || []).length, preview: String(last.content || '').slice(0, 400) };
+    return { id: r.id, convId: r.conv_id, type: r.type, title: r.title, lang: d.lang || '', created: r.created, updated: r.updated, versions: (d.versions || []).length, preview: String(last.content || '').slice(0, 400), qa: d.qa || null };
   });
 }
 function deleteArtifact(id) { q('DELETE FROM artifacts WHERE id = ?').run(id); return true; }

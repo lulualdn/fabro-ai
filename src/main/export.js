@@ -23,6 +23,10 @@ function artHtml(url) {
     if (a && a.type === 'svg') html = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100vh}</style>${html}`;
   }
   if (!/<html|<!doctype/i.test(html)) html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${html}</body></html>`;
+  // the Fabro Kit (design system) for pages that use it; documents are A4 sheets, HTML slides a 16:9 deck
+  const a = u.hostname !== 'preview' ? db.getArtifact(u.hostname) : null;
+  const mode = a && a.type === 'document' ? 'doc' : a && a.type === 'slides' ? 'deck' : null;
+  try { html = require('./kit').inject(html, { mode, force: !!mode }); } catch {}
   return html;
 }
 function handleProtocol() {
@@ -35,10 +39,18 @@ function setPreview(html) { const token = Date.now().toString(36) + Math.random(
 
 // ───────────────────────────── PDF ─────────────────────────────
 async function toPdf(html, { landscape = false } = {}) {
+  const kit = require('./kit');
+  const usesKit = kit.usesKit(html) || /id=["']fabro-kit["']/.test(html);
+  if (usesKit) html = kit.inject(html);
   const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: true, offscreen: false } });
   try {
-    await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    await new Promise((r) => setTimeout(r, 400)); // fonts / images
+    const tmp = require('path').join(require('os').tmpdir(), `fabro-pdf-${process.pid}-${Date.now().toString(36)}.html`);
+    fs.writeFileSync(tmp, html);
+    try { await w.loadFile(tmp, { hash: 'fk-static' }); } finally { fs.rm(tmp, { force: true }, () => {}); }
+    await w.webContents.executeJavaScript('Promise.race([Promise.resolve(window.fabroKitReady || (document.fonts ? document.fonts.ready : true)), new Promise((r) => setTimeout(r, 8000))])', true).catch(() => {});
+    await new Promise((r) => setTimeout(r, 300)); // fonts / images
+    // Fabro Kit pages carry their own page size (A4 sheets, 16:9 slides): let CSS decide
+    if (usesKit) return await w.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } });
     return await w.webContents.printToPDF({ landscape, printBackground: true, margins: { marginType: landscape ? 'none' : 'default' }, pageSize: landscape ? { width: 13.333, height: 7.5 } : 'A4' });
   } finally { w.destroy(); }
 }
@@ -110,6 +122,7 @@ async function save(win, { name, format, content, html, blocks, landscape, ext }
   let data;
   if (format === 'pdf') data = await toPdf(html, { landscape });
   else if (format === 'docx') data = toDocx(blocks || []);
+  else if (format === 'html') data = Buffer.from(require('./kit').inject(String(content ?? '')), 'utf8'); // a standalone page: the kit goes inside
   else data = Buffer.from(String(content ?? ''), 'utf8');
   fs.writeFileSync(r.filePath, data);
   return r.filePath;

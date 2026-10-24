@@ -33,6 +33,8 @@ jobs:
         run: node scripts/browser-import-test.js
       - name: Mods (Claude for Fabro on a local copy of the site), fabro:// links, paste, quick bar
         run: xvfb-run -a -s "-screen 0 1440x900x24" node scripts/mods-e2e.js e2e-shots/mods
+      - name: Artifacts e2e (design guide, visual check + fix loop, documents, cards with page-1 pictures)
+        run: xvfb-run -a -s "-screen 0 1440x900x24" node scripts/artifacts-e2e.js e2e-shots/artifacts
       - name: Agents app e2e
         run: xvfb-run -a -s "-screen 0 1440x900x24" node scripts/agents-e2e.js e2e-shots/agents
       - name: Designed PDFs the AI can see and fix
