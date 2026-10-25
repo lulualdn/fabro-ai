@@ -162,13 +162,23 @@ async function generate({ prompt, negative, aspect = 'square', seed, steps }, { 
     proc.on('error', (e) => { log += String(e.message); resolve(-1); });
     proc.on('close', resolve);
   });
-  let code = await run(args);
-  // Some Metal / Vulkan drivers (virtual GPUs, older cards) fail on large buffers: retry once with the text
-  // encoder and the VAE on the processor, which needs far less video memory.
-  if (code !== 0 && !(signal && signal.aborted) && /metal|vulkan|buffer is nil|out of memory|ErrorOutOfDeviceMemory/i.test(log) && !args.includes('--vae-on-cpu')) {
+  // A GPU that already failed here (virtual Mac GPUs, some old cards) goes straight to the processor.
+  const cpuArgs = () => [...args.filter((x) => x !== '--vae-on-cpu' && x !== '--clip-on-cpu'), '--backend', 'cpu', ...(args.includes('-t') ? [] : ['-t', String(Math.max(2, Math.round(os.cpus().length / 2)))])];
+  const gpuFailed = /metal|vulkan|buffer is nil|out of memory|ErrorOutOfDeviceMemory|ggml_metal|failed to allocate/i;
+  const cpuOnly = settings().cpuOnly && (settings().cpuOnly === true || settings().cpuOnly === (readMeta() || {}).asset);
+  let code = await run(cpuOnly && sp.accel !== 'cpu' ? cpuArgs() : args);
+  // Some Metal / Vulkan drivers fail on large buffers: retry with the text encoder and the VAE on the
+  // processor (far less video memory), then everything on the processor.
+  if (code !== 0 && !(signal && signal.aborted) && gpuFailed.test(log) && !cpuOnly) {
+    const metalBroken = /buffer is nil|ggml_metal/i.test(log); // a driver problem, not a lack of memory
     log = ''; try { fs.rmSync(out, { force: true }); } catch {}
-    args.push('--vae-on-cpu', '--clip-on-cpu');
-    code = await run(args);
+    code = await run([...args, '--vae-on-cpu', '--clip-on-cpu']);
+    if (code !== 0 && !(signal && signal.aborted)) {
+      log = ''; try { fs.rmSync(out, { force: true }); } catch {}
+      code = await run(cpuArgs());
+      // remembered for this engine build only: an update gets another chance on the GPU
+      if (code === 0 && fs.existsSync(out) && metalBroken) await store.setSettings({ images: { cpuOnly: (readMeta() || {}).asset || true } }).catch(() => {});
+    }
   }
   if (code !== 0 || !fs.existsSync(out)) {
     const tail = log.split('\n').filter((l) => /error|fail|out of memory|cuda|vulkan/i.test(l)).slice(-4).join(' | ') || log.slice(-400);
