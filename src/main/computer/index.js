@@ -241,8 +241,23 @@ async function look(o = {}, ctx) {
   if (c.overlay) await overlay.show(screen, lang()).catch(() => {});
   const seq = ++S.n;
   const shot = path.join(shotsDir(), `screen-${seq % 4}.png`);
+  const readElements = () => b.call('elements', { hwnds: fg ? [fg.hwnd] : [], taskbar: process.platform !== 'linux' && !target, max: 1500, ms: 2200 }, 12000).catch((e) => ({ elements: [], error: e.message }));
+  // one window: its open menus and pop-ups often spill outside it — read first, then widen the picture to them
+  let elsP = null;
+  if (target && mon !== screen) {
+    const first = await readElements();
+    elsP = Promise.resolve(first);
+    const own = `w${target.hwnd}`;
+    for (const e of first.elements || []) {
+      if (e.depth !== 0 || !e.rect || !(e.win !== own && e.win !== 'taskbar' && e.win !== 'w' || e.role === 'menu')) continue;
+      const r = e.rect;
+      const x1 = Math.max(screen.x, Math.min(mon.x, r[0])), y1 = Math.max(screen.y, Math.min(mon.y, r[1]));
+      const x2 = Math.min(screen.x + screen.w, Math.max(mon.x + mon.w, r[0] + r[2])), y2 = Math.min(screen.y + screen.h, Math.max(mon.y + mon.h, r[1] + r[3]));
+      mon = { ...mon, x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    }
+  }
   const [cap] = await overlay.aside(() => Promise.all([b.call('capture', { x: mon.x, y: mon.y, w: mon.w, h: mon.h, path: shot, cursor: false }, 20000)]));
-  const elsP = b.call('elements', { hwnds: fg ? [fg.hwnd] : [], taskbar: process.platform !== 'linux' && !target, max: 1500, ms: 2200 }, 12000).catch((e) => ({ elements: [], error: e.message }));
+  if (!elsP) elsP = readElements();
   const focP = process.platform !== 'linux' ? b.call('focused', {}, 5000).catch(() => ({})) : Promise.resolve({});
   const img = nativeImage.createFromPath(shot);
   if (img.isEmpty()) throw err('The screenshot could not be read.', 'CU_CAPTURE');
