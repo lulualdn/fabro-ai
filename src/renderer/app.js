@@ -595,7 +595,10 @@ function scheduleStreamRender() {
     if (!el) return;
     const near = isNearBottom();
     const thinkOpen = el.querySelector('details.think')?.open;
+    // a field being typed in (an answer to a question card) survives the re-render: value, focus, caret
+    const ae = document.activeElement, keep = ae && el.contains(ae) && ae.matches('input, textarea') ? { sel: ae.closest('[data-id]') && ae.closest('[data-id]').dataset.id, v: ae.value, s: ae.selectionStart, e: ae.selectionEnd } : null;
     el.innerHTML = assistantBody(m);
+    if (keep && keep.sel) { const ni = el.querySelector(`[data-id="${CSS.escape(keep.sel)}"] input, [data-id="${CSS.escape(keep.sel)}"] textarea`); if (ni) { ni.value = keep.v; ni.focus(); try { ni.setSelectionRange(keep.s, keep.e); } catch {} } }
     const th = el.querySelector('details.think');
     if (th && thinkOpen === false) th.open = false;
     if (near) scrollBottom();
@@ -1320,6 +1323,8 @@ document.addEventListener('input', (e) => {
 });
 const debouncedText = debounce((el) => saveSettings(patchFor(el.dataset.input, el.value)), 500);
 
+// No form ever navigates: a real submit would reload the whole app (and lose the running answer).
+document.addEventListener('submit', (e) => e.preventDefault(), true);
 document.addEventListener('submit', async (e) => {
   const f = e.target.closest('[data-form="hf-search"]');
   if (!f) return;

@@ -19,7 +19,7 @@ const keys = require('./keys');
 const paint = require('./paint');
 const overlay = require('./overlay');
 
-const DEFAULTS = { enabled: true, confirm: true, hideFabro: true, speed: 'natural', ocr: 'auto', width: 1280, overlay: true, maxMarks: 110 };
+const DEFAULTS = { enabled: true, confirm: true, hideFabro: true, speed: 'natural', ocr: 'auto', width: 1280, overlay: true, maxMarks: 80 };
 const cs = () => ({ ...DEFAULTS, ...(store.getSettings().computer || {}) });
 const lang = () => { const s = store.getSettings().language; const l = s && s !== 'auto' ? s : (app.getPreferredSystemLanguages()[0] || 'en'); return String(l).slice(0, 2); };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -157,7 +157,8 @@ function buildMarks(raw, mon, scale, ocrLines, max) {
   });
 }
 
-const q = (s, n = 70) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+// cut by characters, never in the middle of an emoji (half a surrogate pair breaks the JSON sent to the model)
+const q = (s, n = 70) => { const t = [...String(s || '').replace(/\s+/g, ' ').trim()]; return t.length > n ? t.slice(0, n - 1).join('') + '…' : t.join(''); };
 function markLine(m) {
   const role = m.ocr ? 'text' : ROLE[m.role] || m.role;
   const bits = [`[${m.id}] ${role}`];
@@ -191,24 +192,57 @@ function changed(a, b, cursors = []) {
   return { cells: big, share: big / (n || 1) };
 }
 
+const ownWindow = (w) => w.pid === process.pid || overlay.isOwn(w.hwnd);
+async function listWindows() { return ((await backend.call('windows', {}, 15000)).windows || []).filter((w) => !ownWindow(w)); }
+// a window named by the AI: exact title, part of the title, or the app's name
+function findWindow(wins, query) {
+  if (query == null || query === '') return null;
+  if (typeof query === 'number' || /^\d+$/.test(String(query))) { const w = wins.find((x) => String(x.hwnd) === String(query)); if (w) return w; }
+  const n = norm(query);
+  return wins.find((x) => norm(x.title) === n) || wins.find((x) => norm(x.title).includes(n)) || wins.find((x) => norm(x.app) === n) || wins.find((x) => norm(x.app).includes(n)) || wins.find((x) => norm(x.app) && n.includes(norm(x.app))) || null;
+}
+const noWindow = (q, wins) => err(`No window matches "${q}". Open windows: ${wins.slice(0, 12).map((x) => `"${q2(x.title)}" (${x.app}${x.minimized ? ', minimized' : ''})`).join(', ') || 'none'}. Open the app with computer_open_app first.`, 'NO_WINDOW');
+const q2 = (t) => q(t, 40);
+// bring a window to the front (restored if minimized), and check it worked
+async function focusWindow(w) {
+  if (w.focused && !w.minimized) return w;
+  await backend.call('window', { hwnd: w.hwnd, action: 'focus' }, 8000).catch(() => {});
+  await wait(350);
+  const again = (await listWindows()).find((x) => String(x.hwnd) === String(w.hwnd));
+  return again || w;
+}
+
 async function look(o = {}, ctx) {
   const b = backend;
   if (o.wait_ms) await wait(Math.min(15000, o.wait_ms));
   const c = cs();
-  const all = ((await b.call('windows', {}, 15000)).windows || []);
-  const wins = all.filter((w) => w.pid !== process.pid && !overlay.isOwn(w.hwnd));
-  const fg = wins.find((w) => w.focused && !w.minimized) || null;
+  let wins = await listWindows();
+  // looking at one window: Fabro brings it to the front and the picture is that window only (sharper)
+  let target = null;
+  if (o.window != null && o.window !== '' || o.hwnd != null) {
+    target = o.hwnd != null ? wins.find((w) => String(w.hwnd) === String(o.hwnd)) : findWindow(wins, o.window);
+    if (!target && o.hwnd == null) throw noWindow(o.window, wins);
+    if (target) { target = await focusWindow(target); wins = await listWindows(); target = wins.find((w) => String(w.hwnd) === String(target.hwnd)) || target; }
+  }
+  const fg = target || wins.find((w) => w.focused && !w.minimized) || null;
   const mons = hello.monitors && hello.monitors.length ? hello.monitors : [{ x: 0, y: 0, w: hello.virtual[2], h: hello.virtual[3], primary: true, scale: 1 }];
   const onMon = (r) => mons.findIndex((m) => r[0] + r[2] / 2 >= m.x && r[0] + r[2] / 2 < m.x + m.w && r[1] + r[3] / 2 >= m.y && r[1] + r[3] / 2 < m.y + m.h);
   let mi = o.display ? Math.max(0, Math.min(mons.length - 1, o.display - 1)) : fg ? onMon(fg.rect) : S.mon != null ? S.mon : -1;
   if (mi < 0 || mi >= mons.length) mi = Math.max(0, mons.findIndex((m) => m.primary));
   S.mon = mi;
-  const mon = mons[mi];
-  if (c.overlay) await overlay.show(mon, lang()).catch(() => {});
+  const screen = mons[mi];
+  // the captured area: the whole screen, or the target window (inside its screen)
+  let mon = screen;
+  if (target && !target.minimized) {
+    const r = target.rect;
+    const x1 = Math.max(r[0], screen.x), y1 = Math.max(r[1], screen.y), x2 = Math.min(r[0] + r[2], screen.x + screen.w), y2 = Math.min(r[1] + r[3], screen.y + screen.h);
+    if (x2 - x1 > 80 && y2 - y1 > 60) mon = { ...screen, x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  }
+  if (c.overlay) await overlay.show(screen, lang()).catch(() => {});
   const seq = ++S.n;
   const shot = path.join(shotsDir(), `screen-${seq % 4}.png`);
   const [cap] = await overlay.aside(() => Promise.all([b.call('capture', { x: mon.x, y: mon.y, w: mon.w, h: mon.h, path: shot, cursor: false }, 20000)]));
-  const elsP = b.call('elements', { hwnds: fg ? [fg.hwnd] : [], taskbar: process.platform !== 'linux', max: 1500, ms: 2200 }, 12000).catch((e) => ({ elements: [], error: e.message }));
+  const elsP = b.call('elements', { hwnds: fg ? [fg.hwnd] : [], taskbar: process.platform !== 'linux' && !target, max: 1500, ms: 2200 }, 12000).catch((e) => ({ elements: [], error: e.message }));
   const focP = process.platform !== 'linux' ? b.call('focused', {}, 5000).catch(() => ({})) : Promise.resolve({});
   const img = nativeImage.createFromPath(shot);
   if (img.isEmpty()) throw err('The screenshot could not be read.', 'CU_CAPTURE');
@@ -230,7 +264,7 @@ async function look(o = {}, ctx) {
       ocrLines = (await b.ocr(file, k)).lines;
     } catch (e) { ocrNote = e.code === 'NO_OCR' || /tesseract|OCR language/i.test(e.message) ? e.message : `Text recognition failed: ${e.message}`; }
   }
-  const marks = buildMarks(elements, mon, scale, ocrLines, +c.maxMarks || 110);
+  const marks = buildMarks(elements, mon, scale, ocrLines, +c.maxMarks || 80);
   const small = img.resize({ width: W, height: H, quality: 'best' });
   const src = 'data:image/jpeg;base64,' + small.toJPEG(90).toString('base64');
   // the screen is captured without the pointer (it hides what is under it, for OCR too) and the pointer
@@ -239,14 +273,16 @@ async function look(o = {}, ctx) {
   const painted = await paint.mark(src, o.marks === false ? [] : marks.map((m) => ({ id: m.id, r: m.ir, ocr: !!m.ocr })), { grid: !!o.grid, cursor: curImg });
   const sig = signature(img);
   const prev = S.look;
-  const L = { id: seq, at: Date.now(), mon, mi, scale, W, H, marks: new Map(marks.map((m) => [m.id, m])), fg, wins, cursor: cap.cursor, sig, shot };
+  const areaKey = `${mon.x},${mon.y},${mon.w},${mon.h}`;
+  const L = { id: seq, at: Date.now(), mon, screen, mi, scale, W, H, marks: new Map(marks.map((m) => [m.id, m])), fg, wins, cursor: cap.cursor, sig, shot, areaKey, hwnd: target ? target.hwnd : null, window: target ? target.title : null };
   S.look = L;
   // ── the text the AI reads alongside the picture ──
   const toImg = (sx, sy) => [Math.round((sx - mon.x) * scale), Math.round((sy - mon.y) * scale)];
   const lines = [];
-  lines.push(`Screen ${mi + 1}/${mons.length} — screenshot ${W}×${H} px${W !== mon.w ? ` (real screen ${mon.w}×${mon.h})` : ''}. All coordinates are pixels of this screenshot.`);
+  lines.push(target ? `Window "${q(target.title, 60)}" (${target.app}) only — screenshot ${W}×${H} px. All coordinates are pixels of this screenshot.`
+    : `Screen ${mi + 1}/${mons.length} — screenshot ${W}×${H} px${W !== mon.w ? ` (real screen ${mon.w}×${mon.h})` : ''}. All coordinates are pixels of this screenshot.`);
   if (cap.cursor) { const [cx, cy] = toImg(cap.cursor[0], cap.cursor[1]); lines.push(`Mouse pointer at (${cx},${cy}).`); }
-  if (o.after && prev && prev.mi === mi) {
+  if (o.after && prev && prev.areaKey === areaKey) {
     const sc = (c, m) => (c ? [Math.round((c[0] - m.x) / m.w * SIG_W), Math.round((c[1] - m.y) / m.h * SIG_H)] : null);
     const d = changed(prev.sig, sig, [sc(prev.cursor, prev.mon), sc(cap.cursor, mon)].filter(Boolean));
     if (d) lines.push(d.cells === 0 ? 'Screen after the action: NOTHING CHANGED (the action may have missed, or the app is still working — wait and look again before repeating).' : `Screen after the action: changed (${d.share > 0.08 ? 'a lot' : d.share > 0.006 ? 'partly' : 'a little'}).`);
@@ -273,6 +309,7 @@ async function look(o = {}, ctx) {
     lines.push('Find things in the screenshot (computer_zoom helps for details) and act with x/y coordinates.');
   }
   if (raw.truncated) lines.push('(This window is very large: only part of it was read.)');
+  if (marks.length) lines.push('', `Next: act on one element by its id, e.g. computer_click {"element": ${(marks.find((m) => !m.ocr && m.win !== 'taskbar') || marks[0]).id}}${target ? '' : ', or look at one window: computer_look {"window": "<app name>"}'}.`);
   if (raw.error) lines.push(`(The app's elements could not be read: ${q(raw.error, 120)})`);
   if (ocrNote && wantOcr && (o.read_text || c.ocr === 'always' || !marks.length)) lines.push(`(${ocrNote})`);
   return { L, text: lines.join('\n'), image: painted.image, thumb: painted.thumb };
@@ -419,6 +456,17 @@ async function play(b, compiled) {
 async function act(a, ctx, actions, { settle = 450, label } = {}) {
   const b = await begin(ctx);
   const L = requireLook();
+  // the window the actions are meant for is in front first (typing never lands in another app)
+  const wins = (a.window != null && a.window !== '') || L.hwnd ? await listWindows() : null;
+  if (a.window != null && a.window !== '') {
+    const w = findWindow(wins, a.window);
+    if (!w) throw noWindow(a.window, wins);
+    if (String(L.hwnd) !== String(w.hwnd)) throw err(`Your last look was not of "${q(w.title, 50)}": ids and coordinates belong to the last look. Call computer_look {"window": "${q(a.window, 30)}"} first.`, 'LOOK_FIRST');
+    await focusWindow(w);
+  } else if (L.hwnd) {
+    const w = wins.find((x) => String(x.hwnd) === String(L.hwnd));
+    if (w) await focusWindow(w);
+  }
   const c0 = await b.call('cursor', {}, 5000).catch(() => null);
   const compiled = compile(actions, L, c0 && c0.x != null ? [c0.x, c0.y] : [L.mon.x + L.mon.w / 2, L.mon.y + L.mon.h / 2]);
   await guardTargets(compiled);
@@ -427,7 +475,7 @@ async function act(a, ctx, actions, { settle = 450, label } = {}) {
   if (a.look === false) return { content: `Done: ${compiled.said.join(', ')}.`, view: { kind: 'computer', said: compiled.said } };
   await wait(Math.min(15000, a.wait_ms ?? settle));
   const lastPt = compiled.points[compiled.points.length - 1];
-  const v = await look({ after: true, point: null }, ctx);
+  const v = await look({ after: true, hwnd: L.hwnd }, ctx);
   // the user's thumbnail shows where Fabro acted
   let thumb = v.thumb;
   if (lastPt && v.L.mi === L.mi) {
@@ -455,6 +503,7 @@ const targetProps = {
   x: { type: 'number', description: 'X in the last screenshot (when there is no id).' },
   y: { type: 'number', description: 'Y in the last screenshot.' },
 };
+const windowProp = { window: { type: 'string', description: 'Optional: the window this is for (title or app name). It must be the window of your last look; Fabro brings it to the front first.' } };
 const afterProps = {
   wait_ms: { type: 'integer', description: 'Wait this long before looking at the result (default ~0.5 s; more for slow apps or loading).' },
   look: { type: 'boolean', description: 'Return the screen after the action (default true).' },
@@ -476,7 +525,8 @@ const tLabel = (a, p = '') => { const n = nameAt(a, p); return a[p + 'element'] 
 agent.register({ ...common, name: 'computer_look',
   description: 'See the computer screen: a screenshot with numbered boxes on everything that can be used (buttons, fields, menus, list items, links, text), plus the list of those elements — [id], role, name, value/state, (x,y) center — the active window, other windows and the keyboard focus. Coordinates are pixels of this screenshot. Call it first; every other computer_* action already returns the new screen.',
   parameters: { type: 'object', properties: {
-    display: { type: 'integer', description: 'Which screen (1, 2…) when there are several. Default: the one with the active window.' },
+    window: { type: 'string', description: 'Look at one window only, e.g. "Discord" or "Bloc-notes" (title or app name): Fabro brings it to the front and the picture is just that window — sharper and easier to click precisely. Best way to work in an app.' },
+    display: { type: 'integer', description: 'Which screen (1, 2…) to look at when there are several. Default: the one with the active window.' },
     read_text: { type: 'boolean', description: 'Also read all text on screen with OCR (automatic for apps that describe little of themselves).' },
     grid: { type: 'boolean', description: 'Draw a coordinate grid (every 100 px) to aim precisely at things without an id.' },
     wait_ms: { type: 'integer', description: 'Wait before looking (page or app loading).' },
@@ -526,7 +576,7 @@ agent.register({ ...common, name: 'computer_click',
     button: { type: 'string', enum: ['left', 'right', 'middle'] },
     clicks: { type: 'integer', description: '1 (default), 2 = double-click, 3 = triple-click (select a line).' },
     modifiers: { type: 'array', items: { type: 'string' }, description: 'Keys held during the click, e.g. ["ctrl"] or ["shift"].' },
-    hold_ms: { type: 'integer', description: 'Keep the button pressed this long (long press).' }, ...afterProps } },
+    hold_ms: { type: 'integer', description: 'Keep the button pressed this long (long press).' }, ...windowProp, ...afterProps } },
   summarize: (a) => `${a.button === 'right' ? 'Clic droit' : a.clicks === 2 ? 'Double-clic' : 'Clic'} ${tLabel(a)}${(a.modifiers || []).length ? ` + ${a.modifiers.join('+')}` : ''}`,
   guard: (a, ctx) => baseGuard(ctx, nameAt(a)),
   async run(a, ctx) { grant(ctx); return act(a, ctx, [{ ...a, action: 'click' }], { settle: 500 }); } });
@@ -536,14 +586,14 @@ agent.register({ ...common, name: 'computer_drag',
   parameters: { type: 'object', properties: { ...targetProps,
     to_element: { type: 'integer', description: 'Destination element id.' }, to_x: { type: 'number' }, to_y: { type: 'number' },
     button: { type: 'string', enum: ['left', 'right', 'middle'] }, modifiers: { type: 'array', items: { type: 'string' } },
-    slow: { type: 'boolean', description: 'Drag more slowly (precise drawing, sensitive sliders).' }, hold_ms: { type: 'integer' }, ...afterProps }, required: [] },
+    slow: { type: 'boolean', description: 'Drag more slowly (precise drawing, sensitive sliders).' }, hold_ms: { type: 'integer' }, ...windowProp, ...afterProps }, required: [] },
   summarize: (a) => `Glisser ${tLabel(a) || 'depuis le pointeur'} → ${tLabel(a, 'to_')}`,
   guard: (a, ctx) => baseGuard(ctx, nameAt(a, 'to_')),
   async run(a, ctx) { grant(ctx); return act(a, ctx, [{ ...a, action: 'drag' }], { settle: 450 }); } });
 
 agent.register({ ...common, name: 'computer_type',
   description: 'Type text like a keyboard (any language, emoji, new lines). If element/x,y is given, clicks it first to focus it. clear=true selects everything in the field and deletes it first; enter=true presses Enter after. Never type passwords or card numbers: ask the user to.',
-  parameters: { type: 'object', properties: { text: { type: 'string' }, ...targetProps, clear: { type: 'boolean' }, enter: { type: 'boolean' }, ...afterProps }, required: ['text'] },
+  parameters: { type: 'object', properties: { text: { type: 'string' }, ...targetProps, clear: { type: 'boolean' }, enter: { type: 'boolean' }, ...windowProp, ...afterProps }, required: ['text'] },
   summarize: (a) => `Saisir « ${q(a.text, 80)} »${a.element != null ? ` dans ${tLabel(a)}` : ''}${a.enter ? ' + Entrée' : ''}`,
   async guard(a, ctx) {
     const g = await baseGuard(ctx, a.enter ? nameAt(a) : '');
@@ -580,7 +630,7 @@ agent.register({ ...common, name: 'computer_type',
 
 agent.register({ ...common, name: 'computer_key',
   description: 'Press keys and shortcuts: "enter", "esc", "tab", "ctrl+s", "ctrl+shift+t", "alt+tab", "alt+f4", "win", "win+r", "f5", arrows ("down"), or several in order: "tab tab enter". repeat presses it again; hold_ms keeps the key down (games: "w" held 2000 ms).',
-  parameters: { type: 'object', properties: { keys: { type: 'string', description: 'The key or combination, e.g. "ctrl+c". Several separated by spaces are pressed in order.' }, repeat: { type: 'integer' }, hold_ms: { type: 'integer' }, ...afterProps }, required: ['keys'] },
+  parameters: { type: 'object', properties: { keys: { type: 'string', description: 'The key or combination, e.g. "ctrl+c". Several separated by spaces are pressed in order.' }, repeat: { type: 'integer' }, hold_ms: { type: 'integer' }, ...windowProp, ...afterProps }, required: ['keys'] },
   summarize: (a) => `Touches ${a.keys}${a.repeat > 1 ? ` ×${a.repeat}` : ''}`,
   async guard(a, ctx) {
     try { for (const c of keys.sequence(a.keys)) if (keys.isBlocked(c)) return { refuse: `${c.label} would lock or leave the Windows session.` }; } catch (e) { return { refuse: e.message }; }
@@ -590,14 +640,14 @@ agent.register({ ...common, name: 'computer_key',
 
 agent.register({ ...common, name: 'computer_scroll',
   description: 'Scroll with the mouse wheel over an element or point (or where the pointer is): up, down, left, right; amount = wheel notches (default 3). With modifiers ["ctrl"] it zooms in most apps.',
-  parameters: { type: 'object', properties: { ...targetProps, direction: { type: 'string', enum: ['up', 'down', 'left', 'right'] }, amount: { type: 'integer' }, modifiers: { type: 'array', items: { type: 'string' } }, ...afterProps }, required: ['direction'] },
+  parameters: { type: 'object', properties: { ...targetProps, direction: { type: 'string', enum: ['up', 'down', 'left', 'right'] }, amount: { type: 'integer' }, modifiers: { type: 'array', items: { type: 'string' } }, ...windowProp, ...afterProps }, required: ['direction'] },
   summarize: (a) => `Défiler ${a.direction} ×${a.amount || 3}${tLabel(a) ? ` sur ${tLabel(a)}` : ''}`,
   guard: (a, ctx) => baseGuard(ctx),
   async run(a, ctx) { grant(ctx); return act(a, ctx, [{ ...a, action: 'scroll' }], { settle: 350 }); } });
 
 agent.register({ ...common, name: 'computer_actions',
   description: 'Do several mouse/keyboard actions in one smooth sequence (no pause to look between them), then return the screen. Use it for fluid gestures: hold shift and click several items, mouse_down → several moves → mouse_up to draw a shape, key_down "w" + wait + key_up for games, move_relative to turn a 3D camera. Each action: {"action": "move"|"click"|"double_click"|"right_click"|"mouse_down"|"mouse_up"|"drag"|"scroll"|"type"|"key"|"key_down"|"key_up"|"move_relative"|"wait", plus its fields: element or x,y; to_element or to_x,to_y (drag); button; modifiers; text; keys; direction, amount; dx, dy, duration_ms (move_relative); ms (wait); hold_ms}. Element ids come from the last look. Anything still pressed is released at the end.',
-  parameters: { type: 'object', properties: { actions: { type: 'array', items: { type: 'object' }, description: 'The actions, in order.' }, ...afterProps }, required: ['actions'] },
+  parameters: { type: 'object', properties: { actions: { type: 'array', items: { type: 'object' }, description: 'The actions, in order.' }, ...windowProp, ...afterProps }, required: ['actions'] },
   summarize: (a) => `${(a.actions || []).length} actions : ${(a.actions || []).slice(0, 6).map((x) => x.action + (x.element != null ? ` [${x.element}]` : x.keys ? ` ${x.keys}` : x.text ? ` « ${q(x.text, 20)} »` : '')).join(', ')}`,
   async guard(a, ctx) {
     if (!Array.isArray(a.actions) || !a.actions.length) return { refuse: 'actions must be a non-empty list' };
@@ -627,6 +677,7 @@ agent.register({ ...common, name: 'computer_open_app',
   async run(a, ctx) {
     grant(ctx);
     await begin(ctx);
+    const before = new Set((await listWindows()).map((w) => String(w.hwnd)));
     if (a.path_or_url) {
       const p = String(a.path_or_url);
       if (/^(https?|mailto|ms-settings|steam|roblox-studio|spotify):/i.test(p)) await shell.openExternal(p);
@@ -651,8 +702,11 @@ agent.register({ ...common, name: 'computer_open_app',
       if (!ok) throw err(`No program called "${bin}" was found. Use path_or_url, or open it from the app menu with clicks.`, 'OPEN_FAILED');
       await wait(Math.min(20000, a.wait_ms ?? 2000));
     }
-    const v = await look({ after: true }, ctx);
-    return { content: `Opened ${a.name || a.path_or_url}.\n\n${v.text}`, image: v.image, view: { kind: 'computer', said: ['opened'], shot: v.thumb } };
+    // look at the app that opened: a new window, else one with its name, else the screen
+    const now = await listWindows();
+    const opened = now.find((w) => !before.has(String(w.hwnd)) && !w.minimized) || findWindow(now, a.name || '') || null;
+    const v = await look({ after: true, hwnd: opened ? opened.hwnd : undefined }, ctx);
+    return { content: `Opened ${a.name || a.path_or_url}${opened ? ` — window "${q(opened.title, 50)}"` : ' (no new window found yet: it may still be loading; wait and look again)'}.\n\n${v.text}`, image: v.image, view: { kind: 'computer', said: ['opened'], shot: v.thumb } };
   } });
 
 agent.register({ ...common, name: 'computer_window',
@@ -663,17 +717,18 @@ agent.register({ ...common, name: 'computer_window',
   async run(a, ctx) {
     grant(ctx);
     const b = await begin(ctx);
-    const wins = ((await b.call('windows')).windows || []).filter((w) => w.pid !== process.pid && !overlay.isOwn(w.hwnd));
+    const wins = await listWindows();
+    void b;
     if (a.action === 'list' || !a.window) {
       return { content: wins.length ? `Windows (front to back):\n${wins.map((w, i) => `${i + 1}. "${q(w.title, 80)}" — ${w.app}${w.focused ? ' (active)' : ''}${w.minimized ? ' (minimized)' : ''}${w.maximized ? ' (maximized)' : ''}`).join('\n')}` : 'No windows are open.', view: { kind: 'computer', said: ['windows'] } };
     }
-    const n = norm(a.window);
-    const w = wins.find((x) => norm(x.title) === n) || wins.find((x) => norm(x.title).includes(n)) || wins.find((x) => norm(x.app).includes(n)) || wins.find((x) => n.includes(norm(x.app)) && norm(x.app));
-    if (!w) throw err(`No window matches "${a.window}". Open windows: ${wins.slice(0, 12).map((x) => `"${q(x.title, 40)}" (${x.app})`).join(', ') || 'none'}.`, 'NO_WINDOW');
+    const w = findWindow(wins, a.window);
+    if (!w) throw noWindow(a.window, wins);
     overlay.status(`${a.action} · ${q(w.title, 40)}`);
     const r = await b.call('window', { hwnd: w.hwnd, action: a.action }, 8000);
     await wait(a.action === 'close' ? 600 : 400);
-    const v = await look({ after: true }, ctx);
+    // after focus / maximize / restore: look at that window only (sharper, ids for it)
+    const v = await look({ after: true, hwnd: ['focus', 'maximize', 'restore'].includes(a.action) ? w.hwnd : undefined }, ctx);
     return { content: `${a.action} "${q(w.title, 60)}"${a.action === 'focus' && !r.focused ? ' — Windows refused to bring it to the front; click it in the taskbar instead' : ''}.\n\n${v.text}`, image: v.image, view: { kind: 'computer', said: [a.action], shot: v.thumb } };
   } });
 

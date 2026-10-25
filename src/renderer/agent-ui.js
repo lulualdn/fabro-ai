@@ -91,7 +91,7 @@ function questionCard(st) {
   const p = st.perm;
   return `<div class="perm-card q-card"><div class="pc-head">${icon('chat', 16)}<b>${esc(p.question || p.summary || '')}</b></div>
     ${(p.options || []).length ? `<div class="q-opts">${p.options.map((o) => `<button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>` : ''}
-    <form class="q-own" data-id="${esc(st.id)}" onsubmit="event.preventDefault(); const v=this.querySelector('input').value.trim(); if (v) actions.perm({ dataset: { id: this.dataset.id, v } });"><input class="input" placeholder="${esc(t('q_own'))}"><button class="btn sm primary" type="submit">${esc(t('send'))}</button></form>
+    <form class="q-own" data-form="q-own" data-id="${esc(st.id)}"><input class="input" placeholder="${esc(t('q_own'))}"><button class="btn sm primary" type="submit">${esc(t('send'))}</button></form>
     <button class="link small" data-action="perm" data-id="${esc(st.id)}" data-v="deny">${esc(t('q_skip'))}</button></div>`;
 }
 function permCard(st, m) {
@@ -289,6 +289,7 @@ Object.assign(actions, {
     const id = el.dataset.id;
     const m = (S.streaming && S.streaming.msg);
     const st = m && (m.steps || []).find((x) => x.id === id);
+    if (!S.streaming) return;
     if (st) { st.status = 'running'; st.perm = null; }
     api.chat.answer(S.streaming.reqId, id, el.dataset.v);
     scheduleStreamRender();
@@ -311,6 +312,12 @@ Object.assign(actions, {
   'reveal-path': (el) => api.shell.reveal(el.dataset.path),
   'gen-open': (el) => openViewer({ type: 'image', title: el.alt || '', src: el.src }),
   'open-path': (el) => api.shell.openPath(el.dataset.path),
+});
+// a typed answer to a question card (no inline handlers: the page's CSP forbids them)
+document.addEventListener('submit', (e) => {
+  const f = e.target.closest('[data-form="q-own"]'); if (!f) return;
+  e.preventDefault();
+  const v = (f.querySelector('input') || {}).value; if (v && v.trim()) actions.perm({ dataset: { id: f.dataset.id, v: v.trim() } });
 });
 document.addEventListener('submit', (e) => {
   const f = e.target.closest('[data-form="ab-go"]'); if (!f) return;

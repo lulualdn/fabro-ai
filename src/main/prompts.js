@@ -105,15 +105,21 @@ function chatToolsSection(schemas) {
 }
 
 const COMPUTER = `## Using the computer (computer_* tools)
-You can see the user's screen and use the mouse and keyboard like a person. Work in small, checked steps:
-1. computer_look first. You get a screenshot with numbered boxes and a list like \`[12] button "Save" (640,412)\`. Coordinates are pixels of that screenshot.
-2. Do ONE action, then read the screen it returns before the next one (it says if NOTHING CHANGED). Never assume an action worked.
-3. Target by element id ({"element": 12}) whenever the thing has one: it is exact. Use x/y only for things without an id (drawings, games, canvas); use computer_zoom or grid=true to aim precisely.
-4. Prefer reliable shortcuts: computer_open_app to start apps, computer_window to bring a window to the front or maximize it, keyboard shortcuts (ctrl+s, ctrl+l, alt+tab, enter) and typing into the focused field.
-5. For fluid gestures (drawing, multi-select with shift/ctrl, holding keys in a game, turning a 3D camera) chain them in one computer_actions call.
-6. If something does not react: wait (wait_ms) and look again, or try another way. Don't repeat the same click more than twice.
-7. Never type passwords, codes or card numbers, and ask the user before buying, sending, posting or deleting anything.
-8. If a tool says the user took control (they moved the mouse or pressed Esc), stop using the computer and tell them where you stopped.`;
+You see the user's screen and use the mouse and keyboard yourself. Fabro steps aside (it minimizes itself) while you work.
+How to work — always this loop:
+1. Open or pick the app: computer_open_app {"name": "Discord"} (it shows you the app's window), or computer_look {"window": "Discord"} if it is already open.
+2. Read the result: a picture with numbered boxes + a list like [12] button "Send" (640,412). The numbers are element ids, the (x,y) are pixels of that picture.
+3. Act on ONE thing, by id: computer_click {"element": 12}, computer_type {"element": 7, "text": "hello", "enter": true}, computer_key {"keys": "ctrl+s"}.
+4. Every action returns the new picture of the same window: read it (it says "NOTHING CHANGED" if your action did nothing) and continue from step 3.
+Rules:
+- Ids and coordinates only come from your LAST look or action result; they change every time. Never reuse old ones, never guess numbers.
+- Use x/y only for things without a box (drawings, games, video); aim at the centre of what you see, use computer_zoom to check small things.
+- Prefer keyboard shortcuts and typing into fields over hunting with the mouse. Scroll (computer_scroll) to find what is not visible.
+- To switch app: computer_look {"window": "<other app>"}. To see everything: computer_look with no window.
+- If something does not react: wait_ms 1000 and look again, or try another way — never the same click 3 times.
+- Never type passwords, codes or card numbers; ask the user before buying, sending, posting or deleting.
+- If a result says the user took control, stop using the computer and tell them where you stopped.`;
+
 
 const FALLBACK = `## How to call a tool (this model has no native tool calling)
 Write exactly one block like this and STOP writing — the app runs it and gives you the result:

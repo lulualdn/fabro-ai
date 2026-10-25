@@ -41,6 +41,13 @@ app.whenReady().then(async () => {
       assert.ok(!r.error, r.error);
       btn = find(/^VALIDER$/, 'button');
     }
+    // the same app looked at as one window: picture of that window only, still found by id
+    r = await run('computer_look', { window: 'Appli de test' });
+    assert.ok(!r.error, r.error);
+    assert.match(r.content, /Window "Appli de test" \(.*\) only/, 'a window-only look');
+    btn = find(/^VALIDER$/, 'button');
+    assert.ok(btn, 'the button is in the window look too');
+    save(r, '1b-window.jpg');
     console.log(r.content.split('\n').slice(0, 32).join('\n'));
     save(r, '1-look.jpg');
     assert.ok(btn, 'the VALIDER button is found through Accessibility');
@@ -100,6 +107,19 @@ app.whenReady().then(async () => {
     r = await run('computer_look', { read_text: true });
     console.log('OCR:', /Text read on screen/.test(r.content) ? 'ok' : 'none');
     save(r, '4-ocr.jpg');
+    // Fabro steps aside while it works, and comes back when the turn ends
+    await require('../src/main/store').setSettings({ computer: { hideFabro: true } });
+    const fabroWin = new BrowserWindow({ x: 200, y: 120, width: 500, height: 300, show: true, title: 'Fabro' });
+    await fabroWin.loadURL('data:text/html,<h1>Fabro</h1>'); await wait(500);
+    cu.init({ getMain: () => fabroWin });
+    const ctx2 = { ...ctx, reqId: 'turn2' };
+    try { await agent.execute({ name: 'computer_look', args: {} }, ctx2); } catch (e) { console.log('look2', e.message); }
+    await wait(400);
+    assert.ok(fabroWin.isMinimized(), 'Fabro minimized itself while working');
+    cu.turnEnded('turn2'); await wait(600);
+    assert.ok(!fabroWin.isMinimized(), 'and came back at the end of the turn');
+    fabroWin.destroy();
+
     const ts = await cu.test();
     console.log('settings test:', JSON.stringify({ ...ts, thumb: !!ts.thumb }));
     assert.ok(ts.ok, ts.error);

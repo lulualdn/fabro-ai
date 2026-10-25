@@ -118,7 +118,7 @@ function anywhereTab() {
     ${row(t('aw_enable'), `<button class="switch ${st.enabled ? 'on' : ''}" data-action="aw-enable" data-value="${!st.enabled}" role="switch" aria-checked="${!!st.enabled}" aria-label="${esc(t('aw_enable'))}"><i></i></button>`, t('aw_enableHint'))}
     <div class="st-block"><div class="st-label"><span>${esc(t('aw_devices'))}</span></div><div class="aw-devs">${devs}</div></div>
     ${row(t('aw_app'), `<span class="mono small">${esc(st.appUrl)}</span> <button class="btn sm" data-action="aw-open-app" aria-label="${esc(t('aw_app'))}">${icon('link', 14)}</button>`, t('aw_appHint'))}
-    <form data-form="aw" class="aw-form" onsubmit="return false">
+    <form data-form="aw" class="aw-form">
       ${row(t('aw_pcName'), `<input class="input" name="name" maxlength="40" value="${esc(st.name)}" aria-label="${esc(t('aw_pcName'))}">`, t('aw_pcNameHint'))}
       ${row(t('aw_notifyAgent'), `<button type="button" class="switch ${st.notifyAgent ? 'on' : ''}" data-action="aw-notify" data-value="${!st.notifyAgent}" role="switch" aria-checked="${!!st.notifyAgent}" aria-label="${esc(t('aw_notifyAgent'))}"><i></i></button>`, t('aw_notifyAgentHint'))}
       <div class="st-block"><div class="st-label"><span>${esc(t('aw_relays'))}</span><small>${esc(t('aw_relaysHint'))}</small></div>

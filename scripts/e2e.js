@@ -272,6 +272,15 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   step('ask_user'); await win.screenshot({ path: `${shots}/08b-ask-user.png` });
   await win.click('.q-card .q-opts button >> text=Une blague');
   await win.waitForFunction(() => /answered: Une blague/.test(S.conv.messages.at(-1).content || '') && !S.streaming, null, { timeout: 15000 });
+  // a typed answer (Enter in the field) goes through too, without reloading the app
+  await win.click('[data-action=new-chat]'); await win.fill('#prompt', 'Fais un truc cool'); await win.keyboard.press('Enter');
+  await win.waitForSelector('.q-card .q-own input', { timeout: 15000 });
+  await win.evaluate(() => { window.__noReload = true; });
+  await win.fill('.q-card .q-own input', 'Un haïku 🌸');
+  await win.evaluate(() => scheduleStreamRender()); await win.waitForTimeout(100); // a re-render while typing keeps the text
+  await win.keyboard.press('Enter');
+  await win.waitForFunction(() => /answered: Un haïku 🌸/.test(S.conv.messages.at(-1).content || '') && !S.streaming, null, { timeout: 15000 });
+  assert.ok(await win.evaluate(() => window.__noReload === true), 'the app did not reload');
   // scheduled task: weekly on Monday and Thursday at 15:00, with a variable
   const tk = await win.evaluate(async () => { const t = await api.tasks.create({ title: 'Test hebdo', prompt: 'Dis bonjour à {{name}}', when: { type: 'weekly', days: ['mon', 'thu'], time: '15:00' }, vars: { name: 'Lulu' } }); return (await api.tasks.list()).find((x) => x.id === t.id); });
   const nd = new Date(tk.next); assert.ok([1, 4].includes(nd.getDay()) && nd.getHours() === 15 && nd.getMinutes() === 0, 'weekly next run: ' + nd);

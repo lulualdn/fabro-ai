@@ -122,7 +122,7 @@ async function completeOpenAI(be, messages, params, signal, acc, tools) {
     else if (['openai', 'xai', 'openrouter', 'groq'].includes(be.provider.kind)) body.reasoning_effort = r;
     else if (be.provider.kind === 'ollama') body.think = true;
   }
-  const post = () => fetch(`${be.base}/chat/completions`, { method: 'POST', headers: be.headers, body: JSON.stringify(body), signal });
+  const post = () => fetch(`${be.base}/chat/completions`, { method: 'POST', headers: be.headers, body: safeJSON(body), signal });
   let res;
   try { res = await post(); } catch (e) { if (signal.aborted) throw e; throw be.netErr ? be.netErr(e) : e; }
   // Servers that reject an optional field: retry once without it.
@@ -275,7 +275,7 @@ async function completeAnthropic(be, messages, params, signal, acc, tools) {
     body.max_tokens = Math.max(body.max_tokens, budget + 4096);
   } else if (params.temperature != null) body.temperature = Math.min(1, params.temperature);
   let res;
-  try { res = await fetch(`${be.base}/messages`, { method: 'POST', headers: be.headers, body: JSON.stringify(body), signal }); }
+  try { res = await fetch(`${be.base}/messages`, { method: 'POST', headers: be.headers, body: safeJSON(body), signal }); }
   catch (e) { if (signal.aborted) throw e; throw be.netErr(e); }
   if (!res.ok) throw await be.httpErr(res);
   let content = '';
@@ -296,6 +296,10 @@ async function completeAnthropic(be, messages, params, signal, acc, tools) {
 // ───────────────────────────── context budget ─────────────────────────────
 // Long agent runs overflow small context windows: shorten old tool results first, then drop the oldest
 // exchanges (the system prompt, the first request and the recent steps are always kept).
+// A text cut in the middle of an emoji leaves half a surrogate pair, which llama.cpp (and some APIs) refuse
+// as invalid JSON: every string sent is made well-formed first.
+const wellFormed = (s) => (typeof s.toWellFormed === 'function' ? s.toWellFormed() : s.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, '\ufffd'));
+const safeJSON = (body) => JSON.stringify(body, (_k, v) => (typeof v === 'string' ? wellFormed(v) : v));
 // Pictures count as what the model really spends on them (~1k tokens), not their base64 length.
 const estTok = (x) => Array.isArray(x)
   ? x.reduce((n, p) => n + (p && p.type === 'image_url' ? 1000 : Math.ceil(String((p && p.text) || '').length / 3.3)), 0)
