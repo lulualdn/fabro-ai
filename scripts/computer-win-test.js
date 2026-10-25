@@ -119,10 +119,9 @@ app.whenReady().then(async () => {
     console.error(e); process.exitCode = 1;
   } finally {
     const code = process.exitCode || 0;
-    setTimeout(() => { console.log('forcing exit'); process.kill(process.pid, 'SIGKILL'); }, 6000);
-    console.log('cleaning up');
-    try { if (target) execFileSync('taskkill', ['/F', '/T', '/PID', String(target.pid)], { stdio: 'ignore', timeout: 10000 }); } catch {}
-    try { execFileSync('taskkill', ['/F', '/IM', 'notepad.exe'], { stdio: 'ignore', timeout: 10000 }); } catch {}
+    // nothing synchronous here: kill what the test opened and leave
+    try { if (target) { target.kill(); spawn('taskkill', ['/F', '/T', '/PID', String(target.pid)], { stdio: 'ignore', detached: true }).unref(); } } catch {}
+    try { spawn('taskkill', ['/F', '/IM', 'notepad.exe'], { stdio: 'ignore', detached: true }).unref(); } catch {}
     console.log('exit', code);
     process.exit(code);
   }

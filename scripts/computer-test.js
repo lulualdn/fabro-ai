@@ -151,12 +151,11 @@ const srv = http.createServer((req, res) => {
   r = await run('computer_scroll', { x: li.x, y: li.y, direction: 'down', amount: 4 });
   assert.ok((await page('list.scrollTop')) > 50, 'the list scrolled');
 
-  // 8. one fluid gesture: click ALPHA, then shift+click DELTA
+  // 8. one fluid gesture: click ALPHA, then shift+click DELTA (positions from the page: OCR is tested above)
   r = await run('computer_look', {});
-  const ms = await marks();
-  const alpha = ms.find((x) => /ALPHA/.test(x.name)), delta = ms.find((x) => /DELTA/.test(x.name));
-  assert.ok(alpha && delta, 'items read on screen');
-  r = await run('computer_actions', { actions: [{ action: 'click', element: alpha.id }, { action: 'click', element: delta.id, modifiers: ['shift'] }] });
+  const box = async (t) => { const b = await page(`(() => { const s = [...document.querySelectorAll('#items span')].find((x) => x.textContent === '${'${t}'}'); const r = s.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`); return at(b[0], b[1]); };
+  const pa = await box('ALPHA'), pd = await box('DELTA');
+  r = await run('computer_actions', { actions: [{ action: 'click', x: pa.x, y: pa.y }, { action: 'click', x: pd.x, y: pd.y, modifiers: ['shift'] }] });
   assert.ok(!r.error, r.error);
   assert.deepEqual(await page('LOG.sel'), ['ALPHA', 'DELTA']);
 
