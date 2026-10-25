@@ -129,6 +129,7 @@ jobs:
           xvfb-run -a -s "-screen 0 1440x900x24" node scripts/computer-test.js computer-shots
       - name: Computer Use (Windows)
         if: runner.os == 'Windows'
+        timeout-minutes: 8
         run: npx electron scripts/computer-win-test.js computer-shots
       - uses: actions/upload-artifact@v4
         if: always()

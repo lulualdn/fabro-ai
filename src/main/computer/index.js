@@ -316,7 +316,7 @@ function compile(actions, L, start) {
         const n = kind === 'double_click' ? 2 : kind === 'triple_click' ? 3 : Math.max(1, Math.min(3, a.clicks || 1));
         const mods = modsOf(a.modifiers);
         moveTo(t); pause(p.hover);
-        for (const m of mods) steps.push(keys.down(m, p.key));
+        for (const m of mods) steps.push(keys.down(m, Math.max(p.key, 50))); // apps read the modifier state: let it land first
         for (let i = 0; i < n; i++) { steps.push({ t: 'down', b, ms: a.hold_ms ? Math.min(10000, a.hold_ms) : p.press }); steps.push({ t: 'up', b, ms: i < n - 1 ? p.between : 25 }); }
         for (const m of [...mods].reverse()) steps.push(keys.up(m, p.key));
         points.push({ x: t.x, y: t.y, right: b === 'right', img: t.img, at: steps.length, name: t.name });
@@ -336,7 +336,7 @@ function compile(actions, L, start) {
         const to = target(a, L, 'to_');
         const b = btn(a.button); const mods = modsOf(a.modifiers);
         moveTo(from); pause(p.hover);
-        for (const m of mods) steps.push(keys.down(m, p.key));
+        for (const m of mods) steps.push(keys.down(m, Math.max(p.key, 50))); // apps read the modifier state: let it land first
         steps.push({ t: 'down', b, ms: p.dragStart });
         // a first small move: many apps only start a drag past a few pixels
         const d = Math.hypot(to.x - from.x, to.y - from.y) || 1;
@@ -354,7 +354,7 @@ function compile(actions, L, start) {
         if (!['up', 'down', 'left', 'right'].includes(dir)) throw err('direction must be up, down, left or right', 'BAD_ARGS');
         const n = Math.max(1, Math.min(40, Math.round(a.amount || 3)));
         const mods = modsOf(a.modifiers);
-        for (const m of mods) steps.push(keys.down(m, p.key));
+        for (const m of mods) steps.push(keys.down(m, Math.max(p.key, 50))); // apps read the modifier state: let it land first
         for (let i = 0; i < n; i++) steps.push({ t: 'wheel', d: dir === 'up' || dir === 'right' ? 120 : -120, h: dir === 'left' || dir === 'right', ms: sp === 'instant' ? 12 : 38 });
         for (const m of [...mods].reverse()) steps.push(keys.up(m, p.key));
         said.push(`scrolled ${dir} ×${n}`); break;
