@@ -767,4 +767,4 @@ async function test() {
 function status() { return { supported: supported(), platform: process.platform, active: S.active, paused: S.paused, ready: !!hello }; }
 function shutdown() { finish(); if (backend) backend.kill(); backend = null; hello = null; paint.close(); overlay.destroy(); }
 
-module.exports = { init, turnEnded, test, status, shutdown, _internal: { buildMarks, compile, S, look, target } };
+module.exports = { init, turnEnded, test, status, shutdown, _internal: { buildMarks, compile, S, look, target, backend: () => backend } };

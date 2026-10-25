@@ -154,6 +154,7 @@ namespace FabroCU
                 case "elements": return Elements(r);
                 case "point": return PointInfo(Int(r, "x"), Int(r, "y"));
                 case "focused": return Focused();
+                case "toplevel": return D("windows", TopLevel());
                 default: throw new Exception("unknown op " + op);
             }
         }
@@ -484,6 +485,21 @@ namespace FabroCU
                 uint fpid; GetWindowThreadProcessId(fg, out fpid);
                 foreach (Dictionary<string, object> w in list) if ((long)w["pid"] == fpid && !(bool)w["minimized"]) { w["focused"] = true; break; }
             }
+            return list;
+        }
+        // every visible top-level window, for diagnosis
+        static List<object> TopLevel()
+        {
+            var list = new List<object>();
+            EnumWindows(delegate (IntPtr h, IntPtr l)
+            {
+                if (!IsWindowVisible(h)) return true;
+                var cls = new StringBuilder(128); GetClassName(h, cls, 128);
+                var t = new StringBuilder(128); GetWindowText(h, t, 128);
+                uint pid; GetWindowThreadProcessId(h, out pid);
+                list.Add(D("hwnd", h.ToInt64(), "cls", cls.ToString(), "title", t.ToString(), "pid", (long)pid, "app", ProcName(pid), "rect", Bounds(h), "style", GetWindowLong(h, -16), "ex", GetWindowLong(h, -20)));
+                return true;
+            }, IntPtr.Zero);
             return list;
         }
         static Dictionary<string, object> WindowOp(Dictionary<string, object> r)

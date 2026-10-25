@@ -116,6 +116,7 @@ app.whenReady().then(async () => {
     r = await run('computer_click', doc ? { element: doc.id, button: 'right' } : { x: 300, y: 300, button: 'right' });
     const all = marks().find((m) => m.role === 'menuitem' && /select all|tout s/i.test(m.name || ''));
     console.log('context menu items:', marks().filter((m) => m.role === 'menuitem').map((m) => `${m.name}@${m.cx},${m.cy}[${m.win}]`).join(' | '));
+    console.log('top-level now:', JSON.stringify(((await cu._internal.backend().call('toplevel')).windows || []).filter((w) => w.app === 'notepad' || /#32768/.test(w.cls)).map((w) => [w.cls, w.title, w.rect, (w.style >>> 0).toString(16), (w.ex >>> 0).toString(16)])));
     console.log('windows now:', JSON.stringify((await require('../src/main/computer/index.js')._internal.S.look.wins || []).map((w) => [w.title, w.cls, w.app])));
     console.log('after right-click:', r.content.split('\n').slice(0, 8).join(' / '));
     assert.ok(all, 'the context menu items are found');
