@@ -105,6 +105,7 @@ function permCard(st, m) {
     ${p.reason && p.reason !== 'folder' ? `<div class="pc-why">${esc(t('perm_why_' + (p.reason === 'danger_command' ? 'cmd' : p.reason === 'delete' ? 'delete' : p.reason === 'outside_project' ? 'outside' : p.reason === 'computer_use' ? 'computer' : p.reason === 'run_program' ? 'program' : 'sensitive'), { r: p.reason }))}</div>` : ''}
     <div class="pc-actions">
       <button class="btn sm primary" data-action="perm" data-id="${esc(st.id)}" data-v="once">${esc(t(p.reason === 'computer_use' ? 'perm_cu_allow' : 'perm_once'))}</button>
+      ${p.reason === 'computer_use' ? `<button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="cu-always">${esc(t('perm_cu_always'))}</button>` : ''}
       ${!danger ? `<button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="always">${esc(t(p.reason === 'folder' ? 'perm_always_folder' : p.project ? 'perm_always_project' : 'perm_always'))}</button>` : ''}
       <button class="btn sm" data-action="perm" data-id="${esc(st.id)}" data-v="deny">${esc(t('perm_deny'))}</button>
     </div></div>`;
@@ -291,7 +292,10 @@ Object.assign(actions, {
     const st = m && (m.steps || []).find((x) => x.id === id);
     if (!S.streaming) return;
     if (st) { st.status = 'running'; st.perm = null; }
-    api.chat.answer(S.streaming.reqId, id, el.dataset.v);
+    let v = el.dataset.v;
+    // "always let Fabro use the computer": no more question, in any conversation (Settings › Agent can undo it)
+    if (v === 'cu-always') { v = 'once'; saveSettings({ computer: { ...(S.settings.computer || {}), confirm: false } }); toast(t('perm_cu_always_done')); }
+    api.chat.answer(S.streaming.reqId, id, v);
     scheduleStreamRender();
   },
   'deps-install': async (el) => {

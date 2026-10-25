@@ -83,6 +83,15 @@ function onUser(m) {
   if (S.minimized) { S.minimized = false; showFabro(); }
   if (m.kind === 'esc' && S.root) { try { require('../chat').abort(S.root); } catch {} }
 }
+// Fabro shows a card (permission, question) in the middle of the work: the user moves the mouse to answer it,
+// which is not taking over. The watch is off while the card is open, and back on, clean, once answered.
+let holds = 0;
+async function hold(on) {
+  if (!S.active || !backend) return;
+  holds = Math.max(0, holds + (on ? 1 : -1));
+  if (on && holds === 1) { await backend.call('watch', { on: false }).catch(() => {}); showFabro(); }
+  if (!on && holds === 0) { S.paused = null; overlay.status(''); await backend.call('watch', { on: true }).catch(() => {}); }
+}
 function pausedError() {
   const how = S.paused === 'esc' ? 'pressed Esc' : S.paused === 'keyboard' ? 'used the keyboard' : 'moved the mouse';
   return err(`Stopped: the user ${how} and took back control of the computer. Do not use the computer tools again in this turn. Tell the user in one sentence where you stopped; they can ask you to continue.`, 'USER_CONTROL');
@@ -533,8 +542,11 @@ async function baseGuard(ctx, sensitiveName) {
   if (c.enabled === false) return { refuse: 'Computer Use is turned off in Settings › Agent.' };
   if (!supported()) return { refuse: 'Computer Use is not available on this system.' };
   if (ctx && ctx.unattended) return { refuse: 'Computer Use is not available in scheduled or background tasks: nobody would be there to watch or take over.' };
+  // asked once (per conversation, or never once "always" was chosen); after that Fabro works on its own —
+  // a click on "Send" or "Buy" is the AI's call, guided by the system prompt (ask the user first in chat)
+  void sensitiveName;
   const need = c.confirm !== false && !(ctx && ctx.grants && ctx.grants.has('computer'));
-  if (need || (sensitiveName && SENS.test(sensitiveName))) { showFabro(); return { confirm: need ? 'computer_use' : `« ${q(sensitiveName, 40)} »` }; }
+  if (need) { showFabro(); return { confirm: 'computer_use' }; }
   return null;
 }
 function grant(ctx) { if (ctx && ctx.lastConfirmed && ctx.grants) ctx.grants.add('computer'); }
@@ -690,7 +702,6 @@ agent.register({ ...common, name: 'computer_open_app',
     if (!a.name && !a.path_or_url) return { refuse: 'Give name or path_or_url.' };
     const g = await baseGuard(ctx);
     if (g && g.refuse) return g;
-    if (a.path_or_url && /\.(bat|cmd|ps1|vbs|js|msi|reg|sh|scr)$/i.test(a.path_or_url)) return { confirm: 'run_program' };
     return g;
   },
   async run(a, ctx) {
@@ -771,4 +782,4 @@ async function test() {
 function status() { return { supported: supported(), platform: process.platform, active: S.active, paused: S.paused, ready: !!hello }; }
 function shutdown() { finish(); if (backend) backend.kill(); backend = null; hello = null; paint.close(); overlay.destroy(); }
 
-module.exports = { init, turnEnded, test, status, shutdown, _internal: { buildMarks, compile, S, look, target, backend: () => backend } };
+module.exports = { init, turnEnded, hold, test, status, shutdown, _internal: { buildMarks, compile, S, look, target, backend: () => backend } };

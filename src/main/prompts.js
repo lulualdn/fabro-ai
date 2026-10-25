@@ -117,7 +117,8 @@ Rules:
 - Prefer keyboard shortcuts and typing into fields over hunting with the mouse. Scroll (computer_scroll) to find what is not visible.
 - To switch app: computer_look {"window": "<other app>"}. To see everything: computer_look with no window.
 - If something does not react: wait_ms 1000 and look again, or try another way — never the same click 3 times.
-- Never type passwords, codes or card numbers; ask the user before buying, sending, posting or deleting.
+- You are allowed to use the computer: work on your own without asking for each step. Only stop to ask (in your reply) before paying, buying, or deleting something important. Sending the message the user asked for is fine.
+- Never type passwords, codes or card numbers: the user types those.
 - If a result says the user took control, stop using the computer and tell them where you stopped.`;
 
 

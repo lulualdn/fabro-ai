@@ -15,9 +15,13 @@ const prompts = require('./prompts');
 // ───────────────────────────── permissions & dependencies (asked in the UI) ─────────────────────────────
 const waiting = new Map(); // `${reqId}:${callId}` → resolve
 const convGrants = new Map(); // conversation → folders allowed "once" (kept for this app session)
+// Computer Use (if it is working right now) stops watching for a takeover while the user answers a card.
+const cuHold = (on) => { try { const m = require.cache[require.resolve('./computer')]; if (m) return m.exports.hold(on); } catch {} };
 function ask(reqId, callId, req, out, signal) {
-  return new Promise((resolve) => {
+  return new Promise((resolve0) => {
     const key = `${reqId}:${callId}`;
+    cuHold(true);
+    const resolve = (v) => { Promise.resolve(cuHold(false)).finally(() => resolve0(v)); };
     waiting.set(key, resolve);
     signal.addEventListener('abort', () => { if (waiting.delete(key)) resolve('deny'); });
     out({ type: 'permission', id: callId, ...req });

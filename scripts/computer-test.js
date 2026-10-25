@@ -176,6 +176,17 @@ const srv = http.createServer((req, res) => {
   r = await run('computer_key', { keys: 'win+l' });
   assert.ok(r.refused, 'locking the session is refused');
 
+  // 11b. the user moving the mouse to answer a card (permission, question) is not a takeover
+  r = await run('computer_look', {});
+  await app.evaluate((_e, root) => process.mainModule.require(root + '/src/main/computer/index.js').hold(true), root);
+  require('child_process').execFileSync('python3', ['-c', 'import time\nfrom Xlib import display; from Xlib.ext import xtest; from Xlib import X; d=display.Display()\nfor i in range(12): xtest.fake_input(d, X.MotionNotify, x=200+i*30, y=200); d.sync(); time.sleep(0.02)']);
+  await app.evaluate((_e, root) => process.mainModule.require(root + '/src/main/computer/index.js').hold(false), root);
+  r = await run('computer_look', {});
+  assert.ok(!r.error, 'still working after the user answered a card: ' + r.error);
+  const ok2 = await at(860, 500);
+  r = await run('computer_click', { x: ok2.x, y: ok2.y });
+  assert.ok(!r.error, 'and still acting: ' + r.error);
+
   // 12. the user takes over: moving the mouse during an action stops Fabro
   const p1 = await at(100, 300), p2 = await at(500, 420);
   const slow = run('computer_actions', { actions: [{ action: 'move', x: p1.x, y: p1.y }, { action: 'wait', ms: 1500 }, { action: 'move', x: p2.x, y: p2.y }] });
@@ -186,6 +197,10 @@ const srv = http.createServer((req, res) => {
   assert.equal(r.code, 'USER_CONTROL', 'Fabro stops when the user moves the mouse');
   r = await run('computer_look', {});
   assert.equal(r.code, 'USER_CONTROL', 'and stays stopped for the rest of the turn');
+
+  // 12b. once allowed, nothing asks again (not even a "Send" button)
+  const g2 = await app.evaluate(async (_e, root) => process.mainModule.require(root + '/src/main/agent/index.js').get('computer_click').guard({ element: 1 }, { grants: new Set(['computer']) }), root);
+  assert.equal(g2, null, 'no more confirmation once Computer Use is allowed');
 
   // 13. a new conversation asks first
   const g = await app.evaluate(async ({ BrowserWindow }, root) => {
