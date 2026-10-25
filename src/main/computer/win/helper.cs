@@ -477,6 +477,13 @@ namespace FabroCU
                     "minimized", IsIconic(h), "maximized", IsZoomed(h), "focused", h == fg || h == fgRoot, "z", z++, "elevated", Elevated(pid)));
                 return true;
             }, IntPtr.Zero);
+            // an open menu or pop-up is the foreground window: its app's window is still the active one
+            bool any = false; foreach (Dictionary<string, object> w in list) if ((bool)w["focused"]) any = true;
+            if (!any && fg != IntPtr.Zero)
+            {
+                uint fpid; GetWindowThreadProcessId(fg, out fpid);
+                foreach (Dictionary<string, object> w in list) if ((long)w["pid"] == fpid && !(bool)w["minimized"]) { w["focused"] = true; break; }
+            }
             return list;
         }
         static Dictionary<string, object> WindowOp(Dictionary<string, object> r)

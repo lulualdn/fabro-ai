@@ -222,7 +222,7 @@ async function look(o = {}, ctx) {
   if (o.window != null && o.window !== '' || o.hwnd != null) {
     target = o.hwnd != null ? wins.find((w) => String(w.hwnd) === String(o.hwnd)) : findWindow(wins, o.window);
     if (!target && o.hwnd == null) throw noWindow(o.window, wins);
-    if (target) { target = await focusWindow(target); wins = await listWindows(); target = wins.find((w) => String(w.hwnd) === String(target.hwnd)) || target; }
+    if (target && !o.after) { target = await focusWindow(target); wins = await listWindows(); target = wins.find((w) => String(w.hwnd) === String(target.hwnd)) || target; }
   }
   const fg = target || wins.find((w) => w.focused && !w.minimized) || null;
   const mons = hello.monitors && hello.monitors.length ? hello.monitors : [{ x: 0, y: 0, w: hello.virtual[2], h: hello.virtual[3], primary: true, scale: 1 }];
