@@ -94,7 +94,8 @@ const ROLE = { edit: 'text field', listitem: 'list item', menuitem: 'menu item',
 const INTERACTIVE = new Set(['button', 'splitbutton', 'menuitem', 'hyperlink', 'checkbox', 'radiobutton', 'combobox', 'edit', 'listitem', 'treeitem', 'tabitem', 'dataitem', 'slider', 'spinner', 'headeritem']);
 function kindOf(e) {
   const acts = e.acts || [];
-  if (e.role === 'document') return acts.includes('edit') ? 'ui' : null;
+  // a document you can type in (Notepad, Word, a rich editor) is a target; a web page's document is not
+  if (e.role === 'document') return acts.includes('edit') || (e.focusable && !/^(data:|https?:|file:)/.test(String(e.value || ''))) ? 'ui' : null;
   if (INTERACTIVE.has(e.role)) return 'ui';
   if (acts.includes('invoke') || acts.includes('edit') || e.checked) return 'ui';
   if ((e.role === 'text' || e.role === 'image') && e.name && e.name.trim()) return 'text';
