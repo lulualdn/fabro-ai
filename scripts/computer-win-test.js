@@ -118,8 +118,9 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.error(e); process.exitCode = 1;
   } finally {
-    try { if (target) target.kill(); } catch {}
-    try { execFileSync('taskkill', ['/F', '/IM', 'notepad.exe'], { stdio: 'ignore' }); } catch {}
+    setTimeout(() => process.exit(process.exitCode || 0), 4000).unref();
+    try { if (target) execFileSync('taskkill', ['/F', '/T', '/PID', String(target.pid)], { stdio: 'ignore', timeout: 10000 }); } catch {}
+    try { execFileSync('taskkill', ['/F', '/IM', 'notepad.exe'], { stdio: 'ignore', timeout: 10000 }); } catch {}
     app.exit(process.exitCode || 0);
   }
 });

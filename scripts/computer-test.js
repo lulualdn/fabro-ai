@@ -96,7 +96,9 @@ const srv = http.createServer((req, res) => {
 
   // 1. look: a marked screenshot + OCR text
   let r;
-  for (let i = 0; i < 3; i++) { r = await run('computer_look', { wait_ms: i ? 1500 : 0 }); assert.ok(!r.error, r.error); if (/VALIDER/.test(r.content)) break; }
+  // (on slow machines Fabro's own window shows up late: keep only the app under test on screen)
+  const onlyTarget = () => app.evaluate(({ BrowserWindow }) => { for (const w of BrowserWindow.getAllWindows()) if (w !== global.__target && w.isVisible() && !/Computer Use/.test(w.getTitle())) w.hide(); global.__target.setAlwaysOnTop(true, 'screen-saver'); global.__target.show(); });
+  for (let i = 0; i < 4; i++) { await onlyTarget(); r = await run('computer_look', { wait_ms: i ? 1500 : 300 }); assert.ok(!r.error, r.error); if (/VALIDER/.test(r.content)) break; }
   console.log(r.content.split('\n').slice(0, 14).join('\n'));
   assert.ok(r.image && r.image.startsWith('data:image/jpeg'), 'screenshot returned');
   assert.match(r.content, /screenshot 1280×800 px \(real screen 1440×900\)/);
