@@ -553,7 +553,7 @@ namespace FabroCU
                 AutomationElement.IsOffscreenProperty, AutomationElement.HasKeyboardFocusProperty, AutomationElement.IsKeyboardFocusableProperty, AutomationElement.AutomationIdProperty,
                 AutomationElement.ClassNameProperty, AutomationElement.IsPasswordProperty, AutomationElement.HelpTextProperty, AutomationElement.ProcessIdProperty,
                 AutomationElement.IsInvokePatternAvailableProperty, AutomationElement.IsValuePatternAvailableProperty, AutomationElement.IsTogglePatternAvailableProperty,
-                AutomationElement.IsSelectionItemPatternAvailableProperty, AutomationElement.IsExpandCollapsePatternAvailableProperty };
+                AutomationElement.IsSelectionItemPatternAvailableProperty, AutomationElement.IsExpandCollapsePatternAvailableProperty, AutomationElement.IsTextPatternAvailableProperty };
             foreach (var p in props) req.Add(p);
             foreach (var p in valueProps) req.Add(p);
             return req;
@@ -613,6 +613,18 @@ namespace FabroCU
                 object sel = Cached(e, SelectionItemPattern.IsSelectedProperty); if (sel is bool && (bool)sel) d["selected"] = true;
             }
             object rv = Cached(e, RangeValuePattern.ValueProperty); if (rv is double) d["range"] = Math.Round((double)rv, 2);
+            // editors without a value (RichEdit, Word, code editors): read the start of their text
+            if (!d.ContainsKey("value") && !d.ContainsKey("password") && (d["role"] as string == "document" || d["role"] as string == "edit")
+                && Cached(e, AutomationElement.IsTextPatternAvailableProperty) is bool && (bool)Cached(e, AutomationElement.IsTextPatternAvailableProperty))
+            {
+                try
+                {
+                    var tp = e.GetCurrentPattern(TextPattern.Pattern) as TextPattern;
+                    if (tp != null) { string tx = tp.DocumentRange.GetText(300); if (!string.IsNullOrEmpty(tx)) d["value"] = tx.Length >= 300 ? tx.Substring(0, 297) + "..." : tx; }
+                    if (!acts.Contains("edit")) acts.Add("edit");
+                }
+                catch { }
+            }
             if (acts.Count > 0) d["acts"] = acts;
             d["depth"] = depth; d["parent"] = parent; d["win"] = win;
             return d;
