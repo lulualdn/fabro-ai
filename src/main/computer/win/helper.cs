@@ -588,6 +588,25 @@ namespace FabroCU
             object hs; if (r.TryGetValue("hwnds", out hs) && hs is IEnumerable)
                 foreach (object o in (IEnumerable)hs) roots.Add(new KeyValuePair<IntPtr, string>(new IntPtr(Convert.ToInt64(o)), "w" + Convert.ToInt64(o)));
             if (roots.Count == 0) { IntPtr fg = GetAncestor(GetForegroundWindow(), 3); if (fg != IntPtr.Zero) roots.Add(new KeyValuePair<IntPtr, string>(fg, "w" + fg.ToInt64())); }
+            // open menus, drop-down lists and pop-ups are separate windows of the same app
+            if (roots.Count > 0)
+            {
+                IntPtr main = roots[0].Key; uint mpid; GetWindowThreadProcessId(main, out mpid);
+                var pops = new List<IntPtr>();
+                EnumWindows(delegate (IntPtr h, IntPtr l)
+                {
+                    if (h == main || !IsWindowVisible(h) || pops.Count >= 3) return true;
+                    uint pid; GetWindowThreadProcessId(h, out pid);
+                    var cls = new StringBuilder(64); GetClassName(h, cls, 64);
+                    int style = GetWindowLong(h, -16), ex = GetWindowLong(h, -20);
+                    bool menu = cls.ToString() == "#32768";
+                    if (!menu && (pid != mpid || (style & unchecked((int)0x80000000)) == 0 || (ex & 0x8) == 0)) return true;
+                    int[] b = Bounds(h);
+                    if (b[2] < 8 || b[3] < 8 || (long)b[2] * b[3] > (long)GetSystemMetrics(78) * GetSystemMetrics(79) * 7 / 10) return true;
+                    pops.Add(h); return true;
+                }, IntPtr.Zero);
+                foreach (var h in pops) roots.Insert(0, new KeyValuePair<IntPtr, string>(h, "w" + h.ToInt64()));
+            }
             if (Bool(r, "taskbar")) { IntPtr tb = FindWindow("Shell_TrayWnd", null); if (tb != IntPtr.Zero) roots.Add(new KeyValuePair<IntPtr, string>(tb, "taskbar")); }
             var outList = new List<object>();
             var sw = Stopwatch.StartNew();

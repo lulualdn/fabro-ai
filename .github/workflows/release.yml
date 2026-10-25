@@ -41,6 +41,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Computer Use helper (macOS, universal)
+        if: runner.os == 'macOS'
+        run: bash scripts/build-mac-helper.sh
       - name: Build (publish on tag)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

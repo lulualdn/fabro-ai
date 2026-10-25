@@ -23,7 +23,7 @@ const DEFAULTS = { enabled: true, confirm: true, hideFabro: true, speed: 'natura
 const cs = () => ({ ...DEFAULTS, ...(store.getSettings().computer || {}) });
 const lang = () => { const s = store.getSettings().language; const l = s && s !== 'auto' ? s : (app.getPreferredSystemLanguages()[0] || 'en'); return String(l).slice(0, 2); };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const supported = () => process.platform === 'win32' || process.platform === 'linux';
+const supported = () => process.platform === 'win32' || process.platform === 'linux' || process.platform === 'darwin';
 const err = (msg, code) => Object.assign(new Error(msg), { code });
 
 let getMain = () => null;
@@ -33,8 +33,8 @@ const S = { active: false, root: null, paused: null, minimized: false, look: nul
 function init(o = {}) { if (o.getMain) getMain = o.getMain; }
 
 async function be(ctx) {
-  if (!supported()) throw err('Computer Use is available on Windows and Linux (X11) for now. macOS is coming.', 'CU_UNAVAILABLE');
-  if (!backend) backend = process.platform === 'win32' ? require('./win').create({ onUser }) : require('./linux').create({ onUser });
+  if (!supported()) throw err('Computer Use is not available on this system.', 'CU_UNAVAILABLE');
+  if (!backend) backend = require(process.platform === 'win32' ? './win' : process.platform === 'darwin' ? './mac' : './linux').create({ onUser });
   if (backend.setCtx) backend.setCtx(ctx);
   if (!hello) hello = await backend.call('hello', {}, 60000);
   return backend;
@@ -208,8 +208,8 @@ async function look(o = {}, ctx) {
   const seq = ++S.n;
   const shot = path.join(shotsDir(), `screen-${seq % 4}.png`);
   const [cap] = await overlay.aside(() => Promise.all([b.call('capture', { x: mon.x, y: mon.y, w: mon.w, h: mon.h, path: shot, cursor: false }, 20000)]));
-  const elsP = b.call('elements', { hwnds: fg ? [fg.hwnd] : [], taskbar: process.platform === 'win32', max: 1500, ms: 2200 }, 12000).catch((e) => ({ elements: [], error: e.message }));
-  const focP = process.platform === 'win32' ? b.call('focused', {}, 5000).catch(() => ({})) : Promise.resolve({});
+  const elsP = b.call('elements', { hwnds: fg ? [fg.hwnd] : [], taskbar: process.platform !== 'linux', max: 1500, ms: 2200 }, 12000).catch((e) => ({ elements: [], error: e.message }));
+  const focP = process.platform !== 'linux' ? b.call('focused', {}, 5000).catch(() => ({})) : Promise.resolve({});
   const img = nativeImage.createFromPath(shot);
   if (img.isEmpty()) throw err('The screenshot could not be read.', 'CU_CAPTURE');
   const W = Math.min(Math.max(640, +c.width || 1280), mon.w), scale = W / mon.w, H = Math.round(mon.h * scale);
@@ -221,9 +221,12 @@ async function look(o = {}, ctx) {
   const wantOcr = o.read_text === true || c.ocr === 'always' || (c.ocr !== 'off' && o.read_text !== false && fgNamed < 10);
   if (wantOcr) {
     try {
+      // OCR coordinates come back in the picture's pixels / k: the picture is made exactly k × the screen
+      // (Retina captures are already 2× the screen's points)
       const k = mon.w <= 1920 ? 2 : 1;
       let file = shot;
-      if (k > 1) { file = path.join(shotsDir(), `ocr-${seq % 2}.png`); fs.writeFileSync(file, img.resize({ width: mon.w * k, height: mon.h * k, quality: 'best' }).toPNG()); }
+      const sz = img.getSize();
+      if (sz.width !== mon.w * k || sz.height !== mon.h * k) { file = path.join(shotsDir(), `ocr-${seq % 2}.png`); fs.writeFileSync(file, img.resize({ width: mon.w * k, height: mon.h * k, quality: 'best' }).toPNG()); }
       ocrLines = (await b.ocr(file, k)).lines;
     } catch (e) { ocrNote = e.code === 'NO_OCR' || /tesseract|OCR language/i.test(e.message) ? e.message : `Text recognition failed: ${e.message}`; }
   }
@@ -261,7 +264,7 @@ async function look(o = {}, ctx) {
   for (const [g, ms] of groups) {
     if (!ms.length) continue;
     lines.push('');
-    lines.push(g === 'fg' ? `Elements${fg ? ` of "${q(fg.title, 50)}"` : ''} (click them by [id]):` : g === 'taskbar' ? 'Taskbar:' : 'Text read on screen (OCR, may contain small errors):');
+    lines.push(g === 'fg' ? `Elements${fg ? ` of "${q(fg.title, 50)}"` : ''} (click them by [id]):` : g === 'taskbar' ? (process.platform === 'darwin' ? 'Menu bar and Dock:' : 'Taskbar:') : 'Text read on screen (OCR, may contain small errors):');
     for (const m of ms) lines.push(markLine(m));
   }
   if (!marks.some((m) => !m.ocr && m.win !== 'taskbar')) {
@@ -365,7 +368,7 @@ function compile(actions, L, start) {
           steps.push({ t: 'down', b: 'left', ms: p.press }); steps.push({ t: 'up', b: 'left', ms: 120 });
           points.push({ x: t.x, y: t.y, img: t.img, at: steps.length });
         }
-        if (a.clear) { const c = keys.combo('ctrl+a'); steps.push(keys.down(c.mods[0], 10), keys.down(c.key, 25), keys.up(c.key, 10), keys.up(c.mods[0], 40)); const del = keys.key('delete'); steps.push(keys.down(del, 20), keys.up(del, 40)); }
+        if (a.clear) { const c = keys.combo('cmd+a'); /* cmd on the Mac, ctrl elsewhere */ steps.push(keys.down(c.mods[0], 10), keys.down(c.key, 25), keys.up(c.key, 10), keys.up(c.mods[0], 40)); const del = keys.key('delete'); steps.push(keys.down(del, 20), keys.up(del, 40)); }
         const text = String(a.text ?? '');
         steps.push({ t: 'text', s: text, ms: text.length > 300 ? 0 : p.char });
         if (a.enter || a.submit) { const e = keys.key('enter'); steps.push(keys.down(e, 30), keys.up(e, 30)); }
@@ -436,7 +439,7 @@ async function act(a, ctx, actions, { settle = 450, label } = {}) {
 
 // Clicks that land on Fabro itself are refused (the AI would be clicking its own chat).
 async function guardTargets(compiled) {
-  if (process.platform !== 'win32') return;
+  if (process.platform === 'linux') return;
   for (const p of compiled.points) {
     const info = await backend.call('point', { x: p.x, y: p.y }, 5000).catch(() => null);
     if (info && info.pid === process.pid && !overlay.isOwn(info.hwnd)) throw err('That point is on Fabro\'s own window. Minimize or move Fabro, or work in another window.', 'SELF_TARGET');
@@ -460,7 +463,7 @@ const SENS = agent.SENSITIVE;
 async function baseGuard(ctx, sensitiveName) {
   const c = cs();
   if (c.enabled === false) return { refuse: 'Computer Use is turned off in Settings › Agent.' };
-  if (!supported()) return { refuse: 'Computer Use is available on Windows and Linux for now.' };
+  if (!supported()) return { refuse: 'Computer Use is not available on this system.' };
   if (ctx && ctx.unattended) return { refuse: 'Computer Use is not available in scheduled or background tasks: nobody would be there to watch or take over.' };
   const need = c.confirm !== false && !(ctx && ctx.grants && ctx.grants.has('computer'));
   if (need || (sensitiveName && SENS.test(sensitiveName))) { showFabro(); return { confirm: need ? 'computer_use' : `« ${q(sensitiveName, 40)} »` }; }
@@ -501,9 +504,10 @@ agent.register({ ...common, name: 'computer_zoom',
     const file = path.join(shotsDir(), 'zoom.png');
     await overlay.aside(() => b.call('capture', { x: sx, y: sy, w: sw, h: sh, path: file, cursor: false }, 15000));
     const img = nativeImage.createFromPath(file);
-    const k = Math.max(1, Math.min(4, 1000 / Math.max(sw, sh)));           // physical px → zoom px
-    const big = img.resize({ width: Math.round(sw * k), height: Math.round(sh * k), quality: 'best' });
-    const kImg = k / L.scale;                                                // screenshot px → zoom px
+    const real = img.getSize();                                              // Retina: 2 pixels per point
+    const k = Math.max(0.5, Math.min(4, 1000 / Math.max(real.width, real.height)));
+    const big = img.resize({ width: Math.round(real.width * k), height: Math.round(real.height * k), quality: 'best' });
+    const kImg = big.getSize().width / w;                                    // screenshot px → zoom px
     const z = await paint.zoom('data:image/png;base64,' + big.toPNG().toString('base64'), { x: Math.round(ix), y: Math.round(iy), w: Math.round(w), h: Math.round(h), k: kImg });
     let text = '';
     if (cs().ocr !== 'off') {
@@ -549,7 +553,7 @@ agent.register({ ...common, name: 'computer_type',
     if (/^\d{13,19}$/.test(digits) && luhn(digits)) return { refuse: 'This looks like a payment card number. Ask the user to type it themselves.' };
     const m = S.look && a.element != null && S.look.marks.get(Number(a.element));
     if (m && m.password) return { refuse: 'That is a password field. Ask the user to type their password themselves.' };
-    if (!m && a.x == null && process.platform === 'win32' && backend) {
+    if (!m && a.x == null && process.platform !== 'linux' && backend) {
       const f = await backend.call('focused', {}, 4000).catch(() => null);
       if (f && f.element && f.element.password) return { refuse: 'The keyboard focus is in a password field. Ask the user to type their password themselves.' };
     }
@@ -562,7 +566,7 @@ agent.register({ ...common, name: 'computer_type',
     if (text.length > 600) {
       const prev = clipboard.readText();
       const pre = (a.element != null || a.x != null) ? [{ action: 'click', element: a.element, x: a.x, y: a.y }] : [];
-      if (a.clear) pre.push({ action: 'key', keys: 'ctrl+a' }, { action: 'key', keys: 'delete' });
+      if (a.clear) pre.push({ action: 'key', keys: 'cmd+a' }, { action: 'key', keys: 'delete' });
       clipboard.writeText(text);
       try { await act({ ...a, look: false }, ctx, [...pre, { action: 'key', keys: process.platform === 'darwin' ? 'cmd+v' : 'ctrl+v' }, ...(a.enter ? [{ action: 'key', keys: 'enter' }] : [])]); }
       finally { setTimeout(() => clipboard.writeText(prev), 600); }
@@ -610,7 +614,7 @@ agent.register({ ...common, name: 'computer_actions',
   async run(a, ctx) { grant(ctx); return act(a, ctx, a.actions, { settle: 450, label: `${a.actions.length} actions` }); } });
 
 agent.register({ ...common, name: 'computer_open_app',
-  description: 'Open an application by its name the way a person does (Start menu search on Windows), e.g. "Paint", "Bloc-notes", "Roblox Studio", "Excel". Or open a file, folder or web address with its default app (path_or_url). Returns the screen once it is open.',
+  description: 'Open an application by its name the way a person does (Start menu on Windows, Spotlight on macOS), e.g. "Paint", "Bloc-notes", "Roblox Studio", "Excel". Or open a file, folder or web address with its default app (path_or_url). Returns the screen once it is open.',
   parameters: { type: 'object', properties: { name: { type: 'string', description: 'The app name as shown in the Start menu.' }, path_or_url: { type: 'string' }, wait_ms: { type: 'integer', description: 'How long to wait for it to open (default 2.5 s).' } } },
   summarize: (a) => `Ouvrir ${a.name || a.path_or_url || ''}`,
   async guard(a, ctx) {
@@ -627,6 +631,14 @@ agent.register({ ...common, name: 'computer_open_app',
       const p = String(a.path_or_url);
       if (/^(https?|mailto|ms-settings|steam|roblox-studio|spotify):/i.test(p)) await shell.openExternal(p);
       else { const e = await shell.openPath(p); if (e) throw err(`Could not open ${p}: ${e}`, 'OPEN_FAILED'); }
+      await wait(Math.min(20000, a.wait_ms ?? 2500));
+    } else if (process.platform === 'darwin') {
+      // open -a finds the app by its name; Spotlight is the fallback, like a person would do
+      const ok = await new Promise((res) => require('child_process').execFile('open', ['-a', String(a.name)], (e) => res(!e)));
+      if (!ok) {
+        if (!S.look) await look({}, ctx);
+        await act({ look: false }, ctx, [{ action: 'key', keys: 'cmd+space' }, { action: 'wait', ms: 700 }, { action: 'type', text: String(a.name) }, { action: 'wait', ms: 1200 }, { action: 'key', keys: 'enter' }], { label: String(a.name) });
+      }
       await wait(Math.min(20000, a.wait_ms ?? 2500));
     } else if (process.platform === 'win32') {
       if (!S.look) await look({}, ctx);

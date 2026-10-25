@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, mac-computer-use]
   pull_request:
   workflow_dispatch:
 
@@ -111,7 +111,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -121,6 +121,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Computer Use (macOS)
+        if: runner.os == 'macOS'
+        timeout-minutes: 10
+        run: |
+          bash scripts/build-mac-helper.sh
+          # the runner has no one to click "Allow": grant Accessibility / Screen Recording / input to what runs the test
+          E="$PWD/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"; H="$PWD/build/mac/fabro-cu"
+          for db in "/Library/Application Support/com.apple.TCC/TCC.db" "$HOME/Library/Application Support/com.apple.TCC/TCC.db"; do
+            for svc in kTCCServiceAccessibility kTCCServiceScreenCapture kTCCServiceListenEvent kTCCServicePostEvent; do
+              for c in "$E" "$H" /bin/bash /usr/sbin/screencapture; do
+                sudo sqlite3 "$db" "INSERT OR REPLACE INTO access VALUES('$svc','$c',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$(date +%s),NULL,NULL,'UNUSED',$(date +%s));" 2>/dev/null || true
+              done
+            done
+          done
+          npx electron scripts/computer-mac-test.js computer-shots
       - name: Computer Use (Linux, X11)
         if: runner.os == 'Linux'
         run: |

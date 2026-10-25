@@ -81,7 +81,9 @@ function sequence(keys) {
 
 // Blocked: they lock the session or reach the secure desktop, which would cut the agent off.
 const BLOCKED = new Set(['win+l', 'ctrl+alt+delete', 'ctrl+alt+del', 'ctrl+alt+suppr', 'ctrl+shift+esc+', 'win+ctrl+shift+b']);
-const isBlocked = (c) => BLOCKED.has(c.label) || (c.key.name === 'l' && c.mods.some((m) => m.vk === 0x5B)) || (['delete', 'del', 'suppr'].includes(c.key.name) && c.mods.some((m) => m.vk === 0x11) && c.mods.some((m) => m.vk === 0x12));
+// macOS: ctrl+cmd+q locks the screen, shift+cmd+q logs out
+const macBlocked = (c) => isMac && c.key.name === 'q' && c.mods.some((m) => m.vk === 0x5B) && c.mods.some((m) => m.vk === 0x11 || m.vk === 0x10);
+const isBlocked = (c) => macBlocked(c) || BLOCKED.has(c.label) || (c.key.name === 'l' && c.mods.some((m) => m.vk === 0x5B)) || (['delete', 'del', 'suppr'].includes(c.key.name) && c.mods.some((m) => m.vk === 0x11) && c.mods.some((m) => m.vk === 0x12));
 
 const down = (k, ms = 0) => ({ t: 'kd', vk: k.vk, ext: !!k.ext, ch: k.ch, ks: k.ks, ms });
 const up = (k, ms = 0) => ({ t: 'ku', vk: k.vk, ext: !!k.ext, ch: k.ch, ks: k.ks, ms });

@@ -4,3 +4,4 @@ dist/
 *.log
 installer/target/
 .netlify/
+build/mac/

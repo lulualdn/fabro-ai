@@ -15,7 +15,7 @@ function computerSection() {
   const c = S.settings.computer || {};
   const sel = (key, val, opts) => `<select class="input" data-input="computer.${key}" ${key === 'width' ? 'data-type="int"' : ''}>${opts.map(([v, l]) => `<option value="${v}" ${String(val) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   const plat = S.info && S.info.platform;
-  const ok = plat === 'win32' || plat === 'linux';
+  const ok = plat === 'win32' || plat === 'linux' || plat === 'darwin';
   const tr = S.cuTest;
   return `
     <div class="st-sec">${esc(t('cuTitle'))}</div>

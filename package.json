@@ -95,7 +95,13 @@
         }
       ],
       "category": "public.app-category.productivity",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "extraResources": [
+        {
+          "from": "build/mac/fabro-cu",
+          "to": "fabro-cu"
+        }
+      ]
     },
     "linux": {
       "target": [

@@ -81,13 +81,15 @@ module.exports = {
   },
   // Linux has no capture exclusion: step aside while the screen is captured
   async aside(fn) {
-    const hide = win && !win.isDestroyed() && win.isVisible() && process.platform !== 'win32' && process.platform !== 'darwin';
+    // (recent macOS versions capture "protected" windows too)
+    const hide = win && !win.isDestroyed() && win.isVisible() && process.platform !== 'win32';
     if (hide) { win.hide(); await new Promise((r) => setTimeout(r, 90)); }
     try { return await fn(); } finally { if (hide && win && !win.isDestroyed()) win.showInactive(); }
   },
   hide() { if (win && !win.isDestroyed()) win.hide(); },
   destroy() { if (win && !win.isDestroyed()) win.destroy(); win = null; },
   isOwn(hwnd) {
+    if (process.platform === 'darwin') { try { return !!win && !win.isDestroyed() && String(win.getMediaSourceId().split(':')[1]) === String(hwnd); } catch { return false; } }
     try { const h = win && !win.isDestroyed() && win.getNativeWindowHandle(); return !!h && String(h.length >= 8 ? h.readBigUInt64LE(0) : h.readUInt32LE(0)) === String(hwnd); } catch { return false; }
   },
 };

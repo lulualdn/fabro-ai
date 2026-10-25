@@ -104,6 +104,17 @@ app.whenReady().then(async () => {
     save(r, '3-notepad.jpg');
     assert.match(r.content, /Fabro Computer Use/, 'Notepad’s text is read back through UI Automation');
 
+    // 8b. a context menu is its own window: its items are read too
+    const doc = marks().find((m) => m.role === 'edit' || m.role === 'document');
+    r = await run('computer_click', doc ? { element: doc.id, button: 'right' } : { x: 300, y: 300, button: 'right' });
+    const all = marks().find((m) => m.role === 'menuitem' && /select all|tout s/i.test(m.name || ''));
+    console.log('context menu items:', marks().filter((m) => m.role === 'menuitem').map((m) => m.name).join(' | '));
+    assert.ok(all, 'the context menu items are found');
+    r = await run('computer_click', { element: all.id });
+    r = await run('computer_type', { text: 'Remplacé' });
+    assert.match(r.content, /= "Remplacé"/, 'Select All from the menu, then typing replaced the text');
+    save(r, '3b-menu.jpg');
+
     // 9. the OCR built into Windows (the runner may have no OCR language: then it says so)
     r = await run('computer_look', { read_text: true });
     console.log('OCR:', /Text read on screen/.test(r.content) ? 'ok' : (r.content.match(/\(.*(OCR|recognition).*\)/) || ['unavailable'])[0]);
