@@ -1,6 +1,6 @@
 {
   "name": "fabro",
-  "version": "0.1.43",
+  "version": "0.1.44",
   "description": "Lift off, locally.",
   "main": "src/main/main.js",
   "scripts": {
