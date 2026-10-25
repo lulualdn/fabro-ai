@@ -46,6 +46,8 @@ namespace FabroCU
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern short VkKeyScan(char ch);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+        [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+        [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
         [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
         [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
         [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr h);
@@ -485,10 +487,23 @@ namespace FabroCU
             {
                 case "focus":
                     if (IsIconic(h)) ShowWindow(h, 9);
-                    // Windows only lets the foreground app give focus away: a tap of Alt unlocks it.
-                    Key(0x12, false, false); Key(0x12, false, true);
-                    SetForegroundWindow(h);
+                    if (GetAncestor(GetForegroundWindow(), 3) == GetAncestor(h, 3)) break;
+                    // Windows only lets the foreground app give the focus away: borrow its input queue.
+                    {
+                        uint pidDummy; IntPtr fgw = GetForegroundWindow();
+                        uint fgThread = fgw == IntPtr.Zero ? 0 : GetWindowThreadProcessId(fgw, out pidDummy), me = GetCurrentThreadId();
+                        bool attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
+                        BringWindowToTop(h); SetForegroundWindow(h);
+                        if (attached) AttachThreadInput(me, fgThread, false);
+                    }
                     Thread.Sleep(80);
+                    if (GetAncestor(GetForegroundWindow(), 3) != GetAncestor(h, 3))
+                    {
+                        // Alt held with an unused key in between: unlocks the focus without opening the app's menu bar
+                        // (a bare Alt tap would, and the next letters typed would become menu commands)
+                        Key(0x12, false, false); Key(0x07, false, false); Key(0x07, false, true); Key(0x12, false, true);
+                        SetForegroundWindow(h); Thread.Sleep(80);
+                    }
                     if (GetAncestor(GetForegroundWindow(), 3) != GetAncestor(h, 3)) { ShowWindow(h, 6); ShowWindow(h, 9); SetForegroundWindow(h); Thread.Sleep(80); }
                     break;
                 case "minimize": ShowWindow(h, 6); break;
