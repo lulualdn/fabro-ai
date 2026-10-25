@@ -112,7 +112,6 @@ app.whenReady().then(async () => {
     assert.match(r.content, /Fabro Computer Use/, 'Notepad’s text is read back through UI Automation');
 
     // 8b. a context menu is its own window: its items are read too
-    console.log('notepad marks:', JSON.stringify(marks().map((m) => [m.id, m.role, m.name, m.ir, m.focusable, m.acts])));
     const doc = marks().filter((m) => m.role === 'edit' || m.role === 'document').sort((a, b) => b.ir[2] * b.ir[3] - a.ir[2] * a.ir[3])[0]; // the text area: the biggest field
     r = await run('computer_click', doc ? { element: doc.id, button: 'right' } : { x: 300, y: 300, button: 'right' });
     const all = marks().find((m) => m.role === 'menuitem' && /select all|tout s/i.test(m.name || ''));

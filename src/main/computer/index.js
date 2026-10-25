@@ -117,7 +117,8 @@ function buildMarks(raw, mon, scale, ocrLines, max) {
     if (!e.rect || e.offscreen) return;
     const k = kindOf(e); if (!k) return;
     const r = clip(e.rect, mon); if (!r) return;
-    if (r[2] * r[3] > mon.w * mon.h * 0.85) return;
+    // giant containers are noise, but the text area of an editor can fill the whole window
+    if (r[2] * r[3] > mon.w * mon.h * 0.85 && e.role !== 'document' && e.role !== 'edit') return;
     kept.set(i, { ...e, kind: k, sr: r, i });
   });
   // a text inside a control names the control (unnamed buttons, list items…) and is not marked twice
