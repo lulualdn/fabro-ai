@@ -108,7 +108,8 @@ app.whenReady().then(async () => {
     const doc = marks().find((m) => m.role === 'edit' || m.role === 'document');
     r = await run('computer_click', doc ? { element: doc.id, button: 'right' } : { x: 300, y: 300, button: 'right' });
     const all = marks().find((m) => m.role === 'menuitem' && /select all|tout s/i.test(m.name || ''));
-    console.log('context menu items:', marks().filter((m) => m.role === 'menuitem').map((m) => m.name).join(' | '));
+    console.log('context menu items:', marks().filter((m) => m.role === 'menuitem').map((m) => `${m.name}@${m.cx},${m.cy}[${m.win}]`).join(' | '));
+    console.log('after right-click:', r.content.split('\n').slice(0, 8).join(' / '));
     assert.ok(all, 'the context menu items are found');
     r = await run('computer_click', { element: all.id });
     console.log('after Select All:', r.error || r.content.split('\n').slice(0, 12).join(' / '));
