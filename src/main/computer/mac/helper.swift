@@ -429,6 +429,7 @@ func describe(_ e: AXUIElement, depth: Int, parent: Int, win: String) -> ([Strin
     let value = a[4]
     if name.isEmpty && (r == "text") { name = value as? String ?? "" }
     if name.isEmpty, let ph = a[12] as? String { name = ph }
+    if name.isEmpty { name = ["AXCloseButton": "Close", "AXMinimizeButton": "Minimize", "AXZoomButton": "Zoom", "AXFullScreenButton": "Full screen"][sub] ?? "" }
     if name.count > 160 { name = String(name.prefix(157)) + "..." }
     d["name"] = name
     if let p = a[5], let s = a[6] {
@@ -442,7 +443,8 @@ func describe(_ e: AXUIElement, depth: Int, parent: Int, win: String) -> ([Strin
     if let id = a[10] as? String, !id.isEmpty, id.count < 80 { d["aid"] = id }
     if let h = a[11] as? String, !h.isEmpty { d["help"] = h.count > 120 ? String(h.prefix(117)) + "..." : h }
     if (a[13] as? Bool) == true { d["selected"] = true }
-    if let ex = a[14] as? Bool { d["expanded"] = ex }
+    // Chromium reports "collapsed" on everything: only where it means something
+    if let ex = a[14] as? Bool, ["AXComboBox", "AXPopUpButton", "AXDisclosureTriangle", "AXRow", "AXOutlineRow"].contains(role) { d["expanded"] = ex }
     var acts: [String] = []
     if r == "edit" || r == "combobox" && role == "AXComboBox" { acts.append("edit"); if d["password"] == nil, let v = value as? String, !v.isEmpty { d["value"] = v.count > 200 ? String(v.prefix(197)) + "..." : v } }
     if ["button", "hyperlink", "menuitem", "checkbox", "radiobutton", "tabitem", "combobox"].contains(r) { acts.append("invoke") }

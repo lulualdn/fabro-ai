@@ -111,6 +111,8 @@ app.whenReady().then(async () => {
     console.log('context menu items:', marks().filter((m) => m.role === 'menuitem').map((m) => m.name).join(' | '));
     assert.ok(all, 'the context menu items are found');
     r = await run('computer_click', { element: all.id });
+    console.log('after Select All:', r.error || r.content.split('\n').slice(0, 12).join(' / '));
+    save(r, '3b-after-select-all.jpg');
     r = await run('computer_type', { text: 'Remplacé' });
     assert.match(r.content, /= "Remplacé"/, 'Select All from the menu, then typing replaced the text');
     save(r, '3b-menu.jpg');
