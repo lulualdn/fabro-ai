@@ -615,7 +615,8 @@ namespace FabroCU
                     var cls = new StringBuilder(64); GetClassName(h, cls, 64);
                     int style = GetWindowLong(h, -16), ex = GetWindowLong(h, -20);
                     bool menu = cls.ToString() == "#32768";
-                    if (!menu && (pid != mpid || (style & unchecked((int)0x80000000)) == 0 || (ex & 0x8) == 0)) return true;
+                    // a menu anywhere, or any pop-up / tool window of the same app (XAML and Chromium menus are those)
+                    if (!menu && (pid != mpid || ((style & unchecked((int)0x80000000)) == 0 && (ex & 0x80) == 0) || GetAncestor(h, 3) == main)) return true;
                     int[] b = Bounds(h);
                     if (b[2] < 8 || b[3] < 8 || (long)b[2] * b[3] > (long)GetSystemMetrics(78) * GetSystemMetrics(79) * 7 / 10) return true;
                     pops.Add(h); return true;
