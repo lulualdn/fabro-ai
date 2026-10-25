@@ -173,6 +173,8 @@ function markLine(m) {
   if (m.enabled === false) bits.push('(disabled)');
   if (m.help && !norm(m.name)) bits.push(`hint "${q(m.help, 50)}"`);
   bits.push(`(${m.cx},${m.cy})`);
+  // big areas (the text of a document, a canvas, a list) say their size: easier to tell from small fields
+  if (m.ir[2] * m.ir[3] > 40000) bits.push(`size ${m.ir[2]}×${m.ir[3]}`);
   return bits.join(' ');
 }
 
