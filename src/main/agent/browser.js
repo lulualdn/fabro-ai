@@ -312,7 +312,11 @@ agent.register({ ...common, name: 'browser_type', risk: 'net', categoryCore: tru
     const i = await elementInfo(a.id); if (!i) throw new Error('Element not found');
     await clickAt(Math.round(i.x), Math.round(i.y));
     if (!a.append) await wc.executeJavaScript(`(() => { const el = document.querySelector('[data-fabro-id="${Number(a.id)}"]'); if (!el) return; if ('value' in el) { el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); } else if (el.isContentEditable) el.textContent = ''; })()`);
+    wc.focus();
     await wc.insertText(String(a.text));
+    // the page may not have had the keyboard focus (panel hidden, another window active): check, else set it
+    await wc.executeJavaScript(`(() => { const el = document.querySelector('[data-fabro-id="${Number(a.id)}"]'); if (!el || !('value' in el)) return; const want = ${JSON.stringify(String(a.text))};
+      if (!String(el.value).includes(want)) { const set = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value'); (set && set.set ? set.set.call(el, ${a.append ? 'el.value + want' : 'want'}) : (el.value = ${a.append ? 'el.value + want' : 'want'})); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); } })()`).catch(() => {});
     if (a.submit) { pressKey('Enter'); await settle(wc, 15000); }
     else await wait(200);
     const r = await read(); r.view = { ...r.view, kind: 'type', label: i.label }; return r;
