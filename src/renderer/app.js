@@ -800,19 +800,22 @@ function renderViewer() {
 // ───────────────────────────── Popover (model menu) ─────────────────────────────
 function closePopover() { $('#popover-root').innerHTML = ''; }
 
-// A menu that opens above its button, kept inside the screen: on a phone it takes the full width, and its height
-// is what fits above the button (it scrolls inside).
-function popPlace(r) {
-  const vw = innerWidth, w = Math.min(360, vw - 16);
-  const narrow = vw < 600;
-  const right = narrow ? 8 : Math.min(Math.max(8, vw - r.right), vw - w - 8);
-  const left = narrow ? 8 : null;
-  const maxH = Math.max(160, Math.min(innerHeight * 0.6, r.top - 16));
-  return `${left != null ? `left:${left}px;` : ''}right:${right}px; bottom:${innerHeight - r.top + 8}px; max-height:${maxH}px; ${narrow ? 'max-width:none; min-width:0;' : ''}`;
+// A menu anchored to a button, always inside the screen: it opens on the side with more room (above or
+// below) and is never taller than that room — it scrolls inside. On a phone it's a sheet at the bottom.
+function popPlace(r, { width = 360 } = {}) {
+  const vw = innerWidth, vh = innerHeight, m = 8;
+  if (vw < 600) return { css: `left:${m}px; right:${m}px; bottom:calc(${m}px + env(safe-area-inset-bottom, 0px)); top:auto; max-width:none; min-width:0; max-height:${Math.round(vh * 0.72)}px;`, sheet: true };
+  const w = Math.min(width, vw - m * 2);
+  const above = r.top - m * 2, below = vh - r.bottom - m * 2;
+  const up = above >= below;
+  const maxH = Math.max(140, Math.min(vh * 0.7, up ? above : below));
+  const right = Math.min(Math.max(m, vw - r.right), vw - w - m);
+  return { css: `right:${right}px; ${up ? `bottom:${vh - r.top + 6}px` : `top:${r.bottom + 6}px`}; max-height:${Math.round(maxH)}px;`, sheet: false };
 }
 function openModelMenu(anchor) {
   const list = allModels();
   const r = anchor.getBoundingClientRect();
+  const pp = popPlace(r);
   const local = list.filter((m) => m.src === 'local');
   const groups = {}; list.filter((m) => m.src !== 'local').forEach((m) => { (groups[m.src] ||= { name: m.provider, items: [] }).items.push(m); });
   const mods = (window.modChatModels ? window.modChatModels() : []); // Claude / ChatGPT / Gemini when connected
@@ -824,15 +827,33 @@ function openModelMenu(anchor) {
       <span class="pm-text"><b>${esc(m.label)}</b><small>${esc(m.sub || '')}</small></span>
       ${sameRef(ref, S.settings.selectedModel) ? icon('check', 16) : ''}</button>`; };
   $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
-    <div class="popover models-pop" style="${popPlace(r)}">
+    <div class="popover models-pop ${pp.sheet ? 'sheet' : ''}" style="${pp.css}">
+      ${list.length + mods.length > 6 ? `<div class="pm-find">${icon('search', 15)}<input id="pm-q" type="search" placeholder="${esc(t('searchModels'))}" autocomplete="off" spellcheck="false"></div>` : ''}
+      <div class="pm-list">
       ${local.length ? `<div class="pm-sec">${esc(t('builtInModels'))}</div>${local.map(item).join('')}` : ''}
       ${Object.values(groups).map((g) => `<div class="pm-sec">${esc(g.name)}</div>${g.items.map(item).join('')}`).join('')}
       ${mods.length ? `<div class="pm-sec">${esc(t('mods_web'))}</div>${mods.map(modItem).join('')}` : ''}
       ${!list.length && !mods.length ? `<div class="pm-empty">${esc(t('noModelsYet'))}</div>` : ''}
+      <div class="pm-empty pm-none" hidden>${esc(t('noMatch'))}</div>
+      </div>
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="providers">${icon('cloud', 16)}<span class="pm-text"><b>${esc(t('tab_providers'))}</b></span></button>
     </div>`;
+  const pop = $('#popover-root .models-pop');
+  // the current model in view, the search filters as you type (names, providers)
+  const sel = pop.querySelector('.pm-item.sel'); if (sel) sel.scrollIntoView({ block: 'nearest' });
+  const q = pop.querySelector('#pm-q');
+  if (q) {
+    if (matchMedia('(pointer: fine)').matches) setTimeout(() => q.focus(), 30);
+    q.addEventListener('input', () => {
+      const v = q.value.trim().toLowerCase(); let any = false;
+      for (const it of pop.querySelectorAll('.pm-list .pm-item')) { const hit = !v || it.textContent.toLowerCase().includes(v); it.hidden = !hit; any = any || hit; }
+      for (const h of pop.querySelectorAll('.pm-list .pm-sec')) { let n = h.nextElementSibling, vis = false; while (n && !n.classList.contains('pm-sec')) { if (n.classList.contains('pm-item') && !n.hidden) vis = true; n = n.nextElementSibling; } h.hidden = !vis; }
+      pop.querySelector('.pm-none').hidden = any;
+    });
+    q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const f = [...pop.querySelectorAll('.pm-list .pm-item')].find((x) => !x.hidden); if (f) f.click(); } });
+  }
 }
 
 // ───────────────────────────── Settings overlay ─────────────────────────────

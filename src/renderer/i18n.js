@@ -662,3 +662,7 @@ Object.assign(I18N.en, { disclaimerCloud: 'Computer away — Fabro Cloud answers
 Object.assign(I18N.fr, { disclaimerCloud: 'Ordinateur absent — Fabro Cloud répond, synchronisé à son retour. L’IA peut se tromper.' });
 Object.assign(I18N.es, { disclaimerCloud: 'Ordenador ausente — responde Fabro Cloud, se sincroniza a su vuelta. La IA puede equivocarse.' });
 Object.assign(I18N.de, { disclaimerCloud: 'Computer nicht da — Fabro Cloud antwortet, wird später synchronisiert. KI kann sich irren.' });
+Object.assign(I18N.en, { searchModels: 'Search a model', noMatch: 'No model matches' });
+Object.assign(I18N.fr, { searchModels: 'Chercher un modèle', noMatch: 'Aucun modèle ne correspond' });
+Object.assign(I18N.es, { searchModels: 'Buscar un modelo', noMatch: 'Ningún modelo coincide' });
+Object.assign(I18N.de, { searchModels: 'Modell suchen', noMatch: 'Kein passendes Modell' });
