@@ -654,3 +654,11 @@ Object.assign(I18N.de, {
   free_title: 'Fabro Cloud — kostenlos', free_hint: 'Kostenlose Online-Modelle, ohne Konto und ohne Schlüssel.', free_hintLow: 'Dieser Computer ist schwach: Fabro Cloud antwortet schnell und kostenlos, ohne Konto.',
   lightMode: 'Leichter Modus', lightModeHint: 'Weniger visuelle Effekte für eine flüssigere App auf schwächeren Computern.', lightModeHintLow: 'Auf diesem Computer standardmäßig an.',
 });
+Object.assign(I18N.en, { remotePair: 'Pair a computer', remotePairHint: 'Use the models and tools of your own computer' });
+Object.assign(I18N.fr, { remotePair: 'Associer un ordinateur', remotePairHint: 'Utiliser les modèles et outils de ton ordinateur' });
+Object.assign(I18N.es, { remotePair: 'Vincular un ordenador', remotePairHint: 'Usa los modelos y herramientas de tu ordenador' });
+Object.assign(I18N.de, { remotePair: 'Computer koppeln', remotePairHint: 'Nutze die Modelle und Werkzeuge deines Computers' });
+Object.assign(I18N.en, { disclaimerCloud: 'Computer away — Fabro Cloud answers, synced when it’s back. AI can make mistakes.' });
+Object.assign(I18N.fr, { disclaimerCloud: 'Ordinateur absent — Fabro Cloud répond, synchronisé à son retour. L’IA peut se tromper.' });
+Object.assign(I18N.es, { disclaimerCloud: 'Ordenador ausente — responde Fabro Cloud, se sincroniza a su vuelta. La IA puede equivocarse.' });
+Object.assign(I18N.de, { disclaimerCloud: 'Computer nicht da — Fabro Cloud antwortet, wird später synchronisiert. KI kann sich irren.' });

@@ -682,3 +682,4 @@ body:not(.full-loading) .full-load { display: none; }
 [data-device="desktop"] .hw-lantern { width: 84px; }
 [data-device="desktop"] .hw-pumpkin { position: fixed; right: 56px; bottom: 34px; width: 170px; }
 @media (max-width: 1180px) { [data-device="desktop"] .hw-lamp { left: calc(292px + 2vw); } [data-device="desktop"] .hw-pumpkin { right: 28px; bottom: 24px; width: 130px; } }
+

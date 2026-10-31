@@ -1,2 +1,10 @@
 // Applied before the first paint (no flash): saved theme, else the system's. Halloween is a skin over dark.
 (function () { var t = null; try { t = JSON.parse(localStorage.getItem('fa-theme') || 'null'); } catch (e) {} var d = t ? t === 'dark' || t === 'halloween' : matchMedia('(prefers-color-scheme: dark)').matches; var r = document.documentElement; r.dataset.theme = d ? 'dark' : 'light'; var n = new Date(), sp = (n.getMonth() === 9 && n.getDate() >= 15) || (n.getMonth() === 10 && n.getDate() <= 3); if (t === 'halloween' && sp) r.dataset.skin = 'halloween'; })();
+
+// The loading screen (in index.html): shown at start and while the interface loads, hidden once it's there.
+window.FASplash = {
+  show: function (text) { var el = document.getElementById('splash'); if (!el) return; el.classList.remove('gone'); var tx = el.querySelector('.sp-text'); if (tx) tx.textContent = text || ''; clearTimeout(this._t); var self = this; this._t = setTimeout(function () { self.hide(); }, 20000); },
+  text: function (text) { var el = document.querySelector('#splash .sp-text'); if (el) el.textContent = text || ''; },
+  hide: function () { var el = document.getElementById('splash'); if (el) el.classList.add('gone'); clearTimeout(this._t); },
+};
+setTimeout(function () { window.FASplash.hide(); }, 20000);

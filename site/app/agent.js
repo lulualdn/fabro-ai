@@ -233,14 +233,25 @@
   }
 
   // history (the conversation's path) → reply, with tool rounds. onEvent mirrors the computer's run events.
-  async function run({ history, model, agent, lang, engine, signal, onEvent }) {
+  // history: the conversation path (phone app), or messages: OpenAI-format messages already built (the computer's
+  // interface, its own system prompt included). allTools: every tool while only the prompt says agent or not.
+  async function run({ history, messages, model, agent, allTools, lang, engine, signal, onEvent }) {
     const local = !!engine;
     const online = navigator.onLine !== false;
-    let tools = agent ? AGENT_TOOLS : CHAT_TOOLS;
+    let tools = agent || allTools ? AGENT_TOOLS : CHAT_TOOLS;
     if (!online) tools = tools.filter((n) => OFFLINE_TOOLS.includes(n));
     if (local && !agent) tools = tools.filter((n) => n !== 'fetch_url'); // keep small models focused
     if (!local) { const m = POOL.find((x) => x.id === model); if (m && m.tools === false) tools = []; }
+    const loop = (m, tl, nv) => loopImpl(m, tl, nv, { model, agent, allTools, engine, signal, onEvent });
     let needVision = false;
+    if (messages) {
+      const sys = system({ agent, lang, date: new Date().toLocaleDateString(lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), tools, local });
+      const out = messages.map((m) => ({ ...m }));
+      if (out[0] && out[0].role === 'system') out[0].content = String(out[0].content || '') + '\n\n# On the phone, without the computer\n' + sys; else out.unshift({ role: 'system', content: sys });
+      needVision = out.some((m) => Array.isArray(m.content) && m.content.some((x) => x.type === 'image_url'));
+      if (local) for (const m of out) if (Array.isArray(m.content)) m.content = m.content.filter((x) => x.type === 'text').map((x) => x.text).join('\n');
+      return loop(out, tools, needVision);
+    }
     const msgs = [{ role: 'system', content: system({ agent, lang, date: new Date().toLocaleDateString(lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), tools, local }) }];
     for (const n of history) {
       if (n.pending || (!(n.content || '').trim() && !(n.attachments || []).length)) continue;
@@ -248,7 +259,11 @@
       if (n.role === 'user' && imgs.length && !local) { needVision = true; msgs.push({ role: 'user', content: [{ type: 'text', text: n.content || ' ' }, ...imgs.map((a) => ({ type: 'image_url', image_url: { url: a.data } }))] }); }
       else msgs.push({ role: n.role === 'assistant' ? 'assistant' : 'user', content: n.content });
     }
-    const maxRounds = agent ? 14 : 5; let used = model;
+    return loop(msgs, tools, needVision);
+  }
+  async function loopImpl(msgs, tools, needVision, { model, agent, allTools, engine, signal, onEvent }) {
+    const local = !!engine;
+    const maxRounds = agent || allTools ? 14 : 5; let used = model;
     for (let round = 0; round < maxRounds; round++) {
       const turn = local ? await localTurn(engine, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }))
         : await cloudTurn(model, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }), needVision);

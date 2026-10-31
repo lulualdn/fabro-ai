@@ -83,46 +83,11 @@ function remember(dev, p) {
 // ───────────────────────────── the interface itself ─────────────────────────────
 // index.html + every script and stylesheet it loads, plus the shape of window.api (from preload.js).
 let bundleCache = null;
-function apiMap() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8');
-  let exposed = null;
-  const stub = {
-    require: (m) => (m === 'electron' ? {
-      contextBridge: { exposeInMainWorld: (_n, obj) => { exposed = obj; } },
-      ipcRenderer: { invoke: (ch) => ({ __ch: ch }), on: () => {}, removeListener: () => {} },
-      webUtils: { getPathForFile: () => '' },
-    } : {}),
-  };
-  vm.runInNewContext(src, stub, { timeout: 1000 });
-  const map = {};
-  const walk = (o, pre) => {
-    for (const [k, v] of Object.entries(o || {})) {
-      const key = pre ? pre + '.' + k : k;
-      if (typeof v === 'function') {
-        if (k === 'on') { map[key] = '#on'; continue; }
-        let r; try { r = v(); } catch { r = null; }
-        map[key] = r && r.__ch ? r.__ch : '#local:' + k;
-      } else if (v && typeof v === 'object') walk(v, key);
-    }
-  };
-  walk(exposed, '');
-  const allowed = (src.match(/const allowed = (\[[^\]]*\])/) || [])[1];
-  return { map, events: allowed ? JSON.parse(allowed.replace(/'/g, '"')) : [] };
-}
+const uiBundle = require('./ui-bundle');
+const apiMap = uiBundle.apiMap;
 function bundle() {
   if (bundleCache && app.isPackaged) return bundleCache;
-  const html = fs.readFileSync(path.join(RENDERER, 'index.html'), 'utf8');
-  const files = [];
-  for (const m of html.matchAll(/<(script|link)\b[^>]*?(?:src|href)="([^"]+)"[^>]*>/g)) {
-    const kind = m[1] === 'script' ? 'js' : 'css';
-    if (kind === 'css' && !/rel="stylesheet"/.test(m[0])) continue;
-    const file = path.resolve(RENDERER, m[2]);
-    files.push({ src: m[2], kind, text: fs.readFileSync(file, 'utf8') });
-  }
-  const body = (html.match(/<body[^>]*>([\s\S]*)<\/body>/) || [])[1].replace(/<script\b[^>]*><\/script>\s*/g, '').trim();
-  const { map, events } = apiMap();
-  const hash = crypto.createHash('sha256').update(JSON.stringify([body, files.map((f) => f.text), map])).digest('hex').slice(0, 16);
-  bundleCache = { v: `${app.getVersion()}-${hash}`, body, files, api: map, events };
+  bundleCache = uiBundle.build(app.getVersion());
   return bundleCache;
 }
 

@@ -332,6 +332,20 @@ function buildApp() {
   walk(src);
   copy(path.join(ROOT, 'src', 'anywhere', 'core.js'), path.join(out, 'core.js'));
   copy(path.join(ROOT, 'src', 'main', 'langdetect.js'), path.join(out, 'langdetect.js')); // sentence language for the phone's voices
+  // the computer's own interface, so the phone shows exactly the same UI with no computer (Fabro Cloud answers)
+  try {
+    const VENDOR = { 'marked.umd.js': 'marked.umd.js', 'purify.min.js': 'purify.min.js', 'highlight.min.js': 'highlight.min.js' };
+    const resolve = (src) => {
+      const p = path.resolve(ROOT, 'src', 'renderer', src);
+      if (fs.existsSync(p)) return p;
+      const v = VENDOR[path.basename(src)]; // node_modules isn't installed on the build server: the vendored copies
+      if (v) return path.join(__dirname, 'app', 'vendor', v);
+      throw new Error('missing ' + src);
+    };
+    const ver = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+    const b = require(path.join(ROOT, 'src', 'main', 'ui-bundle.js')).build(ver, resolve);
+    fs.writeFileSync(path.join(out, 'ui-bundle.json'), JSON.stringify(b));
+  } catch (e) { console.warn('ui bundle:', e.message); }
   copy(path.join(ROOT, 'src', 'renderer', 'zoom.js'), path.join(out, 'zoom.js')); // same zoom as the desktop viewer
   // the service worker's cache name follows the app's content, so phones pick up new versions
   const h = require('crypto').createHash('sha256');

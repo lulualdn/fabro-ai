@@ -215,3 +215,11 @@ Object.assign(FA_I18N.en, { guestMode: 'No computer', guestHint: 'Fabro Cloud an
 Object.assign(FA_I18N.fr, { guestMode: 'Sans ordinateur', guestHint: 'Fabro Cloud répond gratuitement (sans compte), ou le modèle du téléphone hors connexion. Associe ton ordinateur pour ses modèles et ses outils.' });
 Object.assign(FA_I18N.es, { guestMode: 'Sin ordenador', guestHint: 'Fabro Cloud responde gratis (sin cuenta), o el modelo del teléfono sin conexión.' });
 Object.assign(FA_I18N.de, { guestMode: 'Ohne Computer', guestHint: 'Fabro Cloud antwortet kostenlos (ohne Konto), oder das Modell des Telefons offline.' });
+Object.assign(FA_I18N.en, { loadingLocal: 'Starting Fabro…', connectingPc: 'Connecting to {n}…', localPcAway: '{n} is away — Fabro Cloud answers', localGuest: 'No computer — Fabro Cloud answers', backOnPc: '{n} is back', loadFailed: 'Couldn’t load the interface' });
+Object.assign(FA_I18N.fr, { loadingLocal: 'Démarrage de Fabro…', connectingPc: 'Connexion à {n}…', localPcAway: '{n} est absent — Fabro Cloud répond', localGuest: 'Sans ordinateur — Fabro Cloud répond', backOnPc: '{n} est de retour', loadFailed: 'Impossible de charger l’interface' });
+Object.assign(FA_I18N.es, { loadingLocal: 'Iniciando Fabro…', connectingPc: 'Conectando con {n}…', localPcAway: '{n} no está — responde Fabro Cloud', localGuest: 'Sin ordenador — responde Fabro Cloud', backOnPc: '{n} ha vuelto', loadFailed: 'No se pudo cargar la interfaz' });
+Object.assign(FA_I18N.de, { loadingLocal: 'Fabro startet…', connectingPc: 'Verbinde mit {n}…', localPcAway: '{n} ist nicht da — Fabro Cloud antwortet', localGuest: 'Ohne Computer — Fabro Cloud antwortet', backOnPc: '{n} ist zurück', loadFailed: 'Oberfläche konnte nicht geladen werden' });
+Object.assign(FA_I18N.en, { guest: 'Use without a computer (Fabro Cloud, free)' });
+Object.assign(FA_I18N.fr, { guest: 'Utiliser sans ordinateur (Fabro Cloud, gratuit)' });
+Object.assign(FA_I18N.es, { guest: 'Usar sin ordenador (Fabro Cloud, gratis)' });
+Object.assign(FA_I18N.de, { guest: 'Ohne Computer nutzen (Fabro Cloud, kostenlos)' });

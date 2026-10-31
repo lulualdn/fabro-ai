@@ -167,14 +167,18 @@ const listen = (s) => new Promise((r) => s.listen(0, '127.0.0.1', () => r(s.addr
   await phone.click('#full-fv [data-fv=close]');
   step('opening a computer file shows it on the phone');
 
-  // ── the computer goes away, comes back ──
+  // ── the computer goes away: the same interface keeps working on the phone, then hands back ──
   await win.evaluate(() => api.anywhere.configure({ enabled: false }));
-  await phone.waitForSelector('#full-offbar', { timeout: 20000 });
+  await phone.waitForFunction(() => window.FAFull.mode === 'local' && !document.body.classList.contains('full-loading'), null, { timeout: 30000 });
+  const FL = frameOf(); await FL.waitForSelector('#prompt', { timeout: 30000 });
+  assert.ok(await FL.evaluate(() => !!(window.FABRO_REMOTE && window.FABRO_REMOTE.local)), 'the interface runs on the phone');
+  assert.ok(!(await phone.$('#full-offbar')), 'no status pill');
   await phone.screenshot({ path: path.join(shots, '08-full-away.png') });
-  step('"computer unreachable" bar while away');
+  step('computer away: the same interface runs on the phone (Fabro Cloud)');
   await win.evaluate(() => api.anywhere.configure({ enabled: true }));
-  await phone.waitForFunction(() => !document.querySelector('#full-offbar') && !document.body.classList.contains('full-loading'), null, { timeout: 90000 });
+  await phone.waitForFunction(() => window.FAFull.mode === 'pc' && !document.body.classList.contains('full-loading'), null, { timeout: 90000 });
   const F2 = frameOf(); await F2.waitForSelector('#prompt', { timeout: 30000 });
+  assert.ok(await F2.evaluate(() => !(window.FABRO_REMOTE && window.FABRO_REMOTE.local)), 'back on the computer');
   step('back: the interface reloads from the computer');
 
   // ── back to the light view ──

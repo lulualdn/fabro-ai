@@ -173,7 +173,7 @@
 
   function boot({ bundle, info }) {
     window.FA_T = info.t || {};
-    window.FABRO_REMOTE = { pcName: info.pcName || '', lite: () => post({ t: 'lite' }) };
+    window.FABRO_REMOTE = { pcName: info.pcName || '', local: !!info.local, lite: () => post({ t: 'lite' }) };
     document.documentElement.classList.add('remote', 'platform-remote');
     document.body.insertAdjacentHTML('afterbegin', bundle.body);
     window.api = buildApi(bundle.api);

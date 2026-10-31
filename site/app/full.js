@@ -2,15 +2,17 @@
 /* Fabro Anywhere — the computer's full interface on the phone. When the paired computer offers it (hello.ui),
    its renderer is loaded (cached per version) into a sandboxed frame (full.html, opaque origin: no access to
    this app's storage or keys). The frame's api.* calls, file requests and events travel through this page over
-   the existing encrypted session. The light phone app stays underneath for offline use. */
+   the existing encrypted session. With no computer (away, or never paired) the very same interface runs on
+   the phone (local-pc.js answers its calls: Fabro Cloud, conversations kept and synced later), from the last
+   bundle the computer sent or the one published with the website. */
 (function () {
   const H = () => window.FAHost;
   const $ = (s) => document.querySelector(s);
-  let frame = null, booted = false, helloPending = false, bundle = null, info = null, wasOff = false;
+  let frame = null, booted = false, helloPending = false, bundle = null, info = null, wasOff = false, mode = null, swapT = 0;
   const queue = []; // events that arrived before the frame was ready
 
   const offline = () => !['relay', 'direct'].includes(H().conn.state);
-  const enabled = () => !!(info && info.ui) && (H().settings.ui || 'full') !== 'lite';
+  const enabled = () => (H().settings.ui || 'full') !== 'lite';
   const post = (m) => { if (frame && frame.contentWindow) frame.contentWindow.postMessage(m, '*'); };
 
   // ── the interface files (cached per computer version) ──
@@ -18,6 +20,14 @@
     const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     const text = await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
     return JSON.parse(text);
+  }
+  // without the computer: the last bundle it sent, else the one published with this website
+  async function localBundle() {
+    let cached = null; try { cached = await H().kv.get('ui-bundle'); } catch {}
+    if (cached) return cached;
+    const r = await fetch('ui-bundle.json'); if (!r.ok) throw new Error(H().t('loadFailed') || 'UI');
+    const b = await r.json(); try { await H().kv.set('ui-bundle', b); } catch {}
+    return b;
   }
   async function loadBundle() {
     let cached = null; try { cached = await H().kv.get('ui-bundle'); } catch {}
@@ -30,12 +40,19 @@
 
   // ── frame ──
   function strings() { const t = H().t; return { needsPc: t('needsPc'), onPc: t('onPc') }; }
-  function sendBoot() { if (!bundle || !frame) { helloPending = true; return; } helloPending = false; post({ t: 'boot', bundle, info: { pcName: (info && info.pcName) || '', t: strings() } }); }
-  async function mount() {
+  function sendBoot() { if (!bundle || !frame) { helloPending = true; return; } helloPending = false; post({ t: 'boot', bundle, info: { pcName: (info && info.pcName) || '', local: mode === 'local', t: strings() } }); }
+  // m: 'pc' (the computer answers) or 'local' (the phone does)
+  async function mount(m) {
+    mode = m; booted = false; queue.length = 0;
     document.body.classList.add('full-on', 'full-loading');
-    if (!$('#full-load')) document.body.insertAdjacentHTML('beforeend', `<div id="full-load" class="full-load" role="status"><div class="full-spin"></div><span>${H().esc(H().t('loadingUi'))}</span></div>`);
-    try { bundle = await loadBundle(); }
-    catch (e) { document.body.classList.remove('full-on', 'full-loading'); $('#full-load') && $('#full-load').remove(); H().toast(e.message, 'err'); return; }
+    window.FASplash && FASplash.show(H().t(m === 'local' ? 'loadingLocal' : 'loadingUi'));
+    try { bundle = m === 'local' ? await localBundle() : await loadBundle(); }
+    catch (e) {
+      if (m === 'pc') { try { mode = 'local'; bundle = await localBundle(); } catch { bundle = null; } }
+      if (!bundle) { document.body.classList.remove('full-on', 'full-loading'); window.FASplash && FASplash.hide(); H().toast(e.message, 'err'); mode = null; return; }
+    }
+    window.FALocal && FALocal.setBundle(bundle);
+    if (frame) { frame.src = 'full.html?' + Date.now(); helloPending = true; return; }
     if (!frame) {
       frame = document.createElement('iframe');
       frame.id = 'full'; frame.title = 'Fabro';
@@ -51,7 +68,8 @@
     if (frame) frame.remove(); frame = null; booted = false; queue.length = 0;
     document.body.classList.remove('full-on', 'full-loading', 'full-off');
     for (const id of ['full-load', 'full-offbar', 'full-fv']) $('#' + id) && $('#' + id).remove();
-    H().rpc('ui.sub', { on: false }).catch(() => {});
+    if (mode === 'pc') H().rpc('ui.sub', { on: false }).catch(() => {});
+    mode = null; window.FASplash && FASplash.hide();
   }
   function reload() { if (!frame) return; booted = false; queue.length = 0; document.body.classList.add('full-loading'); frame.src = 'full.html?' + Date.now(); }
 
@@ -63,23 +81,40 @@
       case 'hello': sendBoot(); break;
       case 'booted':
         booted = true; document.body.classList.remove('full-loading'); $('#full-load') && $('#full-load').remove();
+        window.FASplash && FASplash.hide();
         if (queue.length) { post({ t: 'ev', evs: queue.splice(0) }); }
-        post({ t: 'conn', state: H().conn.state });
+        post({ t: 'conn', state: mode === 'local' ? 'local' : H().conn.state });
+        offBar();
         break;
       case 'call':
-        // computer away: no answer — the interface reloads from the computer when it's back (the bar says so)
-        if (offline()) break;
-        H().rpc('ui.call', { ch: m.ch, args: m.args }, 600000).then((r) => reply(true, r), (er) => { if (!offline()) reply(false, null, er.message); });
+        if (mode === 'local') {
+          // the phone answers: same encoding as the computer's answers ({ r, ops })
+          FALocal.call(m.ch, decodeArgs(m.args)).then((r) => reply(true, { r: encodeVal(r), ops: [] }), (er) => reply(false, null, er.message));
+          break;
+        }
+        if (offline()) break; // the computer just left: the phone takes over in a moment (swap below)
+        H().rpc('ui.call', { ch: m.ch, args: m.args }, 600000).then((r) => { reply(true, r); FALocal.remember(m.ch, decodeArgs(m.args), decodeVal(r.r)); }, (er) => { if (!offline()) reply(false, null, er.message); });
         break;
-      case 'file': H().rpc('ui.file', { path: m.path }, 180000).then((r) => reply(true, r), (er) => reply(false, null, er.message)); break;
-      case 'art': H().rpc('ui.art', { url: m.url }, 60000).then((r) => reply(true, r), (er) => reply(false, null, er.message)); break;
+      case 'file': if (mode === 'local') { reply(false, null, 'NEEDS_COMPUTER:file'); break; } H().rpc('ui.file', { path: m.path }, 180000).then((r) => reply(true, r), (er) => reply(false, null, er.message)); break;
+      case 'art': if (mode === 'local') { reply(false, null, 'NEEDS_COMPUTER:art'); break; } H().rpc('ui.art', { url: m.url }, 60000).then((r) => reply(true, r), (er) => reply(false, null, er.message)); break;
       case 'view': viewPcFile(m.path); break;
       case 'mic': micStart(m.mid, m.rate).then(() => reply(true, { ok: 1 }), (er) => { reply(false, null, (er && er.name) || 'NotAllowedError'); H().micHelp && H().micHelp(er); }); break;
       case 'mic.off': micStop(m.mid); break;
-      case 'lite': H().settings.ui = 'lite'; await H().saveSettings(); unmount(); H().render(); break;
+      case 'lite':
+        if (!H().link) { unmount(); H().showPair(); break; } // no computer yet: "pair a computer"
+        H().settings.ui = 'lite'; await H().saveSettings(); unmount(); H().render(); break;
       case 'reload': reload(); break;
     }
   });
+
+  // binary over JSON, as the computer does: { __u8: base64 }
+  const b64 = (u8) => { let s2 = ''; for (let i = 0; i < u8.length; i += 0x8000) s2 += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s2); };
+  const unb64 = (x) => { const b = atob(x); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+  function encodeVal(v, d = 0) { if (v == null || typeof v !== 'object' || d > 40) return v; if (v instanceof Uint8Array) return { __u8: b64(v) }; if (Array.isArray(v)) return v.map((x) => encodeVal(x, d + 1)); const o = {}; for (const k of Object.keys(v)) { if (v[k] !== undefined && typeof v[k] !== 'function') o[k] = encodeVal(v[k], d + 1); } return o; }
+  function decodeVal(v, d = 0) { if (v == null || typeof v !== 'object' || d > 40) return v; if (typeof v.__u8 === 'string' && Object.keys(v).length === 1) return unb64(v.__u8); if (Array.isArray(v)) return v.map((x) => decodeVal(x, d + 1)); const o = {}; for (const k of Object.keys(v)) o[k] = decodeVal(v[k], d + 1); return o; }
+  const decodeArgs = (a) => decodeVal(Array.isArray(a) ? a : []);
+  // events from the phone's own "computer" (chat stream…)
+  setTimeout(() => window.FALocal && FALocal.setEmit((ch, data) => { if (mode !== 'local') return; const ev = [ch, encodeVal(data)]; if (!booted) queue.push(ev); else post({ t: 'ev', evs: [ev] }); }));
 
   // ── microphone for the frame (it can't ask for one itself): captured here, streamed as PCM ──
   const caps = new Map();
@@ -139,32 +174,48 @@
   }
 
   // ── connection ──
-  function offBar(st) {
-    const off = st === 'off' || st === 'connecting';
-    document.body.classList.toggle('full-off', off && !!frame);
-    let bar = $('#full-offbar');
-    if (!off || !frame) { bar && bar.remove(); return; }
-    const { esc, t } = H();
-    const html = `<span class="dot"></span><span>${esc(st === 'connecting' ? t('connecting') : t('pcUnreachable'))}</span><button class="btn sm" data-fo="lite">${esc(t('useLite'))}</button>`;
-    if (!bar) { bar = document.createElement('div'); bar.id = 'full-offbar'; bar.className = 'full-offbar'; bar.setAttribute('role', 'status'); document.body.appendChild(bar); }
-    bar.innerHTML = html;
-    bar.querySelector('[data-fo=lite]').onclick = async () => { H().settings.ui = 'lite'; await H().saveSettings(); unmount(); H().render(); };
+  // no status indicator: the line under the composer says when Fabro Cloud answers
+  function offBar() { const bar = $('#full-offbar'); if (bar) bar.remove(); document.body.classList.remove('full-off'); }
+  function swap(to) {
+    clearTimeout(swapT);
+    if (!enabled() || mode === to) return;
+    // a short grace: a computer that blinks away for a second doesn't reload the interface twice
+    swapT = setTimeout(() => { if (mode !== to) mount(to); }, to === 'local' ? 4000 : 300);
   }
 
   window.FAFull = {
     get active() { return !!frame; },
-    supported: () => !!(info && info.ui),
+    get mode() { return mode; },
+    supported: () => true,
+    // at start: the computer's interface when it answers soon, else the phone's (same interface)
+    async start() {
+      if (!enabled() || frame) return;
+      if (H().session) return; // connected() mounts it
+      if (!H().link) { await mount('local'); return; }
+      window.FASplash && FASplash.text(H().t('connectingPc', { n: (H().link && H().link.pcName) || 'PC' }));
+      // wait while it's still connecting (12 s at most); the computer known away → the phone's at once
+      const t0 = Date.now();
+      const tick = () => {
+        if (frame || H().session || !enabled()) return;
+        const st = H().conn.state;
+        if (st === 'off' || Date.now() - t0 > 12000) { mount('local'); return; }
+        setTimeout(tick, 300);
+      };
+      setTimeout(tick, 600);
+    },
     async connected(hello) {
       info = hello;
       if (!enabled()) return;
       await H().rpc('ui.sub', { on: true }).catch(() => {});
-      if (!frame) await mount();
+      if (mode === 'local') await FALocal.flush((ch, args) => H().rpc('ui.call', { ch, args }, 60000));
+      if (!frame) await mount('pc');
+      else if (mode !== 'pc') { H().toast(H().t('backOnPc', { n: hello.pcName || 'PC' })); mount('pc'); }
       else if (wasOff) reload(); // calls made while away failed: start from the computer's current state
       wasOff = false;
     },
-    events(evs) { if (!frame) return; if (!booted) { queue.push(...evs); if (queue.length > 3000) queue.splice(0, queue.length - 3000); return; } post({ t: 'ev', evs }); },
-    conn(st) { if (st === 'off') wasOff = true; post({ t: 'conn', state: st }); offBar(st); },
-    async open() { H().settings.ui = 'full'; await H().saveSettings(); if (info && info.ui) await this.connected(info); },
+    events(evs) { if (!frame || mode !== 'pc') return; if (!booted) { queue.push(...evs); if (queue.length > 3000) queue.splice(0, queue.length - 3000); return; } post({ t: 'ev', evs }); },
+    conn(st) { if (st === 'off') { wasOff = true; if (frame && mode === 'pc') swap('local'); } else if (st === 'direct' || st === 'relay') clearTimeout(swapT); if (mode === 'pc') post({ t: 'conn', state: st }); offBar(); },
+    async open() { H().settings.ui = 'full'; await H().saveSettings(); if (H().session && info) await this.connected(info); else await mount('local'); },
     close: unmount,
   };
 })();

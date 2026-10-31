@@ -795,6 +795,8 @@
     else if (S.view === 'paired') app.innerHTML = pairedView();
     else { app.innerHTML = mainView(); renderHeader(); renderComposer(); }
     renderSheet();
+    // the loading screen stays while the computer's interface loads (it covers this light view); else it goes
+    if (S.view !== 'main' || !window.FAFull || (S.settings.ui || 'full') === 'lite') { window.FASplash && FASplash.hide(); }
   }
   function welcomeView() {
     return `<main class="welcome">
@@ -1119,7 +1121,7 @@
     install: async () => { if (S.installEvt) { S.installEvt.prompt(); await S.installEvt.userChoice.catch(() => {}); S.installEvt = null; render(); } },
     'notify-on': async () => { const ok = await ensurePush(true); if (S.view === 'paired') { S.view = 'main'; render(); } else renderSheet(); if (ok) toast(t('notifyReady')); },
     'notify-off': async () => { await disablePush(); renderSheet(); },
-    start: () => { S.view = 'main'; render(); },
+    start: () => { S.view = 'main'; render(); if (window.FAFull && !FAFull.active && (S.settings.ui || 'full') !== 'lite') FAFull.start(); },
     'full-ui': async () => { if ((S.settings.ui || 'full') !== 'lite') { S.settings.ui = 'lite'; await saveSettings(); window.FAFull && FAFull.close(); renderSheet(); } else { S.sheet = null; renderSheet(); window.FAFull && FAFull.open(); } },
     new: () => { S.cur = null; S.drawer = false; render(); setTimeout(() => $('#prompt') && $('#prompt').focus(), 50); },
     open: (el) => openConv(el.dataset.id),
@@ -1151,7 +1153,7 @@
     'art-pdf': () => { if (S.art && S.art.id) openPdf(S.art.id); },
     'voice-install': async () => { if (!session) return; S.voiceInstalling = true; paintVoice(); try { const st = await rpc('voice.install', { lang }, 20 * 60000); S.conn.info.voice = { ready: !!(st.runtime && st.whisperReady), voice: st.voice }; toast(t('voiceReady')); } catch (e) { toast(e.message, 'err'); } S.voiceInstalling = false; if (S.voice) { closeVoice(); openVoice(); } },
     // no computer: Fabro Cloud answers right away (free, no account); the phone's model can be added later
-    guest: async () => { S.settings.guest = true; S.settings.model = 'cloud:auto'; await saveSettings(); S.view = 'main'; render(); },
+    guest: async () => { S.settings.guest = true; S.settings.model = 'cloud:auto'; await saveSettings(); S.view = 'main'; render(); if (window.FAFull && (S.settings.ui || 'full') !== 'lite') FAFull.start(); },
     away: async (el) => { S.settings.away = el.dataset.v; await saveSettings(); renderSheet(); renderHeader(); renderComposer(); },
     'voice-fam': async (el) => { S.settings.voiceFam = el.dataset.v; S.settings.voiceName = ''; await saveSettings(); renderSheet(); },
     'voice-test': () => { Speaker.stop(); Speaker.unlock(); Speaker.say(t('voiceSample')); },
@@ -1344,6 +1346,8 @@
     render();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
     if (S.link) connect();
+    // the same interface as on the computer, with or without it
+    if ((S.link || S.settings.guest) && S.view === 'main' && window.FAFull) FAFull.start(); else window.FASplash && FASplash.hide();
     // the phone model loads on demand (first use); the WebGPU check is cheap
     if (S.settings.localModel) S.local = { status: 'idle', progress: 0, text: '' };
     window.__fa = { S, send, connect, syncNow, pairWith, rpc, decode: A.decodeRingCode }; // tests & debugging
@@ -1352,5 +1356,18 @@
   window.FAHost = {
     rpc: (m, p, ms) => rpc(m, p, ms), get conn() { return S.conn; }, get settings() { return S.settings; }, saveSettings,
     t: (k, v) => t(k, v), esc, ic, toast, saveBlob, render: () => render(), kv, micHelp: (e) => micHelp(e),
+    get lang() { return lang; }, get link() { return S.link; }, get session() { return !!session; },
+    // the computer's interface without the computer (local-pc.js): conversations in the phone's store, synced later
+    local: {
+      list: async () => allConvs().map((c) => ({ id: c.id, title: c.title || '', updatedAt: c.updatedAt || 0, pinned: !!c.pinned, agent: !!c.agent, project: c.project || null })),
+      get: async (id) => { const c = S.convs.get(id); if (!c || c.partial) throw new Error(t('notDownloaded')); const { dirty, ...rest } = c; return rest; },
+      save: async (c) => { if (!c || !c.id || c.ephemeral) return c; const prev = S.convs.get(c.id); const next = { ...c, updatedAt: c.updatedAt || now(), dirty: true, origin: (prev && prev.origin) || 'phone' }; await saveConv(next); if (session) syncNow().catch(() => {}); return c; },
+      del: async (id) => { S.convs.delete(id); await DB.del('convs', id); S.metas = S.metas.filter((m) => m.id !== id); if (session) rpc('conv.delete', { id }).catch(() => {}); else { S.tombstones.push(id); await kv.set('tombstones', S.tombstones); } return true; },
+    },
+    hear: (wav, o = {}) => transcribe(wav instanceof Uint8Array ? wav : new Uint8Array(wav)),
+    speak: (text) => FASpeech.speak(speakable(text), { lang, fam: S.settings.voiceFam || 'f', voiceName: S.settings.voiceName || '', rate: S.settings.voiceRate || 1.03 }),
+    notify: (title, body) => localNotify(title, body, S.cur),
+    localEngine: () => (S.local.status === 'ready' ? engine : null),
+    showPair: () => { S.forceWelcome = true; S.view = 'welcome'; render(); },
   };
 })();

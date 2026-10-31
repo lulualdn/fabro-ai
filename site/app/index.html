@@ -16,9 +16,24 @@
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="app.css">
+<style>
+#splash{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#f6f5f1;color:#1f1e1b;font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;transition:opacity .35s ease,visibility .35s}
+:root[data-theme=dark] #splash{background:#12161d;color:#f3f1ee}:root[data-skin=halloween] #splash{background:#120d17}
+#splash.gone{opacity:0;visibility:hidden;pointer-events:none}
+.sp-glow{position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(closest-side,rgba(207,106,60,.22),transparent);animation:spg 2.4s ease-in-out infinite alternate}
+:root[data-skin=halloween] .sp-glow{background:radial-gradient(closest-side,rgba(255,122,26,.32),transparent)}
+.sp-mark{position:relative;animation:spin-in 1.4s cubic-bezier(.2,.8,.2,1) both,sps 1.2s linear 1.4s infinite}
+.sp-name{position:relative;font:400 28px "Iowan Old Style",Palatino,Georgia,serif;letter-spacing:-.01em}.sp-name i{opacity:.6}
+.sp-bar{position:relative;width:150px;height:3px;border-radius:3px;background:rgba(127,127,127,.2);overflow:hidden}.sp-bar i{position:absolute;inset:0;width:40%;border-radius:3px;background:#cf6a3c;animation:spb 1.3s ease-in-out infinite}
+:root[data-theme=dark] .sp-bar i{background:#ff5e42}:root[data-skin=halloween] .sp-bar i{background:#ff7a1a}
+.sp-text{position:relative;min-height:20px;opacity:.65;font-size:13.5px;text-align:center;padding:0 24px}
+@keyframes spin-in{from{transform:rotate(-240deg) scale(.5);opacity:0}}@keyframes sps{to{transform:rotate(360deg)}}@keyframes spb{0%{transform:translateX(-110%)}100%{transform:translateX(260%)}}@keyframes spg{to{transform:scale(1.15);opacity:.7}}
+@media (prefers-reduced-motion:reduce){.sp-mark,.sp-bar i,.sp-glow{animation:none}}
+</style>
 <script src="theme.js"></script>
 </head>
 <body>
+<div id="splash" role="status" aria-live="polite"><div class="sp-glow"></div><img class="sp-mark" src="icons/mark.svg" alt="" width="84" height="84"><div class="sp-name">Fabro <i>Anywhere</i></div><div class="sp-bar"><i></i></div><div class="sp-text"></div></div>
 <div id="app"></div>
 <div id="sheet-root"></div>
 <div id="toast-root" role="status" aria-live="polite"></div>
@@ -29,6 +44,7 @@
 <script src="langdetect.js"></script>
 <script src="speech.js"></script>
 <script src="agent.js"></script>
+<script src="local-pc.js"></script>
 <script src="i18n.js"></script>
 <script src="steps.js"></script>
 <script src="app.js"></script>

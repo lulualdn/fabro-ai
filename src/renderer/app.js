@@ -280,7 +280,7 @@ function openUserMenu(anchor) {
       ${spookySeason() || th === 'halloween' ? `<button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'halloween' ? 'system' : 'halloween'}">${icon('pumpkin', 16)}<span class="pm-text"><b>${esc(t(th === 'halloween' ? 'themeHalloweenOff' : 'themeHalloween'))}</b></span></button>` : ''}
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="settings" data-tab="about">${icon('info', 16)}<span class="pm-text"><b>${esc(t('tab_about'))}</b></span></button>
-      ${window.FABRO_REMOTE ? `<div class="pm-sep"></div><button class="pm-item" data-action="remote-lite">${icon('phone', 16)}<span class="pm-text"><b>${esc(t('remoteLite'))}</b><small>${esc(t('remoteLiteHint'))}</small></span></button>` : ''}
+      ${window.FABRO_REMOTE ? `<div class="pm-sep"></div><button class="pm-item" data-action="remote-lite">${icon(window.FABRO_REMOTE.local && !window.FABRO_REMOTE.pcName ? 'link' : 'phone', 16)}<span class="pm-text"><b>${esc(t(window.FABRO_REMOTE.local && !window.FABRO_REMOTE.pcName ? 'remotePair' : 'remoteLite'))}</b><small>${esc(t(window.FABRO_REMOTE.local && !window.FABRO_REMOTE.pcName ? 'remotePairHint' : 'remoteLiteHint'))}</small></span></button>` : ''}
     </div>`;
 }
 
@@ -380,7 +380,7 @@ function renderView() {
     v.innerHTML = renderWelcome();
   } else {
     v.innerHTML = `<div class="scroller" id="scroller"><div class="thread">${S.conv.messages.map(renderMessage).join('')}</div></div>
-      <div class="dock">${renderComposer()}<div class="disclaimer">${esc(t('disclaimer'))}</div></div>`;
+      <div class="dock">${renderComposer()}<div class="disclaimer">${esc(t(window.FABRO_REMOTE && window.FABRO_REMOTE.local ? 'disclaimerCloud' : 'disclaimer'))}</div></div>`;
     scrollBottom(true);
   }
   bindComposer();
