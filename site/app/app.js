@@ -923,8 +923,8 @@
   // Phone home: thumb-sized shortcuts and the latest conversations, right under the greeting.
   function phoneHome() {
     const rec = allConvs().slice(0, 4);
-    return `<div class="home-phone">
-      <div class="hp-hero"><h2 class="greet">${logo(40, 'spin-in')}<span>${esc(t('hello'))}</span></h2>${routePill()}</div>
+    return `<div class="home-phone">${hwScene()}
+      <div class="hp-hero"><h2 class="greet">${logo(40, 'spin-in')}<span class="greet-t" data-text="${esc(t('hello'))}">${esc(t('hello'))}</span></h2>${routePill()}</div>
       <div class="qa-grid">
         <button class="qa" data-act="voice"><span class="qa-ic talk">${ic('wave', 22)}</span><b>${esc(t('qa_talk'))}</b><small>${esc(t('qa_talkS'))}</small></button>
         <label class="qa"><span class="qa-ic photo">${ic('photo', 22)}</span><b>${esc(t('qa_photo'))}</b><small>${esc(t('qa_photoS'))}</small><input type="file" accept="image/*" capture="environment" hidden id="photo-cam"></label>
@@ -935,9 +935,23 @@
     </div>`;
   }
   // Computer home: greeting, where it runs, what it can do (cards), keyboard hints.
+  // Halloween decor of the home (shown by the skin only): a hanging lantern and a jack-o'-lantern, lit by fx.js
+  const hwScene = () => `<div class="hw-scene" aria-hidden="true">
+        <div class="hw-lamp"><i class="hw-chain"></i><svg viewBox="0 0 80 132" class="hw-lantern"><defs><radialGradient id="hwFlame" cx="50%" cy="60%" r="50%"><stop offset="0" stop-color="#fff6d8"/><stop offset=".45" stop-color="#ffc44d"/><stop offset="1" stop-color="#ff6a00" stop-opacity="0"/></radialGradient><linearGradient id="hwMetal" x1="0" x2="1"><stop offset="0" stop-color="#1a1210"/><stop offset=".5" stop-color="#4a3626"/><stop offset="1" stop-color="#140d0b"/></linearGradient></defs>
+          <path d="M40 2a7 7 0 1 1 0 14a7 7 0 1 1 0-14zm0 4a3 3 0 1 0 0 6a3 3 0 1 0 0-6z" fill="url(#hwMetal)"/><path d="M20 26h40l-6-10H26z" fill="url(#hwMetal)"/>
+          <rect class="hw-glass" x="18" y="26" width="44" height="72" rx="6" fill="rgba(255,170,70,.16)"/>
+          <ellipse class="hw-halo" cx="40" cy="66" rx="20" ry="26" fill="url(#hwFlame)"/>
+          <path class="hw-flame" d="M40 46c6 9 9 15 9 21a9 9 0 0 1-18 0c0-6 3-12 9-21z" fill="url(#hwFlame)"/>
+          <path d="M18 26h44v72H18z M18 50h44M18 74h44M40 26v72" fill="none" stroke="url(#hwMetal)" stroke-width="3"/>
+          <path d="M14 98h52l-4 10H18z" fill="url(#hwMetal)"/><path d="M26 108h28l-3 8H29z" fill="url(#hwMetal)"/></svg></div>
+        <div class="hw-pumpkin"><svg viewBox="0 0 120 104"><defs><radialGradient id="hwSkin" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#ffa13a"/><stop offset=".6" stop-color="#e0570f"/><stop offset="1" stop-color="#7a2304"/></radialGradient><radialGradient id="hwIn" cx="50%" cy="55%" r="60%"><stop offset="0" stop-color="#fff3b0"/><stop offset=".6" stop-color="#ffb02e"/><stop offset="1" stop-color="#ff5a00"/></radialGradient></defs>
+          <path d="M56 14c0-8 4-12 10-13l2 4c-4 1-6 4-6 10z" fill="#3d5a1f"/>
+          <ellipse cx="34" cy="60" rx="30" ry="38" fill="url(#hwSkin)"/><ellipse cx="86" cy="60" rx="30" ry="38" fill="url(#hwSkin)"/><ellipse cx="60" cy="60" rx="30" ry="42" fill="url(#hwSkin)"/>
+          <g class="hw-face" fill="url(#hwIn)"><path d="M32 46l14 4-12 10z"/><path d="M88 46l-14 4 12 10z"/><path d="M60 58l6 10H54z"/><path d="M26 74c10 8 22 12 34 12s24-4 34-12l-6 14-8-6-6 8-6-6-8 7-8-7-6 6-6-8-8 6z"/></g></svg></div>
+      </div>`;
   function desktopHome() {
-    return `<div class="home-desk">
-      <h2 class="greet">${logo(40, 'spin-in')} ${esc(t('hello'))}</h2>
+    return `<div class="home-desk">${hwScene()}
+      <h2 class="greet">${logo(40, 'spin-in')}<span class="greet-t" data-text="${esc(t('hello'))}">${esc(t('hello'))}</span></h2>
       <div class="hd-sub">${routePill()}<span class="kbd-hint"><kbd>/</kbd> ${esc(t('kb_focus'))} · <kbd>Ctrl</kbd><kbd>K</kbd> ${esc(t('kb_search'))} · <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>O</kbd> ${esc(t('newChat'))}</span></div>
     </div>`;
   }
@@ -961,7 +975,8 @@
     const steps = (m.steps || []).filter((s) => !s.parent);
     const asks = [...S.asks.values()].filter((a) => a.runId === m.runId || (m.pending && a.convId === S.cur));
     const cites = FAS.sourceMap(m);
-    return `${FAS.think(m, m.pending && !m.content)}
+    return `<div class="ai-head">${logo(18, m.pending ? 'spin' : '')}<b>Fabro</b>${m.pending ? `<small>${esc(t('thinking'))}…</small>` : ''}</div>
+      ${FAS.think(m, m.pending && !m.content)}
       ${steps.length ? FAS.steps(m) : ''}
       ${asks.map((a) => `<div class="ask"><b>${esc(t('askTitle'))}</b><p>${esc(a.summary || a.tool || '')}</p>${a.detail ? `<pre>${esc(String(a.detail).slice(0, 600))}</pre>` : ''}<div class="ask-btns"><button class="btn primary sm" data-act="ask" data-id="${esc(a.id)}" data-v="once">${esc(t('allow'))}</button><button class="btn sm" data-act="ask" data-id="${esc(a.id)}" data-v="deny">${esc(t('deny'))}</button></div></div>`).join('')}
       <div class="md">${m.content ? splitArt(m.content).map((g) => g.kind === 'text' ? FAS.linkCites(md(g.text), cites) : `<button class="art-card" data-act="art" data-node="${esc(m.id)}" data-i="${g.i}"><span class="art-ic">${ART_ICON[g.type] || '📄'}</span><span><b>${esc(g.title || t('untitled'))}</b><small>${esc(g.open ? t('writing') : t('art_' + g.type))}</small></span></button>`).join('') : m.pending ? `<span class="typing">${logo(22, 'spin')}</span>` : ''}</div>
@@ -1068,7 +1083,7 @@
       <p class="muted small">${esc(t(pcVoice() ? 'voicePcUsed' : 'voicePhoneUsed'))}</p>
       <h3>${esc(t('display'))}</h3>
       <div class="set-row"><span>${esc(t('language'))}</span><select class="input sm" data-change="lang">${['auto', ...LANGS].map((l) => `<option value="${l}" ${S.settings.lang === l ? 'selected' : ''}>${l === 'auto' ? t('auto') : { en: 'English', fr: 'Français', es: 'Español', de: 'Deutsch' }[l]}</option>`).join('')}</select></div>
-      <div class="set-row"><span>${esc(t('theme'))}</span><select class="input sm" data-change="theme">${['system', 'light', 'dark', 'halloween'].map((v) => `<option value="${v}" ${S.settings.theme === v ? 'selected' : ''}>${esc(t('theme_' + v))}</option>`).join('')}</select></div>
+      <div class="set-row"><span>${esc(t('theme'))}</span><select class="input sm" data-change="theme">${['system', 'light', 'dark', ...(spooky() ? ['halloween'] : [])].map((v) => `<option value="${v}" ${S.settings.theme === v ? 'selected' : ''}>${esc(t('theme_' + v))}</option>`).join('')}</select></div>
       <div class="set-row"><span>${esc(t('layout'))}</span><select class="input sm" data-change="layout">${['auto', 'phone', 'desktop'].map((v) => `<option value="${v}" ${(S.settings.layout || 'auto') === v ? 'selected' : ''}>${esc(t('layout_' + v))}</option>`).join('')}</select></div>
       <h3>${esc(t('advanced'))}</h3>
       <label class="field"><span>${esc(t('customRelay'))}</span><input class="input" data-change="relay" placeholder="wss://…" value="${esc(S.settings.customRelay || '')}"></label>
@@ -1288,7 +1303,10 @@
     if (pref && pref !== 'auto') lang = pref;
     else { lang = 'en'; for (const l of navigator.languages || [navigator.language]) { const b = String(l).slice(0, 2); if (LANGS.includes(b)) { lang = b; break; } } }
   }
+  // Halloween is seasonal: offered from mid-October to early November, then back to the system theme
+  const spooky = (d = new Date()) => (d.getMonth() === 9 && d.getDate() >= 15) || (d.getMonth() === 10 && d.getDate() <= 3);
   function applyTheme() {
+    if (S.settings.theme === 'halloween' && !spooky()) { S.settings.theme = 'system'; saveSettings(); }
     const v = S.settings.theme;
     try { localStorage.setItem('fa-theme', JSON.stringify(v === 'system' ? null : v)); } catch {}
     document.documentElement.dataset.theme = v === 'halloween' ? 'dark' : v === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : v;

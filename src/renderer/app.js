@@ -89,6 +89,8 @@ function spookySeason(d = new Date()) { const m = d.getMonth(), day = d.getDate(
 const lightModeOn = () => (S.settings.lightMode == null ? !!(S.specs && S.specs.lowPower) : !!S.settings.lightMode);
 function applyLightMode() { document.documentElement.classList.toggle('light-mode', lightModeOn()); }
 function applyTheme() {
+  // Halloween is seasonal: after early November it falls back to the system theme
+  if (S.settings.theme === 'halloween' && !spookySeason()) { S.settings.theme = 'system'; saveSettings({ theme: 'system' }).catch(() => {}); }
   const th = S.settings.theme;
   // halloween is a skin over the dark theme: every dark rule still applies, its tokens win
   const dark = th === 'dark' || th === 'halloween' || (th === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -891,7 +893,7 @@ function settingsBody(tab) {
       ${row(t('language'), `<select class="input" data-input="language">${langOpts}</select>`)}
       ${row(t('reduceMotion'), toggle('reduceMotion', !!st.reduceMotion), t('reduceMotionHint'))}
       ${row(t('lightMode'), toggle('lightMode', lightModeOn()), t(S.specs && S.specs.lowPower ? 'lightModeHintLow' : 'lightModeHint'))}
-      ${row(t('theme'), seg('theme', st.theme, [['system', t('themeSystem'), 'monitor'], ['light', t('themeLight'), 'sun'], ['dark', t('themeDark'), 'moon'], ['halloween', t('themeHalloween'), 'pumpkin']]))}
+      ${row(t('theme'), seg('theme', st.theme, [['system', t('themeSystem'), 'monitor'], ['light', t('themeLight'), 'sun'], ['dark', t('themeDark'), 'moon'], ...(spookySeason() || st.theme === 'halloween' ? [['halloween', t('themeHalloween'), 'pumpkin']] : [])]))}
       ${row(t('autoUpdate'), toggle('autoUpdate', st.autoUpdate), t('autoUpdateHint'))}
       ${row(t('devMode'), toggle('devMode', st.devMode), t('devModeHint'))}
       ${st.devMode ? row(t('devTools'), `<button class="btn sm" data-action="devtools">${icon('terminal', 14)} ${esc(t('open'))}</button>`, 'F12 · Ctrl+Shift+I · Ctrl+R') : ''}

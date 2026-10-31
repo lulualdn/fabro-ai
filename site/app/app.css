@@ -579,13 +579,6 @@ body:not(.full-loading) .full-load { display: none; }
 }
 :root[data-skin="halloween"] body { background: radial-gradient(420px 420px at 90% -4%, rgba(255, 214, 150, .16), rgba(255, 170, 80, .05) 45%, transparent 70%), radial-gradient(700px 500px at 0% 110%, rgba(110, 40, 150, .24), transparent 70%), var(--bg); background-attachment: fixed; }
 :root[data-skin="halloween"] .shell, :root[data-skin="halloween"] .welcome { position: relative; z-index: 1; }
-:root[data-skin="halloween"] body::before {
-  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .6;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'%3E%3Cpath fill='%23070409' d='M32 10c1.6-3 3.4-4 4.4-3.4-.6 1.2-.3 2.4.6 3.3 2.8-3.6 8.6-5.6 13.6-4.6-1.9 1.4-2.6 3.2-2.2 5.2 3.7-1.3 8.4-.5 11.6 2.3-3.2-.2-5.8 1-7 3.4-2.6-1.6-6-1.4-8.4.5-1.6-1.8-4.2-2.4-6.4-1.5-.8.4-1.6 1.4-2.2 2.8-.6-1.4-1.4-2.4-2.2-2.8-2.2-.9-4.8-.3-6.4 1.5-2.4-1.9-5.8-2.1-8.4-.5-1.2-2.4-3.8-3.6-7-3.4 3.2-2.8 7.9-3.6 11.6-2.3.4-2-.3-3.8-2.2-5.2 5-1 10.8 1 13.6 4.6.9-.9 1.2-2.1.6-3.3 1-.6 2.8.4 4.4 3.4z'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'%3E%3Cpath fill='%23070409' d='M32 10c1.6-3 3.4-4 4.4-3.4-.6 1.2-.3 2.4.6 3.3 2.8-3.6 8.6-5.6 13.6-4.6-1.9 1.4-2.6 3.2-2.2 5.2 3.7-1.3 8.4-.5 11.6 2.3-3.2-.2-5.8 1-7 3.4-2.6-1.6-6-1.4-8.4.5-1.6-1.8-4.2-2.4-6.4-1.5-.8.4-1.6 1.4-2.2 2.8-.6-1.4-1.4-2.4-2.2-2.8-2.2-.9-4.8-.3-6.4 1.5-2.4-1.9-5.8-2.1-8.4-.5-1.2-2.4-3.8-3.6-7-3.4 3.2-2.8 7.9-3.6 11.6-2.3.4-2-.3-3.8-2.2-5.2 5-1 10.8 1 13.6 4.6.9-.9 1.2-2.1.6-3.3 1-.6 2.8.4 4.4 3.4z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-size: 40px 20px, 26px 13px; background-position: 72% 7%, 86% 13%;
-  animation: hw-bats 34s ease-in-out infinite alternate; filter: drop-shadow(0 0 6px rgba(255, 190, 120, .25));
-}
-@keyframes hw-bats { 0% { background-position: 62% 8%, 86% 14%; } 50% { background-position: 76% 5%, 78% 10%; } 100% { background-position: 90% 10%, 70% 16%; } }
 :root[data-skin="halloween"] .logo { overflow: visible; filter: drop-shadow(0 0 5px rgba(255, 122, 26, .55)); }
 :root[data-skin="halloween"] .greet .logo, :root[data-skin="halloween"] .w-hero .logo { animation: hw-flicker 3.2s ease-in-out infinite; }
 @keyframes hw-flicker { 0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 122, 26, .6)); } 42% { filter: drop-shadow(0 0 12px rgba(255, 150, 40, .9)); } 47% { filter: drop-shadow(0 0 3px rgba(255, 110, 20, .4)); } 60% { filter: drop-shadow(0 0 9px rgba(255, 140, 40, .75)); } }
@@ -593,6 +586,99 @@ body:not(.full-loading) .full-load { display: none; }
 :root[data-skin="halloween"] .qa-ic.talk { background: var(--accent); color: var(--accent-ink); }
 :root[data-skin="halloween"] .vx { background: radial-gradient(circle at 50% 42%, rgba(255, 122, 26, .28), transparent 60%), radial-gradient(circle at 50% 120%, rgba(110, 40, 150, .35), transparent 60%), var(--bg); }
 :root[data-skin="halloween"] ::selection { background: rgba(143, 227, 111, .25); }
-@media (prefers-reduced-motion: reduce) { :root[data-skin="halloween"] body::before { animation: none; } }
 [data-device="desktop"] .main.home .top { position: absolute !important; left: 0; right: 0; top: 0; z-index: 2; border-bottom-color: transparent; }
 [data-device="desktop"] .main.home .top-title { visibility: hidden; }
+
+
+/* ═════════ Chat, friendlier and rounder (every theme) ═════════ */
+.msgs { gap: 22px; }
+.msg { animation: msg-in .32s var(--ease) both; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(8px); } }
+.msg.user .bubble { border-radius: 22px 22px 6px 22px; padding: 11px 16px; background: var(--bubble); box-shadow: 0 1px 0 rgba(0, 0, 0, .04), 0 4px 14px rgba(0, 0, 0, .05); line-height: 1.5; }
+.msg.user .att-img { border-radius: 18px; box-shadow: var(--shadow); }
+.ai-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13.5px; }
+.ai-head .logo { width: 26px; height: 26px; padding: 4px; border-radius: 50%; background: var(--accent-soft); box-sizing: border-box; }
+.ai-head b { font-weight: 650; } .ai-head small { color: var(--muted); font-size: 12.5px; }
+.msg.ai > .md, .msg.ai .think, .msg.ai .sts, .msg.ai .art-card, .msg.ai .ask, .msg.ai .err { margin-left: 34px; }
+.msg.ai .meta, .msg.ai .m-acts, .msg.ai .srcs, .msg.ai .cited { margin-left: 34px; }
+.md pre { border-radius: 14px; border: 1px solid var(--border); padding: 14px; }
+.md code { border-radius: 7px; }
+.md table { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); } .md th { background: var(--elev-2); }
+.md blockquote { border-left: 0; padding: 10px 14px; background: var(--elev-2); border-radius: 14px; }
+.md a { text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.think, .sts-sum > summary, .step, .ask, .art-card, .f-chip { border-radius: 16px !important; }
+.art-card { box-shadow: 0 2px 10px rgba(0, 0, 0, .05); transition: transform .15s var(--ease), box-shadow .15s; } .art-card:active { transform: scale(.98); }
+.err { border-radius: 14px; padding: 10px 14px; background: color-mix(in srgb, var(--err) 10%, transparent); }
+.meta { font-size: 11.5px; opacity: .8; }
+.m-acts button { border-radius: 10px; width: 32px; height: 32px; }
+[data-device="phone"] .msg.ai:last-child .m-acts { display: flex; opacity: 1; }
+.typing .logo { width: 22px; height: 22px; }
+.composer { border-radius: 26px; box-shadow: 0 2px 6px rgba(0, 0, 0, .04), 0 10px 30px rgba(0, 0, 0, .08); transition: box-shadow .2s, border-color .2s; }
+.composer:focus-within { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong)); box-shadow: 0 0 0 4px var(--accent-soft), 0 10px 30px rgba(0, 0, 0, .1); }
+.chat::-webkit-scrollbar { width: 8px; } .chat::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; }
+.to-bottom { border-radius: 50%; }
+
+/* ═════════ Home, more polished (every theme) ═════════ */
+.home-desk, .home-phone { position: relative; }
+.home-desk .greet, .home-phone .greet { position: relative; }
+.home-desk::before { content: ""; position: absolute; left: 50%; top: -40px; width: 620px; height: 300px; transform: translateX(-50%); background: radial-gradient(closest-side, var(--accent-soft), transparent); filter: blur(10px); pointer-events: none; z-index: -1; animation: aura 9s ease-in-out infinite alternate; }
+@keyframes aura { to { transform: translateX(-50%) scale(1.12); opacity: .7; } }
+.hd-card { border-radius: 20px; padding: 16px; }
+.hd-card svg { padding: 8px; width: 36px; height: 36px; border-radius: 12px; background: var(--accent-soft); box-sizing: border-box; }
+.qa { border-radius: 22px; box-shadow: 0 2px 12px rgba(0, 0, 0, .05); }
+.route-pill { box-shadow: 0 1px 6px rgba(0, 0, 0, .05); }
+.hw-scene { display: none; }
+
+/* ═════════ Halloween: the living scene (canvas #fx, drawn by fx.js) ═════════ */
+#fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+:root[data-skin="halloween"] body { background: radial-gradient(900px 600px at 50% 120%, rgba(110, 40, 150, .22), transparent 70%), linear-gradient(#0d0912, #150e1b 60%, #120d17); background-attachment: fixed; }
+:root[data-skin="halloween"] .shell { position: relative; z-index: 1; }
+:root[data-skin="halloween"][data-device="desktop"] .main { background: rgba(20, 14, 26, .38); border-color: rgba(255, 170, 90, .08); }
+:root[data-skin="halloween"][data-device="desktop"] .drawer { background: rgba(12, 9, 16, .78); backdrop-filter: blur(10px); }
+:root[data-skin="halloween"] .top { background: transparent !important; }
+:root[data-skin="halloween"] .msg.user .bubble { background: rgba(48, 32, 58, .72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255, 170, 90, .1); }
+:root[data-skin="halloween"] .composer { background: rgba(29, 21, 36, .82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-color: rgba(255, 140, 60, .22); }
+:root[data-skin="halloween"] .composer-wrap { background: none !important; }
+:root[data-skin="halloween"] .think, :root[data-skin="halloween"] .sts-sum > summary, :root[data-skin="halloween"] .art-card, :root[data-skin="halloween"] .md pre { background: rgba(23, 17, 29, .78); backdrop-filter: blur(6px); }
+:root[data-skin="halloween"] .ai-head .logo { background: rgba(255, 122, 26, .16); }
+:root[data-skin="halloween"] .home-desk::before { display: none; }
+
+/* home: hanging lantern and jack-o'-lantern, the greeting catching their light */
+:root[data-skin="halloween"] .hw-scene { display: block; position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+:root[data-skin="halloween"] .home-desk > :not(.hw-scene), :root[data-skin="halloween"] .home-phone > :not(.hw-scene) { position: relative; z-index: 1; }
+.hw-lamp { position: absolute; left: calc(50% - 360px); top: -12vh; width: 74px; transform-origin: 50% 0; animation: hw-swing 6s ease-in-out infinite; }
+.hw-chain { display: block; width: 2px; height: 14vh; margin: 0 auto; background: repeating-linear-gradient(#3a2a22 0 5px, #1a110d 5px 8px); }
+.hw-lantern { display: block; width: 74px; height: auto; margin-top: -2px; filter: drop-shadow(0 0 calc(var(--flick, 1) * 26px) rgba(255, 150, 50, .75)); }
+.hw-flame, .hw-halo { opacity: var(--flick, 1); transform-origin: 40px 66px; }
+.hw-flame { animation: hw-dance .4s ease-in-out infinite alternate; }
+.hw-glass { fill: rgba(255, 170, 70, calc(.08 + var(--flick, 1) * .2)); }
+@keyframes hw-swing { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes hw-dance { to { transform: scale(.92, 1.08) skewX(3deg); } }
+.hw-pumpkin { position: absolute; right: calc(50% - 470px); bottom: -150px; width: 150px; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .6)); }
+.hw-pumpkin svg { display: block; width: 100%; height: auto; }
+.hw-face { opacity: calc(.55 + var(--flick2, 1) * .45); filter: drop-shadow(0 0 calc(var(--flick2, 1) * 8px) rgba(255, 190, 60, .95)); }
+[data-device="phone"] .hw-lamp { left: 14px; top: -30px; width: 46px; } [data-device="phone"] .hw-lantern { width: 46px; } [data-device="phone"] .hw-chain { height: 30px; }
+[data-device="phone"] .hw-pumpkin { right: 10px; bottom: auto; top: 40px; width: 74px; }
+@media (max-width: 1180px) { [data-device="desktop"] .hw-lamp { left: 24px; } [data-device="desktop"] .hw-pumpkin { right: 20px; bottom: -130px; width: 120px; } }
+/* the greeting lit by the lantern (gradient centred on the flame, from fx.js), with its reflection below */
+:root[data-skin="halloween"] .greet-t {
+  --lx: 0%; --ly: 0%;
+  background: radial-gradient(circle at var(--lx) var(--ly), #fff3d6 0, #ffc77a calc(16% + var(--flick, 1) * 14%), #f3e2d2 calc(40% + var(--flick, 1) * 16%), #a993a8 90%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 calc(var(--flick, 1) * 12px) rgba(255, 150, 60, .35));
+  -webkit-box-reflect: below -4px linear-gradient(transparent 45%, rgba(255, 255, 255, .22));
+}
+:root[data-skin="halloween"] .greet-t::after { content: attr(data-text); position: absolute; inset: 0; color: transparent; background: linear-gradient(105deg, transparent 40%, rgba(255, 236, 200, .55) 50%, transparent 60%) -200% 0 / 220% 100% no-repeat; -webkit-background-clip: text; background-clip: text; animation: hw-sheen 7s ease-in-out infinite; pointer-events: none; }
+:root[data-skin="halloween"] .greet-t { position: relative; display: inline-block; }
+@keyframes hw-sheen { 0%, 55% { background-position: -200% 0; } 85%, 100% { background-position: 200% 0; } }
+@media (prefers-reduced-motion: reduce) { .hw-lamp, .hw-flame, :root[data-skin="halloween"] .greet-t::after, .home-desk::before { animation: none !important; } }
+:root[data-skin="halloween"] .shell { background: transparent !important; }
+:root[data-skin="halloween"] .home-desk .greet { margin-bottom: 40px; }
+:root[data-skin="halloween"] .home-phone .greet { margin-bottom: 30px; }
+:root[data-skin="halloween"] .greet-t { -webkit-box-reflect: below -6px linear-gradient(transparent 52%, rgba(255, 255, 255, .16)); }
+/* computer: the lantern hangs from the top of the chat panel, the pumpkin sits in its lower right corner */
+[data-device="desktop"] .hw-lamp { position: fixed; left: calc(292px + 5vw); top: 12px; animation: hw-swing 6s ease-in-out infinite; }
+[data-device="desktop"] .hw-chain { height: 13vh; }
+[data-device="desktop"] .hw-lantern { width: 84px; }
+[data-device="desktop"] .hw-pumpkin { position: fixed; right: 56px; bottom: 34px; width: 170px; }
+@media (max-width: 1180px) { [data-device="desktop"] .hw-lamp { left: calc(292px + 2vw); } [data-device="desktop"] .hw-pumpkin { right: 28px; bottom: 24px; width: 130px; } }
