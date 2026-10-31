@@ -72,14 +72,25 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Latest stable-diffusion.cpp
+        id: sd
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "tag=$(gh release view -R leejet/stable-diffusion.cpp --json tagName -q .tagName)" >> "$GITHUB_OUTPUT"
+      # the same stable-diffusion.cpp version is only compiled once: later releases reuse it
+      - uses: actions/cache@v4
+        id: sdcache
+        with:
+          path: sd-bin-Darwin-x86_64.zip
+          key: sd-intel-mac-${{ steps.sd.outputs.tag }}
       - run: npm ci
+        if: steps.sdcache.outputs.cache-hit != 'true'
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - name: Build stable-diffusion.cpp (x86_64)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.sdcache.outputs.cache-hit != 'true'
         run: |
-          tag=$(gh release view -R leejet/stable-diffusion.cpp --json tagName -q .tagName)
+          tag="${{ steps.sd.outputs.tag }}"
           echo "stable-diffusion.cpp $tag"
           git clone --depth 1 --recursive --branch "$tag" https://github.com/leejet/stable-diffusion.cpp sdcpp
           cmake -S sdcpp -B sdcpp/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
@@ -88,6 +99,7 @@ jobs:
           mkdir pkg && cp sdcpp/build/bin/* pkg/ && (cd pkg && file * && otool -L sd* | grep -v /usr/lib/ | grep -v /System/ || true)
           (cd pkg && zip -9 -r ../sd-bin-Darwin-x86_64.zip .)
       - name: Generate a real image with it
+        if: steps.sdcache.outputs.cache-hit != 'true'
         run: node scripts/images-smoke.js
         env:
           SHOTS: .
@@ -142,8 +154,9 @@ jobs:
           if [ -z "$(gh release view "$v" --json body -q .body)" ]; then node scripts/release-notes.js > notes.md && gh release edit "$v" --notes-file notes.md; fi
 
   publish:
-    # Everything is attached: publish the draft (it becomes "latest", so auto-update picks it up).
-    needs: [build, sd-intel-mac, installer]
+    # The app and the installer are attached: publish the draft (it becomes "latest", so auto-update picks it
+    # up). The Intel Mac image engine doesn't hold it back: it is attached to the release when ready.
+    needs: [build, installer]
     if: always() && needs.build.result == 'success' && needs.installer.result == 'success'
     runs-on: ubuntu-latest
     steps:
