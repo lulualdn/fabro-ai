@@ -251,6 +251,7 @@ function registerIpc() {
   h('providers:refresh', (id) => providers.refresh(id));
   h('providers:enable', (on) => providers.setEnabled(on));
   h('providers:models', () => providers.chatModels());
+  h('providers:free', (on) => providers.setFree(on));
 
   h('chat:send', (payload) => { chat.send(payload, (ev) => send('chat:event', ev)); return true; });
   h('chat:abort', (id) => chat.abort(id));
@@ -325,6 +326,7 @@ function registerIpc() {
   h('voice:tts', (text, o) => voice.tts(text, o));
   h('voice:setVoice', (id) => voice.setVoice(id, (p) => send('deps:progress', { dep: 'voice', p })));
   h('voice:setWhisper', (size) => voice.setWhisper(size, (p) => send('deps:progress', { dep: 'voice', p })));
+  h('voice:setVocab', (text) => voice.setVocab(text));
 
   // Projects
   h('projects:list', () => db.listProjects());
@@ -407,6 +409,8 @@ app.whenReady().then(async () => {
   try { db.init(); } catch (e) { console.error('db init failed', e); }
   exporter.handleProtocol();
   await providers.migrate();
+  // modest computer, nothing downloaded yet: the free cloud answers until a local model is there
+  try { const [sp, loc] = await Promise.all([system.getSpecs(), models.listLocal ? models.listLocal() : []]); await providers.autoFree(sp, loc.length > 0); } catch (e) { console.warn('autoFree', e.message); }
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
   models.init((p) => send('models:progress', p));

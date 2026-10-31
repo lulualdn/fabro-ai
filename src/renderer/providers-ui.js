@@ -34,7 +34,7 @@ async function afterProviderChange(view) {
 function providersTab() {
   const P = S.prov;
   if (!P) return `<div class="muted">${esc(t('loading'))}</div>`;
-  const master = row(t('provEnable'), toggleBtn('prov-enable', P.enabled), t('provEnableHint'));
+  const master = freeCard(P) + row(t('provEnable'), toggleBtn('prov-enable', P.enabled), t('provEnableHint'));
   if (!P.enabled) {
     return `${master}
       <div class="prov-empty">
@@ -46,6 +46,16 @@ function providersTab() {
   const byKind = (k) => P.list.filter((p) => p.kind === k);
   const oneClick = oneClickCards();
   return providersBody(P, byKind, oneClick, master);
+}
+// Fabro Cloud: free, no account, no key — for computers that can't run a model well.
+function freeCard(P) {
+  const f = P.free || { on: false, models: [] };
+  return `<div class="oc-card free-card ${f.on ? 'on' : ''}">
+      <span class="fc-ic">${icon('cloud', 22)}</span>
+      <div class="oc-text"><b>${esc(t('free_title'))}</b><small>${esc(t(S.specs && S.specs.lowPower ? 'free_hintLow' : 'free_hint'))}</small>
+        ${f.on && f.models.length ? `<small class="muted">${esc(f.models.slice(0, 4).map((m) => m.name).join(' · '))}</small>` : ''}</div>
+      ${toggleBtn('free-toggle', !!f.on)}
+    </div>`;
 }
 function oneClickCards() {
   const P = S.prov;
@@ -120,6 +130,7 @@ function toggleBtn(action, on, extra = '') {
 const cleanErr = (e) => String(e && e.message || e).replace(/^Error invoking remote method '[^']+': (\w*Error: )?/, '');
 
 Object.assign(actions, {
+  'free-toggle': async (el) => { S.prov = await api.providers.free(el.dataset.value === 'true'); await afterProviderChange(); },
   'prov-enable': async (el) => {
     const on = el.dataset.value === 'true';
     S.prov = await api.providers.enable(on);

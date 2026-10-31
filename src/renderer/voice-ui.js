@@ -10,8 +10,13 @@ const Mic = {
   stream: null, ctx: null, proc: null, rec: null, pre: [], speaking: false, voiced: 0, silent: 0, floor: 0.008, onUtterance: null, onLevel: null, sens: 1,
   async start() {
     if (this.stream) return;
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-    this.ctx = new AudioContext();
+    // the audio context is made (and resumed) before the permission prompt, while the click still counts —
+    // created after it, some browsers leave it suspended and nothing is ever heard
+    this.ctx = new AudioContext(); this.ctx.resume().catch(() => {});
+    // the browser's noise suppression erases whispers: off; echo cancellation and gain control stay
+    try { this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: true, channelCount: 1 } }); }
+    catch (e) { try { this.ctx.close(); } catch {} this.ctx = null; throw e; }
+    if (this.ctx.state !== 'running') await this.ctx.resume().catch(() => {});
     const src = this.ctx.createMediaStreamSource(this.stream);
     this.proc = this.ctx.createScriptProcessor(2048, 1, 1);
     const mute = this.ctx.createGain(); mute.gain.value = 0;
@@ -23,17 +28,18 @@ const Mic = {
       const rms = Math.sqrt(sum / d.length);
       this.onLevel && this.onLevel(rms);
       if (S.voice.muted && S.voice.on) return;
-      const thr = Math.max(0.012, this.floor * 3) * this.sens;
+      // adaptive threshold: just above the room's noise floor, low enough for a whisper
+      const thr = Math.max(0.0045, this.floor * 2.4) * this.sens;
       const copy = new Float32Array(d);
       if (!this.speaking) {
         this.floor = this.floor * 0.97 + Math.min(rms, 0.05) * 0.03;
-        this.pre.push(copy); if (this.pre.length > 10) this.pre.shift();
-        if (rms > thr) { if (++this.voiced >= 3) { this.speaking = true; this.rec = [...this.pre]; this.silent = 0; this.onStart && this.onStart(); } } else this.voiced = 0;
+        this.pre.push(copy); if (this.pre.length > 12) this.pre.shift();
+        if (rms > thr) { if (++this.voiced >= 4) { this.speaking = true; this.rec = [...this.pre]; this.silent = 0; this.onStart && this.onStart(); } } else this.voiced = 0;
       } else {
         this.rec.push(copy);
-        if (rms < thr * 0.7) this.silent += frameMs; else this.silent = 0;
+        if (rms < thr * 0.65) this.silent += frameMs; else this.silent = 0;
         const dur = this.rec.length * frameMs;
-        if (this.silent > (this.endMs || 750) || dur > 30000) {
+        if (this.silent > (this.endMs || 850) || dur > 30000) {
           this.speaking = false; this.voiced = 0; this.pre = [];
           const chunks = this.rec; this.rec = null;
           if (dur - this.silent > 350) this.onUtterance && this.onUtterance(encodeWav(chunks, this.ctx.sampleRate));
@@ -136,7 +142,15 @@ async function vStartListening() {
     Mic.onLevel = (l) => { S.voice.level = l; };
     await Mic.start();
     vPhase('listening'); vSpin();
-  } catch (e) { S.voice.err = t('vx_micErr'); vRender(); }
+  } catch (e) { S.voice.err = micErrText(e); vRender(); }
+}
+// Why the microphone didn't start, in words the user can act on.
+function micErrText(e) {
+  const n = e && e.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError') return t('vx_micDenied');
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return t('vx_micNone');
+  if (n === 'NotReadableError') return t('vx_micBusy');
+  return t('vx_micErr');
 }
 function vInterrupt() {
   Speaker.stop(); vBuf = '';
@@ -191,7 +205,7 @@ function vSceneHtml() {
 function vRender() {
   let el = $('#vx');
   const st = S.voice.status || {};
-  const voices = (st.voices || []).filter((v) => v.lang === (sttLang() || 'en'));
+  const voices = (st.voices || []).filter((v) => v.lang === '*' || v.lang === (sttLang() || 'en'));
   const body = !st.runtime ? `<div class="vx-install">
       <h2>${esc(t('vx_installT'))}</h2><p>${esc(t('vx_installB'))}</p>
       ${S.voice.installing != null ? `<div class="bar"><i style="width:${Math.round(S.voice.installing * 100)}%"></i></div><small class="muted">${esc(t('deps_installing', { p: Math.round(S.voice.installing * 100) }))}</small>`
@@ -202,7 +216,8 @@ function vRender() {
          <div class="vx-status" id="vx-status">${esc(t('vx_' + S.voice.phase))}</div></div>
        <div class="vx-subs"><div class="vx-user" id="vx-user">${esc(S.voice.user)}</div><div class="vx-ai" id="vx-ai">${esc(S.voice.ai)}</div>${S.voice.err ? `<div class="vx-err">${esc(S.voice.err)}</div>` : ''}</div>`;
   const html = `<div class="vx-top"><span class="vx-title">${icon('waveform', 16)} ${esc(t('vx_title'))}</span><span class="grow"></span>
-      ${st.runtime && voices.length ? `<select class="input sm2" id="vx-voice" aria-label="${esc(t('vx_voice'))}">${voices.map((v) => `<option value="${esc(v.id)}" ${st.voice === v.id ? 'selected' : ''}>${esc(v.name)}${v.installed ? '' : ' ↓'}</option>`).join('')}</select>` : ''}
+      ${st.runtime && voices.length ? `<select class="input sm2" id="vx-voice" aria-label="${esc(t('vx_voice'))}">${voices.some((v) => v.engine === 'kokoro') ? `<optgroup label="${esc(t('vx_multi'))}">${voices.filter((v) => v.engine === 'kokoro').map((v) => `<option value="${esc(v.id)}" ${st.voice === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</optgroup><optgroup label="Piper">` : ''}${voices.filter((v) => v.engine !== 'kokoro').map((v) => `<option value="${esc(v.id)}" ${st.voice === v.id ? 'selected' : ''}>${esc(v.name)}${v.installed ? '' : ' ↓'}</option>`).join('')}${voices.some((v) => v.engine === 'kokoro') ? '</optgroup>' : ''}</select>` : ''}
+      ${st.runtime ? `<button class="icon-btn" data-action="vx-vocab" title="${esc(t('vx_vocab'))}">${icon('book', 17)}</button>` : ''}
       <button class="icon-btn" data-action="vx-close" title="${esc(t('close'))}">${icon('x', 18)}</button></div>
     <div class="vx-body">${body}</div>
     ${st.runtime ? `<div class="vx-ctl">
@@ -244,11 +259,25 @@ async function dictate(btn) {
     catch (e) { toast(cleanErr(e), 'err'); }
     btn.classList.remove('busy'); done();
   };
-  try { await Mic.start(); } catch { toast(t('vx_micErr'), 'err'); done(); }
+  try { await Mic.start(); } catch (e) { toast(micErrText(e), 'err'); done(); }
   setTimeout(() => { if (S.dictating && !Mic.speaking) { done(); } }, 12000);
 }
 
+// Words to recognise (names, jargon, brands): added to Whisper's vocabulary.
+function vocabDialog() {
+  const cur = (S.voice.status && S.voice.status.vocab) || '';
+  $('#modal-root').innerHTML = `<div class="modal-backdrop" data-action="close-modal"></div>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="vv-t" style="max-width:520px">
+      <h2 id="vv-t">${esc(t('vx_vocab'))}</h2><p class="muted small">${esc(t('vx_vocabHint'))}</p>
+      <textarea class="input" id="vv-in" rows="5" style="width:100%;height:auto;padding:10px" placeholder="Fabro, Lumeria, Transdev, Luau…">${esc(cur)}</textarea>
+      <div class="modal-actions"><button class="btn" data-action="close-modal">${esc(t('cancel'))}</button><button class="btn primary" data-action="vx-vocab-save">${esc(t('save'))}</button></div>
+    </div>`;
+  setTimeout(() => $('#vv-in') && $('#vv-in').focus(), 30);
+}
 Object.assign(actions, {
+  'vx-vocab': () => vocabDialog(),
+  'close-modal': () => closeModal(),
+  'vx-vocab-save': async () => { const v = $('#vv-in') ? $('#vv-in').value : ''; closeModal(); try { S.voice.status = await api.voice.setVocab(v); toast(t('vx_vocabSaved')); } catch (e) { toast(cleanErr(e), 'err'); } },
   'voice-mode': () => voiceOpen(),
   'dictate': (el) => dictate(el),
   'vx-close': () => voiceClose(),

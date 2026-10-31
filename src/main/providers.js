@@ -23,7 +23,31 @@ const PRESETS = {
   cerebras:   { name: 'Cerebras',      protocol: 'openai', baseUrl: 'https://api.cerebras.ai/v1', keyUrl: 'https://cloud.cerebras.ai' },
   perplexity: { name: 'Perplexity',    protocol: 'openai', baseUrl: 'https://api.perplexity.ai', keyUrl: 'https://www.perplexity.ai/settings/api', fixedModels: ['sonar', 'sonar-pro', 'sonar-reasoning', 'sonar-reasoning-pro'] },
   custom:     { name: 'OpenAI-compatible', protocol: 'openai', baseUrl: '', custom: true },
+  // Built in, free, no account and no key: for computers too modest to run a model well. A pool of anonymous
+  // endpoints whose limits add up — LLM7 (fast, several requests at once, a daily token quota per address) and
+  // OVH AI Endpoints (big models, 2 requests a minute per model, rotated). A busy one hands over to the next.
+  fabro:      { name: 'Fabro Cloud', protocol: 'openai', baseUrl: 'https://api.llm7.io/v1', keyless: true, free: true, site: 'https://fabro.ufstudios.eu' },
 };
+const FREE_ID = 'fabro-cloud';
+const FREE_BASES = { llm7: 'https://api.llm7.io/v1', ovh: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1' };
+// The pool, best first (also used offline, until the live check has run).
+const FREE_DEFAULT = [
+  { id: 'llm7/gpt-oss:20b', name: 'gpt-oss 20B', ctx: 128000, tools: true, reasoning: true },
+  { id: 'ovh/gpt-oss-120b', name: 'gpt-oss 120B', ctx: 128000, tools: true, reasoning: true },
+  { id: 'ovh/Qwen3.5-397B-A17B', name: 'Qwen3.5 397B', ctx: 128000, tools: true },
+  { id: 'llm7/nemotron-3-nano:30b', name: 'Nemotron 3 Nano 30B', ctx: 1000000, tools: true },
+  { id: 'ovh/Meta-Llama-3_3-70B-Instruct', name: 'Llama 3.3 70B', ctx: 128000, tools: true },
+  { id: 'ovh/Qwen3.6-27B', name: 'Qwen3.6 27B', ctx: 128000, tools: true },
+  { id: 'ovh/Mistral-Small-3.2-24B-Instruct-2506', name: 'Mistral Small 3.2', ctx: 128000, tools: true, vision: true },
+  { id: 'ovh/Qwen2.5-VL-72B-Instruct', name: 'Qwen2.5 VL 72B', ctx: 32000, vision: true },
+  { id: 'llm7/codestral-latest', name: 'Codestral', ctx: 32000, tools: true },
+];
+const splitFree = (id) => { const i = String(id).indexOf('/'); const pv = i > 0 ? id.slice(0, i) : 'llm7'; return { base: FREE_BASES[pv] || FREE_BASES.llm7, model: i > 0 ? id.slice(i + 1) : id, pv }; };
+const freeOn = () => store.getSettings().freeCloud !== false;
+function freeEntry() {
+  const c = store.getSettings().freeCloudModels;
+  return { id: FREE_ID, kind: 'fabro', name: 'Fabro Cloud', baseUrl: PRESETS.fabro.baseUrl, enabled: true, builtin: true, models: c && c.length ? c : FREE_DEFAULT };
+}
 
 // ───────────────────────────── secrets ─────────────────────────────
 const secretsFile = () => path.join(app.getPath('userData'), 'secrets.json');
@@ -58,11 +82,12 @@ function getKey(id) {
 // ───────────────────────────── config ─────────────────────────────
 const cfg = () => store.getSettings().providers || { enabled: false, list: [] };
 const list = () => cfg().list || [];
-const get = (id) => list().find((p) => p.id === id) || null;
+const get = (id) => (id === FREE_ID ? (freeOn() ? freeEntry() : null) : list().find((p) => p.id === id) || null);
 async function saveList(next, extra = {}) { await store.setSettings({ providers: { ...cfg(), ...extra, list: next } }); }
 
 function view() {
   return {
+    free: { on: freeOn(), models: freeEntry().models },
     enabled: !!cfg().enabled,
     presets: Object.entries(PRESETS).map(([kind, p]) => ({ kind, ...p })),
     list: list().map((p) => ({ ...p, hasKey: !!getKey(p.id), keyHint: maskKey(getKey(p.id)) })),
@@ -108,6 +133,14 @@ async function fetchModels(p, key) {
   if (preset.fixedModels) return preset.fixedModels.map((id) => ({ id, name: id }));
   const sig = AbortSignal.timeout(preset.local ? 2500 : 12000);
   try {
+    if (p.kind === 'fabro') {
+      // keep the curated pool, minus what a provider no longer lists (a provider that can't be reached keeps its entries)
+      const lists = await Promise.all(Object.entries(FREE_BASES).map(async ([pv, b]) => {
+        try { const r = await fetch(`${b}/models`, { signal: sig }); if (!r.ok) return [pv, null]; const j = await r.json(); return [pv, new Set((j.data || j || []).filter((m) => m && m.tier !== 'pro').map((m) => m.id))]; } catch { return [pv, null]; }
+      }));
+      const has = Object.fromEntries(lists);
+      return FREE_DEFAULT.filter((m) => { const x = splitFree(m.id); return !has[x.pv] || has[x.pv].has(x.model); });
+    }
     if (p.kind === 'ollama') {
       const r = await fetch(base.replace(/\/v1$/, '') + '/api/tags', { signal: sig });
       if (!r.ok) throw await httpErr(r, p);
@@ -212,21 +245,31 @@ async function setEnabled(on) { await store.setSettings({ providers: { ...cfg(),
 
 // Models exposed in pickers: only when the feature is on and the provider is enabled.
 function chatModels() {
-  if (!cfg().enabled) return [];
-  return list().filter((p) => p.enabled).flatMap((p) => (p.models || []).map((m) => ({
+  const free = freeOn() ? freeEntry().models.map((m) => ({
+    ref: { backend: 'provider', provider: FREE_ID, model: m.id }, label: m.name || m.id, provider: FREE_ID, providerName: 'Fabro Cloud', kind: 'fabro',
+    local: false, free: true, vision: !!m.vision, ctx: m.ctx,
+  })) : [];
+  if (!cfg().enabled) return free;
+  return [...free, ...list().filter((p) => p.enabled).flatMap((p) => (p.models || []).map((m) => ({
     ref: { backend: 'provider', provider: p.id, model: m.id },
     label: m.name || m.id, provider: p.id, providerName: p.name, kind: p.kind, local: !!PRESETS[p.kind]?.local,
     vision: !!m.vision, params: m.params, quant: m.quant, size: m.size, ctx: m.ctx,
-  })));
+  })))];
 }
 
 // Resolve a chat target for chat.js.
 function target(ref) {
   const p = get(ref.provider);
   if (!p) throw new ProviderError('NO_MODEL', 'Provider removed');
-  if (!cfg().enabled || !p.enabled) throw new ProviderError('PROVIDER_OFF', `${p.name} is disabled`);
+  if (p.kind !== 'fabro' && (!cfg().enabled || !p.enabled)) throw new ProviderError('PROVIDER_OFF', `${p.name} is disabled`);
   const preset = PRESETS[p.kind] || PRESETS.custom;
   const m = (p.models || []).find((x) => x.id === ref.model) || { id: ref.model };
+  if (p.kind === 'fabro') {
+    // the chosen model of the pool, then the others (same abilities) to hand over to when it's busy
+    const own = splitFree(ref.model);
+    const alts = (p.models || []).filter((x) => x.id !== ref.model && (!m.tools || x.tools) && (!m.vision || x.vision)).map((x) => ({ ...splitFree(x.id), id: x.id }));
+    return { provider: p, preset, protocol: 'openai', base: own.base, headers: { 'Content-Type': 'application/json' }, model: own.model, info: m, netErr: (e) => netErr(e, p), httpErr: (r) => httpErr(r, p), alternates: alts };
+  }
   return { provider: p, preset, protocol: preset.protocol, base: trimBase(p.baseUrl), headers: headersFor(p), model: ref.model, info: m, netErr: (e) => netErr(e, p), httpErr: (r) => httpErr(r, p) };
 }
 
@@ -244,6 +287,22 @@ async function migrate() {
   if (legacy) patch.selectedModel = { backend: 'provider', provider: lst.find((p) => p.kind === 'ollama').id, model: s.selectedModel.name };
   if (Object.keys(patch).length) await store.setSettings(patch);
   if (cfg().enabled && lst.length) refresh().catch(() => {});
+  if (freeOn()) refreshFree().catch(() => {});
+}
+// The live list of free models (kept in settings so it works offline at the next start).
+async function refreshFree() {
+  const models = await fetchModels({ ...freeEntry() });
+  if (models && models.length) await store.setSettings({ freeCloudModels: models });
+  return view();
+}
+async function setFree(on) { await store.setSettings({ freeCloud: !!on }); if (on) refreshFree().catch(() => {}); return view(); }
+// A modest computer with no model downloaded and nothing chosen: start on the free cloud, so the first message works.
+async function autoFree(specs, hasLocal) {
+  const s = store.getSettings();
+  if (s.selectedModel || hasLocal || !specs || !specs.lowPower || !freeOn() || s.freeCloudAuto === false) return false;
+  const m = freeEntry().models[0];
+  await store.setSettings({ selectedModel: { backend: 'provider', provider: FREE_ID, model: m.id }, freeCloudAuto: true });
+  return true;
 }
 
-module.exports = { setSecret: setKey, PRESETS, view, detect, add, update, remove, refresh, setEnabled, chatModels, target, migrate, ProviderError, getKey };
+module.exports = { setSecret: setKey, FREE_ID, refreshFree, setFree, autoFree, PRESETS, view, detect, add, update, remove, refresh, setEnabled, chatModels, target, migrate, ProviderError, getKey };

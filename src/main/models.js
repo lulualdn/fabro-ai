@@ -140,9 +140,14 @@ async function writeIndex(list) {
   } catch {}
 }
 
+let namesCache = [];
 async function listLocal() {
-  return (await readIndex()).filter((m) => fs.existsSync(m.path));
+  const l = (await readIndex()).filter((m) => fs.existsSync(m.path));
+  namesCache = l.map((m) => String(m.name || '').split(' · ')[0]).filter(Boolean);
+  return l;
 }
+// Model names seen by the last listing (speech recognition learns them as vocabulary).
+const installedNames = () => namesCache;
 
 function prettyName(repo, quant) {
   const base = repo.split('/')[1].replace(/-GGUF$/i, '').replace(/[-_]/g, ' ');
@@ -533,6 +538,7 @@ function init(emitter) {
 }
 
 module.exports = {
+  installedNames, listLocal,
   BLOCKED, init, catalog, search, repoFiles, download, pause, resume, cancel, remove, rename, installed, getLocal, CATALOG,
   librariesView, addLibrary, removeLibrary, setDefaultLibrary, verify, move, scanImports, importModels, plans,
 };

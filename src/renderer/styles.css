@@ -1070,14 +1070,15 @@ details.py summary, details.diff summary { cursor: pointer; font-size: 12px; col
 .sp-empty { color: var(--muted); font-size: 13px; }
 .sp-plan { list-style: none; margin: 0; padding: 0; position: relative; }
 .sp-plan li { position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 5px 0; font-size: 13.5px; color: var(--text-2); line-height: 1.35; animation: rise .35s var(--ease) both; }
-.sp-plan li > i { flex: none; width: 18px; display: grid; place-items: center; margin-top: 1px; color: var(--muted); }
+.sp-plan li > i, .sp-plan li .sp-fold > i { flex: none; width: 18px; display: grid; place-items: center; margin-top: 1px; color: var(--muted); }
 .sp-plan li:not(:last-child)::before { content: ''; position: absolute; left: 8.5px; top: 22px; bottom: -6px; width: 1px; background: var(--border-strong); }
 .sp-plan li.done > i { color: var(--muted); }
 .sp-plan li.done span { color: var(--muted); }
 .sp-plan li.in_progress span { color: var(--text); font-weight: 500; }
 .sp-plan li.in_progress > i { color: var(--accent); }
 .sp-plan li.fold { cursor: pointer; color: var(--muted); font-size: 12.5px; }
-.sp-plan li.fold > i::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
+.sp-plan li.fold .sp-fold { display: contents; color: inherit; font: inherit; cursor: pointer; }
+.sp-plan li.fold .sp-fold > i::after, .sp-plan li.fold > i::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
 .sp-plan li.fold:hover span { color: var(--text-2); text-decoration: underline; }
 .sp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
 .sp-card { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; border-radius: var(--r); padding: 4px; transition: background .15s; }
@@ -1692,3 +1693,81 @@ body.drop-on .drop-veil { opacity: 1; }
 .art-body:has(> .fe-bar) { overflow: hidden; }
 .fe-bar { flex: none; }
 .art-frame.fe-frame { min-height: 0; }
+
+/* ───────── Halloween theme (data-skin="halloween" on top of the dark theme) ─────────
+   Pumpkin accent on a deep aubergine night, a big moon glow, bats drifting in the margins and a cobweb in the
+   corner. Decorations sit behind the panels, never take clicks, and stop moving with reduced motion. */
+[data-skin="halloween"] {
+  --bg: #120d17;
+  --panel: #0c0910;
+  --elev: #1d1524;
+  --elev-2: #17111d;
+  --text: #f6efe6;
+  --text-2: #dacbd8;
+  --muted: #ab99ad;
+  --border: #2d2134;
+  --border-strong: #3e2e47;
+  --hover: rgba(255, 170, 90, .07);
+  --active: rgba(255, 170, 90, .11);
+  --accent: #ff7a1a;
+  --accent-hover: #ff9140;
+  --accent-soft: rgba(255, 122, 26, .17);
+  --accent-ink: #1b0f05;
+  --bubble: #2a1e31;
+  --code-bg: #0f0b13;
+  --code-head: #1a1320;
+  --ok: #8fe36f; --warn: #ffc247; --err: #ff5776;
+  --logo: #ff7a1a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 22px rgba(20, 0, 30, .45);
+  --shadow-lg: 0 16px 56px rgba(10, 0, 20, .6), 0 2px 10px rgba(0, 0, 0, .4);
+  color-scheme: dark;
+}
+[data-skin="halloween"] body {
+  background:
+    radial-gradient(520px 520px at 88% -6%, rgba(255, 214, 150, .16), rgba(255, 170, 80, .05) 45%, transparent 70%),
+    radial-gradient(900px 600px at 0% 110%, rgba(110, 40, 150, .22), transparent 70%),
+    var(--bg);
+}
+[data-skin="halloween"] .app { position: relative; z-index: 1; }
+/* bats drifting across the night */
+[data-skin="halloween"] body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .55;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'%3E%3Cpath fill='%23070409' d='M32 10c1.6-3 3.4-4 4.4-3.4-.6 1.2-.3 2.4.6 3.3 2.8-3.6 8.6-5.6 13.6-4.6-1.9 1.4-2.6 3.2-2.2 5.2 3.7-1.3 8.4-.5 11.6 2.3-3.2-.2-5.8 1-7 3.4-2.6-1.6-6-1.4-8.4.5-1.6-1.8-4.2-2.4-6.4-1.5-.8.4-1.6 1.4-2.2 2.8-.6-1.4-1.4-2.4-2.2-2.8-2.2-.9-4.8-.3-6.4 1.5-2.4-1.9-5.8-2.1-8.4-.5-1.2-2.4-3.8-3.6-7-3.4 3.2-2.8 7.9-3.6 11.6-2.3.4-2-.3-3.8-2.2-5.2 5-1 10.8 1 13.6 4.6.9-.9 1.2-2.1.6-3.3 1-.6 2.8.4 4.4 3.4z'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'%3E%3Cpath fill='%23070409' d='M32 10c1.6-3 3.4-4 4.4-3.4-.6 1.2-.3 2.4.6 3.3 2.8-3.6 8.6-5.6 13.6-4.6-1.9 1.4-2.6 3.2-2.2 5.2 3.7-1.3 8.4-.5 11.6 2.3-3.2-.2-5.8 1-7 3.4-2.6-1.6-6-1.4-8.4.5-1.6-1.8-4.2-2.4-6.4-1.5-.8.4-1.6 1.4-2.2 2.8-.6-1.4-1.4-2.4-2.2-2.8-2.2-.9-4.8-.3-6.4 1.5-2.4-1.9-5.8-2.1-8.4-.5-1.2-2.4-3.8-3.6-7-3.4 3.2-2.8 7.9-3.6 11.6-2.3.4-2-.3-3.8-2.2-5.2 5-1 10.8 1 13.6 4.6.9-.9 1.2-2.1.6-3.3 1-.6 2.8.4 4.4 3.4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 46px 23px, 30px 15px;
+  background-position: 70% 9%, 82% 16%;
+  animation: hw-bats 38s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 6px rgba(255, 190, 120, .25));
+}
+@keyframes hw-bats {
+  0% { background-position: 64% 10%, 84% 18%; }
+  50% { background-position: 74% 6%, 77% 12%; }
+  100% { background-position: 92% 12%, 70% 20%; }
+}
+/* cobweb in the top-left corner */
+[data-skin="halloween"] body::after {
+  content: ""; position: fixed; left: 0; top: 0; width: 150px; height: 150px; z-index: 2; pointer-events: none; opacity: .32;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23e8dcef' stroke-width='.7'%3E%3Cpath d='M0 0L100 30M0 0L80 80M0 0L30 100M0 0L100 0M0 0L0 100'/%3E%3Cpath d='M18 0Q14 7 18 5Q20 14 13 12Q12 19 5 17Q6 15 0 18'/%3E%3Cpath d='M38 0Q31 14 38 11Q40 27 26 24Q24 36 11 33Q12 30 0 36'/%3E%3Cpath d='M60 0Q49 22 60 17Q62 41 40 37Q37 54 17 50Q19 46 0 55'/%3E%3Cpath d='M84 0Q68 30 84 24Q85 56 55 51Q50 74 24 68Q26 63 0 75'/%3E%3C/svg%3E") no-repeat 0 0 / contain;
+}
+/* the propeller (the official mark, never redrawn) glows like a jack-o'-lantern */
+[data-skin="halloween"] .logo, [data-skin="halloween"] .spinner { overflow: visible; filter: drop-shadow(0 0 5px rgba(255, 122, 26, .55)); }
+[data-skin="halloween"] .greeting .logo, [data-skin="halloween"] .hero .logo, [data-skin="halloween"] .greet .logo { animation: hw-flicker 3.2s ease-in-out infinite; }
+@keyframes hw-flicker { 0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 122, 26, .6)); } 42% { filter: drop-shadow(0 0 11px rgba(255, 150, 40, .85)); } 47% { filter: drop-shadow(0 0 3px rgba(255, 110, 20, .4)); } 60% { filter: drop-shadow(0 0 9px rgba(255, 140, 40, .75)); } }
+[data-skin="halloween"] .btn.primary, [data-skin="halloween"] .send-btn { box-shadow: 0 0 0 1px rgba(255, 140, 50, .25), 0 4px 18px rgba(255, 110, 20, .28); }
+[data-skin="halloween"] ::selection { background: rgba(143, 227, 111, .25); }
+[data-skin="halloween"] .hljs-keyword, [data-skin="halloween"] .hljs-selector-tag, [data-skin="halloween"] .hljs-literal, [data-skin="halloween"] .hljs-built_in { color: #c792ea; }
+[data-skin="halloween"] .hljs-string, [data-skin="halloween"] .hljs-addition { color: #8fe36f; }
+[data-skin="halloween"] .hljs-number, [data-skin="halloween"] .hljs-symbol { color: #ff9a4a; }
+@media (prefers-reduced-motion: reduce) { [data-skin="halloween"] body::before, [data-skin="halloween"] .logo { animation: none !important; } }
+html.light-mode[data-skin="halloween"] body::before { display: none; }
+
+/* ───────── Light mode (modest computers): no blur, lighter shadows, no decorative motion ───────── */
+html.light-mode *, html.light-mode *::before, html.light-mode *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+html.light-mode { --shadow: 0 1px 2px rgba(0, 0, 0, .12); --shadow-lg: 0 4px 14px rgba(0, 0, 0, .2); }
+html.light-mode .logo.spin-in .prop, html.light-mode [class*="shimmer"], html.light-mode .greet-anim { animation: none !important; }
+html.light-mode ::view-transition-old(root), html.light-mode ::view-transition-new(root) { animation: none !important; }
+.free-card { margin-bottom: 14px; }
+.free-card .fc-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.free-card .oc-text small + small { display: block; margin-top: 2px; }

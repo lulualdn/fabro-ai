@@ -625,3 +625,32 @@ Object.assign(I18N.en, { perm_cu_always: 'Always allow', perm_cu_always_done: 'F
 Object.assign(I18N.fr, { perm_cu_always: 'Toujours autoriser', perm_cu_always_done: 'Fabro utilisera l’ordinateur sans demander. Modifiable dans Réglages › Agent.' });
 Object.assign(I18N.es, { perm_cu_always: 'Permitir siempre', perm_cu_always_done: 'Fabro usará el ordenador sin preguntar. Puedes cambiarlo en Ajustes › Agente.' });
 Object.assign(I18N.de, { perm_cu_always: 'Immer erlauben', perm_cu_always_done: 'Fabro benutzt den Computer ohne zu fragen. Änderbar unter Einstellungen › Agent.' });
+// Halloween theme, voice (microphone errors, multilingual voices, vocabulary), free cloud, light mode
+Object.assign(I18N.en, {
+  themeHalloween: 'Halloween', themeHalloweenOff: 'Leave the Halloween theme',
+  vx_micDenied: 'The microphone is blocked. Allow it for Fabro (system privacy settings › Microphone), then try again.', vx_micNone: 'No microphone found.', vx_micBusy: 'The microphone is used by another app.',
+  vx_multi: 'Multilingual (Kokoro)', vx_vocab: 'Words to recognise', vx_vocabHint: 'Names, brands and jargon the voice should hear correctly — separated by commas.', vx_vocabSaved: 'Vocabulary saved',
+  free_title: 'Fabro Cloud — free', free_hint: 'Free models online, no account and no key. Useful when your computer is busy or too modest.', free_hintLow: 'This computer is modest: Fabro Cloud answers fast for free, no account needed. Your local models stay available.',
+  lightMode: 'Light mode', lightModeHint: 'Fewer visual effects (blur, shadows, motion) for a smoother app on modest computers.', lightModeHintLow: 'On by default on this computer: fewer visual effects for a smoother app.',
+});
+Object.assign(I18N.fr, {
+  themeHalloween: 'Halloween', themeHalloweenOff: 'Quitter le thème Halloween',
+  vx_micDenied: 'Le micro est bloqué. Autorise-le pour Fabro (Paramètres de confidentialité du système › Microphone), puis réessaie.', vx_micNone: 'Aucun micro trouvé.', vx_micBusy: 'Le micro est utilisé par une autre application.',
+  vx_multi: 'Multilingue (Kokoro)', vx_vocab: 'Mots à reconnaître', vx_vocabHint: 'Noms, marques et jargon que la voix doit bien entendre — séparés par des virgules.', vx_vocabSaved: 'Vocabulaire enregistré',
+  free_title: 'Fabro Cloud — gratuit', free_hint: 'Des modèles gratuits en ligne, sans compte ni clé. Pratique quand ton ordinateur est occupé ou trop modeste.', free_hintLow: 'Cet ordinateur est modeste : Fabro Cloud répond vite et gratuitement, sans compte. Tes modèles locaux restent disponibles.',
+  lightMode: 'Mode léger', lightModeHint: 'Moins d’effets visuels (flou, ombres, animations) pour une app plus fluide sur les petits ordinateurs.', lightModeHintLow: 'Activé par défaut sur cet ordinateur : moins d’effets pour une app plus fluide.',
+});
+Object.assign(I18N.es, {
+  themeHalloween: 'Halloween', themeHalloweenOff: 'Salir del tema Halloween',
+  vx_micDenied: 'El micrófono está bloqueado. Permítelo para Fabro (privacidad del sistema › Micrófono) y vuelve a intentarlo.', vx_micNone: 'No se encontró ningún micrófono.', vx_micBusy: 'Otra aplicación está usando el micrófono.',
+  vx_multi: 'Multilingüe (Kokoro)', vx_vocab: 'Palabras a reconocer', vx_vocabHint: 'Nombres, marcas y jerga que la voz debe oír bien, separados por comas.', vx_vocabSaved: 'Vocabulario guardado',
+  free_title: 'Fabro Cloud — gratis', free_hint: 'Modelos gratuitos en línea, sin cuenta ni clave.', free_hintLow: 'Este ordenador es modesto: Fabro Cloud responde rápido y gratis, sin cuenta.',
+  lightMode: 'Modo ligero', lightModeHint: 'Menos efectos visuales para una app más fluida en ordenadores modestos.', lightModeHintLow: 'Activado por defecto en este ordenador.',
+});
+Object.assign(I18N.de, {
+  themeHalloween: 'Halloween', themeHalloweenOff: 'Halloween-Design verlassen',
+  vx_micDenied: 'Das Mikrofon ist blockiert. Erlaube es für Fabro (Datenschutz › Mikrofon) und versuche es erneut.', vx_micNone: 'Kein Mikrofon gefunden.', vx_micBusy: 'Das Mikrofon wird von einer anderen App benutzt.',
+  vx_multi: 'Mehrsprachig (Kokoro)', vx_vocab: 'Zu erkennende Wörter', vx_vocabHint: 'Namen, Marken und Fachbegriffe, durch Kommas getrennt.', vx_vocabSaved: 'Wortschatz gespeichert',
+  free_title: 'Fabro Cloud — kostenlos', free_hint: 'Kostenlose Online-Modelle, ohne Konto und ohne Schlüssel.', free_hintLow: 'Dieser Computer ist schwach: Fabro Cloud antwortet schnell und kostenlos, ohne Konto.',
+  lightMode: 'Leichter Modus', lightModeHint: 'Weniger visuelle Effekte für eine flüssigere App auf schwächeren Computern.', lightModeHintLow: 'Auf diesem Computer standardmäßig an.',
+});

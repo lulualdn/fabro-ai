@@ -54,10 +54,20 @@ function merge(base, patch) {
   return out;
 }
 
-async function writeJSON(file, data) {
-  const tmp = file + '.tmp';
-  await fsp.writeFile(tmp, JSON.stringify(data, null, 2));
-  await fsp.rename(tmp, file);
+// Writes to one file go one after another, each through its own temp file: two saves at the same moment
+// (a background refresh while the user changes a setting) can't trip over the same temp file.
+const writing = new Map(); let tmpN = 0;
+function writeJSON(file, data) {
+  const text = JSON.stringify(data, null, 2);
+  const prev = writing.get(file) || Promise.resolve();
+  const next = prev.catch(() => {}).then(async () => {
+    const tmp = `${file}.${process.pid}.${++tmpN}.tmp`;
+    await fsp.writeFile(tmp, text);
+    await fsp.rename(tmp, file);
+  });
+  writing.set(file, next);
+  next.finally(() => { if (writing.get(file) === next) writing.delete(file); }).catch(() => {});
+  return next;
 }
 
 function init() {

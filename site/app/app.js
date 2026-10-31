@@ -40,7 +40,9 @@
   // ───────────────────────────── state ─────────────────────────────
   const S = {
     view: 'welcome', identity: null, link: null,
-    settings: { lang: 'auto', theme: 'system', model: null, localFallback: true, localModel: null, agent: false },
+    // model: a computer model ref, 'cloud:<id>' (Fabro Cloud, free), or 'phone' (on this phone)
+    // away: what answers while the computer can't be reached — 'cloud' (free, needs a network), 'phone', 'wait'
+    settings: { lang: 'auto', theme: 'system', model: null, localFallback: true, localModel: null, agent: false, away: 'cloud', ears: null, voiceName: '', voiceFam: 'f' },
     convs: new Map(), metas: [], cur: null, drawer: false,
     conn: { state: 'off', info: null, err: '' }, models: [],
     outbox: [], tombstones: [], runs: new Map(), asks: new Map(),
@@ -130,7 +132,7 @@
       const info = await rpc('hello', { visible: !document.hidden, name: deviceName() });
       S.conn.info = info; S.models = info.models || [];
       if (info.pcName && S.link.pcName !== info.pcName) { S.link.pcName = info.pcName; await kv.set('link', S.link); }
-      if (!S.settings.model || !S.models.some((m) => refKey(m.ref) === refKey(S.settings.model))) { if (S.settings.model !== 'phone') S.settings.model = info.model || (S.models[0] && S.models[0].ref) || null; }
+      if (!S.settings.model || (typeof S.settings.model !== 'string' && !S.models.some((m) => refKey(m.ref) === refKey(S.settings.model)))) S.settings.model = info.model || (S.models[0] && S.models[0].ref) || S.settings.model || null;
       renderHeader();
       if (window.FAFull && info.ui) FAFull.connected(info).catch((e) => console.warn('full ui', e)); // the computer's full interface
       await syncNow();
@@ -150,7 +152,7 @@
       if (m.k === 'ui') { window.FAFull && FAFull.events(m.evs || []); return; }
     }
   }
-  const refKey = (r) => !r ? '' : r === 'phone' ? 'phone' : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
+  const refKey = (r) => !r ? '' : typeof r === 'string' ? r : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
   function deviceName() {
     const ua = navigator.userAgent;
     const m = ua.match(/\(([^)]+)\)/); const p = m ? m[1] : '';
@@ -206,10 +208,25 @@
     S.draft = ''; S.atts = []; render(); scrollChat(true);
     return dispatch(c, node);
   }
+  // Who answers: the chosen model; with a computer model and no computer, what "away" says.
+  const isCloud = (m) => typeof m === 'string' && m.startsWith('cloud:');
+  const cloudId = () => (isCloud(S.settings.model) ? S.settings.model.slice(6) : 'auto');
+  function awayRoute() {
+    const a = S.settings.away || 'cloud';
+    const phoneOk = !!localInfo() && S.local.status !== 'unsupported';
+    if (a === 'cloud' && navigator.onLine !== false) return 'cloud';
+    if (a !== 'wait' && phoneOk && S.settings.localFallback !== false) return 'phone';
+    if (a === 'phone' && navigator.onLine !== false) return 'cloud';
+    return 'wait';
+  }
   async function dispatch(c, node) {
-    const usePhone = S.settings.model === 'phone' || (!session && S.settings.localFallback && !!localInfo() && S.local.status !== 'unsupported');
-    if (usePhone) return runLocal(c, node);
-    if (!session) { S.outbox.push({ convId: c.id, nodeId: node.id }); await kv.set('outbox', S.outbox); render(); connect(); return; }
+    if (S.settings.model === 'phone') return runPhone(c, node, 'phone');
+    if (isCloud(S.settings.model)) return navigator.onLine === false && localInfo() ? runPhone(c, node, 'phone') : runPhone(c, node, 'cloud');
+    if (!session) {
+      const r = awayRoute();
+      if (r !== 'wait') return runPhone(c, node, r);
+      S.outbox.push({ convId: c.id, nodeId: node.id }); await kv.set('outbox', S.outbox); render(); connect(); return;
+    }
     try {
       const res = await rpc('run', { conv: strip(c), nodeId: node.id, model: S.settings.model && S.settings.model !== 'phone' ? S.settings.model : null, agent: !!c.agent });
       c.dirty = false;
@@ -323,29 +340,35 @@
     S.settings.localModel = null; if (S.settings.model === 'phone') S.settings.model = null; await saveSettings();
     S.local = { status: 'none', progress: 0, text: '' }; renderSheet(); renderHeader();
   }
-  async function runLocal(c, node) {
-    if (S.local.status !== 'ready') { const m = localInfo(); if (!m || !(await loadLocal(m))) { toast(t('localUnavailable'), 'err'); return; } }
-    const m = localInfo();
-    const asst = { id: A.uid(), role: 'assistant', content: '', reasoning: '', steps: [], model: `${m.name} · ${t('onPhone')}`, pending: true, createdAt: now(), parentId: node.id, origin: 'phone-local' };
+  // The phone answers alone (Fabro Cloud or the phone's model), with tools: chat and agent as on the computer.
+  async function runPhone(c, node, how) {
+    if (how === 'phone' && S.local.status !== 'ready') { const m = localInfo(); if (!m || !(await loadLocal(m))) { if (navigator.onLine !== false) how = 'cloud'; else { toast(t('localUnavailable'), 'err'); return; } } }
+    const lm = localInfo(); const cid = cloudId();
+    const label = how === 'phone' ? `${lm ? lm.name : ''} · ${t('onPhone')}` : `${(FAAgent.models.find((x) => x.id === cid) || { name: cid }).name} · Fabro Cloud`;
+    const asst = { id: A.uid(), role: 'assistant', content: '', reasoning: '', steps: [], model: label, pending: true, createdAt: now(), parentId: node.id, origin: how === 'phone' ? 'phone-local' : 'phone-cloud' };
     c.nodes = [...A.nodesOf(c), asst]; c.leafId = asst.id; await saveConv(c); render(); scrollChat(true);
-    const msgs = [{ role: 'system', content: t('localSystem', { d: new Date().toLocaleDateString(lang) }) + ' /no_think' }];
-    for (const x of A.pathOf({ ...c, leafId: node.id })) if (!x.pending && (x.content || '').trim()) msgs.push({ role: x.role === 'assistant' ? 'assistant' : 'user', content: x.content });
-    let aborted = false; S.localRun = { abort: () => { aborted = true; try { engine.interruptGenerate(); } catch {} } };
+    const ctl = new AbortController(); S.localRun = { abort: () => ctl.abort() };
+    const paint = () => { if (S.cur === c.id) { cancelAnimationFrame(paintT); paintT = requestAnimationFrame(() => { paintMessage(asst); scrollChat(); }); } if (S.voice && S.voice.convId === c.id) S.voice.feed(asst.content || ''); };
     try {
-      const stream = await engine.chat.completions.create({ messages: msgs.slice(-14), stream: true, temperature: 0.7, max_tokens: 1024, extra_body: { enable_thinking: false } });
-      let raw = '';
-      for await (const ch of stream) {
-        raw += (ch.choices[0] && ch.choices[0].delta && ch.choices[0].delta.content) || '';
-        asst.content = raw.replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trimStart();
-        if (S.cur === c.id) { cancelAnimationFrame(paintT); paintT = requestAnimationFrame(() => { paintMessage(asst); scrollChat(); }); }
-        if (S.voice && S.voice.convId === c.id) S.voice.feed(asst.content);
-        if (aborted) break;
-      }
-    } catch (e) { asst.error = String(e && e.message || e); }
+      const out = await FAAgent.run({
+        history: A.pathOf({ ...c, leafId: node.id }), model: cid, agent: !!c.agent, lang, engine: how === 'phone' ? engine : null, signal: ctl.signal,
+        onEvent: (ev) => {
+          if (ev.type === 'token') asst.content = (asst.content + ev.text).replace(/【(\d+)†[^】]*】/g, '[$1]'); // gpt-oss citations → [n]
+          else if (ev.type === 'reasoning') asst.reasoning = (asst.reasoning || '') + ev.text;
+          else if (ev.type === 'tool_round') { if (asst.content && !/\n\n$/.test(asst.content)) asst.content += '\n\n'; if (!c.agent && S.settings.autoAgent !== false && asst.steps.length > 1) c.agent = true; }
+          else if (ev.type === 'tool_start') asst.steps.push({ id: ev.id, name: ev.name, status: 'running', args: ev.args });
+          else if (ev.type === 'tool_end') { const st = asst.steps.find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : 'done'; st.view = ev.view; if (ev.error) st.error = ev.error; } }
+          paint();
+        },
+      });
+      if (how === 'cloud' && out && out.model) asst.model = `${out.model} · Fabro Cloud`;
+    } catch (e) { if (e && e.name !== 'AbortError') asst.error = String(e && e.message || e); }
     S.localRun = null;
+    asst.content = asst.content.trim();
     asst.pending = false; asst.updatedAt = now(); c.updatedAt = now(); c.dirty = true;
     await saveConv(c); render();
     if (S.voice && S.voice.convId === c.id) S.voice.done(asst.content, asst.error);
+    if (document.hidden) localNotify(c.title || 'Fabro', (asst.error ? '⚠ ' + asst.error : asst.content).replace(/[#*_`>]/g, '').slice(0, 140), c.id);
     if (session) syncNow().catch(() => {});
   }
 
@@ -457,8 +480,14 @@
     stream: null, ctx: null, proc: null, rec: null, pre: [], speaking: false, voiced: 0, silent: 0, floor: 0.008,
     async start(onUtterance, onLevel, opts = {}) {
       this.onUtterance = onUtterance; this.onLevel = onLevel; this.vad = opts.vad !== false;
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('insecure'), { name: 'SecurityError' });
+      // The audio context is created — and resumed — right away, during the tap: made after the permission
+      // prompt, iOS and some Android browsers keep it suspended and the microphone seems deaf.
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.ctx.resume().catch(() => {});
+      // No browser noise suppression: it erases whispers. Echo cancellation and automatic gain stay on.
+      try { this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: true, channelCount: 1 } }); }
+      catch (e) { try { this.ctx.close(); } catch {} this.ctx = null; throw e; }
+      if (this.ctx.state !== 'running') await this.ctx.resume().catch(() => {});
       const src = this.ctx.createMediaStreamSource(this.stream);
       this.proc = this.ctx.createScriptProcessor(2048, 1, 1);
       const mute = this.ctx.createGain(); mute.gain.value = 0;
@@ -471,16 +500,17 @@
         const copy = new Float32Array(d);
         if (!this.vad) { this.rec.push(copy); return; }
         if (this.paused) return;
-        const thr = Math.max(0.012, this.floor * 3);
+        // just above the room's noise floor, low enough for a whisper; 4 frames (~170 ms) to start
+        const thr = Math.max(0.0045, this.floor * 2.4);
         if (!this.speaking) {
           this.floor = this.floor * 0.97 + Math.min(rms, 0.05) * 0.03;
-          this.pre.push(copy); if (this.pre.length > 10) this.pre.shift();
-          if (rms > thr) { if (++this.voiced >= 3) { this.speaking = true; this.rec = [...this.pre]; this.silent = 0; } } else this.voiced = 0;
+          this.pre.push(copy); if (this.pre.length > 12) this.pre.shift();
+          if (rms > thr) { if (++this.voiced >= 4) { this.speaking = true; this.rec = [...this.pre]; this.silent = 0; } } else this.voiced = 0;
         } else {
           this.rec.push(copy);
-          if (rms < thr * 0.7) this.silent += frameMs; else this.silent = 0;
+          if (rms < thr * 0.65) this.silent += frameMs; else this.silent = 0;
           const dur = this.rec.length * frameMs;
-          if (this.silent > 800 || dur > 30000) {
+          if (this.silent > 900 || dur > 30000) {
             this.speaking = false; this.voiced = 0; this.pre = [];
             const chunks = this.rec; this.rec = null;
             if (dur - this.silent > 350) this.onUtterance(wav(chunks, this.ctx.sampleRate));
@@ -505,16 +535,45 @@
     new Int16Array(buf, 44).set(pcm); return new Uint8Array(buf);
   }
   const pcVoice = () => !!(session && S.conn.info && S.conn.info.voice && S.conn.info.voice.ready);
+  // Whisper on the phone itself (downloaded once, works offline)
+  const earsReady = () => !!(S.settings.ears && S.settings.ears.id);
   async function transcribe(wavBytes) {
-    if (pcVoice()) { const r = await rpc('voice.stt', { wav: A.b64u(wavBytes).replace(/-/g, '+').replace(/_/g, '/'), lang }, 120000); return (r && r.text) || ''; }
+    if (pcVoice()) {
+      try { const r = await rpc('voice.stt', { wav: A.b64u(wavBytes).replace(/-/g, '+').replace(/_/g, '/'), lang }, 120000); return (r && r.text) || ''; }
+      catch (e) { if (!earsReady()) throw e; }
+    }
+    // online: Whisper large-v3 turbo in the cloud (free, nothing to download), with the conversation as context
+    if (navigator.onLine !== false && S.settings.cloudEars !== false) {
+      try { const c = curConv(); const last = c && A.pathOf(c).filter((n) => n.role === 'assistant').slice(-1)[0]; return await FAAgent.cloudHear(wavBytes, { lang, prompt: ['Fabro', last ? speakable(last.content).slice(-300) : ''].join('. ') }); }
+      catch (e) { if (!earsReady()) throw e.busy ? new Error(t('cloudBusy')) : e; }
+    }
+    if (earsReady()) return FASpeech.hear(wavBytes, { model: S.settings.ears.id, lang });
     throw new Error(t('noStt'));
+  }
+  // Microphone refused or missing: explain how to allow it on this exact device, instead of failing silently.
+  async function micHelp(e) {
+    const n = e && e.name;
+    if (n === 'NotFoundError' || n === 'OverconstrainedError') { toast(t('micNone'), 'err'); return; }
+    if (n === 'NotReadableError') { toast(t('micBusy'), 'err'); return; }
+    S.micHelp = { key: FASpeech.micHelpKey(), state: await FASpeech.micState(), insecure: n === 'SecurityError' && !isSecureContext };
+    S.sheet = 'mic'; renderSheet();
+  }
+  function micSheet() {
+    const h = S.micHelp || {};
+    return `<h2>${esc(t('micTitle'))}</h2>
+      <div class="card mic-card"><span class="mic-ic">${ic('mic', 26)}</span><div><b>${esc(t(h.insecure ? 'micInsecure' : 'micBlocked'))}</b><small>${esc(t('micWhy'))}</small></div></div>
+      <ol class="mic-steps">${t(h.key || 'micHelpChrome').split('|').map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+      <button class="btn primary" data-act="mic-retry">${ic('mic', 18)} ${esc(t('micRetry'))}</button>
+      ${'SpeechRecognition' in window || 'webkitSpeechRecognition' in window ? '' : `<p class="hint">${esc(t('micNoSr'))}</p>`}`;
   }
   // Browser speech recognition (fallback when the computer's voice isn't available).
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   function browserListen() {
     return new Promise((resolve, reject) => {
       const r = new SR(); r.lang = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE' }[lang]; r.interimResults = false; r.maxAlternatives = 1;
-      let got = ''; r.onresult = (e) => { got = e.results[0][0].transcript; }; r.onerror = (e) => reject(new Error(e.error)); r.onend = () => resolve(got); r.start();
+      let got = ''; r.onresult = (e) => { got = e.results[0][0].transcript; };
+      r.onerror = (e) => { const er = new Error(e.error); er.name = e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'NotAllowedError' : e.error === 'audio-capture' ? 'NotFoundError' : 'SpeechError'; er.sr = e.error; reject(er); };
+      r.onend = () => resolve(got); r.start();
       Mic._sr = r;
     });
   }
@@ -534,13 +593,14 @@
         const el = this.el || (this.el = new Audio()); this.audio = el; el.src = url;
         await new Promise((res) => { el.onended = res; el.onerror = res; el.play().catch(res); });
         URL.revokeObjectURL(url);
-      } else if ('speechSynthesis' in window) {
-        await new Promise((res) => { const u = new SpeechSynthesisUtterance(job.text); u.lang = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE' }[lang]; u.onend = res; u.onerror = res; speechSynthesis.speak(u); });
+      } else {
+        // the phone's best natural voices, each sentence in its own language
+        await FASpeech.speak(job.text, { lang, fam: S.settings.voiceFam || 'f', voiceName: S.settings.voiceName || '', rate: S.settings.voiceRate || 1.03 });
       }
       this.next(g);
     },
     unlock() { try { const el = this.el || (this.el = new Audio()); el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; el.play().catch(() => {}); } catch {} },
-    stop() { this.gen++; this.q = []; this.playing = false; try { this.audio && this.audio.pause(); } catch {} try { speechSynthesis.cancel(); } catch {} },
+    stop() { this.gen++; this.q = []; this.playing = false; try { this.audio && this.audio.pause(); } catch {} FASpeech.stop(); },
   };
   const speakable = (s) => String(s || '').replace(/```[\s\S]*?```/g, ' ').replace(/`([^`]+)`/g, '$1').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[#*_>|~]/g, '').replace(/\s+/g, ' ').trim();
 
@@ -573,13 +633,21 @@
         await send(text);
       } catch (e) { V.err = e.message; Mic.paused = false; V.phase = 'listening'; paintVoice(); }
     };
-    if (pcVoice() || !SR) {
-      Mic.start(heard, (lv) => { V.level = lv; const o = $('.vx-orb'); if (o) o.style.setProperty('--lv', Math.min(1, lv * 14).toFixed(2)); }).catch((e) => { V.err = t('noMic'); paintVoice(); });
+    // the computer's Whisper, else Whisper on the phone, else the browser's own recognition
+    const canHear = () => pcVoice() || earsReady() || (navigator.onLine !== false && S.settings.cloudEars !== false);
+    if (canHear() || !SR) {
+      if (!canHear()) { V.err = t('earsNeeded'); V.needEars = true; paintVoice(); return; }
+      Mic.start(heard, (lv) => { V.level = lv; const o = $('.vx-orb'); if (o) o.style.setProperty('--lv', Math.min(1, lv * 14).toFixed(2)); }).catch((e) => { V.err = t('noMic'); paintVoice(); micHelp(e); });
     } else {
       const loop = async () => {
         while (S.voice === V) {
           if (V.phase !== 'listening') { await sleep(300); continue; }
-          try { const text = await browserListen(); if (S.voice !== V) return; if (text.trim()) { V.phase = 'thinking'; V.user = text; V.ai = ''; V.spoken = 0; paintVoice(); await send(text); } } catch (e) { V.err = e.message; paintVoice(); await sleep(1500); }
+          try { const text = await browserListen(); if (S.voice !== V) return; if (text.trim()) { V.phase = 'thinking'; V.user = text; V.ai = ''; V.spoken = 0; paintVoice(); await send(text); } }
+          catch (e) {
+            if (e.name === 'NotAllowedError' || e.name === 'NotFoundError') { V.err = t('noMic'); V.needEars = e.sr === 'service-not-allowed'; paintVoice(); if (e.sr !== 'service-not-allowed') micHelp(e); return; }
+            if (e.sr !== 'no-speech' && e.sr !== 'aborted') { V.err = e.message; paintVoice(); }
+            await sleep(e.sr === 'no-speech' ? 50 : 1500);
+          }
         }
       };
       loop();
@@ -594,13 +662,14 @@
       try { const text = await transcribe(bytes); if (text) { S.draft = (S.draft ? S.draft + ' ' : '') + text; renderComposer(); $('#prompt') && $('#prompt').focus(); } } catch (e) { toast(e.message, 'err'); }
       return;
     }
-    if (!pcVoice()) {
-      if (!SR) { toast(t('noStt'), 'err'); return; }
+    if (!pcVoice() && !earsReady() && !(navigator.onLine !== false && S.settings.cloudEars !== false)) {
+      if (!SR) { S.sheet = 'settings'; S.scrollTo = 'ears'; renderSheet(); toast(t('earsNeeded')); return; }
       btn.classList.add('rec');
-      try { const text = await browserListen(); if (text) { S.draft = (S.draft ? S.draft + ' ' : '') + text; renderComposer(); } } catch (e) { toast(e.message, 'err'); }
+      try { const text = await browserListen(); if (text) { S.draft = (S.draft ? S.draft + ' ' : '') + text; renderComposer(); } }
+      catch (e) { if (e.name === 'NotAllowedError' && e.sr === 'service-not-allowed') toast(t('earsNeeded'), 'err'); else if (e.name === 'NotAllowedError' || e.name === 'NotFoundError') micHelp(e); else if (e.sr !== 'no-speech') toast(e.message, 'err'); }
       btn.classList.remove('rec'); return;
     }
-    try { await Mic.start(() => {}, null, { vad: false }); S.dictating = true; btn.classList.add('rec'); } catch { toast(t('noMic'), 'err'); }
+    try { await Mic.start(() => {}, null, { vad: false }); S.dictating = true; btn.classList.add('rec'); } catch (e) { micHelp(e); }
   }
 
   // ───────────────────────────── artifacts (read-only on the phone) ─────────────────────────────
@@ -671,6 +740,13 @@
     check: '<path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
     eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="3" fill="currentColor"/>',
     keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M6 10h1M9.5 10h1M13 10h1M16.5 10h1M7 14h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.4 9.3 4.6 4.6 0 0 0 7 18.5z" fill="currentColor"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" stroke="currentColor" stroke-width="2" fill="none"/>',
+    redo: '<path d="M19 8v5h-5M18.5 12.5A7 7 0 1 1 16 6.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    speaker: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>',
+    bolt: '<path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z" fill="currentColor"/>',
+    globe: '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M3 12h18M12 3c2.6 2.6 3.6 5.6 3.6 9s-1 6.4-3.6 9c-2.6-2.6-3.6-5.6-3.6-9s1-6.4 3.6-9z" stroke="currentColor" stroke-width="1.8" fill="none"/>',
+    image: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="M5 18l5-5 3.5 3.5L16 14l3.5 3.5" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>',
     bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><path d="M10 20.5a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="2" fill="none"/>',
   };
   const ic = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n] || ''}</svg>`;
@@ -799,7 +875,9 @@
   function renderHeader() {
     const el = $('#top'); if (!el) return;
     const st = S.conn.state;
-    const label = st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : S.settings.model === 'phone' || (localInfo() && S.settings.localFallback) ? t('phoneModel') : t('offlineShort');
+    const route = curRoute();
+    const label = st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : route === 'cloud' ? 'Fabro Cloud' : route === 'phone' ? t('phoneModel') : t('offlineShort');
+    document.documentElement.dataset.route = route || 'pc';
     const c = curConv();
     const mn = $('.main'); if (mn) mn.classList.toggle('home', !c && !(S.cur && S.metas.some((m) => m.id === S.cur)));
     const pc = $('#d-pc'); if (pc) pc.innerHTML = `<span class="av">${ic('pc', 16)}<i class="pc-dot ${st}"></i></span><span class="pc-txt"><b>${esc(S.link ? S.link.pcName || 'PC' : t('guestMode'))}</b><small>${esc(modelLabel())} · ${esc(label)}</small></span><span class="chev">⌄</span>`;
@@ -807,7 +885,7 @@
       <span class="top-title">${esc(c ? c.title || t('untitled') : '')}</span>
       <button class="pc-chip" data-act="model">
         <span class="pc-dot ${st}"></span>
-        <span class="pc-txt"><b class="m-title">${esc(c ? c.title || t('untitled') : 'Fabro')}</b><b class="d-title">${esc(modelLabel())}</b><small>${esc(S.link ? `${S.link.pcName || 'PC'} · ${modelLabel()}` : t('guestMode'))}</small></span>
+        <span class="pc-txt"><b class="m-title">${esc(c ? c.title || t('untitled') : 'Fabro')}</b><b class="d-title">${esc(modelLabel())}</b><small>${esc(S.link ? (st === 'off' && curRoute() !== 'wait' ? `${modelLabel()} · ${label}` : `${S.link.pcName || 'PC'} · ${modelLabel()}`) : `${modelLabel()} · ${label}`)}</small></span>
       </button>
       <span class="grow"></span>
       <button class="icon-btn" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave')}</button>
@@ -815,6 +893,7 @@
   }
   function modelLabel() {
     if (S.settings.model === 'phone') { const m = localInfo(); return m ? `${m.name} · ${t('onPhone')}` : t('localTitle'); }
+    if (isCloud(S.settings.model)) { const id = S.settings.model.slice(6); return (FAAgent.models.find((x) => x.id === id) || { name: id }).name; }
     const m = S.models.find((x) => refKey(x.ref) === refKey(S.settings.model));
     return m ? m.label : (S.conn.info ? t('defaultModel') : 'Fabro');
   }
@@ -823,17 +902,58 @@
     if (!c) {
       const meta = S.cur && S.metas.find((m) => m.id === S.cur);
       if (meta) return `<div class="empty">${logo(48)}<p>${esc(session ? t('loading') : t('notDownloaded'))}</p></div>`;
-      return `<div class="empty"><h2 class="greet">${logo(34, 'spin-in')} ${esc(t('hello'))}</h2><p class="muted">${esc(S.link ? t('helloSub', { n: S.link.pcName || 'PC' }) : '')}</p>
-</div>`;
+      return document.documentElement.dataset.device === 'desktop' ? desktopHome() : phoneHome();
     }
     const path = A.pathOf(c);
     return `<div class="msgs">${path.map(msgHtml).join('')}</div>`;
   }
+  // Where the answer comes from right now: the computer, Fabro Cloud, or the phone itself.
+  function curRoute() {
+    const st = S.conn.state;
+    if (S.settings.model === 'phone') return 'phone';
+    if (isCloud(S.settings.model)) return 'cloud';
+    return !S.link || st === 'off' ? awayRoute() : '';
+  }
+  function routePill() {
+    const st = S.conn.state, r = curRoute() || 'pc';
+    const k = S.link && (st === 'direct' || st === 'relay') && r === 'pc' ? 'pc' : r === 'phone' ? 'phone' : r === 'cloud' ? 'cloud' : st === 'connecting' ? 'connecting' : 'wait';
+    const txt = k === 'pc' ? t('routePc', { n: S.link.pcName || 'PC' }) : k === 'cloud' ? t('routeCloud') : k === 'phone' ? t('routePhone') : k === 'connecting' ? t('connecting') : t('routeWait');
+    return `<button class="route-pill ${k}" data-act="model"><i></i>${ic(k === 'pc' ? 'pc' : k === 'phone' ? 'phone' : k === 'cloud' ? 'cloud' : 'pc', 15)}<span>${esc(txt)}</span></button>`;
+  }
+  // Phone home: thumb-sized shortcuts and the latest conversations, right under the greeting.
+  function phoneHome() {
+    const rec = allConvs().slice(0, 4);
+    return `<div class="home-phone">
+      <div class="hp-hero"><h2 class="greet">${logo(40, 'spin-in')}<span>${esc(t('hello'))}</span></h2>${routePill()}</div>
+      <div class="qa-grid">
+        <button class="qa" data-act="voice"><span class="qa-ic talk">${ic('wave', 22)}</span><b>${esc(t('qa_talk'))}</b><small>${esc(t('qa_talkS'))}</small></button>
+        <label class="qa"><span class="qa-ic photo">${ic('photo', 22)}</span><b>${esc(t('qa_photo'))}</b><small>${esc(t('qa_photoS'))}</small><input type="file" accept="image/*" capture="environment" hidden id="photo-cam"></label>
+        <button class="qa" data-act="qa-agent"><span class="qa-ic agent">${ic('agent', 22)}</span><b>${esc(t('agent'))}</b><small>${esc(t('qa_agentS'))}</small></button>
+        <button class="qa" data-act="qa-search"><span class="qa-ic web">${ic('globe', 22)}</span><b>${esc(t('qa_search'))}</b><small>${esc(t('qa_searchS'))}</small></button>
+      </div>
+      ${rec.length ? `<div class="hp-rec"><div class="hp-h"><span>${esc(t('recents'))}</span><button class="link" data-act="drawer">${esc(t('seeAll'))}</button></div>${rec.map((c) => `<button class="d-item hp-it" data-act="open" data-id="${esc(c.id)}">${c.agent ? `<span class="d-ic">${ic('agent', 15)}</span>` : `<span class="d-ic dim">${ic('menu', 14)}</span>`}<span class="d-t">${esc(c.title || t('untitled'))}</span><small>${esc(ago(c.updatedAt))}</small></button>`).join('')}</div>` : ''}
+    </div>`;
+  }
+  // Computer home: greeting, where it runs, what it can do (cards), keyboard hints.
+  function desktopHome() {
+    return `<div class="home-desk">
+      <h2 class="greet">${logo(40, 'spin-in')} ${esc(t('hello'))}</h2>
+      <div class="hd-sub">${routePill()}<span class="kbd-hint"><kbd>/</kbd> ${esc(t('kb_focus'))} · <kbd>Ctrl</kbd><kbd>K</kbd> ${esc(t('kb_search'))} · <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>O</kbd> ${esc(t('newChat'))}</span></div>
+    </div>`;
+  }
+  function desktopCards() {
+    return `<div class="hd-cards">
+      ${[['voice', 'wave', 'qa_talk', 'qa_talkS'], ['qa-agent', 'agent', 'agent', 'qa_agentS'], ['qa-search', 'globe', 'qa_search', 'qa_searchS'], ['qa-image', 'image', 'qa_image', 'qa_imageS']].map(([a, i, k, d]) => `<button class="hd-card" data-act="${a}">${ic(i, 20)}<b>${esc(t(k))}</b><small>${esc(t(d))}</small></button>`).join('')}
+    </div>`;
+  }
+  const ago = (ts) => { if (!ts) return ''; const d = (now() - ts) / 60000; if (d < 60) return Math.max(1, Math.round(d)) + ' min'; if (d < 1440) return Math.round(d / 60) + ' h'; return new Date(ts).toLocaleDateString(lang, { day: 'numeric', month: 'short' }); };
+  // hover actions on messages (computer); on a phone the same actions are a long press away
+  const msgActs = (m) => `<div class="m-acts">${m.role === 'assistant' ? `<button data-act="m-copy" data-id="${esc(m.id)}" title="${esc(t('copy'))}">${ic('copy', 16)}</button><button data-act="m-read" data-id="${esc(m.id)}" title="${esc(t('readAloud'))}">${ic('speaker', 16)}</button><button data-act="m-regen" data-id="${esc(m.id)}" title="${esc(t('regenerate'))}">${ic('redo', 16)}</button>` : `<button data-act="m-copy" data-id="${esc(m.id)}" title="${esc(t('copy'))}">${ic('copy', 16)}</button><button data-act="m-edit" data-id="${esc(m.id)}" title="${esc(t('editMsg'))}">✎</button>`}</div>`;
   function msgHtml(m) {
     if (m.role === 'user') {
       const imgs = (m.attachments || []).filter((a) => a.kind === 'image' && a.data).map((a) => `<img src="${esc(a.data)}" alt="${esc(a.name || '')}" class="att-img">`).join('');
       const files = (m.attachments || []).filter((a) => a.kind !== 'image').map((a) => `<span class="att-file">${esc(a.name || 'file')}</span>`).join('');
-      return `<div class="msg user" id="m-${esc(m.id)}">${imgs || files ? `<div class="atts">${imgs}${files}</div>` : ''}${m.content ? `<div class="bubble md">${md(m.content)}</div>` : ''}${queued(m.id) ? `<div class="queued">${esc(t('queued'))}</div>` : ''}</div>`;
+      return `<div class="msg user" id="m-${esc(m.id)}">${imgs || files ? `<div class="atts">${imgs}${files}</div>` : ''}${m.content ? `<div class="bubble md">${md(m.content)}</div>` : ''}${queued(m.id) ? `<div class="queued">${esc(t('queued'))}</div>` : ''}${msgActs(m)}</div>`;
     }
     return `<div class="msg ai" id="m-${esc(m.id)}">${aiInner(m)}</div>`;
   }
@@ -848,7 +968,7 @@
       ${(m.steps || []).filter((s2) => s2.view && s2.view.artifactId).map((s2) => `<button class="art-card" data-act="art-id" data-id="${esc(s2.view.artifactId)}"><span class="art-ic">${s2.view.format === 'pdf' ? '📕' : '📄'}</span><span><b>${esc(s2.view.title || t('untitled'))}</b><small>${esc(s2.view.format === 'pdf' ? 'PDF' + (s2.view.pages ? ' · ' + s2.view.pages + ' p.' : '') : t('art_markdown'))}</small></span></button>`).join('')}
       ${FAS.cited(m)}
       ${m.error ? `<div class="err">⚠ ${esc(m.error)}</div>` : ''}
-      ${!m.pending ? `<div class="meta">${esc(m.model || '')}</div>` : ''}`;
+      ${!m.pending ? `<div class="meta">${esc(m.model || '')}</div>${msgActs(m)}` : ''}`;
   }
   const toolName = (n) => ({ web_search: t('t_search'), fetch_url: t('t_fetch'), generate_image: t('t_image'), run_subagent: t('t_sub'), update_plan: t('t_plan') }[n] || String(n || '').replace(/_/g, ' '));
   function paintMessage(m) {
@@ -865,10 +985,10 @@
     const el = $('#composer'); if (!el) return;
     const c = curConv();
     const running = busy(c);
-    const ph = S.conn.state === 'off' && !(localInfo() && S.settings.localFallback) && S.settings.model !== 'phone' ? t('phOffline') : t('placeholder');
-    const vision = S.settings.model === 'phone' ? false : (S.models.find((x) => refKey(x.ref) === refKey(S.settings.model)) || {}).vision !== false;
+    const ph = S.conn.state === 'off' && S.settings.model !== 'phone' && !isCloud(S.settings.model) && awayRoute() === 'wait' ? t('phOffline') : t('placeholder');
+    const vision = S.settings.model === 'phone' ? false : isCloud(S.settings.model) ? !!(FAAgent.models.find((x) => 'cloud:' + x.id === S.settings.model) || { vision: true }).vision : (S.models.find((x) => refKey(x.ref) === refKey(S.settings.model)) || {}).vision !== false;
     const kept = $('#prompt') ? $('#prompt').value : S.draft;
-    el.innerHTML = `${S.conn.state === 'off' && S.link ? `<div class="banner">${esc(S.conn.err || t('pcAway'))} <button class="link" data-act="reconnect">${esc(t('retry'))}</button></div>` : ''}
+    el.innerHTML = `${S.conn.state === 'off' && S.link ? `<div class="banner ${awayRoute()}">${awayRoute() === 'wait' ? esc(S.conn.err || t('pcAway')) : esc(t(awayRoute() === 'cloud' ? 'bannerCloud' : 'bannerPhone', { n: S.link.pcName || 'PC' }))} <button class="link" data-act="reconnect">${esc(t('retry'))}</button></div>` : ''}
       ${S.atts.length ? `<div class="c-atts">${S.atts.map((a, i) => `<span class="c-att"><img src="${esc(a.data)}" alt=""><button data-act="att-rm" data-i="${i}" aria-label="${esc(t('remove'))}">${ic('x', 14)}</button></span>`).join('')}</div>` : ''}
       ${S.editing ? `<div class="edit-bar">✎ ${esc(t('editing'))}<span class="grow"></span><button type="button" class="link" data-act="edit-cancel">${esc(t('cancel'))}</button></div>` : ''}
       <form class="composer ${kept && kept.trim() ? 'has-text' : ''}" data-form="send">
@@ -884,7 +1004,7 @@
           ${running ? `<button type="button" class="send stop" data-act="stop" aria-label="${esc(t('stop'))}">${ic('stop', 18)}</button>` : `<button type="submit" class="send" aria-label="${esc(t('send'))}">${ic('send', 20)}</button>`}
         </div>
       </form>
-      ${!c && !S.cur ? `<div class="sugs">${[t('sug1'), t('sug2'), t('sug3')].map((x) => `<button class="sug" data-act="sug">${esc(x)}</button>`).join('')}</div>` : ''}`;
+      ${!c && !S.cur ? (document.documentElement.dataset.device === 'desktop' ? desktopCards() : '') + `<div class="sugs">${[t('sug1'), t('sug2'), t('sug3')].map((x) => `<button class="sug" data-act="sug">${esc(x)}</button>`).join('')}</div>` : ''}`;
     const ta = $('#prompt'); fit(ta);
   }
   const fit = (ta) => { if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 180) + 'px'; };
@@ -893,18 +1013,23 @@
   function renderSheet() {
     const root = $('#sheet-root'); if (!root) return;
     if (!S.sheet) { root.innerHTML = ''; return; }
-    const body = S.sheet === 'settings' ? settingsSheet() : S.sheet === 'model' ? modelSheet() : '';
+    const body = S.sheet === 'settings' ? settingsSheet() : S.sheet === 'model' ? modelSheet() : S.sheet === 'mic' ? micSheet() : '';
     const keepScroll = $('.sheet-body') ? $('.sheet-body').scrollTop : 0;
     root.innerHTML = `<div class="sheet-bg" data-act="sheet-close"></div><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div class="sheet-body">${body}</div></div>`;
     $('.sheet-body').scrollTop = keepScroll;
+    if (S.scrollTo) { const el = $('#set-' + S.scrollTo); if (el) el.scrollIntoView({ block: 'start' }); S.scrollTo = null; }
   }
   function modelSheet() {
     const cur = refKey(S.settings.model);
     const pc = S.models.map((m) => `<button class="opt ${cur === refKey(m.ref) ? 'on' : ''}" data-act="pick-model" data-k="${esc(refKey(m.ref))}"><span class="opt-ic">${ic('pc', 18)}</span><span class="opt-t"><b>${esc(m.label)}</b><small>${esc([m.provider, m.vision ? t('vision') : ''].filter(Boolean).join(' · ') || t('onPc'))}</small></span>${cur === refKey(m.ref) ? ic('check', 18) : ''}</button>`).join('');
     const lm = localInfo();
+    const cloud = FAAgent.models.map((m) => { const k = 'cloud:' + m.id; return `<button class="opt ${cur === k ? 'on' : ''}" data-act="pick-model" data-k="${esc(k)}"><span class="opt-ic cloud">${ic('cloud', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc([t('freeCloud'), m.tools ? t('withTools') : ''].filter(Boolean).join(' · '))}</small></span>${cur === k ? ic('check', 18) : ''}</button>`; }).join('');
     return `<h2>${esc(t('model'))}</h2>
-      ${S.models.length ? pc : `<p class="muted">${esc(session ? t('noModels') : t('modelsOffline'))}</p>`}
-      <div class="sep"></div>
+      ${S.link ? `<h3 class="opt-h">${ic('pc', 15)} ${esc((S.link && S.link.pcName) || 'PC')}</h3>${S.models.length ? pc : `<p class="muted">${esc(session ? t('noModels') : t('modelsOffline'))}</p>`}` : ''}
+      <h3 class="opt-h">${ic('cloud', 15)} Fabro Cloud <span class="tag">${esc(t('free'))}</span></h3>
+      <p class="muted small">${esc(t('freeCloudHint'))}</p>
+      ${cloud}
+      <h3 class="opt-h">${ic('phone', 15)} ${esc(t('localTitle'))}</h3>
       ${lm ? `<button class="opt ${cur === 'phone' ? 'on' : ''}" data-act="pick-model" data-k="phone"><span class="opt-ic">${ic('phone', 18)}</span><span class="opt-t"><b>${esc(lm.name)}</b><small>${esc(t('onPhone'))} · ${esc(S.local.status === 'ready' ? t('ready') : t('loadsWhenUsed'))}</small></span>${cur === 'phone' ? ic('check', 18) : ''}</button>`
         : `<button class="opt" data-act="settings">${ic('phone', 18)}<span class="opt-t"><b>${esc(t('localTitle'))}</b><small>${esc(t('localHint'))}</small></span></button>`}`;
   }
@@ -928,9 +1053,23 @@
                <div class="set-row"><span>${esc(t('localFallback'))}</span><button class="switch ${S.settings.localFallback ? 'on' : ''}" data-act="local-fallback" role="switch" aria-checked="${!!S.settings.localFallback}"><i></i></button></div>`
         : LOCAL_MODELS.map((m) => `<button class="opt" data-act="local-get" data-id="${m.id}"><span class="opt-ic">${ic('phone', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc(m.size)} · ${esc(t('saveFile'))}</small></span></button>`).join('')}
       ${loc.status === 'error' ? `<p class="err small">${esc(loc.text)}</p>` : ''}
+      ${S.link ? `<h3>${esc(t('awayTitle'))}</h3><p class="muted small">${esc(t('awayHint'))}</p>
+      <div class="seg3">${['cloud', 'phone', 'wait'].map((v) => `<button class="${(S.settings.away || 'cloud') === v ? 'on' : ''}" data-act="away" data-v="${v}">${ic(v === 'cloud' ? 'cloud' : v === 'phone' ? 'phone' : 'pc', 16)}<span>${esc(t('away_' + v))}</span></button>`).join('')}</div>` : ''}
+      <h3 id="set-ears">${esc(t('earsTitle'))}</h3>
+      <p class="muted small">${esc(t('earsHint'))}</p>
+      ${S.ears && S.ears.loading ? `<div class="progress"><i style="width:${Math.round((S.ears.p || 0) * 100)}%"></i></div><p class="muted small">${esc(t('downloading'))}</p>`
+        : earsReady() ? `<div class="set-row"><span>${esc((FASpeech.MODELS.find((m) => m.id === S.settings.ears.id) || { name: S.settings.ears.id }).name)} <small class="muted">${esc(t('ready'))}</small></span><button class="btn sm" data-act="ears-rm">${ic('trash', 15)} ${esc(t('remove'))}</button></div>`
+        : FASpeech.MODELS.filter((m) => !m.gpu || navigator.gpu).map((m) => `<button class="opt" data-act="ears-get" data-id="${esc(m.id)}"><span class="opt-ic">${ic('mic', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc(m.size)} · ${esc(t(m.gpu ? 'earsGpu' : m.id.endsWith('base') ? 'earsFast' : 'earsBetter'))}</small></span></button>`).join('')}
+      ${S.ears && S.ears.err ? `<p class="err small">${esc(S.ears.err)}</p>` : ''}
+      <h3>${esc(t('voiceTitle'))}</h3>
+      <div class="set-row"><span>${esc(t('voiceFam'))}</span><div class="seg2">${['f', 'm'].map((v) => `<button class="${(S.settings.voiceFam || 'f') === v ? 'on' : ''}" data-act="voice-fam" data-v="${v}">${esc(t('fam_' + v))}</button>`).join('')}</div></div>
+      <div class="set-row"><span>${esc(t('voiceName'))}</span><select class="input sm voice-sel" data-change="voiceName"><option value="">${esc(t('voiceAuto'))}</option>${FASpeech.listVoices(lang).slice(0, 30).map((v) => `<option value="${esc(v.name)}" ${S.settings.voiceName === v.name ? 'selected' : ''}>${esc(v.name.replace(/^Microsoft |^Google /, ''))}</option>`).join('')}</select></div>
+      <button class="btn sm ghost" data-act="voice-test">${ic('wave', 16)} ${esc(t('voiceTest'))}</button>
+      <p class="muted small">${esc(t(pcVoice() ? 'voicePcUsed' : 'voicePhoneUsed'))}</p>
       <h3>${esc(t('display'))}</h3>
       <div class="set-row"><span>${esc(t('language'))}</span><select class="input sm" data-change="lang">${['auto', ...LANGS].map((l) => `<option value="${l}" ${S.settings.lang === l ? 'selected' : ''}>${l === 'auto' ? t('auto') : { en: 'English', fr: 'Français', es: 'Español', de: 'Deutsch' }[l]}</option>`).join('')}</select></div>
-      <div class="set-row"><span>${esc(t('theme'))}</span><select class="input sm" data-change="theme">${['system', 'light', 'dark'].map((v) => `<option value="${v}" ${S.settings.theme === v ? 'selected' : ''}>${esc(t('theme_' + v))}</option>`).join('')}</select></div>
+      <div class="set-row"><span>${esc(t('theme'))}</span><select class="input sm" data-change="theme">${['system', 'light', 'dark', 'halloween'].map((v) => `<option value="${v}" ${S.settings.theme === v ? 'selected' : ''}>${esc(t('theme_' + v))}</option>`).join('')}</select></div>
+      <div class="set-row"><span>${esc(t('layout'))}</span><select class="input sm" data-change="layout">${['auto', 'phone', 'desktop'].map((v) => `<option value="${v}" ${(S.settings.layout || 'auto') === v ? 'selected' : ''}>${esc(t('layout_' + v))}</option>`).join('')}</select></div>
       <h3>${esc(t('advanced'))}</h3>
       <label class="field"><span>${esc(t('customRelay'))}</span><input class="input" data-change="relay" placeholder="wss://…" value="${esc(S.settings.customRelay || '')}"></label>
       <p class="muted small">${esc(t('relayHint'))}</p>
@@ -943,7 +1082,8 @@
     el.innerHTML = `<div class="vx-top"><span>${esc(t('voiceMode'))}</span><button class="icon-btn light" data-act="voice-close" aria-label="${esc(t('close'))}">${ic('x')}</button></div>
       <div class="vx-mid"><div class="vx-orb">${logo(120, 'vx-prop')}</div><p class="vx-phase"></p></div>
       <div class="vx-sub"><p class="vx-user"></p><p class="vx-ai"></p><p class="vx-err err"></p>
-        ${session && !pcVoice() ? `<p class="vx-hint">${esc(t('voicePcMissing'))}</p><button class="btn ghost sm" data-act="voice-install" ${S.voiceInstalling ? 'disabled' : ''}>${esc(S.voiceInstalling ? t('installing') : t('voiceInstall'))}</button>` : ''}</div>`;
+        ${session && !pcVoice() ? `<p class="vx-hint">${esc(t('voicePcMissing'))}</p><button class="btn ghost sm" data-act="voice-install" ${S.voiceInstalling ? 'disabled' : ''}>${esc(S.voiceInstalling ? t('installing') : t('voiceInstall'))}</button>` : ''}
+        ${!pcVoice() && !earsReady() && navigator.onLine === false ? `<button class="btn ghost sm vx-ears" data-act="ears-get" data-id="${esc(FASpeech.MODELS[0].id)}">${ic('download', 16)} ${esc(t('earsGet'))}</button>` : ''}</div>`;
     paintVoice();
   }
   function paintVoice() {
@@ -975,7 +1115,7 @@
     'sheet-close': () => { S.sheet = null; renderSheet(); },
     'pick-model': async (el) => {
       const k = el.dataset.k;
-      S.settings.model = k === 'phone' ? 'phone' : (S.models.find((m) => refKey(m.ref) === k) || {}).ref || null;
+      S.settings.model = k === 'phone' || k.startsWith('cloud:') ? k : (S.models.find((m) => refKey(m.ref) === k) || {}).ref || null;
       await saveSettings(); S.sheet = null; renderSheet(); renderHeader(); renderComposer();
       if (k === 'phone' && S.local.status !== 'ready') loadLocal(localInfo());
     },
@@ -995,7 +1135,19 @@
     'art-close': () => { S.art = null; $('#av') && $('#av').remove(); },
     'art-pdf': () => { if (S.art && S.art.id) openPdf(S.art.id); },
     'voice-install': async () => { if (!session) return; S.voiceInstalling = true; paintVoice(); try { const st = await rpc('voice.install', { lang }, 20 * 60000); S.conn.info.voice = { ready: !!(st.runtime && st.whisperReady), voice: st.voice }; toast(t('voiceReady')); } catch (e) { toast(e.message, 'err'); } S.voiceInstalling = false; if (S.voice) { closeVoice(); openVoice(); } },
-    guest: async () => { S.settings.guest = true; S.settings.model = 'phone'; await saveSettings(); S.view = 'main'; render(); if (!localInfo()) { S.sheet = 'settings'; renderSheet(); } },
+    // no computer: Fabro Cloud answers right away (free, no account); the phone's model can be added later
+    guest: async () => { S.settings.guest = true; S.settings.model = 'cloud:auto'; await saveSettings(); S.view = 'main'; render(); },
+    away: async (el) => { S.settings.away = el.dataset.v; await saveSettings(); renderSheet(); renderHeader(); renderComposer(); },
+    'voice-fam': async (el) => { S.settings.voiceFam = el.dataset.v; S.settings.voiceName = ''; await saveSettings(); renderSheet(); },
+    'voice-test': () => { Speaker.stop(); Speaker.unlock(); Speaker.say(t('voiceSample')); },
+    'mic-retry': async () => { S.sheet = null; renderSheet(); try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach((x) => x.stop()); toast(t('micOk')); } catch (e) { micHelp(e); } },
+    'ears-get': async (el) => {
+      const id = el.dataset.id; S.ears = { loading: true, p: 0 }; renderSheet(); if (S.voice) paintVoice();
+      try { await FASpeech.loadEars(id, (p) => { S.ears.p = p; if (S.sheet === 'settings') { const b = $('.sheet .progress i'); if (b) b.style.width = Math.round(p * 100) + '%'; } }); S.settings.ears = { id }; await saveSettings(); S.ears = null; toast(t('earsReady')); if (S.voice) { closeVoice(); openVoice(); } }
+      catch (e) { S.ears = { err: String(e.message || e).slice(0, 200) }; }
+      renderSheet();
+    },
+    'ears-rm': async () => { S.settings.ears = null; await saveSettings(); try { for (const k of await caches.keys()) if (/transformers/i.test(k)) await caches.delete(k); } catch {} renderSheet(); },
     'pair-pc': () => { S.sheet = null; renderSheet(); S.view = 'welcome'; S.forceWelcome = true; render(); },
     voice: () => openVoice(),
     'voice-close': () => closeVoice(),
@@ -1062,7 +1214,15 @@
   document.addEventListener('click', (e) => { const pre = e.target.closest('.md pre'); if (!pre || window.getSelection().toString()) return; navigator.clipboard.writeText(pre.innerText).then(() => { buzz(8); toast(t('copied')); }).catch(() => {}); });
   // a button to jump back to the latest message
   document.addEventListener('scroll', (e) => { if (e.target.id !== 'chat') return; const el = e.target; const far = el.scrollHeight - el.scrollTop - el.clientHeight > 400; const b = $('#to-bottom'); if (b) b.classList.toggle('show', far); }, true);
+  const startWith = async (agent, text) => { S.cur = null; S.drawer = false; if (S.settings.agent !== agent) { S.settings.agent = agent; await saveSettings(); } render(); S.draft = text || ''; renderComposer(); const ta = $('#prompt'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } };
   Object.assign(acts, {
+    'qa-agent': () => startWith(true, ''),
+    'qa-search': () => startWith(false, t('qa_searchP')),
+    'qa-image': () => startWith(false, t('qa_imageP')),
+    'm-copy': (el) => { const n = nodeOf(el.dataset.id); if (n) navigator.clipboard.writeText(n.content || '').then(() => toast(t('copied'))); },
+    'm-read': (el) => { const n = nodeOf(el.dataset.id); if (n) { Speaker.stop(); Speaker.unlock(); Speaker.say(speakable(n.content || '')); } },
+    'm-regen': (el) => { const n = nodeOf(el.dataset.id); const c = curConv(); if (!n || !c || busy(c)) return; const p = nodeOf(n.parentId); if (!p) return; c.leafId = p.parentId || null; send(p.content, p.attachments || []); },
+    'm-edit': (el) => { const n = nodeOf(el.dataset.id); const c = curConv(); if (!n || busy(c)) return; S.editing = n.id; S.draft = n.content || ''; render(); const ta = $('#prompt'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } },
     'as-close': () => closeSheet(),
     'as-pick': (el) => { const it = (S.asItems || [])[+el.dataset.i]; closeSheet(); if (it) setTimeout(() => it.run(), 60); },
     'to-bottom': () => scrollChat(true),
@@ -1085,15 +1245,27 @@
     if (f.dataset.form === 'code') { A.parseTextCode($('#code-in').value).then((d) => { if (d) pairWith(d); else toast(t('badCode'), 'err'); }); }
   });
   document.addEventListener('input', (e) => { if (e.target.id === 'd-q') { S.q = e.target.value; const l = $('.d-list'); if (l) l.innerHTML = convList(); return; } if (e.target.id === 'prompt') { S.draft = e.target.value; fit(e.target); const f = e.target.form; if (f) f.classList.toggle('has-text', !!e.target.value.trim() || S.atts.length > 0); } });
+  // computer shortcuts: / to type, Ctrl+K search, Ctrl+Shift+O new chat
+  document.addEventListener('keydown', (e) => {
+    if (S.view !== 'main') return;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+    if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey) { const ta = $('#prompt'); if (ta) { e.preventDefault(); ta.focus(); } }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); acts.drawer(); const q = $('#d-q'); if (q) q.focus(); }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); acts.new(); }
+  });
+  // computer: files and artifacts open in a panel beside the chat instead of over it
+  new MutationObserver(() => document.body.classList.toggle('av-open', !!document.getElementById('av'))).observe(document.body, { childList: true });
   document.addEventListener('keydown', (e) => {
     if (e.target.id === 'prompt' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); e.target.form.requestSubmit(); }
     if (e.key === 'Escape') { if ($('#av')) acts['art-close'](); else if (S.voice) closeVoice(); else if (S.sheet) { S.sheet = null; renderSheet(); } }
   });
   document.addEventListener('change', async (e) => {
-    if (e.target.id === 'photo-in') { await addPhotos(e.target.files); return; }
+    if (e.target.id === 'photo-in' || e.target.id === 'photo-cam') { await addPhotos(e.target.files); return; }
     const k = e.target.dataset.change; if (!k) return;
     if (k === 'lang') { S.settings.lang = e.target.value; await saveSettings(); applyLang(); render(); }
     if (k === 'theme') { S.settings.theme = e.target.value; await saveSettings(); applyTheme(); }
+    if (k === 'layout') { S.settings.layout = e.target.value; await saveSettings(); applyDevice(); render(); }
+    if (k === 'voiceName') { S.settings.voiceName = e.target.value; await saveSettings(); Speaker.stop(); Speaker.say(t('voiceSample')); }
     if (k === 'relay') { const v = e.target.value.trim(); if (v && !/^wss:\/\//.test(v) && !/^ws:\/\/(127\.0\.0\.1|localhost)/.test(v)) { toast('wss://…', 'err'); return; } S.settings.customRelay = v; await saveSettings(); if (relay) { relay.close(); relay = null; } if (session) { session.close(); session = null; } connect(true); }
   });
   // long-press a conversation to delete it
@@ -1119,8 +1291,21 @@
   function applyTheme() {
     const v = S.settings.theme;
     try { localStorage.setItem('fa-theme', JSON.stringify(v === 'system' ? null : v)); } catch {}
-    document.documentElement.dataset.theme = v === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : v;
+    document.documentElement.dataset.theme = v === 'halloween' ? 'dark' : v === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : v;
+    if (v === 'halloween') document.documentElement.dataset.skin = 'halloween'; else delete document.documentElement.dataset.skin;
+    // status bar colour: follows the system unless a theme is chosen
+    for (const m of $$('meta[name=theme-color]')) { if (!m.dataset.orig) m.dataset.orig = m.content; m.content = v === 'system' ? m.dataset.orig : v === 'halloween' ? '#120d17' : v === 'dark' ? '#12161d' : '#f6f5f1'; }
   }
+  // Phone or computer: two different interfaces. A phone (touch, small screen) gets the thumb-first layout;
+  // a computer's browser gets the desktop one (sidebar always there, panels side by side, shortcuts, hover).
+  function deviceKind() {
+    const f = S.settings.layout; if (f === 'phone' || f === 'desktop') return f;
+    const coarse = matchMedia('(pointer: coarse)').matches, small = Math.min(screen.width, screen.height) < 600;
+    if (/iPhone|Android.+Mobile|Mobile Safari/.test(navigator.userAgent) || (coarse && small)) return 'phone';
+    return innerWidth >= 900 ? 'desktop' : 'phone';
+  }
+  function applyDevice() { const d = deviceKind(); if (document.documentElement.dataset.device !== d) { document.documentElement.dataset.device = d; if (S.view === 'main') render(); } }
+  addEventListener('resize', () => { clearTimeout(applyDevice.t); applyDevice.t = setTimeout(applyDevice, 150); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener && matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (S.settings.theme === 'system') applyTheme(); });
 
   // ───────────────────────────── boot ─────────────────────────────
@@ -1133,7 +1318,8 @@
       S.link = link || null; S.outbox = outbox || []; S.tombstones = tombstones || []; S.metas = metas || [];
       for (const c of convs || []) S.convs.set(c.id, c);
     } catch (e) { console.error(e); }
-    applyLang(); applyTheme();
+    applyLang(); applyTheme(); applyDevice();
+    FAAgent.refreshModels().then(() => { if (S.sheet === 'model') renderSheet(); });
     const q = new URLSearchParams(location.search);
     if (q.get('c')) S.cur = q.get('c');
     S.view = S.link || S.settings.guest ? 'main' : 'welcome';
@@ -1147,6 +1333,6 @@
   // what the full interface (full.js) uses from this app
   window.FAHost = {
     rpc: (m, p, ms) => rpc(m, p, ms), get conn() { return S.conn; }, get settings() { return S.settings; }, saveSettings,
-    t: (k, v) => t(k, v), esc, ic, toast, saveBlob, render: () => render(), kv,
+    t: (k, v) => t(k, v), esc, ic, toast, saveBlob, render: () => render(), kv, micHelp: (e) => micHelp(e),
   };
 })();

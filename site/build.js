@@ -331,6 +331,7 @@ function buildApp() {
   const walk = (d, rel = '') => { for (const e of fs.readdirSync(path.join(d, rel), { withFileTypes: true })) { const r = path.join(rel, e.name); if (e.isDirectory()) walk(d, r); else copy(path.join(d, r), path.join(out, r)); } };
   walk(src);
   copy(path.join(ROOT, 'src', 'anywhere', 'core.js'), path.join(out, 'core.js'));
+  copy(path.join(ROOT, 'src', 'main', 'langdetect.js'), path.join(out, 'langdetect.js')); // sentence language for the phone's voices
   copy(path.join(ROOT, 'src', 'renderer', 'zoom.js'), path.join(out, 'zoom.js')); // same zoom as the desktop viewer
   // the service worker's cache name follows the app's content, so phones pick up new versions
   const h = require('crypto').createHash('sha256');

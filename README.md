@@ -72,6 +72,22 @@ Everything in Fabro can be modded: screens, commands, history, internals. Settin
 
 `fabro://new?q=…` opens a new chat with that message, `fabro://chat/<id>` opens a conversation (works from any browser).
 
+## Fabro Cloud (free, no account)
+
+For computers too modest to run a model well (detected: no real GPU and little memory or few cores), Fabro starts on **Fabro Cloud**: a pool of free, anonymous, key-free endpoints whose limits add up — LLM7 (fast, several requests at once, a daily token quota per address) and OVH AI Endpoints (gpt-oss 120B, Qwen3.5 397B, Llama 3.3 70B…, 2 requests a minute per model, rotated). A busy or exhausted model hands over to the next at once (`src/main/providers.js`, `chat.js`). Settings › Providers turns it on/off; **Light mode** (Settings › General, on by default on such computers) drops blur, shadows and decorative motion.
+
+## Voice
+
+Speech-to-text: faster-whisper, with the size the computer handles well (large-v3 **turbo** with ≥ 12 GB RAM and 8 threads, else small) downloaded in the background while a quick model already works; a vocabulary (recent names Whisper doesn't know, installed models, the user's own words — voice mode › 📖) passed as hotwords; a lower voice-activity threshold, no browser noise suppression and a second pass without VAD so whispers are heard. Text-to-speech: **Kokoro** (one fluid voice family across en/fr/es/it/pt/ja/zh/hi), Piper for German; every sentence is read in its own language (`src/main/langdetect.js`).
+
+## Themes
+
+Light, dark and **Halloween** (a skin over dark: pumpkin accent, moon glow, bats, cobweb — offered in the user menu from mid-October).
+
 ## Fabro Anywhere (phone)
 
-The phone app is a PWA in `site/app/` (served at `/app/` on the website). It pairs with the desktop by reading the circular code shown in Settings › Fabro Anywhere (`src/anywhere/core.js` draws and reads it, with Reed-Solomon correction). Phone and computer share P-256 keys; every message is AES-GCM encrypted end to end. They meet through public MQTT-over-WebSocket relays (or your own: `node scripts/mqtt-relay.js`, behind wss://), then switch to a direct WebRTC data channel when possible. The computer side runs in a hidden window (`src/anywhere/peer.*`) and `src/main/anywhere.js` (runs, sync, voice, Web Push sent straight to the phone's push service). Tests: `scripts/anywhere-test.js`, `scripts/ringcode-test.js`, `scripts/anywhere-e2e.js`.
+The phone app is a PWA in `site/app/` (served at `/app/` on the website). It pairs with the desktop by reading the circular code shown in Settings › Fabro Anywhere (`src/anywhere/core.js` draws and reads it, with Reed-Solomon correction). Phone and computer share P-256 keys; every message is AES-GCM encrypted end to end. They meet through public MQTT-over-WebSocket relays (or your own: `node scripts/mqtt-relay.js`, behind wss://), then switch to a direct WebRTC data channel when possible. The computer side runs in a hidden window (`src/anywhere/peer.*`) and `src/main/anywhere.js` (runs, sync, voice, Web Push sent straight to the phone's push service).
+
+Two interfaces: a thumb-first one on phones (home shortcuts, recent chats, long-press menus) and a desktop one in a computer's browser (sidebar, side panel for files and artifacts, hover actions, `/` · `Ctrl K` · `Ctrl ⇧ O`). Settings › Display › Layout forces either.
+
+Without the computer, it keeps chat **and** agent with tools (`site/app/agent.js`): Fabro Cloud (free, no account) or the phone's own model (WebGPU, offline); web search and page reading, images, Python (Pyodide), JavaScript, weather, plan — synced to the computer when it's back (Settings › When the computer is away). Voice without the computer: Whisper large-v3 turbo in the cloud, or Whisper on the phone (`stt-worker.js`, offline); the phone's best natural voices, sentence by sentence in each language (`speech.js`). The computer's full interface runs in a sandboxed frame that can't ask for the microphone: the phone app captures it and streams it in (`full.js` ↔ `full.html`); a refused microphone opens step-by-step help for the exact browser. Tests: `scripts/anywhere-test.js`, `scripts/ringcode-test.js`, `scripts/anywhere-e2e.js`.

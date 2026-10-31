@@ -40,13 +40,14 @@
       frame = document.createElement('iframe');
       frame.id = 'full'; frame.title = 'Fabro';
       frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads');
-      frame.setAttribute('allow', 'clipboard-write; microphone');
+      frame.setAttribute('allow', 'clipboard-write; autoplay *; microphone *');
       frame.src = 'full.html';
       document.body.appendChild(frame);
     }
     if (helloPending) sendBoot();
   }
   function unmount() {
+    micStopAll();
     if (frame) frame.remove(); frame = null; booted = false; queue.length = 0;
     document.body.classList.remove('full-on', 'full-loading', 'full-off');
     for (const id of ['full-load', 'full-offbar', 'full-fv']) $('#' + id) && $('#' + id).remove();
@@ -73,10 +74,38 @@
       case 'file': H().rpc('ui.file', { path: m.path }, 180000).then((r) => reply(true, r), (er) => reply(false, null, er.message)); break;
       case 'art': H().rpc('ui.art', { url: m.url }, 60000).then((r) => reply(true, r), (er) => reply(false, null, er.message)); break;
       case 'view': viewPcFile(m.path); break;
+      case 'mic': micStart(m.mid, m.rate).then(() => reply(true, { ok: 1 }), (er) => { reply(false, null, (er && er.name) || 'NotAllowedError'); H().micHelp && H().micHelp(er); }); break;
+      case 'mic.off': micStop(m.mid); break;
       case 'lite': H().settings.ui = 'lite'; await H().saveSettings(); unmount(); H().render(); break;
       case 'reload': reload(); break;
     }
   });
+
+  // ── microphone for the frame (it can't ask for one itself): captured here, streamed as PCM ──
+  const caps = new Map();
+  async function micStart(id, rate) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume().catch(() => {});
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: true, channelCount: 1 } }); }
+    catch (e) { try { ctx.close(); } catch {} throw e; }
+    if (ctx.state !== 'running') await ctx.resume().catch(() => {});
+    const src = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(2048, 1, 1);
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+    const k = ctx.sampleRate / (rate || ctx.sampleRate);
+    proc.onaudioprocess = (e) => {
+      const d = e.inputBuffer.getChannelData(0);
+      let out = d;
+      if (Math.abs(k - 1) > 1e-3) { const n = Math.floor(d.length / k); out = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i * k, a = Math.floor(x), f = x - a; out[i] = d[a] * (1 - f) + (d[Math.min(d.length - 1, a + 1)] || 0) * f; } }
+      else out = new Float32Array(d);
+      if (frame && frame.contentWindow) frame.contentWindow.postMessage({ t: 'mic.data', mid: id, d: out.buffer }, '*', [out.buffer]);
+    };
+    caps.set(id, { stop() { try { proc.onaudioprocess = null; ctx.close(); } catch {} stream.getTracks().forEach((x) => x.stop()); } });
+  }
+  function micStop(id) { const c = caps.get(id); if (c) { c.stop(); caps.delete(id); } }
+  function micStopAll() { for (const id of [...caps.keys()]) micStop(id); }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { for (const id of caps.keys()) post({ t: 'mic.end', mid: id }); micStopAll(); } });
 
   // ── a computer file opened on the phone (instead of "open with" on the computer) ──
   async function viewPcFile(p) {

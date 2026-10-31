@@ -129,6 +129,19 @@ async function completeOpenAI(be, messages, params, signal, acc, tools) {
   const post = () => fetch(`${be.base}/chat/completions`, { method: 'POST', headers: be.headers, body: safeJSON(body), signal });
   let res;
   try { res = await post(); } catch (e) { if (signal.aborted) throw e; throw be.netErr ? be.netErr(e) : e; }
+  // Fabro Cloud busy or out of quota (429/5xx): hand over to the next model of the pool at once — each has its
+  // own limits; a full round all busy waits a little (what they ask, 20 s at most) and goes round again.
+  if (be.alternates && !res.ok) {
+    const pool = [{ base: be.base, model: body.model }, ...be.alternates];
+    for (let i = 1; i < pool.length * 2 && (res.status === 429 || res.status >= 500 || res.status === 404); i++) {
+      if (i % pool.length === 0) {
+        let wait = 3; try { const j = await res.clone().json(); wait = Number((j.error && j.error.retry_after) || res.headers.get('retry-after') || 3); } catch {}
+        await new Promise((r, rej) => { const tm = setTimeout(r, Math.min(20, Math.max(1, wait)) * 1000); signal.addEventListener('abort', () => { clearTimeout(tm); rej(Object.assign(new Error('aborted'), { name: 'AbortError' })); }, { once: true }); });
+      }
+      const nx = pool[i % pool.length]; be.base = nx.base; body.model = nx.model;
+      try { res = await post(); } catch (e) { if (signal.aborted) throw e; throw be.netErr ? be.netErr(e) : e; }
+    }
+  }
   // Servers that reject an optional field: retry once without it.
   for (let i = 0; i < 3 && !res.ok && res.status === 400; i++) {
     const txt = await res.text();

@@ -1,2 +1,2 @@
-// Applied before the first paint (no flash): saved theme, else the system's.
-(function () { var t = null; try { t = JSON.parse(localStorage.getItem('fa-theme') || 'null'); } catch (e) {} var d = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = d ? 'dark' : 'light'; })();
+// Applied before the first paint (no flash): saved theme, else the system's. Halloween is a skin over dark.
+(function () { var t = null; try { t = JSON.parse(localStorage.getItem('fa-theme') || 'null'); } catch (e) {} var d = t ? t === 'dark' || t === 'halloween' : matchMedia('(prefers-color-scheme: dark)').matches; var r = document.documentElement; r.dataset.theme = d ? 'dark' : 'light'; if (t === 'halloween') r.dataset.skin = 'halloween'; })();

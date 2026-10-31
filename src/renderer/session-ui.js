@@ -50,7 +50,7 @@ function spProgress(d) {
     const shown = d.plan.slice(fold);
     return `<div class="sp-sec"><div class="sp-h">${esc(t('sp_progress'))}<small>${done.length}/${d.plan.length}</small></div>
       <ol class="sp-plan">
-        ${fold ? `<li class="fold" data-action="sp-unfold"><i></i><span>${esc(t('sp_prev', { n: fold }))}</span></li>` : ''}
+        ${fold ? `<li class="fold"><button type="button" class="sp-fold" data-action="sp-unfold"><i></i><span>${esc(t('sp_prev', { n: fold }))}</span></button></li>` : ''}
         ${shown.map((s) => `<li class="${s.status}"><i>${s.status === 'done' ? icon('done', 15) : s.status === 'in_progress' ? spinner(14) : icon('pending', 15)}</i><span>${esc(s.title)}</span></li>`).join('')}
       </ol></div>`;
   }
@@ -59,7 +59,7 @@ function spProgress(d) {
   const fold = S.spUnfold ? 0 : Math.max(0, top.length - 4);
   return `<div class="sp-sec"><div class="sp-h">${esc(t('sp_progress'))}<small>${top.length}</small></div>
     <ol class="sp-plan">
-      ${fold ? `<li class="fold" data-action="sp-unfold"><i></i><span>${esc(t('sp_prev', { n: fold }))}</span></li>` : ''}
+      ${fold ? `<li class="fold"><button type="button" class="sp-fold" data-action="sp-unfold"><i></i><span>${esc(t('sp_prev', { n: fold }))}</span></button></li>` : ''}
       ${top.slice(fold).map((s) => `<li class="${s.status === 'running' || s.status === 'asking' ? 'in_progress' : s.status === 'done' ? 'done' : s.status}"><i>${s.status === 'running' || s.status === 'asking' ? spinner(14) : s.status === 'done' ? icon('done', 15) : icon('warning', 15)}</i><span>${esc(stepLabel(s))}</span></li>`).join('')}
     </ol></div>`;
 }

@@ -91,6 +91,8 @@ async function getSpecs() {
     unified: appleSilicon,
     gpuBudgetGB: +gpuBudgetGB.toFixed(1),
     ramBudgetGB: +(appleSilicon ? 0 : ramGB * 0.6).toFixed(1),
+    // too modest for a good local model at a usable speed: no real GPU and little memory or few cores
+    lowPower: !appleSilicon && accel === 'cpu' && (ramGB < 12 || cpus.length < 8) || ramGB < 6,
   };
   return cache;
 }

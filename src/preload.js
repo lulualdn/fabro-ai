@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('api', {
   runtime: { status: i('runtime:status') },
   crash: { list: i('crash:list'), folder: i('crash:folder'), report: i('crash:report') },
   images: { status: i('images:status'), install: i('images:install') },
-  voice: { status: i('voice:status'), install: i('voice:install'), stt: i('voice:stt'), tts: i('voice:tts'), setVoice: i('voice:setVoice'), setWhisper: i('voice:setWhisper') },
+  voice: { status: i('voice:status'), install: i('voice:install'), stt: i('voice:stt'), tts: i('voice:tts'), setVoice: i('voice:setVoice'), setWhisper: i('voice:setWhisper'), setVocab: i('voice:setVocab') },
   projects: {
     list: i('projects:list'), get: i('projects:get'), save: i('projects:save'), delete: i('projects:delete'), addFiles: i('projects:addFiles'), addText: i('projects:addText'),
     removeFile: i('projects:removeFile'), search: i('projects:search'), ragStatus: i('projects:ragStatus'), reindex: i('projects:reindex'),
@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld('api', {
   skills: { list: i('skills:list'), toggle: i('skills:toggle'), create: i('skills:create'), openFolder: i('skills:openFolder') },
   providers: {
     view: i('providers:view'), detect: i('providers:detect'), add: i('providers:add'), update: i('providers:update'),
-    remove: i('providers:remove'), refresh: i('providers:refresh'), enable: i('providers:enable'), models: i('providers:models'),
+    remove: i('providers:remove'), refresh: i('providers:refresh'), enable: i('providers:enable'), models: i('providers:models'), free: i('providers:free'),
   },
   quick: {
     submit: i('quick:submit'), started: i('quick:started'), report: i('quick:report'), hide: i('quick:hide'),

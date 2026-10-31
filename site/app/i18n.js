@@ -128,3 +128,90 @@ Object.assign(FA_I18N.en, { copy: 'Copy', copied: 'Copied', cancel: 'Cancel', ed
 Object.assign(FA_I18N.fr, { copy: 'Copier', copied: 'Copié', cancel: 'Annuler', editMsg: 'Modifier', regenerate: 'Régénérer', share: 'Partager', readAloud: 'Lire à voix haute', selectText: 'Sélectionner le texte', rename: 'Renommer', delete: 'Supprimer', editing: 'Modification de ton message' });
 Object.assign(FA_I18N.es, { copy: 'Copiar', copied: 'Copiado', cancel: 'Cancelar', editMsg: 'Editar', regenerate: 'Regenerar', share: 'Compartir', readAloud: 'Leer en voz alta', selectText: 'Seleccionar texto', rename: 'Renombrar', delete: 'Eliminar', editing: 'Editando tu mensaje' });
 Object.assign(FA_I18N.de, { copy: 'Kopieren', copied: 'Kopiert', cancel: 'Abbrechen', editMsg: 'Bearbeiten', regenerate: 'Neu erzeugen', share: 'Teilen', readAloud: 'Vorlesen', selectText: 'Text auswählen', rename: 'Umbenennen', delete: 'Löschen', editing: 'Deine Nachricht bearbeiten' });
+// Fabro Cloud, away mode, the phone's own voice and ears, microphone help, Halloween, phone & computer layouts
+Object.assign(FA_I18N.en, {
+  free: 'FREE', freeCloud: 'Free · no account', withTools: 'tools', freeCloudHint: 'Free online models, no account and no key. Chat and agent with web search, pages, images, Python and more — even without your computer.',
+  awayTitle: 'When the computer is away', awayHint: 'Who answers when your computer is off or unreachable. Conversations sync to it when it’s back.',
+  away_cloud: 'Fabro Cloud', away_phone: 'This phone', away_wait: 'Wait for the PC',
+  bannerCloud: '{n} is away — Fabro Cloud answers meanwhile.', bannerPhone: '{n} is away — this phone answers meanwhile.',
+  routePc: 'On {n}', routeCloud: 'Fabro Cloud · free', routePhone: 'On this phone', routeWait: 'Waiting for the computer',
+  earsTitle: 'Speech recognition on the phone', earsHint: 'Whisper on this device: understands you without the computer and offline, including soft voices. Downloaded once.',
+  downloading: 'Downloading…', earsGpu: 'best quality (WebGPU)', earsFast: 'fast, light', earsBetter: 'more accurate', earsReady: 'Speech recognition ready on this phone', earsGet: 'Download speech recognition', earsNeeded: 'To talk without the computer, download speech recognition for this phone.',
+  voiceTitle: 'Voice', voiceFam: 'Voice type', fam_f: 'Female', fam_m: 'Male', voiceName: 'Voice', voiceAuto: 'Best available', voiceTest: 'Listen', voiceSample: 'Hi! This is my voice. I can switch languages smoothly: et je parle aussi français.',
+  voicePcUsed: 'The computer’s voice (Kokoro, multilingual) is used while it’s connected.', voicePhoneUsed: 'The phone’s natural voices are used; each sentence is read in its own language.',
+  theme_halloween: 'Halloween', layout: 'Layout', layout_auto: 'Automatic', layout_phone: 'Phone', layout_desktop: 'Computer',
+  qa_talk: 'Talk', qa_talkS: 'Hands-free voice chat', qa_photo: 'Photo', qa_photoS: 'Ask about a picture', qa_agentS: 'Hand it a whole task', qa_search: 'Search', qa_searchS: 'Up-to-date answers with sources', qa_image: 'Image', qa_imageS: 'Create an illustration',
+  qa_searchP: 'Search the web: ', qa_imageP: 'Create an image of ', seeAll: 'See all', kb_focus: 'type', kb_search: 'search',
+  micTitle: 'Microphone', micBlocked: 'The microphone is blocked for Fabro Anywhere', micInsecure: 'The microphone needs a secure (https) page', micWhy: 'Your browser refused it, so it can’t even ask anymore. Here’s how to allow it:',
+  micRetry: 'Try again', micOk: 'Microphone allowed', micNone: 'No microphone found on this device.', micBusy: 'The microphone is used by another app.', micNoSr: 'Tip: download speech recognition for this phone (Settings) to talk without the computer.',
+  micHelpChrome: 'Tap the icon left of the address bar (tune or lock)|Permissions › Microphone › Allow|Come back and tap “Try again”',
+  micHelpAndroid: 'Tap ⋮ › Settings › Site settings › Microphone|Find this site and choose Allow|Also check Android Settings › Apps › Chrome › Permissions › Microphone|Come back and tap “Try again”',
+  micHelpAndroidApp: 'Long-press the Fabro icon › App info (or Android Settings › Apps)|Permissions › Microphone › Allow|In Chrome: ⋮ › Settings › Site settings › Microphone › allow this site|Reopen Fabro and tap “Try again”',
+  micHelpSamsung: 'Menu › Settings › Sites and downloads › Site permissions › Microphone|Allow this site|Come back and tap “Try again”',
+  micHelpIos: 'Tap “aA” in the address bar › Website Settings|Microphone › Allow|Or Settings › Apps › Safari › Microphone › Allow|Come back and tap “Try again”',
+  micHelpIosApp: 'Open the iPhone Settings › Apps › Safari › Microphone|Choose Allow (or Ask)|Close Fabro from the app switcher and reopen it|Tap “Try again”',
+  micHelpEdge: 'Click the lock left of the address bar › Permissions for this site|Microphone › Allow|Reload the page',
+  micHelpFirefox: 'Click the microphone (or lock) icon in the address bar|Remove the “Blocked” permission|Tap “Try again” and choose Allow',
+  micHelpSafari: 'Safari › Settings for this website…|Microphone › Allow|Tap “Try again”',
+});
+Object.assign(FA_I18N.fr, {
+  free: 'GRATUIT', freeCloud: 'Gratuit · sans compte', withTools: 'outils', freeCloudHint: 'Des modèles gratuits en ligne, sans compte ni clé. Chat et agent avec recherche web, pages, images, Python et plus — même sans ton ordinateur.',
+  awayTitle: 'Quand l’ordinateur est absent', awayHint: 'Qui répond quand ton ordinateur est éteint ou injoignable. Les conversations s’y synchronisent à son retour.',
+  away_cloud: 'Fabro Cloud', away_phone: 'Ce téléphone', away_wait: 'Attendre le PC',
+  bannerCloud: '{n} est absent — Fabro Cloud répond en attendant.', bannerPhone: '{n} est absent — ce téléphone répond en attendant.',
+  routePc: 'Sur {n}', routeCloud: 'Fabro Cloud · gratuit', routePhone: 'Sur ce téléphone', routeWait: 'En attente de l’ordinateur',
+  earsTitle: 'Reconnaissance vocale sur le téléphone', earsHint: 'Whisper sur cet appareil : te comprend sans l’ordinateur et hors connexion, même à voix basse. Téléchargé une seule fois.',
+  downloading: 'Téléchargement…', earsGpu: 'meilleure qualité (WebGPU)', earsFast: 'rapide, léger', earsBetter: 'plus précis', earsReady: 'Reconnaissance vocale prête sur ce téléphone', earsGet: 'Télécharger la reconnaissance vocale', earsNeeded: 'Pour parler sans l’ordinateur, télécharge la reconnaissance vocale sur ce téléphone.',
+  voiceTitle: 'Voix', voiceFam: 'Type de voix', fam_f: 'Féminine', fam_m: 'Masculine', voiceName: 'Voix', voiceAuto: 'La meilleure disponible', voiceTest: 'Écouter', voiceSample: 'Salut ! Voici ma voix. Je change de langue sans couper : and I speak English too.',
+  voicePcUsed: 'La voix de l’ordinateur (Kokoro, multilingue) est utilisée quand il est connecté.', voicePhoneUsed: 'Les voix naturelles du téléphone sont utilisées ; chaque phrase est lue dans sa langue.',
+  theme_halloween: 'Halloween', layout: 'Disposition', layout_auto: 'Automatique', layout_phone: 'Téléphone', layout_desktop: 'Ordinateur',
+  qa_talk: 'Parler', qa_talkS: 'Conversation vocale mains libres', qa_photo: 'Photo', qa_photoS: 'Pose une question sur une image', qa_agentS: 'Confie-lui une tâche entière', qa_search: 'Recherche', qa_searchS: 'Réponses à jour avec sources', qa_image: 'Image', qa_imageS: 'Crée une illustration',
+  qa_searchP: 'Cherche sur le web : ', qa_imageP: 'Crée une image de ', seeAll: 'Tout voir', kb_focus: 'écrire', kb_search: 'rechercher',
+  micTitle: 'Micro', micBlocked: 'Le micro est bloqué pour Fabro Anywhere', micInsecure: 'Le micro a besoin d’une page sécurisée (https)', micWhy: 'Ton navigateur l’a refusé, donc il ne peut même plus le demander. Voici comment l’autoriser :',
+  micRetry: 'Réessayer', micOk: 'Micro autorisé', micNone: 'Aucun micro trouvé sur cet appareil.', micBusy: 'Le micro est utilisé par une autre application.', micNoSr: 'Astuce : télécharge la reconnaissance vocale du téléphone (Réglages) pour parler sans l’ordinateur.',
+  micHelpChrome: 'Touche l’icône à gauche de la barre d’adresse (réglages ou cadenas)|Autorisations › Micro › Autoriser|Reviens et touche « Réessayer »',
+  micHelpAndroid: 'Touche ⋮ › Paramètres › Paramètres des sites › Micro|Trouve ce site et choisis Autoriser|Vérifie aussi Paramètres Android › Applications › Chrome › Autorisations › Micro|Reviens et touche « Réessayer »',
+  micHelpAndroidApp: 'Appui long sur l’icône Fabro › Infos sur l’appli (ou Paramètres › Applications)|Autorisations › Micro › Autoriser|Dans Chrome : ⋮ › Paramètres › Paramètres des sites › Micro › autorise ce site|Rouvre Fabro et touche « Réessayer »',
+  micHelpSamsung: 'Menu › Paramètres › Sites et téléchargements › Autorisations des sites › Micro|Autorise ce site|Reviens et touche « Réessayer »',
+  micHelpIos: 'Touche « aA » dans la barre d’adresse › Réglages du site web|Micro › Autoriser|Ou Réglages › Apps › Safari › Microphone › Autoriser|Reviens et touche « Réessayer »',
+  micHelpIosApp: 'Ouvre Réglages › Apps › Safari › Microphone|Choisis Autoriser (ou Demander)|Ferme Fabro depuis le sélecteur d’apps et rouvre-le|Touche « Réessayer »',
+  micHelpEdge: 'Clique sur le cadenas à gauche de l’adresse › Autorisations pour ce site|Micro › Autoriser|Recharge la page',
+  micHelpFirefox: 'Clique sur l’icône micro (ou cadenas) dans la barre d’adresse|Retire l’autorisation « Bloqué »|Touche « Réessayer » et choisis Autoriser',
+  micHelpSafari: 'Safari › Réglages pour ce site web…|Microphone › Autoriser|Touche « Réessayer »',
+});
+Object.assign(FA_I18N.es, {
+  free: 'GRATIS', freeCloud: 'Gratis · sin cuenta', withTools: 'herramientas', freeCloudHint: 'Modelos gratuitos en línea, sin cuenta ni clave. Chat y agente con búsqueda web, imágenes, Python y más, incluso sin tu ordenador.',
+  awayTitle: 'Cuando el ordenador no está', awayHint: 'Quién responde cuando el ordenador está apagado o no se alcanza.', away_cloud: 'Fabro Cloud', away_phone: 'Este teléfono', away_wait: 'Esperar al PC',
+  bannerCloud: '{n} no está — Fabro Cloud responde mientras tanto.', bannerPhone: '{n} no está — este teléfono responde mientras tanto.',
+  routePc: 'En {n}', routeCloud: 'Fabro Cloud · gratis', routePhone: 'En este teléfono', routeWait: 'Esperando al ordenador',
+  earsTitle: 'Reconocimiento de voz en el teléfono', earsHint: 'Whisper en este dispositivo: te entiende sin el ordenador y sin conexión.', downloading: 'Descargando…', earsGpu: 'mejor calidad (WebGPU)', earsFast: 'rápido, ligero', earsBetter: 'más preciso', earsReady: 'Reconocimiento de voz listo', earsGet: 'Descargar el reconocimiento de voz', earsNeeded: 'Para hablar sin el ordenador, descarga el reconocimiento de voz.',
+  voiceTitle: 'Voz', voiceFam: 'Tipo de voz', fam_f: 'Femenina', fam_m: 'Masculina', voiceName: 'Voz', voiceAuto: 'La mejor disponible', voiceTest: 'Escuchar', voiceSample: '¡Hola! Esta es mi voz. And I can switch languages smoothly.',
+  voicePcUsed: 'Se usa la voz del ordenador (Kokoro, multilingüe).', voicePhoneUsed: 'Se usan las voces naturales del teléfono, cada frase en su idioma.',
+  theme_halloween: 'Halloween', layout: 'Diseño', layout_auto: 'Automático', layout_phone: 'Teléfono', layout_desktop: 'Ordenador',
+  qa_talk: 'Hablar', qa_talkS: 'Chat de voz manos libres', qa_photo: 'Foto', qa_photoS: 'Pregunta sobre una imagen', qa_agentS: 'Encárgale una tarea completa', qa_search: 'Buscar', qa_searchS: 'Respuestas actuales con fuentes', qa_image: 'Imagen', qa_imageS: 'Crea una ilustración',
+  qa_searchP: 'Busca en la web: ', qa_imageP: 'Crea una imagen de ', seeAll: 'Ver todo', kb_focus: 'escribir', kb_search: 'buscar',
+  micTitle: 'Micrófono', micBlocked: 'El micrófono está bloqueado', micInsecure: 'El micrófono necesita una página segura (https)', micWhy: 'El navegador lo rechazó. Así puedes permitirlo:', micRetry: 'Reintentar', micOk: 'Micrófono permitido', micNone: 'No se encontró micrófono.', micBusy: 'Otra app usa el micrófono.', micNoSr: 'Consejo: descarga el reconocimiento de voz del teléfono (Ajustes).',
+  micHelpChrome: 'Toca el icono a la izquierda de la barra de direcciones|Permisos › Micrófono › Permitir|Vuelve y toca «Reintentar»', micHelpAndroid: 'Toca ⋮ › Configuración › Configuración de sitios › Micrófono|Permite este sitio|Vuelve y toca «Reintentar»', micHelpAndroidApp: 'Mantén pulsado el icono de Fabro › Info de la app|Permisos › Micrófono › Permitir|Vuelve a abrir Fabro y toca «Reintentar»', micHelpSamsung: 'Menú › Ajustes › Sitios y descargas › Permisos › Micrófono|Permite este sitio|Toca «Reintentar»', micHelpIos: 'Toca «aA» › Ajustes del sitio web|Micrófono › Permitir|Toca «Reintentar»', micHelpIosApp: 'Ajustes › Apps › Safari › Micrófono › Permitir|Cierra Fabro y vuelve a abrirlo|Toca «Reintentar»', micHelpEdge: 'Haz clic en el candado › Permisos del sitio|Micrófono › Permitir|Recarga la página', micHelpFirefox: 'Haz clic en el icono del micrófono en la barra de direcciones|Quita el bloqueo|Toca «Reintentar»', micHelpSafari: 'Safari › Ajustes de este sitio web…|Micrófono › Permitir|Toca «Reintentar»',
+});
+Object.assign(FA_I18N.de, {
+  free: 'GRATIS', freeCloud: 'Kostenlos · ohne Konto', withTools: 'Werkzeuge', freeCloudHint: 'Kostenlose Online-Modelle, ohne Konto und Schlüssel. Chat und Agent mit Websuche, Bildern, Python und mehr – auch ohne deinen Computer.',
+  awayTitle: 'Wenn der Computer weg ist', awayHint: 'Wer antwortet, wenn der Computer aus oder nicht erreichbar ist.', away_cloud: 'Fabro Cloud', away_phone: 'Dieses Telefon', away_wait: 'Auf den PC warten',
+  bannerCloud: '{n} ist nicht da — Fabro Cloud antwortet solange.', bannerPhone: '{n} ist nicht da — dieses Telefon antwortet solange.',
+  routePc: 'Auf {n}', routeCloud: 'Fabro Cloud · kostenlos', routePhone: 'Auf diesem Telefon', routeWait: 'Warte auf den Computer',
+  earsTitle: 'Spracherkennung auf dem Telefon', earsHint: 'Whisper auf diesem Gerät: versteht dich ohne Computer und offline.', downloading: 'Wird geladen…', earsGpu: 'beste Qualität (WebGPU)', earsFast: 'schnell, leicht', earsBetter: 'genauer', earsReady: 'Spracherkennung bereit', earsGet: 'Spracherkennung laden', earsNeeded: 'Um ohne Computer zu sprechen, lade die Spracherkennung.',
+  voiceTitle: 'Stimme', voiceFam: 'Stimmtyp', fam_f: 'Weiblich', fam_m: 'Männlich', voiceName: 'Stimme', voiceAuto: 'Die beste verfügbare', voiceTest: 'Anhören', voiceSample: 'Hallo! Das ist meine Stimme. And I can switch languages smoothly.',
+  voicePcUsed: 'Die Stimme des Computers wird verwendet.', voicePhoneUsed: 'Die natürlichen Stimmen des Telefons werden verwendet, jeder Satz in seiner Sprache.',
+  theme_halloween: 'Halloween', layout: 'Layout', layout_auto: 'Automatisch', layout_phone: 'Telefon', layout_desktop: 'Computer',
+  qa_talk: 'Sprechen', qa_talkS: 'Freihändiger Sprachchat', qa_photo: 'Foto', qa_photoS: 'Frage zu einem Bild', qa_agentS: 'Gib ihm eine ganze Aufgabe', qa_search: 'Suchen', qa_searchS: 'Aktuelle Antworten mit Quellen', qa_image: 'Bild', qa_imageS: 'Erstelle eine Illustration',
+  qa_searchP: 'Suche im Web: ', qa_imageP: 'Erstelle ein Bild von ', seeAll: 'Alle', kb_focus: 'schreiben', kb_search: 'suchen',
+  micTitle: 'Mikrofon', micBlocked: 'Das Mikrofon ist blockiert', micInsecure: 'Das Mikrofon braucht eine sichere (https) Seite', micWhy: 'Der Browser hat es abgelehnt. So erlaubst du es:', micRetry: 'Erneut versuchen', micOk: 'Mikrofon erlaubt', micNone: 'Kein Mikrofon gefunden.', micBusy: 'Eine andere App nutzt das Mikrofon.', micNoSr: 'Tipp: Lade die Spracherkennung des Telefons (Einstellungen).',
+  micHelpChrome: 'Tippe auf das Symbol links der Adressleiste|Berechtigungen › Mikrofon › Erlauben|Zurück und „Erneut versuchen“', micHelpAndroid: '⋮ › Einstellungen › Website-Einstellungen › Mikrofon|Diese Seite erlauben|„Erneut versuchen“', micHelpAndroidApp: 'Fabro-Symbol lange drücken › App-Info|Berechtigungen › Mikrofon › Erlauben|Fabro neu öffnen und „Erneut versuchen“', micHelpSamsung: 'Menü › Einstellungen › Seiten und Downloads › Berechtigungen › Mikrofon|Diese Seite erlauben|„Erneut versuchen“', micHelpIos: '„aA“ › Website-Einstellungen|Mikrofon › Erlauben|„Erneut versuchen“', micHelpIosApp: 'Einstellungen › Apps › Safari › Mikrofon › Erlauben|Fabro schließen und neu öffnen|„Erneut versuchen“', micHelpEdge: 'Schloss links der Adresse › Berechtigungen|Mikrofon › Erlauben|Seite neu laden', micHelpFirefox: 'Mikrofon-Symbol in der Adressleiste|Blockierung entfernen|„Erneut versuchen“', micHelpSafari: 'Safari › Einstellungen für diese Website…|Mikrofon › Erlauben|„Erneut versuchen“',
+});
+Object.assign(FA_I18N.en, { cloudBusy: 'Fabro Cloud is very busy right now — try again in a minute (or use the phone’s model).' });
+Object.assign(FA_I18N.fr, { cloudBusy: 'Fabro Cloud est très sollicité en ce moment — réessaie dans une minute (ou utilise le modèle du téléphone).' });
+Object.assign(FA_I18N.es, { cloudBusy: 'Fabro Cloud está muy ocupado — inténtalo en un minuto.' });
+Object.assign(FA_I18N.de, { cloudBusy: 'Fabro Cloud ist gerade ausgelastet — versuche es in einer Minute erneut.' });
+Object.assign(FA_I18N.en, { guestMode: 'No computer', guestHint: 'Fabro Cloud answers for free (no account), or the phone’s own model offline. Pair your computer for its models and tools.' });
+Object.assign(FA_I18N.fr, { guestMode: 'Sans ordinateur', guestHint: 'Fabro Cloud répond gratuitement (sans compte), ou le modèle du téléphone hors connexion. Associe ton ordinateur pour ses modèles et ses outils.' });
+Object.assign(FA_I18N.es, { guestMode: 'Sin ordenador', guestHint: 'Fabro Cloud responde gratis (sin cuenta), o el modelo del teléfono sin conexión.' });
+Object.assign(FA_I18N.de, { guestMode: 'Ohne Computer', guestHint: 'Fabro Cloud antwortet kostenlos (ohne Konto), oder das Modell des Telefons offline.' });

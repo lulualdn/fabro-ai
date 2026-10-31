@@ -127,6 +127,50 @@
     try { Object.defineProperty(window, 'localStorage', { value: fake, configurable: true }); } catch {}
   }
 
+  // ── microphone: a sandboxed (opaque-origin) frame can't get one — the browser refuses without even asking.
+  // The phone app (the top page) asks, captures and streams the sound here; getUserMedia returns a live stream
+  // made from it, so the interface's voice mode and dictation work as on the computer. ──
+  const md = navigator.mediaDevices;
+  const nativeGUM = md && md.getUserMedia ? md.getUserMedia.bind(md) : null;
+  const mics = new Map(); let micN = 0;
+  async function bridgedMic() {
+    const id = 'm' + (++micN);
+    // made before waiting for the permission, while the tap still counts (else it may stay silent)
+    const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume().catch(() => {});
+    try { await req('mic', { mid: id, rate: ctx.sampleRate }); }
+    catch (e) { try { ctx.close(); } catch {} throw new DOMException(String(e && e.message || 'denied'), /^[A-Z]\w+Error$/.test(String(e && e.message)) ? e.message : 'NotAllowedError'); }
+    if (ctx.state !== 'running') await ctx.resume().catch(() => {});
+    const q = []; let cur = null, pos = 0;
+    const node = ctx.createScriptProcessor(2048, 1, 1);
+    const src = ctx.createConstantSource ? ctx.createConstantSource() : ctx.createOscillator();
+    const mute = ctx.createGain(); mute.gain.value = 0; src.connect(mute); mute.connect(node); src.start();
+    node.onaudioprocess = (e) => {
+      const out = e.outputBuffer.getChannelData(0); let i = 0;
+      while (i < out.length) {
+        if (!cur || pos >= cur.length) { cur = q.shift(); pos = 0; if (!cur) { out.fill(0, i); break; } }
+        const n = Math.min(out.length - i, cur.length - pos); out.set(cur.subarray(pos, pos + n), i); i += n; pos += n;
+      }
+      if (q.length > 48) q.splice(0, q.length - 8); // never lag behind the voice
+    };
+    const dest = ctx.createMediaStreamDestination(); node.connect(dest);
+    let off = false;
+    const stop = () => { if (off) return; off = true; post({ t: 'mic.off', mid: id }); mics.delete(id); try { node.onaudioprocess = null; src.stop(); ctx.close(); } catch {} };
+    mics.set(id, { push: (f) => q.push(f), stop });
+    for (const tr of dest.stream.getAudioTracks()) { const s0 = tr.stop.bind(tr); tr.stop = () => { s0(); stop(); }; }
+    return dest.stream;
+  }
+  if (md) {
+    md.getUserMedia = function (c) {
+      if (c && c.audio && !c.video) return bridgedMic();
+      return nativeGUM ? nativeGUM(c) : Promise.reject(new DOMException('Not supported', 'NotSupportedError'));
+    };
+  }
+  window.addEventListener('message', (e) => {
+    if (e.source !== P) return; const m = e.data || {};
+    if (m.t === 'mic.data') { const x = mics.get(m.mid); if (x) x.push(new Float32Array(m.d)); }
+    else if (m.t === 'mic.end') { const x = mics.get(m.mid); if (x) x.stop(); }
+  });
+
   function boot({ bundle, info }) {
     window.FA_T = info.t || {};
     window.FABRO_REMOTE = { pcName: info.pcName || '', lite: () => post({ t: 'lite' }) };

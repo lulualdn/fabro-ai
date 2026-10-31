@@ -230,9 +230,12 @@ function y4m(rgba, w, h, file) {
   await phone.click('.d-item'); await wait(300);
   await phone.setViewportSize({ width: 390, height: 844 });
 
-  // ── the computer goes away: the message waits, then goes ──
+  // ── the computer goes away: with "wait for the PC" the message waits, then goes ──
+  // (the default, Fabro Cloud, answers at once instead — covered by the phone-alone checks)
+  await phone.evaluate(() => { window.__fa.S.settings.away = 'wait'; });
   await win.evaluate(() => api.anywhere.configure({ enabled: false }));
   await phone.waitForFunction(() => window.__fa.S.conn.state === 'off', null, { timeout: 15000 });
+  assert.ok(await phone.evaluate(() => !!document.querySelector('.route-pill, .banner')), 'the phone shows the computer is away');
   await phone.fill('#prompt', 'Et celle de l’Espagne ?');
   await phone.click('.composer .send');
   await phone.waitForSelector('.queued', { timeout: 5000 });
@@ -253,12 +256,15 @@ function y4m(rgba, w, h, file) {
   await phone.waitForFunction(() => window.__fa.S.view === 'welcome', null, { timeout: 20000 });
   step('revoked: the phone is back to the welcome screen');
 
-  // ── guest mode: the phone model without any computer or account ──
+  // ── guest mode: no computer, no account — Fabro Cloud answers at once, the phone's model can be added ──
   const guest = await ctx.newPage();
   await guest.goto(`http://127.0.0.1:${sitePort}/app/`);
   await guest.click('[data-act=guest]');
-  await guest.waitForFunction(() => window.__fa.S.view === 'main' && window.__fa.S.settings.guest, null, { timeout: 5000 });
+  await guest.waitForFunction(() => window.__fa.S.view === 'main' && window.__fa.S.settings.guest && window.__fa.S.settings.model === 'cloud:auto', null, { timeout: 5000 });
+  await guest.waitForSelector('.qa-grid .qa, .home-desk', { timeout: 5000 });
+  await guest.evaluate(() => document.querySelector('[data-act=settings]').click());
   await guest.waitForSelector('.sheet [data-act=local-get], .sheet .err', { timeout: 10000 });
+  await guest.waitForSelector('.sheet [data-act=ears-get]', { timeout: 5000 });
   await guest.screenshot({ path: path.join(shots, 'phone-guest.png') });
   step('guest mode without a computer');
 

@@ -83,10 +83,17 @@ function applyDevMode() {
   if (on) b.innerHTML = `${icon('warning', 14)}<b>${esc(t('devBanner'))}</b><span>v${esc(S.info.version)}-dev · ${esc(S.info.platform)}</span>`;
 }
 
+// mid-October to early November: the Halloween theme is offered in the user menu
+function spookySeason(d = new Date()) { const m = d.getMonth(), day = d.getDate(); return (m === 9 && day >= 15) || (m === 10 && day <= 3); }
+// Light mode: fewer effects (blur, shadows, motion) for modest computers — on by default when the computer is one.
+const lightModeOn = () => (S.settings.lightMode == null ? !!(S.specs && S.specs.lowPower) : !!S.settings.lightMode);
+function applyLightMode() { document.documentElement.classList.toggle('light-mode', lightModeOn()); }
 function applyTheme() {
   const th = S.settings.theme;
-  const dark = th === 'dark' || (th === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  // halloween is a skin over the dark theme: every dark rule still applies, its tokens win
+  const dark = th === 'dark' || th === 'halloween' || (th === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  if (th === 'halloween') document.documentElement.dataset.skin = 'halloween'; else delete document.documentElement.dataset.skin;
   api.win.theme(dark);
 }
 
@@ -267,7 +274,8 @@ function openUserMenu(anchor) {
       <button class="pm-item" data-action="mode" data-mode="custom">${icon('brush', 16)}<span class="pm-text"><b>${esc(t('nav_custom'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="general">${icon('settings', 16)}<span class="pm-text"><b>${esc(t('settings'))}</b></span><kbd>Ctrl ,</kbd></button>
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
-      <button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'dark' ? 'light' : 'dark'}">${icon(th === 'dark' ? 'sun' : 'moon', 16)}<span class="pm-text"><b>${esc(t(th === 'dark' ? 'themeLight' : 'themeDark'))}</b></span></button>
+      <button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'dark' || th === 'halloween' ? 'light' : 'dark'}">${icon(th === 'dark' || th === 'halloween' ? 'sun' : 'moon', 16)}<span class="pm-text"><b>${esc(t(th === 'dark' || th === 'halloween' ? 'themeLight' : 'themeDark'))}</b></span></button>
+      ${spookySeason() || th === 'halloween' ? `<button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'halloween' ? 'system' : 'halloween'}">${icon('pumpkin', 16)}<span class="pm-text"><b>${esc(t(th === 'halloween' ? 'themeHalloweenOff' : 'themeHalloween'))}</b></span></button>` : ''}
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="settings" data-tab="about">${icon('info', 16)}<span class="pm-text"><b>${esc(t('tab_about'))}</b></span></button>
       ${window.FABRO_REMOTE ? `<div class="pm-sep"></div><button class="pm-item" data-action="remote-lite">${icon('phone', 16)}<span class="pm-text"><b>${esc(t('remoteLite'))}</b><small>${esc(t('remoteLiteHint'))}</small></span></button>` : ''}
@@ -337,7 +345,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#moda
 // Animated view swap (View Transitions API, falls back to an instant swap).
 function vt(fn, opts) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!document.startViewTransition || reduce || document.hidden) { fn(); return null; }
+  if (!document.startViewTransition || reduce || document.hidden || document.documentElement.classList.contains('light-mode')) { fn(); return null; }
   if (opts && opts.kind) document.documentElement.dataset.vt = opts.kind;
   const t = document.startViewTransition(fn);
   // A skipped transition (window hidden, tray) rejects these promises: that is not an error.
@@ -882,7 +890,8 @@ function settingsBody(tab) {
       ${row(t('yourName'), `<input class="input" type="text" maxlength="40" data-input="userName" value="${esc(st.userName || '')}" placeholder="${esc(prettyName(S.info.userName) || t('yourName'))}">`, t('yourNameHint'))}
       ${row(t('language'), `<select class="input" data-input="language">${langOpts}</select>`)}
       ${row(t('reduceMotion'), toggle('reduceMotion', !!st.reduceMotion), t('reduceMotionHint'))}
-      ${row(t('theme'), seg('theme', st.theme, [['system', t('themeSystem'), 'monitor'], ['light', t('themeLight'), 'sun'], ['dark', t('themeDark'), 'moon']]))}
+      ${row(t('lightMode'), toggle('lightMode', lightModeOn()), t(S.specs && S.specs.lowPower ? 'lightModeHintLow' : 'lightModeHint'))}
+      ${row(t('theme'), seg('theme', st.theme, [['system', t('themeSystem'), 'monitor'], ['light', t('themeLight'), 'sun'], ['dark', t('themeDark'), 'moon'], ['halloween', t('themeHalloween'), 'pumpkin']]))}
       ${row(t('autoUpdate'), toggle('autoUpdate', st.autoUpdate), t('autoUpdateHint'))}
       ${row(t('devMode'), toggle('devMode', st.devMode), t('devModeHint'))}
       ${st.devMode ? row(t('devTools'), `<button class="btn sm" data-action="devtools">${icon('terminal', 14)} ${esc(t('open'))}</button>`, 'F12 · Ctrl+Shift+I · Ctrl+R') : ''}
@@ -1284,6 +1293,7 @@ function flashCheck(btn) {
 async function applySetting(key, value) {
   await saveSettings(patchFor(key, value));
   if (key === 'theme') applyTheme();
+  if (key === 'lightMode') applyLightMode();
   if (key === 'devMode') { applyDevMode(); applyTheme(); }
   if (key === 'userName') { _greet.key = ''; renderSidebar(); if (S.mode !== 'custom') renderView(); }
   if (S.mode === 'custom' && (key.startsWith('memory') || key === 'activeStyle') && typeof rerenderCustom === 'function') rerenderCustom();
@@ -1414,6 +1424,7 @@ window.addEventListener('DOMContentLoaded', async function boot() {
   navTo('chat', null);
   renderSidebar(); renderView(); renderViewer();
   S.specs = await api.system.specs();
+  applyLightMode();
   S.catalog = await api.models.catalog();
   if (!allModels().length && S.mode === 'chat' && !S.conv) renderView();
   if (needsOnboarding()) renderOnboarding();
