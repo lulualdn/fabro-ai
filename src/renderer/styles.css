@@ -1722,7 +1722,8 @@ body.drop-on .drop-veil { opacity: 1; }
   --shadow-lg: 0 16px 56px rgba(10, 0, 20, .6), 0 2px 10px rgba(0, 0, 0, .4);
   color-scheme: dark;
 }
-[data-skin="halloween"] body {
+html[data-skin="halloween"] { background: #120d17; }
+[data-skin="halloween"] body { min-height: 100%; background-attachment: fixed;
   background:
     radial-gradient(520px 520px at 88% -6%, rgba(255, 214, 150, .16), rgba(255, 170, 80, .05) 45%, transparent 70%),
     radial-gradient(900px 600px at 0% 110%, rgba(110, 40, 150, .22), transparent 70%),

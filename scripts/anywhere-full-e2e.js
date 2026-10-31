@@ -13,7 +13,7 @@ const ROOT = path.join(__dirname, '..');
 const shots = process.argv[2] || fs.mkdtempSync(path.join(os.tmpdir(), 'faf-shots-'));
 fs.mkdirSync(shots, { recursive: true });
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'faf-pc-'));
-fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpdate: false, language: 'fr', userName: 'Lulu', theme: 'dark', onboarded: true, devModeReleased: true, hotkey: { enabled: false } }));
+fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpdate: false, language: 'fr', userName: 'Lulu', theme: process.env.FA_THEME || 'dark', onboarded: true, devModeReleased: true, hotkey: { enabled: false } }));
 const step = (s) => console.log('•', s);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 

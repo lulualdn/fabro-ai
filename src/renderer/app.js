@@ -800,6 +800,16 @@ function renderViewer() {
 // ───────────────────────────── Popover (model menu) ─────────────────────────────
 function closePopover() { $('#popover-root').innerHTML = ''; }
 
+// A menu that opens above its button, kept inside the screen: on a phone it takes the full width, and its height
+// is what fits above the button (it scrolls inside).
+function popPlace(r) {
+  const vw = innerWidth, w = Math.min(360, vw - 16);
+  const narrow = vw < 600;
+  const right = narrow ? 8 : Math.min(Math.max(8, vw - r.right), vw - w - 8);
+  const left = narrow ? 8 : null;
+  const maxH = Math.max(160, Math.min(innerHeight * 0.6, r.top - 16));
+  return `${left != null ? `left:${left}px;` : ''}right:${right}px; bottom:${innerHeight - r.top + 8}px; max-height:${maxH}px; ${narrow ? 'max-width:none; min-width:0;' : ''}`;
+}
 function openModelMenu(anchor) {
   const list = allModels();
   const r = anchor.getBoundingClientRect();
@@ -814,7 +824,7 @@ function openModelMenu(anchor) {
       <span class="pm-text"><b>${esc(m.label)}</b><small>${esc(m.sub || '')}</small></span>
       ${sameRef(ref, S.settings.selectedModel) ? icon('check', 16) : ''}</button>`; };
   $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
-    <div class="popover models-pop" style="right:${Math.max(12, innerWidth - r.right)}px; bottom:${innerHeight - r.top + 8}px">
+    <div class="popover models-pop" style="${popPlace(r)}">
       ${local.length ? `<div class="pm-sec">${esc(t('builtInModels'))}</div>${local.map(item).join('')}` : ''}
       ${Object.values(groups).map((g) => `<div class="pm-sec">${esc(g.name)}</div>${g.items.map(item).join('')}`).join('')}
       ${mods.length ? `<div class="pm-sec">${esc(t('mods_web'))}</div>${mods.map(modItem).join('')}` : ''}
