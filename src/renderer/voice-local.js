@@ -31,7 +31,8 @@
   const LOCALE = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', it: 'it-IT', pt: 'pt-BR', nl: 'nl-NL', pl: 'pl-PL', ru: 'ru-RU', ja: 'ja-JP', zh: 'zh-CN', ko: 'ko-KR', tr: 'tr-TR', uk: 'uk-UA' };
 
   const st = { voices: {}, ears: null, earsModel: '', earsP: 0, gpu: null, pref: {} }; // voices: id → 'ready' | progress 0..1 | 'error'
-  const subs = new Set(); const emit = () => subs.forEach((f) => { try { f(st); } catch {} });
+  const subs = new Set(); const emit = () => [...subs].forEach((f) => { try { f(st); } catch {} });
+  const on = (f) => { subs.add(f); return () => subs.delete(f); };
 
   // ── workers ──
   function worker(file) {
@@ -56,7 +57,7 @@
   // ── mouth ──
   const base = (l) => String(l || 'en').slice(0, 2).toLowerCase();
   // phones: the lighter version of a voice (twice as fast, still natural)
-  const phone = /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent || '');
+  const phone = /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
   const LIGHT = { 'fr_FR-siwis-medium': 'fr_FR-siwis-low', 'en_US-amy-medium': 'en_US-amy-low', 'en_US-ryan-medium': 'en_US-ryan-low', 'en_US-lessac-medium': 'en_US-lessac-low', 'de_DE-thorsten-medium': 'de_DE-thorsten-low' };
   const voicesOf = (l) => [...(st.gpu && !phone ? KOKORO[l] || [] : []), ...(VOICES[l] || [])];
   function voiceFor(lang) { const l = base(lang); const list = voicesOf(l); if (!list.length) return null; const p = st.pref[l]; const id = (p && list.find((v) => v[0] === p)) ? p : list[0][0]; return phone && LIGHT[id] ? LIGHT[id] : id; }
@@ -102,7 +103,7 @@
   // ── ears ──
   async function loadEars(model) {
     st.ears = st.ears === 'ready' ? 'ready' : 0; emit();
-    const dev = (await gpu()) ? 'webgpu' : 'wasm';
+    const dev = (await gpu()) && !phone ? 'webgpu' : 'wasm'; // phones: the processor (WebGPU on an iPhone runs out of memory)
     await stt({ t: 'load', model, device: dev }, (p) => { if (st.ears !== 'ready') { st.ears = p; emit(); } });
     st.earsModel = model; st.earsDev = dev; st.ears = 'ready'; emit();
   }
@@ -111,7 +112,7 @@
     if (st.ears === 'ready') return Promise.resolve();
     if (!earsLoading) earsLoading = loadEars(EARS.small).then(async () => {
       // a graphics card: the more accurate model comes next, quietly, and takes over once it's there
-      if (await gpu()) stt({ t: 'load', model: EARS.big, device: 'webgpu' }).then(() => { st.earsModel = EARS.big; emit(); }, () => {});
+      if (!phone && (await gpu())) stt({ t: 'load', model: EARS.big, device: 'webgpu' }).then(() => { st.earsModel = EARS.big; emit(); }, () => {});
     }).catch((e) => { st.ears = 'error'; emit(); earsLoading = null; throw e; });
     return earsLoading;
   }
@@ -133,7 +134,12 @@
   }
 
   // get everything ready for a voice conversation in this language (downloads in the background)
-  async function prepare(lang) { await gpu(); loadVoice(voiceFor(lang)); ears().catch(() => {}); }
+  // phones: one thing at a time (the voice, then the ears) — loading both at once is too much memory for an iPhone
+  async function prepare(lang) {
+    await gpu(); const id = voiceFor(lang); loadVoice(id);
+    if (!phone) { ears().catch(() => {}); return; }
+    const off = on(() => { const v = st.voices[id]; if (v === 'ready' || v === 'error') { off(); ears().catch(() => {}); } }); emit();
+  }
   // a voice already downloaded on this device? (then it is used at once, no fallback)
   async function warm(lang) { const id = voiceFor(lang); if (!id || st.voices[id] === 'ready') return; try { if ((await tts({ t: 'has', voice: id })).ok) loadVoice(id); } catch {} }
 

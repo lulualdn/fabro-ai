@@ -537,7 +537,7 @@
   const pcVoice = () => !!(session && S.conn.info && S.conn.info.voice && S.conn.info.voice.ready);
   // Whisper on the phone itself (downloaded once, works offline)
   const earsReady = () => !!(S.settings.ears && S.settings.ears.id);
-  async function transcribe(wavBytes) {
+  async function transcribe(wavBytes, { noDevice = false } = {}) {
     if (pcVoice()) {
       try { const r = await rpc('voice.stt', { wav: A.b64u(wavBytes).replace(/-/g, '+').replace(/_/g, '/'), lang }, 120000); return (r && r.text) || ''; }
       catch (e) { if (!earsReady()) throw e; }
@@ -547,7 +547,7 @@
       try { const c = curConv(); const last = c && A.pathOf(c).filter((n) => n.role === 'assistant').slice(-1)[0]; return await FAAgent.cloudHear(wavBytes, { lang, prompt: ['Fabro', last ? speakable(last.content).slice(-300) : ''].join('. ') }); }
       catch (e) { if (!earsReady()) throw e.busy ? new Error(t('cloudBusy')) : e; }
     }
-    if (earsReady()) return FASpeech.hear(wavBytes, { model: S.settings.ears.id, lang });
+    if (earsReady() && !noDevice) return FASpeech.hear(wavBytes, { model: S.settings.ears.id, lang });
     throw new Error(t('noStt'));
   }
   // Microphone refused or missing: explain how to allow it on this exact device, instead of failing silently.
@@ -1372,7 +1372,11 @@
     // voice mode: Whisper on the phone itself as soon as it's downloaded (it downloads in the background meanwhile)
     hear: async (wav, o = {}) => {
       const b = wav instanceof Uint8Array ? wav : new Uint8Array(wav);
-      if (o.local && window.VLocal) { const tx = await VLocal.hear(b, { lang: o.lang || lang }).catch(() => null); if (tx != null) return tx; }
+      if (o.local && window.VLocal) {
+        const tx = await VLocal.hear(b, { lang: o.lang || lang }).catch(() => null); if (tx != null) return tx;
+        // still downloading: the computer or the cloud meanwhile — never a second Whisper on the phone (memory)
+        try { return await transcribe(b, { noDevice: true }); } catch { return VLocal.hear(b, { lang: o.lang || lang, wait: true }); }
+      }
       return transcribe(b);
     },
     // the phone's natural voice (Piper), as WAV bytes — null while it downloads (the system voice speaks then)

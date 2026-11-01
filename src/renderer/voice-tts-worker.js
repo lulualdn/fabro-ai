@@ -107,20 +107,30 @@ async function kokoroSynth(name, text, speed) {
 }
 
 // text → phoneme ids (espeak-ng, the voice's own language)
-function phonemize(text, lang) {
-  return new Promise((resolve, reject) => {
-    let done = false;
-    phon({
-      print: (d) => { if (!done) { done = true; try { const j = JSON.parse(d); resolve({ ids: j.phoneme_ids, phonemes: [].concat(j.phonemes || []).flat().join('') }); } catch (e) { reject(e); } } },
-      printErr: () => {},
-      getPreloadedPackage: () => phonData.buffer.slice(phonData.byteOffset, phonData.byteOffset + phonData.byteLength),
-      instantiateWasm: (imports, ok) => { WebAssembly.instantiate(phonWasm, imports).then((inst) => ok(inst, phonWasm), reject); return {}; },
-      locateFile: (u) => PHON_BASE + u,
-    }).then((m) => {
-      m.callMain(['-l', lang, '--input', JSON.stringify([{ text }]), '--espeak_data', '/espeak-ng-data']);
-      if (!done) reject(new Error('no phonemes'));
-    }, reject);
+// One phonemizer for the whole session: a new one per sentence copied its 18 MB of data each time, which an
+// iPhone does not survive. If running it again ever fails, it is made anew once.
+let pm = null, pmOut = null;
+function makePm() {
+  return phon({
+    print: (d) => { if (pmOut) pmOut(d); },
+    printErr: () => {},
+    getPreloadedPackage: () => phonData.buffer.slice(phonData.byteOffset, phonData.byteOffset + phonData.byteLength),
+    instantiateWasm: (imports, ok) => { WebAssembly.instantiate(phonWasm, imports).then((inst) => ok(inst, phonWasm)); return {}; },
+    locateFile: (u) => PHON_BASE + u,
   });
+}
+function runPm(m, text, lang) {
+  let out = null; pmOut = (d) => { if (out == null) out = d; };
+  try { m.callMain(['-l', lang, '--input', JSON.stringify([{ text }]), '--espeak_data', '/espeak-ng-data']); } catch (e) { if (out == null && !(e && (e.name === 'ExitStatus' || /exit/i.test(e.message || '')))) throw e; }
+  pmOut = null;
+  if (out == null) throw new Error('no phonemes');
+  const j = JSON.parse(out); return { ids: j.phoneme_ids, phonemes: [].concat(j.phonemes || []).flat().join('') };
+}
+async function phonemize(text, lang) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!pm) pm = await makePm();
+    try { return runPm(pm, text, lang); } catch (e) { pm = null; if (attempt) throw e; }
+  }
 }
 
 async function synth(id, text, speed) {
