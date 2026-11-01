@@ -39,6 +39,8 @@ exporter.registerScheme();
 // Fabro Anywhere: let phones on the same network reach the computer directly (real local addresses
 // instead of obfuscated .local names in WebRTC candidates).
 app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
+// voice mode runs Whisper and Piper in the page (WebAssembly): shared memory lets them use several cores
+app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
 
 let win = null;
 const agentReqs = new Map(); // desktop requests that used tools → notify paired phones when they finish in the background

@@ -31,13 +31,19 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   const T = (fn, arg) => app.evaluate(fn, arg);
   await w.evaluate(() => { window.__sine = (f, sec) => { const R = 48000, a = new Float32Array(R * sec); for (let i = 0; i < a.length; i++) a[i] = 0.2 * Math.sin(2 * Math.PI * f * i / R); return { chunks: [a], rate: R, dur: sec }; }; });
-  const say = (text) => T(({}, x) => { global.__vt.stt.push(x); }, text);
+  // the in-browser engines (Whisper, Piper), stubbed the same way
+  await w.evaluate(() => {
+    const wav = (sec) => { const rate = 8000, n = Math.round(rate * sec), b = new ArrayBuffer(44 + n * 2), v = new DataView(b); const s = (p, x) => { for (let i = 0; i < x.length; i++) v.setUint8(p + i, x.charCodeAt(i)); }; s(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); s(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); s(36, 'data'); v.setUint32(40, n * 2, true); return new Uint8Array(b); };
+    window.__stt = []; window.__tts = [];
+    Object.assign(VLocal, { prepare() {}, ears: async () => {}, pending: () => null, say: async (text, o) => { __tts.push({ text, o }); return wav(0.6); }, hear: async () => __stt.shift() || '' });
+  });
+  const say = (text) => w.evaluate((x) => { __stt.push(x); }, text);
   await w.evaluate(() => voiceOpen());
   await w.waitForSelector('#vx');
   console.log('• first turn');
   await say('Raconte-moi une histoire'); await w.evaluate(() => vHeard(new Uint8Array(100), __sine(150, 1)));
   await w.waitForFunction(() => Speaker.busy() && Speaker.said.length >= 1, null, { timeout: 10000 }).catch(async (e) => { console.log(await w.evaluate(() => JSON.stringify({ err: S.voice.err, phase: S.voice.phase, said: Speaker.said, q: Speaker.queue.length, playing: !!Speaker.playing,  model: !!currentModel(), msgs: S.conv && S.conv.messages.map((m) => m.role + ':' + m.content.slice(0, 40)) }))); throw e; });
-  const t1 = await T(() => global.__vt.tts.map((x) => x.text));
+  const t1 = await w.evaluate(() => __tts.map((x) => x.text));
   assert.ok(t1.every((x) => !/\[|\(joyeux\)/.test(x)), 'tags are never spoken: ' + JSON.stringify(t1));
   assert.ok(t1[0].startsWith('Salut Lulu'), 'the first clause goes out early');
   console.log('• backchannel: carries on');

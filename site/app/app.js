@@ -1364,7 +1364,15 @@
       save: async (c) => { if (!c || !c.id || c.ephemeral) return c; const prev = S.convs.get(c.id); const next = { ...c, updatedAt: c.updatedAt || now(), dirty: true, origin: (prev && prev.origin) || 'phone' }; await saveConv(next); if (session) syncNow().catch(() => {}); return c; },
       del: async (id) => { S.convs.delete(id); await DB.del('convs', id); S.metas = S.metas.filter((m) => m.id !== id); if (session) rpc('conv.delete', { id }).catch(() => {}); else { S.tombstones.push(id); await kv.set('tombstones', S.tombstones); } return true; },
     },
-    hear: (wav, o = {}) => transcribe(wav instanceof Uint8Array ? wav : new Uint8Array(wav)),
+    // voice mode: Whisper on the phone itself as soon as it's downloaded (it downloads in the background meanwhile)
+    hear: async (wav, o = {}) => {
+      const b = wav instanceof Uint8Array ? wav : new Uint8Array(wav);
+      if (o.local && window.VLocal) { const tx = await VLocal.hear(b, { lang: o.lang || lang }).catch(() => null); if (tx != null) return tx; }
+      return transcribe(b);
+    },
+    // the phone's natural voice (Piper), as WAV bytes — null while it downloads (the system voice speaks then)
+    tts: (text, o = {}) => (window.VLocal ? VLocal.say(speakable(text), { lang: o.lang || lang, speed: o.speed || 1 }) : Promise.resolve(null)),
+    prepareVoice: (l) => { if (window.VLocal) VLocal.prepare(l || lang); },
     speak: (text) => FASpeech.speak(speakable(text), { lang, fam: S.settings.voiceFam || 'f', voiceName: S.settings.voiceName || '', rate: S.settings.voiceRate || 1.03 }),
     notify: (title, body) => localNotify(title, body, S.cur),
     localEngine: () => (S.local.status === 'ready' ? engine : null),

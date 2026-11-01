@@ -332,6 +332,7 @@ function buildApp() {
   walk(src);
   copy(path.join(ROOT, 'src', 'anywhere', 'core.js'), path.join(out, 'core.js'));
   copy(path.join(ROOT, 'src', 'main', 'langdetect.js'), path.join(out, 'langdetect.js')); // sentence language for the phone's voices
+  for (const f of ['voice-local.js', 'voice-tts-worker.js', 'voice-stt-worker.js']) copy(path.join(ROOT, 'src', 'renderer', f), path.join(out, f)); // voice on the phone itself (Whisper + Piper)
   // the computer's own interface, so the phone shows exactly the same UI with no computer (Fabro Cloud answers)
   try {
     const VENDOR = { 'marked.umd.js': 'marked.umd.js', 'purify.min.js': 'purify.min.js', 'highlight.min.js': 'highlight.min.js' };

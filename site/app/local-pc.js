@@ -125,10 +125,15 @@
       case 'chat:send': return chatSend(args[0] || {});
       case 'chat:abort': { const c = runs.get(args[0]); if (c) c.abort(); return true; }
       case 'chat:inject': case 'chat:answer': return false;
-      case 'voice:status': return { runtime: true, whisper: 'cloud', whisperReady: true, engine: 'phone', kokoro: false, voice: null, voices: [], sizes: {}, vocab: '' };
+      case 'voice:status': { H().prepareVoice && H().prepareVoice(); return { runtime: true, whisper: 'phone', whisperReady: true, engine: 'phone', kokoro: false, voice: null, voices: [], sizes: {}, vocab: '' }; }
       case 'voice:install': return call('voice:status');
-      case 'voice:stt': return { text: await H().hear(args[0], args[1] || {}) };
-      case 'voice:tts': { const text = String(args[0] || ''); H().speak(text); return silentWav(Math.min(30, 0.4 + text.length / 15)); }
+      case 'voice:stt': return { text: await H().hear(args[0], { ...(args[1] || {}), local: true }) };
+      case 'voice:tts': {
+        const text = String(args[0] || '');
+        const w = H().tts ? await H().tts(text, args[1] || {}).catch(() => null) : null; // Piper on the phone
+        if (w) return w;
+        H().speak(text); return silentWav(Math.min(30, 0.4 + text.length / 15)); // the system voice meanwhile
+      }
       case 'voice:setVoice': case 'voice:setWhisper': case 'voice:setVocab': return call('voice:status');
       case 'app:notify': { const o = args[0] || {}; if (document.hidden) H().notify(o.title || 'Fabro', o.body || ''); return true; }
       case 'updater:check': return null;

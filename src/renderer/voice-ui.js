@@ -71,6 +71,29 @@ function encodeWav(chunks, rate) {
 }
 const sttLang = () => { const l = S.settings.language; return l && l !== 'auto' ? l : (S.lang || '').slice(0, 2) || undefined; };
 
+// ───────────────────────────── on the device: Whisper and Piper in the browser ─────────────────────────────
+// The app does it itself (VLocal). Inside Fabro Anywhere's frame, the phone around it does it (same engines),
+// through api.voice — the frame can't run them.
+const vInFrame = () => !!(window.FABRO_REMOTE);
+const vLocalOk = () => !vInFrame() && !!window.VLocal;
+async function vStt(wav, o = {}) {
+  // no graphics card but the computer's own Whisper is installed: it is faster on the processor
+  const pyFaster = S.voice.status && S.voice.status.whisperReady && VLocal && VLocal.st.gpu === false;
+  if (vLocalOk() && !pyFaster) {
+    const tx = await VLocal.hear(wav, { lang: o.lang });
+    if (tx != null) return tx;
+    // the ears are still downloading: the computer's own Whisper if it was installed, else wait for them
+    if (S.voice.status && S.voice.status.whisperReady) { try { return ((await api.voice.stt(wav, o)) || {}).text || ''; } catch {} }
+    return VLocal.hear(wav, { lang: o.lang, wait: true });
+  }
+  return ((await api.voice.stt(wav, { ...o, local: true })) || {}).text || '';
+}
+// WAV bytes, or { sys: true } when the natural voice isn't there yet (the system voice speaks the piece then)
+async function vTts(text, speed) {
+  if (vLocalOk()) return (await VLocal.say(text, { lang: sttLang() || 'en', speed })) || { sys: true };
+  return api.voice.tts(text, { speed, lang: sttLang() });
+}
+
 // ───────────────────────────── speech output ─────────────────────────────
 // Each piece of the reply is spoken in its mood (speed, loudness), laughs and sighs included; [son:…] tags play a
 // sound effect in its place. When the user talks over it, the voice only gets quieter (ducked) until we know
@@ -85,7 +108,7 @@ const Speaker = {
       const st = V_STYLE[sg.laugh ? 'happy' : sg.style] || V_STYLE.neutral;
       const clean = sg.laugh ? (LAUGH[(sttLang() || 'fr')] || LAUGH.en) : speakable(sg.text); if (!clean) continue;
       const sp = Math.round(base * st.speed * 100) / 100;
-      this.queue.push({ text: clean, vol: st.vol, laugh: !!sg.laugh, audio: api.voice.tts(clean, sp !== base ? { speed: sp } : undefined).catch((e) => { S.voice.err = cleanErr(e); return null; }) });
+      this.queue.push({ text: clean, vol: st.vol, speed: sp, laugh: !!sg.laugh, audio: vTts(clean, sp).catch((e) => { S.voice.err = cleanErr(e); return null; }) });
     }
     if (!this.playing) this.next(g);
   },
@@ -96,6 +119,12 @@ const Speaker = {
     if (job.sfx) { if (!S.voice.barge) vPhase('speaking'); await VFX.play(job.sfx); if (this.playing === job) this.next(g); return; }
     const bytes = await job.audio;
     if (g !== this.gen || !bytes) { this.next(g); return; }
+    if (bytes.sys) { // the system voice, while the natural one downloads
+      if (!job.laugh) { this.said.push(job.text); if (this.said.length > 40) this.said.shift(); }
+      S.voice.ai = job.text; if (!S.voice.barge) vPhase('speaking'); vRenderSubs();
+      job.sys = true; await VLocal.sys(job.text, { lang: sttLang() || 'en', rate: job.speed || 1, volume: (job.vol || 1) * (this.ducked ? 0.3 : 1) });
+      if (this.playing === job) this.next(g); return;
+    }
     const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
     const el = new Audio(url); job.el = el; this.vol(job);
     try {
@@ -112,13 +141,14 @@ const Speaker = {
   vol(job) { if (job && job.el) job.el.volume = Math.max(0, Math.min(1, (job.vol || 1) * (this.ducked ? 0.22 : 1))); },
   duck(on) { this.ducked = !!on; this.vol(this.playing); },
   level() {
+    if (this.playing && this.playing.sys) return 0.25 + Math.random() * 0.25;
     if (!this.analyser || !this.playing) return 0;
     const a = new Uint8Array(this.analyser.frequencyBinCount); this.analyser.getByteTimeDomainData(a);
     let m = 0; for (const x of a) m = Math.max(m, Math.abs(x - 128)); return m / 128;
   },
   // what was said aloud in this answer so far (the sentence being spoken included)
   heard() { return this.said.join(' ').trim(); },
-  stop() { this.gen++; this.queue = []; if (this.playing && this.playing.el) { try { this.playing.el.pause(); } catch {} } this.playing = null; this.ducked = false; this.style = 'neutral'; },
+  stop() { this.gen++; this.queue = []; if (this.playing && this.playing.el) { try { this.playing.el.pause(); } catch {} } if (this.playing && this.playing.sys) VLocal.sysStop(); this.playing = null; this.ducked = false; this.style = 'neutral'; },
   busy() { return !!this.playing || this.queue.length > 0; },
 };
 // Spoken form: no markdown, code, links or artifacts.
@@ -146,19 +176,22 @@ function vPhase(p) { S.voice.phase = p; const el = $('#vx'); if (el) { el.datase
 async function voiceOpen() {
   if (S.voice.on) return;
   S.voice.on = true; S.voice.scene = []; S.voice.user = ''; S.voice.ai = ''; S.voice.err = '';
-  try { S.voice.status = await api.voice.status(); } catch {}
+  try { S.voice.status = await api.voice.status(); } catch { S.voice.status = {}; }
+  // everything runs in the browser: nothing to install, the models download in the background the first time
+  if (vLocalOk()) { VLocal.st.pref = { ...(S.settings.localVoices || {}) }; VLocal.prepare(sttLang() || 'en'); vWatch(); }
+  if (!S.catalog && !vInFrame()) api.models.catalog().then((c) => { S.catalog = c; if (S.voice.on) vRender(); }).catch(() => {});
   vRender();
-  if (S.voice.status && S.voice.status.runtime) vStartListening();
+  vStartListening();
 }
 async function vStartListening() {
   try {
-    Mic.sens = 1; Mic.endMs = 700;
+    Mic.sens = 1; Mic.endMs = 620;
     // talking over the AI doesn't cut it: its voice gets quieter while we find out what that was (vHeard)
     Mic.onStart = () => {
       if (Speaker.busy() || S.streaming) { S.voice.barge = { at: Date.now() }; Speaker.duck(true); Mic.endMs = 520; }
       vPhase('hearing');
     };
-    Mic.onCancel = () => { if (S.voice.barge) { S.voice.barge = null; Speaker.duck(false); Mic.endMs = 700; } vPhase(Speaker.busy() ? 'speaking' : S.streaming ? 'thinking' : 'listening'); };
+    Mic.onCancel = () => { if (S.voice.barge) { S.voice.barge = null; Speaker.duck(false); Mic.endMs = 620; } vPhase(Speaker.busy() ? 'speaking' : S.streaming ? 'thinking' : 'listening'); };
     Mic.onUtterance = vHeard;
     Mic.onLevel = (l) => { S.voice.level = l; };
     await Mic.start();
@@ -206,14 +239,13 @@ function vEcho(text) {
   return heard.length > 0 && heard.filter((x) => said.has(x)).length / heard.length >= 0.7;
 }
 async function vHeard(wav, info) {
-  const barge = S.voice.barge; S.voice.barge = null; Mic.endMs = 700;
+  const barge = S.voice.barge; S.voice.barge = null; Mic.endMs = 620;
   if (!barge) vPhase('transcribing');
   try {
     const last = S.conv && [...S.conv.messages].reverse().find((m) => m.role === 'assistant' && m.content);
-    const pr = api.voice.stt(wav, { lang: sttLang(), prompt: last ? speakable(vStripTags(last.content)).slice(-180) : '', fast: true });
+    const pr = vStt(wav, { lang: sttLang(), prompt: last ? speakable(vStripTags(last.content)).slice(-180) : '', fast: true });
     let feat = null; try { feat = info ? VEar.analyse(info.chunks, info.rate) : null; } catch {} // while Whisper works
-    const r = await pr;
-    let text = (r.text || '').trim();
+    let text = String((await pr) || '').trim();
     const noise = !text || NOISE_TEXT.test(text);
     const tags = feat ? VEar.tags(feat, noise ? '' : text) : [];
     if (noise) text = '';
@@ -279,6 +311,32 @@ function vSceneHtml() {
     : `<iframe class="vs-frame" sandbox="allow-scripts" srcdoc="${esc(x.content)}"></iframe>`;
   return `<div class="vs ${it.length > 1 ? 'grid' : ''}">${it.map(one).join('')}</div>${it[0].title && it.length === 1 && it[0].type !== 'image' ? `<div class="vs-cap">${esc(it[0].title)}</div>` : ''}`;
 }
+// The natural voices of this language (downloaded on first use)
+function vVoiceSelect() {
+  if (!vLocalOk()) return '';
+  const l = (sttLang() || 'en').slice(0, 2); const list = VLocal.VOICES[l] || []; if (!list.length) return '';
+  const cur = VLocal.voiceFor(l);
+  return `<select class="input sm2" id="vx-voice" aria-label="${esc(t('vx_voice'))}">${list.map(([id, name, f]) => `<option value="${esc(id)}" ${id === cur ? 'selected' : ''}>${esc(name)} ${f === 'm' ? '♂' : '♀'}${VLocal.st.voices[id] === 'ready' ? '' : ' ↓'}</option>`).join('')}</select>`;
+}
+// The chat's model runs here and is big, no small one installed: offer the small fast one, in one tap
+function vFastHint() {
+  if (voiceModel() || (S.settings.voiceModel && S.settings.voiceModel !== 'auto')) return '';
+  const cur = currentModel(); if (!cur || cur.ref.backend !== 'local') return '';
+  const big = (S.installed.local.find((l) => l.id === cur.ref.id) || {}).sizeBytes || 0; if (big < 6e9) return '';
+  const it = S.catalog && S.catalog.items.find((m) => m.id === 'gemma-4-e2b'); if (!it) return '';
+  const dl = Object.values(S.downloads || {}).find((d) => d.repo === it.repo && d.status === 'downloading');
+  return `<div class="vx-fast">${dl ? esc(t('vx_fastDl', { p: dl.total ? Math.round(dl.received / dl.total * 100) : 0 })) : `<button class="chip" data-action="dl-catalog" data-id="gemma-4-e2b">⚡ ${esc(t('vx_fast', { m: it.name, s: it.sizeGB }))}</button>`}</div>`;
+}
+// First use: what is still downloading (the voice, the ears), shown under the status
+function vDlText() {
+  if (!vLocalOk()) return '';
+  const p = VLocal.pending(sttLang() || 'en'); if (p == null) return '';
+  return t('vx_dl', { p: Math.round(p * 100) });
+}
+function vWatch() {
+  if (vWatch.off) return;
+  vWatch.off = VLocal.on(() => { const d = $('#vx-dl'); if (d) d.textContent = vDlText(); });
+}
 // Which model answers in voice mode: automatic (a small installed one when the chosen model is big), the chat's own, or one picked
 function vModelSelect() {
   const pref = S.settings.voiceModel || 'auto'; const auto = voiceModel();
@@ -289,21 +347,14 @@ function vModelSelect() {
 }
 function vRender() {
   let el = $('#vx');
-  const st = S.voice.status || {};
-  const voices = (st.voices || []).filter((v) => v.lang === '*' || v.lang === (sttLang() || 'en'));
-  const body = !st.runtime ? `<div class="vx-install">
-      <h2>${esc(t('vx_installT'))}</h2><p>${esc(t('vx_installB'))}</p>
-      ${S.voice.installing != null ? `<div class="bar"><i style="width:${Math.round(S.voice.installing * 100)}%"></i></div><small class="muted">${esc(t('deps_installing', { p: Math.round(S.voice.installing * 100) }))}</small>`
-        : `<button class="btn primary lg" data-action="vx-install">${icon('download', 16)} ${esc(t('vx_install'))}</button>`}
-      ${S.voice.err ? `<div class="pf-error">${icon('warning', 14)} ${esc(S.voice.err)}</div>` : ''}</div>`
-    : `<div class="vx-scene" id="vx-scene">${vSceneHtml()}</div>
+  const st = { ...(S.voice.status || {}), runtime: true };
+  const body = `<div class="vx-scene" id="vx-scene">${vSceneHtml()}</div>
        <div class="vx-center ${S.voice.scene.length ? 'small' : ''}"><div class="vx-ring" id="vx-ring"><span id="vx-mark" class="vx-mark">${logo(S.voice.scene.length ? 64 : 120)}</span></div>
-         <div class="vx-status" id="vx-status">${esc(t('vx_' + S.voice.phase))}</div></div>
+         <div class="vx-status" id="vx-status">${esc(t('vx_' + S.voice.phase))}</div><div class="vx-dl" id="vx-dl">${esc(vDlText())}</div>${vFastHint()}</div>
        <div class="vx-subs"><div class="vx-user" id="vx-user">${esc(S.voice.user)}</div><div class="vx-ai" id="vx-ai">${esc(S.voice.ai)}</div>${S.voice.err ? `<div class="vx-err">${esc(S.voice.err)}</div>` : ''}</div>`;
   const html = `<div class="vx-top"><span class="vx-title">${icon('waveform', 16)} ${esc(t('vx_title'))}</span><span class="grow"></span>
-      ${st.runtime && voices.length ? `<select class="input sm2" id="vx-voice" aria-label="${esc(t('vx_voice'))}">${voices.some((v) => v.engine === 'kokoro') ? `<optgroup label="${esc(t('vx_multi'))}">${voices.filter((v) => v.engine === 'kokoro').map((v) => `<option value="${esc(v.id)}" ${st.voice === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</optgroup><optgroup label="Piper">` : ''}${voices.filter((v) => v.engine !== 'kokoro').map((v) => `<option value="${esc(v.id)}" ${st.voice === v.id ? 'selected' : ''}>${esc(v.name)}${v.installed ? '' : ' ↓'}</option>`).join('')}${voices.some((v) => v.engine === 'kokoro') ? '</optgroup>' : ''}</select>` : ''}
-      ${st.runtime ? vModelSelect() : ''}
-      ${st.runtime ? `<button class="icon-btn" data-action="vx-vocab" title="${esc(t('vx_vocab'))}">${icon('book', 17)}</button>` : ''}
+      ${vVoiceSelect()}
+      ${vModelSelect()}
       <button class="icon-btn" data-action="vx-close" title="${esc(t('close'))}">${icon('x', 18)}</button></div>
     <div class="vx-body">${body}</div>
     ${st.runtime ? `<div class="vx-ctl">
@@ -313,7 +364,11 @@ function vRender() {
   if (!el) { el = document.createElement('div'); el.id = 'vx'; el.className = 'vx'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', t('vx_title')); document.body.appendChild(el); }
   el.dataset.phase = S.voice.phase; el.innerHTML = html;
   const vm = $('#vx-model'); if (vm) vm.addEventListener('change', () => saveSettings({ voiceModel: vm.value }).catch(() => {}));
-  const sel = $('#vx-voice'); if (sel) sel.addEventListener('change', async () => { try { S.voice.status = await api.voice.setVoice(sel.value); } catch (e) { toast(cleanErr(e), 'err'); } });
+  const sel = $('#vx-voice'); if (sel) sel.addEventListener('change', async () => {
+    const l = (sttLang() || 'en').slice(0, 2);
+    if (vLocalOk()) { VLocal.setVoice(l, sel.value); saveSettings({ localVoices: { ...(S.settings.localVoices || {}), [l]: sel.value } }).catch(() => {}); }
+    else { try { S.voice.status = await api.voice.setVoice(sel.value); } catch (e) { toast(cleanErr(e), 'err'); } }
+  });
 }
 api.on('deps:progress', ({ dep, p }) => { if (dep === 'voice' && S.voice.installing != null) { S.voice.installing = p; if (S.voice.on) vRender(); } });
 
@@ -333,7 +388,7 @@ onChatEvent = function (ev) {
 // ───────────────────────────── dictation (mic button in the composer) ─────────────────────────────
 async function dictate(btn) {
   if (S.dictating) { Mic.forceEnd = true; Mic.silent = 99999; return; }
-  try { const st = await api.voice.status(); if (!st.runtime) { voiceOpen(); return; } } catch {}
+  if (vLocalOk()) VLocal.ears().catch(() => {});
   S.dictating = true; btn.classList.add('rec');
   const done = () => { S.dictating = false; btn.classList.remove('rec'); if (!S.voice.on) Mic.stop(); };
   Mic.sens = 1; Mic.endMs = 1300;
@@ -342,7 +397,7 @@ async function dictate(btn) {
   Mic.onLevel = (l) => btn.style.setProperty('--lv', String(Math.min(1, l * 14)));
   Mic.onUtterance = async (wav) => {
     btn.classList.remove('hot'); btn.classList.add('busy');
-    try { const r = await api.voice.stt(wav, { lang: sttLang() }); const ta = $('#prompt'); if (ta && r.text) { ta.value = (ta.value ? ta.value.replace(/\s*$/, ' ') : '') + r.text; ta.dispatchEvent(new Event('input')); ta.focus(); } }
+    try { const r = { text: await vStt(wav, { lang: sttLang() }) }; const ta = $('#prompt'); if (ta && r.text) { ta.value = (ta.value ? ta.value.replace(/\s*$/, ' ') : '') + r.text; ta.dispatchEvent(new Event('input')); ta.focus(); } }
     catch (e) { toast(cleanErr(e), 'err'); }
     btn.classList.remove('busy'); done();
   };

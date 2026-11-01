@@ -2,7 +2,7 @@
 // sent by the computer (Web Push), and opens the right conversation when one is tapped.
 const VERSION = '__VERSION__';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'steps.js', 'i18n.js', 'core.js', 'theme.js', 'scan-worker.js', 'full.js', 'full.html', 'zoom.js', 'manifest.webmanifest',
-  'langdetect.js', 'speech.js', 'agent.js', 'fx.js', 'local-pc.js', 'ui-bundle.json', 'stt-worker.js', 'py-worker.js', 'vendor/marked.umd.js', 'vendor/purify.min.js', 'icons/icon.svg', 'icons/mark.svg', 'icons/icon-192.png', 'icons/badge.png'];
+  'langdetect.js', 'voice-local.js', 'voice-tts-worker.js', 'voice-stt-worker.js', 'speech.js', 'agent.js', 'fx.js', 'local-pc.js', 'ui-bundle.json', 'stt-worker.js', 'py-worker.js', 'vendor/marked.umd.js', 'vendor/purify.min.js', 'icons/icon.svg', 'icons/mark.svg', 'icons/icon-192.png', 'icons/badge.png'];
 const SHELL_CACHE = 'fa-shell-' + VERSION, RUNTIME = 'fa-runtime';
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });

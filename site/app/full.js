@@ -87,7 +87,8 @@
         offBar();
         break;
       case 'call':
-        if (mode === 'local') {
+        // voice: always on the phone itself (Whisper + Piper here), even with the computer connected — no round trip
+        if (mode === 'local' || /^voice:(stt|tts|status|setVoice)$/.test(m.ch)) {
           // the phone answers: same encoding as the computer's answers ({ r, ops })
           FALocal.call(m.ch, decodeArgs(m.args)).then((r) => reply(true, { r: encodeVal(r), ops: [] }), (er) => reply(false, null, er.message));
           break;
