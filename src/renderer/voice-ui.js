@@ -179,7 +179,6 @@ async function voiceOpen() {
   try { S.voice.status = await api.voice.status(); } catch { S.voice.status = {}; }
   // everything runs in the browser: nothing to install, the models download in the background the first time
   if (vLocalOk()) { VLocal.st.pref = { ...(S.settings.localVoices || {}) }; VLocal.prepare(sttLang() || 'en'); vWatch(); }
-  if (!S.catalog && !vInFrame()) api.models.catalog().then((c) => { S.catalog = c; if (S.voice.on) vRender(); }).catch(() => {});
   vRender();
   vStartListening();
 }
@@ -271,7 +270,7 @@ async function vHeard(wav, info) {
 // The model of voice mode: small and very fast. Automatic: if the chosen model runs on this computer and a much
 // smaller one is installed (from about 1 GB — below that they understand too little), that one answers.
 function voiceModel() {
-  const pref = S.settings.voiceModel || 'auto';
+  const pref = S.settings.voiceModel || 'same'; // by default, the model chosen in the chat answers
   if (pref === 'same') return null;
   if (pref !== 'auto') return allModels().find((m) => refKey(m.ref) === pref) || null;
   const cur = currentModel(); if (!cur || cur.ref.backend !== 'local') return null;
@@ -318,15 +317,6 @@ function vVoiceSelect() {
   const cur = VLocal.voiceFor(l);
   return `<select class="input sm2" id="vx-voice" aria-label="${esc(t('vx_voice'))}">${list.map(([id, name, f]) => `<option value="${esc(id)}" ${id === cur ? 'selected' : ''}>${esc(name)} ${f === 'm' ? '♂' : '♀'}${VLocal.st.voices[id] === 'ready' ? '' : ' ↓'}</option>`).join('')}</select>`;
 }
-// The chat's model runs here and is big, no small one installed: offer the small fast one, in one tap
-function vFastHint() {
-  if (voiceModel() || (S.settings.voiceModel && S.settings.voiceModel !== 'auto')) return '';
-  const cur = currentModel(); if (!cur || cur.ref.backend !== 'local') return '';
-  const big = (S.installed.local.find((l) => l.id === cur.ref.id) || {}).sizeBytes || 0; if (big < 6e9) return '';
-  const it = S.catalog && S.catalog.items.find((m) => m.id === 'gemma-4-e2b'); if (!it) return '';
-  const dl = Object.values(S.downloads || {}).find((d) => d.repo === it.repo && d.status === 'downloading');
-  return `<div class="vx-fast">${dl ? esc(t('vx_fastDl', { p: dl.total ? Math.round(dl.received / dl.total * 100) : 0 })) : `<button class="chip" data-action="dl-catalog" data-id="gemma-4-e2b">⚡ ${esc(t('vx_fast', { m: it.name, s: it.sizeGB }))}</button>`}</div>`;
-}
 // First use: what is still downloading (the voice, the ears), shown under the status
 function vDlText() {
   if (!vLocalOk()) return '';
@@ -339,18 +329,18 @@ function vWatch() {
 }
 // Which model answers in voice mode: automatic (a small installed one when the chosen model is big), the chat's own, or one picked
 function vModelSelect() {
-  const pref = S.settings.voiceModel || 'auto'; const auto = voiceModel();
+  const pref = S.settings.voiceModel || 'same'; const auto = pref === 'auto' ? voiceModel() : null;
   const opts = allModels().filter((m) => !m.mod).map((m) => `<option value="${esc(refKey(m.ref))}" ${pref === refKey(m.ref) ? 'selected' : ''}>${esc(m.label)}</option>`).join('');
   return `<select class="input sm2" id="vx-model" aria-label="${esc(t('vx_model'))}" title="${esc(t('vx_modelHint'))}">
-    <option value="auto" ${pref === 'auto' ? 'selected' : ''}>⚡ ${esc(t('vx_modelAuto'))}${pref === 'auto' && auto ? ' · ' + esc(auto.label) : ''}</option>
-    <option value="same" ${pref === 'same' ? 'selected' : ''}>${esc(t('vx_modelSame'))}</option><optgroup label="${esc(t('vx_model'))}">${opts}</optgroup></select>`;
+    <option value="same" ${pref === 'same' ? 'selected' : ''}>${esc(t('vx_modelSame'))}${currentModel() ? ' · ' + esc(currentModel().label) : ''}</option>
+    <option value="auto" ${pref === 'auto' ? 'selected' : ''}>⚡ ${esc(t('vx_modelAuto'))}${auto ? ' · ' + esc(auto.label) : ''}</option><optgroup label="${esc(t('vx_model'))}">${opts}</optgroup></select>`;
 }
 function vRender() {
   let el = $('#vx');
   const st = { ...(S.voice.status || {}), runtime: true };
   const body = `<div class="vx-scene" id="vx-scene">${vSceneHtml()}</div>
        <div class="vx-center ${S.voice.scene.length ? 'small' : ''}"><div class="vx-ring" id="vx-ring"><span id="vx-mark" class="vx-mark">${logo(S.voice.scene.length ? 64 : 120)}</span></div>
-         <div class="vx-status" id="vx-status">${esc(t('vx_' + S.voice.phase))}</div><div class="vx-dl" id="vx-dl">${esc(vDlText())}</div>${vFastHint()}</div>
+         <div class="vx-status" id="vx-status">${esc(t('vx_' + S.voice.phase))}</div><div class="vx-dl" id="vx-dl">${esc(vDlText())}</div></div>
        <div class="vx-subs"><div class="vx-user" id="vx-user">${esc(S.voice.user)}</div><div class="vx-ai" id="vx-ai">${esc(S.voice.ai)}</div>${S.voice.err ? `<div class="vx-err">${esc(S.voice.err)}</div>` : ''}</div>`;
   const html = `<div class="vx-top"><span class="vx-title">${icon('waveform', 16)} ${esc(t('vx_title'))}</span><span class="grow"></span>
       ${vVoiceSelect()}
