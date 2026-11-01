@@ -108,7 +108,8 @@ const Speaker = {
       const st = V_STYLE[sg.laugh ? 'happy' : sg.style] || V_STYLE.neutral;
       const clean = sg.laugh ? (LAUGH[(sttLang() || 'fr')] || LAUGH.en) : speakable(sg.text); if (!clean) continue;
       const sp = Math.round(base * st.speed * 100) / 100;
-      this.queue.push({ text: clean, vol: st.vol, speed: sp, laugh: !!sg.laugh, audio: vTts(clean, sp).catch((e) => { S.voice.err = cleanErr(e); return null; }) });
+      // long pieces are cut at a clause: each is synthesised just before it's needed (one ahead), never all at once
+      for (const piece of vPieces(clean)) this.queue.push({ text: piece, vol: st.vol, speed: sp, laugh: !!sg.laugh });
     }
     if (!this.playing) this.next(g);
   },
@@ -117,12 +118,15 @@ const Speaker = {
     if (!job || g !== this.gen) { this.playing = null; if (g === this.gen && !S.voice.barge) vPhase(S.streaming ? 'thinking' : 'listening'); return; }
     this.playing = job;
     if (job.sfx) { if (!S.voice.barge) vPhase('speaking'); await VFX.play(job.sfx); if (this.playing === job) this.next(g); return; }
+    this.make(job); this.make(this.queue.find((j) => !j.sfx)); // this one, and the next one meanwhile
     const bytes = await job.audio;
     if (g !== this.gen || !bytes) { this.next(g); return; }
     if (bytes.sys) { // the system voice, while the natural one downloads
       if (!job.laugh) { this.said.push(job.text); if (this.said.length > 40) this.said.shift(); }
       S.voice.ai = job.text; if (!S.voice.barge) vPhase('speaking'); vRenderSubs();
-      job.sys = true; await VLocal.sys(job.text, { lang: sttLang() || 'en', rate: job.speed || 1, volume: (job.vol || 1) * (this.ducked ? 0.3 : 1) });
+      job.sys = true;
+      if (vLocalOk()) await VLocal.sys(job.text, { lang: sttLang() || 'en', rate: job.speed || 1, volume: (job.vol || 1) * (this.ducked ? 0.3 : 1) });
+      else await api.voice.sys(job.text, { rate: job.speed || 1 }).catch(() => {}); // Fabro Anywhere: the phone says it
       if (this.playing === job) this.next(g); return;
     }
     const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
@@ -138,6 +142,7 @@ const Speaker = {
     el.onerror = el.onended;
     el.play().catch(() => el.onended());
   },
+  make(job) { if (job && !job.sfx && !job.audio) job.audio = vTts(job.text, job.speed).catch((e) => { S.voice.err = cleanErr(e); return null; }); },
   vol(job) { if (job && job.el) job.el.volume = Math.max(0, Math.min(1, (job.vol || 1) * (this.ducked ? 0.22 : 1))); },
   duck(on) { this.ducked = !!on; this.vol(this.playing); },
   level() {
@@ -148,14 +153,26 @@ const Speaker = {
   },
   // what was said aloud in this answer so far (the sentence being spoken included)
   heard() { return this.said.join(' ').trim(); },
-  stop() { this.gen++; this.queue = []; if (this.playing && this.playing.el) { try { this.playing.el.pause(); } catch {} } if (this.playing && this.playing.sys) VLocal.sysStop(); this.playing = null; this.ducked = false; this.style = 'neutral'; },
+  stop() { this.gen++; this.queue = []; if (this.playing && this.playing.el) { try { this.playing.el.pause(); } catch {} } if (this.playing && this.playing.sys) { if (vLocalOk()) VLocal.sysStop(); else api.voice.sys('').catch(() => {}); } this.playing = null; this.ducked = false; this.style = 'neutral'; },
   busy() { return !!this.playing || this.queue.length > 0; },
 };
+// ≤ ~140 characters per piece, cut after a clause or a word
+function vPieces(text) {
+  const out = []; let rest = String(text).trim();
+  while (rest.length > 140) {
+    const win = rest.slice(0, 140); let cut = Math.max(win.lastIndexOf(', '), win.lastIndexOf('; '), win.lastIndexOf(' — '), win.lastIndexOf(': '));
+    if (cut < 50) cut = win.lastIndexOf(' '); if (cut < 20) cut = 140;
+    out.push(rest.slice(0, cut + 1).trim()); rest = rest.slice(cut + 1).trim();
+  }
+  if (rest) out.push(rest); return out;
+}
+// Letters the voices can't say (Chinese, Japanese, Cyrillic…, emojis): dropped from speech and from what is heard
+const NOT_LATIN = /[^\p{Script=Latin}\p{M}\p{N}\s.,;:!?…'’"«»()\-–—%€$£&@\/+=°]/gu;
 // Spoken form: no markdown, code, links or artifacts.
 function speakable(t) {
   return String(t).replace(/<artifact[\s\S]*?(<\/artifact>|$)/g, ' ').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/`([^`]+)`/g, '$1')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '').replace(/\[\d+\]/g, '')
-    .replace(/^#+\s*/gm, '').replace(/^\s*[-*•]\s+/gm, '').replace(/[*_~>#|]/g, '').replace(/\s+/g, ' ').trim();
+    .replace(/^#+\s*/gm, '').replace(/^\s*[-*•]\s+/gm, '').replace(/[*_~>#|]/g, '').replace(NOT_LATIN, ' ').replace(/\s+/g, ' ').trim();
 }
 // Streamed reply → sentences → speech.
 let vBuf = '';
@@ -178,7 +195,7 @@ async function voiceOpen() {
   S.voice.on = true; S.voice.scene = []; S.voice.user = ''; S.voice.ai = ''; S.voice.err = '';
   try { S.voice.status = await api.voice.status(); } catch { S.voice.status = {}; }
   // everything runs in the browser: nothing to install, the models download in the background the first time
-  if (vLocalOk()) { VLocal.st.pref = { ...(S.settings.localVoices || {}) }; VLocal.prepare(sttLang() || 'en'); vWatch(); }
+  if (vLocalOk()) { VLocal.st.pref = { ...(S.settings.localVoices || {}) }; Promise.resolve(VLocal.prepare(sttLang() || 'en')).then(() => { if (S.voice.on) vRender(); }); vWatch(); }
   vRender();
   vStartListening();
 }
@@ -244,7 +261,7 @@ async function vHeard(wav, info) {
     const last = S.conv && [...S.conv.messages].reverse().find((m) => m.role === 'assistant' && m.content);
     const pr = vStt(wav, { lang: sttLang(), prompt: last ? speakable(vStripTags(last.content)).slice(-180) : '', fast: true });
     let feat = null; try { feat = info ? VEar.analyse(info.chunks, info.rate) : null; } catch {} // while Whisper works
-    let text = String((await pr) || '').trim();
+    let text = String((await pr) || '').replace(NOT_LATIN, ' ').replace(/\s+/g, ' ').trim(); // Whisper sometimes slips into another script
     const noise = !text || NOISE_TEXT.test(text);
     const tags = feat ? VEar.tags(feat, noise ? '' : text) : [];
     if (noise) text = '';
@@ -313,7 +330,7 @@ function vSceneHtml() {
 // The natural voices of this language (downloaded on first use)
 function vVoiceSelect() {
   if (!vLocalOk()) return '';
-  const l = (sttLang() || 'en').slice(0, 2); const list = VLocal.VOICES[l] || []; if (!list.length) return '';
+  const l = (sttLang() || 'en').slice(0, 2); const list = VLocal.voicesOf(l); if (!list.length) return '';
   const cur = VLocal.voiceFor(l);
   return `<select class="input sm2" id="vx-voice" aria-label="${esc(t('vx_voice'))}">${list.map(([id, name, f]) => `<option value="${esc(id)}" ${id === cur ? 'selected' : ''}>${esc(name)} ${f === 'm' ? '♂' : '♀'}${VLocal.st.voices[id] === 'ready' ? '' : ' ↓'}</option>`).join('')}</select>`;
 }

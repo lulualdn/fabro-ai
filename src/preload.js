@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('api', {
   runtime: { status: i('runtime:status') },
   crash: { list: i('crash:list'), folder: i('crash:folder'), report: i('crash:report') },
   images: { status: i('images:status'), install: i('images:install') },
-  voice: { status: i('voice:status'), install: i('voice:install'), stt: i('voice:stt'), tts: i('voice:tts'), setVoice: i('voice:setVoice'), setWhisper: i('voice:setWhisper'), setVocab: i('voice:setVocab') },
+  voice: { status: i('voice:status'), install: i('voice:install'), stt: i('voice:stt'), tts: i('voice:tts'), setVoice: i('voice:setVoice'), setWhisper: i('voice:setWhisper'), setVocab: i('voice:setVocab'), sys: i('voice:sys') },
   projects: {
     list: i('projects:list'), get: i('projects:get'), save: i('projects:save'), delete: i('projects:delete'), addFiles: i('projects:addFiles'), addText: i('projects:addText'),
     removeFile: i('projects:removeFile'), search: i('projects:search'), ragStatus: i('projects:ragStatus'), reindex: i('projects:reindex'),

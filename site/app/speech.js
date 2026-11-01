@@ -40,9 +40,9 @@
     for (const w of String(text).split(/(\s+)/)) { if ((cur + w).length > max && cur.trim()) { out.push(cur); cur = ''; } cur += w; }
     if (cur.trim()) out.push(cur); return out;
   }
-  function speak(text, { lang = 'en', fam = 'f', rate = 1, voiceName = '', onStart } = {}) {
+  function speak(text, { lang = 'en', fam = 'f', rate = 1, voiceName = '', onStart, single = false } = {}) {
     if (!('speechSynthesis' in window)) return Promise.resolve(false);
-    const runs = L() ? L().runs(text, lang) : [{ lang, text }];
+    const runs = L() && !single ? L().runs(text, lang) : [{ lang, text }]; // single: all in the user's language (voice mode)
     const jobs = [];
     for (const r of runs) for (const c of chunks(r.text)) jobs.push({ lang: r.lang, text: c });
     return new Promise((resolve) => {

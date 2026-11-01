@@ -326,6 +326,7 @@ function registerIpc() {
   h('voice:install', () => voice.install((p) => send('deps:progress', { dep: 'voice', p }), { lang: S().language && S().language !== 'auto' ? S().language : app.getLocale().slice(0, 2) }));
   h('voice:stt', (wav, o) => voice.stt(wav, o));
   h('voice:tts', (text, o) => voice.tts(text, o));
+  h('voice:sys', () => false); // the system voice is spoken by the page itself (Fabro Anywhere: by the phone)
   h('voice:setVoice', (id) => voice.setVoice(id, (p) => send('deps:progress', { dep: 'voice', p })));
   h('voice:setWhisper', (size) => voice.setWhisper(size, (p) => send('deps:progress', { dep: 'voice', p })));
   h('voice:setVocab', (text) => voice.setVocab(text));

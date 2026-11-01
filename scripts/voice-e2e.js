@@ -22,7 +22,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     re('voice:stt', () => ({ text: T.stt.shift() || '' }));
     re('chat:send', (e, p) => {
       T.sent.push(p);
-      const words = (T.sent.length === 1 ? '(joyeux) Salut Lulu ! [son:ding] Je vais te raconter une histoire. Il était une fois une citrouille. Elle rêvait de voir la mer. Un jour elle partit. Elle marcha longtemps. Et enfin elle arriva.' : 'Rome, la ville éternelle.').split(/(?<= )/);
+      const words = (T.sent.length === 1 ? '(joyeux) Salut Lulu 你好 ! [son:ding] Je vais te raconter une histoire. Il était une fois une citrouille. Elle rêvait de voir la mer. Un jour elle partit. Elle marcha longtemps. Et enfin elle arriva.' : 'Rome, la ville éternelle.').split(/(?<= )/);
       let i = 0; const run = { stop: false }; T.runs.set(p.reqId, run);
       const tick = () => { if (run.stop) return e.sender.send('chat:event', { reqId: p.reqId, type: 'done', stats: { aborted: true } }); if (i < words.length) { e.sender.send('chat:event', { reqId: p.reqId, type: 'token', text: words[i++] }); setTimeout(tick, 60); } else e.sender.send('chat:event', { reqId: p.reqId, type: 'done', stats: {} }); };
       setTimeout(tick, 50); return true;
@@ -35,7 +35,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await w.evaluate(() => {
     const wav = (sec) => { const rate = 8000, n = Math.round(rate * sec), b = new ArrayBuffer(44 + n * 2), v = new DataView(b); const s = (p, x) => { for (let i = 0; i < x.length; i++) v.setUint8(p + i, x.charCodeAt(i)); }; s(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); s(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); s(36, 'data'); v.setUint32(40, n * 2, true); return new Uint8Array(b); };
     window.__stt = []; window.__tts = [];
-    Object.assign(VLocal, { prepare() {}, ears: async () => {}, pending: () => null, say: async (text, o) => { __tts.push({ text, o }); return wav(0.6); }, hear: async () => __stt.shift() || '' });
+    Object.assign(VLocal, { prepare: async () => {}, ears: async () => {}, pending: () => null, say: async (text, o) => { __tts.push({ text, o }); return wav(0.6); }, hear: async () => __stt.shift() || '' });
   });
   const say = (text) => w.evaluate((x) => { __stt.push(x); }, text);
   await w.evaluate(() => voiceOpen());
@@ -46,6 +46,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const t1 = await w.evaluate(() => __tts.map((x) => x.text));
   assert.ok(t1.every((x) => !/\[|\(joyeux\)/.test(x)), 'tags are never spoken: ' + JSON.stringify(t1));
   assert.ok(t1[0].startsWith('Salut Lulu'), 'the first clause goes out early');
+  assert.ok(t1.every((x) => !/[\u3000-\u9fff]/.test(x)), 'no Chinese spoken');
+  assert.ok(t1.length <= 2, 'pieces are made one ahead, not all at once: ' + t1.length);
   console.log('• backchannel: carries on');
   await w.evaluate(() => { Mic.onStart(); });
   assert.strictEqual(await w.evaluate(() => Speaker.ducked), true, 'ducked while the user talks');

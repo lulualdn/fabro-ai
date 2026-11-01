@@ -19,6 +19,14 @@
     nl: [['nl_NL-mls-medium', 'MLS', 'f']], pl: [['pl_PL-gosia-medium', 'Gosia', 'f']], ru: [['ru_RU-irina-medium', 'Irina', 'f']],
     uk: [['uk_UA-ukrainian_tts-medium', 'Lada', 'f']], tr: [['tr_TR-fahrettin-medium', 'Fahrettin', 'm']], zh: [['zh_CN-huayan-medium', 'Huayan', 'f']],
   };
+  // with a graphics card: Kokoro, the most natural voices (lively intonation), still faster than speech
+  const KOKORO = {
+    fr: [['kokoro:ff_siwis', 'Siwis HD', 'f']],
+    en: [['kokoro:af_heart', 'Heart HD', 'f'], ['kokoro:af_bella', 'Bella HD', 'f'], ['kokoro:am_michael', 'Michael HD', 'm'], ['kokoro:bf_emma', 'Emma HD', 'f']],
+    es: [['kokoro:ef_dora', 'Dora HD', 'f'], ['kokoro:em_alex', 'Alex HD', 'm']],
+    it: [['kokoro:if_sara', 'Sara HD', 'f'], ['kokoro:im_nicola', 'Nicola HD', 'm']],
+    pt: [['kokoro:pf_dora', 'Dora HD', 'f'], ['kokoro:pm_alex', 'Alex HD', 'm']],
+  };
   const EARS = { small: 'onnx-community/whisper-base', big: 'onnx-community/whisper-small' };
   const LOCALE = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', it: 'it-IT', pt: 'pt-BR', nl: 'nl-NL', pl: 'pl-PL', ru: 'ru-RU', ja: 'ja-JP', zh: 'zh-CN', ko: 'ko-KR', tr: 'tr-TR', uk: 'uk-UA' };
 
@@ -50,16 +58,24 @@
   // phones: the lighter version of a voice (twice as fast, still natural)
   const phone = /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent || '');
   const LIGHT = { 'fr_FR-siwis-medium': 'fr_FR-siwis-low', 'en_US-amy-medium': 'en_US-amy-low', 'en_US-ryan-medium': 'en_US-ryan-low', 'en_US-lessac-medium': 'en_US-lessac-low', 'de_DE-thorsten-medium': 'de_DE-thorsten-low' };
-  function voiceFor(lang) { const l = base(lang); const list = VOICES[l]; if (!list) return null; const p = st.pref[l]; const id = (p && list.find((v) => v[0] === p)) ? p : list[0][0]; return phone && LIGHT[id] ? LIGHT[id] : id; }
+  const voicesOf = (l) => [...(st.gpu && !phone ? KOKORO[l] || [] : []), ...(VOICES[l] || [])];
+  function voiceFor(lang) { const l = base(lang); const list = voicesOf(l); if (!list.length) return null; const p = st.pref[l]; const id = (p && list.find((v) => v[0] === p)) ? p : list[0][0]; return phone && LIGHT[id] ? LIGHT[id] : id; }
   function loadVoice(id) {
     if (!id || st.voices[id] === 'ready' || typeof st.voices[id] === 'number') return;
     st.voices[id] = 0; emit();
-    tts({ t: 'load', voice: id }, (p) => { st.voices[id] = p; emit(); }).then(() => { st.voices[id] = 'ready'; emit(); }, () => { st.voices[id] = 'error'; emit(); });
+    tts({ t: 'load', voice: id }, (p) => { st.voices[id] = p; emit(); }).then(() => { st.voices[id] = 'ready'; emit(); }, () => {
+      st.voices[id] = 'error'; emit();
+      // Kokoro couldn't start (graphics card refused): the light voice of the same language takes over
+      if (id.startsWith('kokoro:')) { const l = Object.keys(KOKORO).find((k) => KOKORO[k].some((v) => v[0] === id)); const alt = l && VOICES[l] && VOICES[l][0][0]; if (alt) { if (st.pref[l] === id) delete st.pref[l]; KOKORO[l] = KOKORO[l].filter((v) => v[0] !== id); loadVoice(alt); } }
+    });
   }
   // the voice for this text, as WAV bytes — or null while it is still downloading (the system voice speaks then)
   async function say(text, { lang = 'en', speed = 1 } = {}) {
-    const l = window.FALang ? FALang.detect(text, base(lang)) : base(lang);
-    const id = voiceFor(l) || voiceFor(lang); if (!id) return null;
+    // the user's language first: another one only for a real sentence in it, with its voice already here
+    // (never a 60 MB download in the middle of a conversation for one English word)
+    const u = base(lang); let id = voiceFor(u);
+    if (window.FALang && (String(text).match(/\S+/g) || []).length >= 6) { const o = FALang.detect(text, u); const oid = o !== u && voiceFor(o); if (oid && st.voices[oid] === 'ready') id = oid; }
+    if (!id) return null;
     if (st.voices[id] !== 'ready') { loadVoice(id); return null; }
     try { return (await tts({ t: 'tts', voice: id, text, speed })).wav; } catch { return null; }
   }
@@ -74,7 +90,7 @@
   function sys(text, { lang = 'en', rate = 1, volume = 1, onStart } = {}) {
     if (!('speechSynthesis' in window)) return Promise.resolve(false);
     return new Promise((resolve) => {
-      const l = window.FALang ? FALang.detect(text, base(lang)) : base(lang);
+      const l = base(lang);
       const u = new SpeechSynthesisUtterance(text); const v = sysVoice(l);
       if (v) u.voice = v; u.lang = v ? v.lang : LOCALE[l] || l; u.rate = rate; u.volume = volume;
       u.onstart = () => onStart && onStart(); u.onend = () => resolve(true); u.onerror = () => resolve(false);
@@ -117,12 +133,12 @@
   }
 
   // get everything ready for a voice conversation in this language (downloads in the background)
-  function prepare(lang) { loadVoice(voiceFor(lang)); ears().catch(() => {}); }
+  async function prepare(lang) { await gpu(); loadVoice(voiceFor(lang)); ears().catch(() => {}); }
   // a voice already downloaded on this device? (then it is used at once, no fallback)
   async function warm(lang) { const id = voiceFor(lang); if (!id || st.voices[id] === 'ready') return; try { if ((await tts({ t: 'has', voice: id })).ok) loadVoice(id); } catch {} }
 
   window.VLocal = {
-    VOICES, st, prepare, warm, say, sys, sysStop, hear, ears, voiceFor, loadVoice,
+    VOICES, st, voicesOf, phon: (text, lang) => tts({ t: 'phon', text, lang }), _kokoroCpu: () => { st.gpu = true; return tts({ t: 'kokoroCpu' }); }, prepare, warm, say, sys, sysStop, hear, ears, voiceFor, loadVoice,
     setVoice(lang, id) { st.pref[base(lang)] = id; loadVoice(id); emit(); },
     on(f) { subs.add(f); return () => subs.delete(f); },
     // progress of what a conversation in this language still needs (null: all there)

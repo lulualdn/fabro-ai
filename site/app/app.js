@@ -1373,7 +1373,7 @@
     // the phone's natural voice (Piper), as WAV bytes — null while it downloads (the system voice speaks then)
     tts: (text, o = {}) => (window.VLocal ? VLocal.say(speakable(text), { lang: o.lang || lang, speed: o.speed || 1 }) : Promise.resolve(null)),
     prepareVoice: (l) => { if (window.VLocal) VLocal.prepare(l || lang); },
-    speak: (text) => FASpeech.speak(speakable(text), { lang, fam: S.settings.voiceFam || 'f', voiceName: S.settings.voiceName || '', rate: S.settings.voiceRate || 1.03 }),
+    speak: (text, o = {}) => FASpeech.speak(speakable(text), { lang, fam: S.settings.voiceFam || 'f', voiceName: S.settings.voiceName || '', rate: S.settings.voiceRate || 1.03, single: !!o.single }),
     notify: (title, body) => localNotify(title, body, S.cur),
     localEngine: () => (S.local.status === 'ready' ? engine : null),
     showPair: () => { S.forceWelcome = true; S.view = 'welcome'; render(); },

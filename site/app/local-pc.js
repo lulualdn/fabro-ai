@@ -65,14 +65,6 @@
     return base;
   }
 
-  // a short silence while the phone's own voice speaks the sentence (the interface waits for the clip to end)
-  function silentWav(seconds) {
-    const rate = 8000, n = Math.max(1, Math.round(rate * seconds)), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
-    const w = (p, s) => { for (let i = 0; i < s.length; i++) v.setUint8(p + i, s.charCodeAt(i)); };
-    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
-    return new Uint8Array(buf);
-  }
 
   function mergeSys(msgs, extra) {
     const out = msgs.map((m) => ({ ...m }));
@@ -132,8 +124,9 @@
         const text = String(args[0] || '');
         const w = H().tts ? await H().tts(text, args[1] || {}).catch(() => null) : null; // Piper on the phone
         if (w) return w;
-        H().speak(text); return silentWav(Math.min(30, 0.4 + text.length / 15)); // the system voice meanwhile
+        return { sys: true }; // not downloaded yet: the frame asks for the system voice when it's this piece's turn
       }
+      case 'voice:sys': { const tx = String(args[0] || ''); if (!tx) { try { speechSynthesis.cancel(); } catch {} return true; } await H().speak(tx, { single: true }); return true; } // spoken now, answers when done; empty: stop
       case 'voice:setVoice': case 'voice:setWhisper': case 'voice:setVocab': return call('voice:status');
       case 'app:notify': { const o = args[0] || {}; if (document.hidden) H().notify(o.title || 'Fabro', o.body || ''); return true; }
       case 'updater:check': return null;
