@@ -525,7 +525,7 @@ function assistantBody(m) {
   let html = renderThinking(m) + renderSteps(m) + renderPrecisions(m);
   // Fabro looked at the artifact and sent the model back to fix what was broken
   if (m.pending && m.artCheck && m.artCheck.status === 'fixing') html += `<div class="art-checkline">${spinner(16)}<span>${esc(t('artFixingN', { n: m.artCheck.count || 1 }))}</span></div>`;
-  if (m.content) { MD_CITES = sourceMap(m); try { html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.content, m.id)}</div>`) + citedSources(m); } finally { MD_CITES = null; } }
+  if (m.content) { MD_CITES = sourceMap(m); try { html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content, m.id)}</div>`) + citedSources(m); } finally { MD_CITES = null; } }
   else if (m.pending && !m.reasoning && !(m.steps || []).length) {
     const st = m.status === 'loading' ? t('loadingModel') : '';
     html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
@@ -1061,7 +1061,10 @@ function buildMessages() {
     }
     const texts = (m.attachments || []).filter((a) => a.kind === 'text').map((a) => `File: ${a.name}\n\`\`\`${a.ext || ''}\n${a.text}\n\`\`\``)
       .concat((m.attachments || []).filter((a) => (a.kind === 'file' || a.kind === 'audio') && a.path).map((a) => `Attached file: ${a.name} (${a.ext}, ${fmtBytes(a.size)}${a.pages ? `, ${a.pages} pages` : ''}) — saved in your workspace at ${a.path}. ${a.kind === 'audio' ? 'Transcribe it with convert_file (to: "transcript").' : a.text ? `Its text${a.chars > a.text.length ? ` (first ${a.text.length} of ${a.chars} chars)` : ''}:\n${a.text}` : 'Use convert_file to read it.'}${a.ext === 'pdf' ? '\n(To see the layout use inspect_document with pages; to change it keeping the layout use pdf_find_text + pdf_edit.)' : ''}`));
-    const content = [...texts, m.content].filter(Boolean).join('\n\n');
+    // voice mode: where the user cut the AI off, and what their voice / sounds were like
+    const said = m.cut ? `(you were interrupted after: "…${String(m.cut).slice(-160)}")\n` : '';
+    const cues = m.cues && m.cues.length ? `\n\n(${m.cues.map((x) => (x.startsWith('voice:') ? 'voice: ' + x.slice(6) : 'heard: ' + x)).join('; ')})` : '';
+    const content = said + [...texts, m.content].filter(Boolean).join('\n\n') + cues;
     const imgs = (m.attachments || []).filter((a) => a.kind === 'image');
     if (imgs.length) out.push({ role: 'user', content: [{ type: 'text', text: content || ' ' }, ...imgs.map((a) => ({ type: 'image_url', image_url: { url: a.data } }))] });
     else out.push({ role: 'user', content });
@@ -1082,22 +1085,24 @@ async function sendPrompt(textOverride, opts = {}) {
   if (S.mode === 'projects') { S.mode = 'chat'; navTo('chat', S.conv.id); }
   const atts = S.pending.splice(0);
   if (ta) { ta.value = ''; ta.style.height = 'auto'; }
-  addNode({ id: uid(), role: 'user', content: text, attachments: atts, createdAt: Date.now() });
+  addNode({ id: uid(), role: 'user', content: text, attachments: atts, createdAt: Date.now(), ...(opts.cues && opts.cues.length ? { cues: opts.cues } : {}), ...(opts.cut ? { cut: opts.cut } : {}) });
   if (!S.conv.title) S.conv.title = (text || atts[0]?.name || '').replace(/\s+/g, ' ').slice(0, 64);
   S._draft = '';
   generate(opts);
 }
 
 function generate(opts = {}) {
-  const cm = currentModel();
-  const msg = addNode({ id: uid(), role: 'assistant', content: '', reasoning: '', steps: [], model: cm ? cm.label : '', pending: true, createdAt: Date.now() });
+  const voiceOn = !!(opts.voice || (S.voice && S.voice.on));
+  const vm = voiceOn && typeof voiceModel === 'function' ? voiceModel() : null; // voice mode: a small, very fast model
+  const cm = vm || currentModel();
+  const msg = addNode({ id: uid(), role: 'assistant', content: '', reasoning: '', steps: [], model: cm ? cm.label : '', pending: true, createdAt: Date.now(), ...(voiceOn ? { voice: true } : {}) });
   const reqId = uid();
   S.streaming = { reqId, msg, quick: !!opts.quick };
   const first = S.conv.messages.length <= 2;
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
   const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
-  api.chat.send({ reqId, model: S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  api.chat.send({ reqId, model: cm ? cm.ref : S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {

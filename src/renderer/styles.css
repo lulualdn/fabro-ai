@@ -1786,3 +1786,37 @@ html.light-mode ::view-transition-old(root), html.light-mode ::view-transition-n
 .models-pop.sheet .pm-find input { font-size: 16px; }
 @keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
 .models-pop [hidden] { display: none !important; }
+
+/* ───────── Halloween scene (halloween-fx.js): canvas behind the panels, lantern + pumpkin over the home ───────── */
+#hw-fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+[data-skin="halloween"] .hw-scene { position: fixed; z-index: 2; pointer-events: none; overflow: hidden; border-radius: var(--r-xl, 18px); }
+[data-skin="halloween"] .view.is-welcome .welcome { position: relative; z-index: 3; }
+[data-skin="halloween"] .hw-lamp { position: absolute; left: 7%; top: 0; width: 84px; transform-origin: 50% 0; animation: hw-swing 6s ease-in-out infinite; }
+[data-skin="halloween"] .hw-chain { display: block; width: 2px; height: 13vh; margin: 0 auto; background: repeating-linear-gradient(#3a2a22 0 5px, #1a110d 5px 8px); }
+[data-skin="halloween"] .hw-lantern { display: block; width: 84px; height: auto; margin-top: -2px; overflow: visible; filter: drop-shadow(0 0 calc(var(--flick, 1) * 26px) rgba(255, 150, 50, .75)); }
+[data-skin="halloween"] .hw-flame, [data-skin="halloween"] .hw-halo { opacity: var(--flick, 1); transform-origin: 40px 66px; }
+[data-skin="halloween"] .hw-flame { animation: hw-dance .4s ease-in-out infinite alternate; }
+[data-skin="halloween"] .hw-glass { fill: rgba(255, 170, 70, calc(.08 + var(--flick, 1) * .2)); }
+@keyframes hw-swing { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes hw-dance { to { transform: scale(.92, 1.08) skewX(3deg); } }
+[data-skin="halloween"] .hw-pumpkin { position: absolute; right: 5%; bottom: 26px; width: 160px; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .6)); }
+[data-skin="halloween"] .hw-pumpkin svg { display: block; width: 100%; height: auto; overflow: visible; }
+[data-skin="halloween"] .hw-face { opacity: calc(.55 + var(--flick2, 1) * .45); filter: drop-shadow(0 0 calc(var(--flick2, 1) * 8px) rgba(255, 190, 60, .95)); }
+@media (max-width: 1100px) { [data-skin="halloween"] .hw-lamp { left: 3%; width: 64px; } [data-skin="halloween"] .hw-lantern { width: 64px; } [data-skin="halloween"] .hw-pumpkin { width: 118px; right: 3%; } }
+@media (max-width: 700px) { [data-skin="halloween"] .hw-lamp { width: 46px; } [data-skin="halloween"] .hw-lantern { width: 46px; } [data-skin="halloween"] .hw-chain { height: 40px; } [data-skin="halloween"] .hw-pumpkin { width: 78px; bottom: auto; top: 54px; } }
+/* the greeting lit by the lantern (gradient centred on the flame), with its reflection below */
+[data-skin="halloween"] .welcome .greet { margin-bottom: 26px; }
+[data-skin="halloween"] .welcome .greet > span {
+  --lx: 0%; --ly: 0%; position: relative; display: inline-block;
+  background: radial-gradient(circle at var(--lx) var(--ly), #fff3d6 0, #ffc77a calc(16% + var(--flick, 1) * 14%), #f3e2d2 calc(40% + var(--flick, 1) * 16%), #a993a8 90%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 calc(var(--flick, 1) * 12px) rgba(255, 150, 60, .35));
+  -webkit-box-reflect: below -6px linear-gradient(transparent 52%, rgba(255, 255, 255, .16));
+}
+/* chat: let the fire show through */
+[data-skin="halloween"] .view.is-thread .scroller, [data-skin="halloween"] .view.is-thread .dock { background: transparent; }
+[data-skin="halloween"] .dock .composer { background: rgba(29, 21, 36, .82); backdrop-filter: blur(14px); border-color: rgba(255, 140, 60, .22); }
+[data-skin="halloween"] .msg.user .bubble, [data-skin="halloween"] .bubble.user { backdrop-filter: blur(8px); }
+html.light-mode[data-skin="halloween"] .hw-lamp, html.light-mode[data-skin="halloween"] .hw-flame { animation: none; }
+@media (prefers-reduced-motion: reduce) { [data-skin="halloween"] .hw-lamp, [data-skin="halloween"] .hw-flame { animation: none !important; } }
+[data-skin="halloween"] body:has(#hw-fx)::before { display: none; }

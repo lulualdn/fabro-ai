@@ -47,7 +47,11 @@ function build(version, resolve = (src) => path.resolve(RENDERER, src)) {
   const body = (html.match(/<body[^>]*>([\s\S]*)<\/body>/) || [])[1].replace(/<script\b[^>]*><\/script>\s*/g, '').trim();
   const { map, events } = apiMap();
   const hash = crypto.createHash('sha256').update(JSON.stringify([body, files.map((f) => f.text), map])).digest('hex').slice(0, 16);
-  return { v: `${version}-${hash}`, body, files, api: map, events, settingsDefaults: settingsDefaults() };
+  return { v: `${version}-${hash}`, body, files, api: map, events, settingsDefaults: settingsDefaults(), voicePrompt: voicePrompt() };
+}
+// The voice-mode instructions (prompts.js), for voice conversations answered by Fabro Cloud from the phone.
+function voicePrompt() {
+  try { const m = fs.readFileSync(path.join(__dirname, 'prompts.js'), 'utf8').match(/const VOICE = `([\s\S]*?)`;/); return m ? m[1].split('\n').filter((l) => !/show_on_scene/.test(l)).join('\n') : ''; } catch { return ''; }
 }
 // The default settings (store.js), for the interface running with no computer behind it.
 function settingsDefaults() {

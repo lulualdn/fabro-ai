@@ -80,6 +80,8 @@ For computers too modest to run a model well (detected: no real GPU and little m
 
 Speech-to-text: faster-whisper, with the size the computer handles well (large-v3 **turbo** with ≥ 12 GB RAM and 8 threads, else small) downloaded in the background while a quick model already works; a vocabulary (recent names Whisper doesn't know, installed models, the user's own words — voice mode › 📖) passed as hotwords; a lower voice-activity threshold, no browser noise suppression and a second pass without VAD so whispers are heard. Text-to-speech: **Kokoro** (one fluid voice family across en/fr/es/it/pt/ja/zh/hi), Piper for German; every sentence is read in its own language (`src/main/langdetect.js`).
 
+Voice mode feels alive (`src/renderer/voice-fx.js`): the AI's voice carries moods — `(joyeux)`, `(triste)`, `[chuchote]`, `[rire]`, `[soupir]` change speed, loudness and laughter — and `[son:…]` plays sound effects synthesised on the fly (ding, tada, sifflet, prout, applaudissements…). Talking over it only lowers its voice: an "mh", "ouais", a laugh or its own echo lets it carry on; anything else cuts it where it was, and the conversation keeps only what was said aloud. Each utterance is also analysed (spectrum, pitch, rhythm — a few ms, no model) for whistling, humming, singing, laughter, claps, a fart, a whisper or an excited / tired voice, passed to the model as cues. A small installed model (≥ 1 GB, e.g. Gemma 4 E2B) answers voice turns when the chat model is big, with greedy Whisper decoding and the first clause spoken as soon as it's written. Test: `scripts/voice-e2e.js`.
+
 ## Themes
 
 Light, dark and **Halloween** (a skin over dark: pumpkin accent, moon glow, bats, cobweb — offered in the user menu from mid-October).

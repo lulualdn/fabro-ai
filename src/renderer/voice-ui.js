@@ -42,7 +42,8 @@ const Mic = {
         if (this.silent > (this.endMs || 850) || dur > 30000) {
           this.speaking = false; this.voiced = 0; this.pre = [];
           const chunks = this.rec; this.rec = null;
-          if (dur - this.silent > 350) this.onUtterance && this.onUtterance(encodeWav(chunks, this.ctx.sampleRate));
+          // short sounds count too (a pop, a fart): 250 ms is enough
+          if (dur - this.silent > 250) this.onUtterance && this.onUtterance(encodeWav(chunks, this.ctx.sampleRate), { chunks, rate: this.ctx.sampleRate, dur: (dur - this.silent) / 1000 });
           else this.onCancel && this.onCancel();
         }
       }
@@ -71,39 +72,53 @@ function encodeWav(chunks, rate) {
 const sttLang = () => { const l = S.settings.language; return l && l !== 'auto' ? l : (S.lang || '').slice(0, 2) || undefined; };
 
 // ───────────────────────────── speech output ─────────────────────────────
+// Each piece of the reply is spoken in its mood (speed, loudness), laughs and sighs included; [son:…] tags play a
+// sound effect in its place. When the user talks over it, the voice only gets quieter (ducked) until we know
+// whether that was a real interruption.
 const Speaker = {
-  queue: [], playing: null, gen: 0, analyser: null, actx: null,
+  queue: [], playing: null, gen: 0, analyser: null, actx: null, style: 'neutral', ducked: false, said: [],
   say(text) {
-    const clean = speakable(text); if (!clean) return;
-    const g = this.gen;
-    const job = { text: clean, audio: api.voice.tts(clean).catch((e) => { S.voice.err = cleanErr(e); return null; }) };
-    this.queue.push(job);
+    const { segs, style } = vSegments(String(text), this.style); this.style = style;
+    const g = this.gen; const base = (S.voice.status && S.voice.status.speed) || 1;
+    for (const sg of segs) {
+      if (sg.sfx) { if (VFX.known(sg.sfx)) this.queue.push({ sfx: sg.sfx, text: '' }); continue; }
+      const st = V_STYLE[sg.laugh ? 'happy' : sg.style] || V_STYLE.neutral;
+      const clean = sg.laugh ? (LAUGH[(sttLang() || 'fr')] || LAUGH.en) : speakable(sg.text); if (!clean) continue;
+      const sp = Math.round(base * st.speed * 100) / 100;
+      this.queue.push({ text: clean, vol: st.vol, laugh: !!sg.laugh, audio: api.voice.tts(clean, sp !== base ? { speed: sp } : undefined).catch((e) => { S.voice.err = cleanErr(e); return null; }) });
+    }
     if (!this.playing) this.next(g);
   },
   async next(g) {
     const job = this.queue.shift();
-    if (!job || g !== this.gen) { this.playing = null; if (g === this.gen) vPhase(S.streaming ? 'thinking' : 'listening'); return; }
+    if (!job || g !== this.gen) { this.playing = null; if (g === this.gen && !S.voice.barge) vPhase(S.streaming ? 'thinking' : 'listening'); return; }
     this.playing = job;
+    if (job.sfx) { if (!S.voice.barge) vPhase('speaking'); await VFX.play(job.sfx); if (this.playing === job) this.next(g); return; }
     const bytes = await job.audio;
     if (g !== this.gen || !bytes) { this.next(g); return; }
     const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
-    const el = new Audio(url); job.el = el;
+    const el = new Audio(url); job.el = el; this.vol(job);
     try {
       this.actx = this.actx || new AudioContext();
       const src = this.actx.createMediaElementSource(el); this.analyser = this.actx.createAnalyser(); this.analyser.fftSize = 256;
       src.connect(this.analyser); this.analyser.connect(this.actx.destination);
     } catch {}
-    S.voice.ai = job.text; vPhase('speaking'); vRenderSubs();
+    if (!job.laugh) { this.said.push(job.text); if (this.said.length > 40) this.said.shift(); }
+    S.voice.ai = job.text; if (!S.voice.barge) vPhase('speaking'); vRenderSubs();
     el.onended = () => { URL.revokeObjectURL(url); if (this.playing === job) this.next(g); };
     el.onerror = el.onended;
     el.play().catch(() => el.onended());
   },
+  vol(job) { if (job && job.el) job.el.volume = Math.max(0, Math.min(1, (job.vol || 1) * (this.ducked ? 0.22 : 1))); },
+  duck(on) { this.ducked = !!on; this.vol(this.playing); },
   level() {
     if (!this.analyser || !this.playing) return 0;
     const a = new Uint8Array(this.analyser.frequencyBinCount); this.analyser.getByteTimeDomainData(a);
     let m = 0; for (const x of a) m = Math.max(m, Math.abs(x - 128)); return m / 128;
   },
-  stop() { this.gen++; this.queue = []; if (this.playing && this.playing.el) { try { this.playing.el.pause(); } catch {} } this.playing = null; },
+  // what was said aloud in this answer so far (the sentence being spoken included)
+  heard() { return this.said.join(' ').trim(); },
+  stop() { this.gen++; this.queue = []; if (this.playing && this.playing.el) { try { this.playing.el.pause(); } catch {} } this.playing = null; this.ducked = false; this.style = 'neutral'; },
   busy() { return !!this.playing || this.queue.length > 0; },
 };
 // Spoken form: no markdown, code, links or artifacts.
@@ -117,11 +132,13 @@ let vBuf = '';
 function vFeed(text, final) {
   vBuf += text;
   for (;;) {
-    const m = vBuf.match(/^([\s\S]{12,}?[.!?…:;](?=\s|$)|[\s\S]+?\n\n)/);
+    // the very first piece goes out as soon as there's a clause (a comma will do): the voice starts sooner
+    const first = !Speaker.busy() && !vFeed.started;
+    const m = vBuf.match(first ? /^([\s\S]{14,}?[.!?…:;,](?=\s)|[\s\S]{8,}?[.!?…](?=\s|$)|[\s\S]+?\n\n)/ : /^([\s\S]{12,}?[.!?…:;](?=\s|$)|[\s\S]+?\n\n)/);
     if (!m) break;
-    Speaker.say(m[1]); vBuf = vBuf.slice(m[1].length);
+    Speaker.say(m[1]); vBuf = vBuf.slice(m[1].length); vFeed.started = true;
   }
-  if (final) { if (vBuf.trim()) Speaker.say(vBuf); vBuf = ''; }
+  if (final) { if (vBuf.trim()) Speaker.say(vBuf); vBuf = ''; vFeed.started = false; }
 }
 
 // ───────────────────────────── voice mode ─────────────────────────────
@@ -135,9 +152,13 @@ async function voiceOpen() {
 }
 async function vStartListening() {
   try {
-    Mic.sens = 1; Mic.endMs = 750;
-    Mic.onStart = () => { if (Speaker.busy() || S.streaming) vInterrupt(); vPhase('hearing'); };
-    Mic.onCancel = () => vPhase(Speaker.busy() ? 'speaking' : S.streaming ? 'thinking' : 'listening');
+    Mic.sens = 1; Mic.endMs = 700;
+    // talking over the AI doesn't cut it: its voice gets quieter while we find out what that was (vHeard)
+    Mic.onStart = () => {
+      if (Speaker.busy() || S.streaming) { S.voice.barge = { at: Date.now() }; Speaker.duck(true); Mic.endMs = 520; }
+      vPhase('hearing');
+    };
+    Mic.onCancel = () => { if (S.voice.barge) { S.voice.barge = null; Speaker.duck(false); Mic.endMs = 700; } vPhase(Speaker.busy() ? 'speaking' : S.streaming ? 'thinking' : 'listening'); };
     Mic.onUtterance = vHeard;
     Mic.onLevel = (l) => { S.voice.level = l; };
     await Mic.start();
@@ -153,25 +174,81 @@ function micErrText(e) {
   return t('vx_micErr');
 }
 function vInterrupt() {
-  Speaker.stop(); vBuf = '';
+  Speaker.stop(); vBuf = ''; vFeed.started = false;
   if (S.streaming) { api.chat.abort(S.streaming.reqId); }
 }
-async function vHeard(wav) {
-  vPhase('transcribing');
+// A real interruption: stop where we were, keep in the conversation only what was actually said aloud.
+async function vCut() {
+  const heard = Speaker.heard();
+  const m = (S.streaming && S.streaming.msg) || (S.conv && [...S.conv.messages].reverse().find((x) => x.role === 'assistant'));
+  vInterrupt();
+  for (let i = 0; i < 40 && S.streaming; i++) await new Promise((r) => setTimeout(r, 50)); // the aborted turn settles
+  if (m && heard && speakable(vStripTags(m.content || '')).length > heard.length + 8) {
+    m.content = heard + ' …'; m.cutoff = true;
+    const el = $(`#m-${m.id}`); if (el && S.conv) el.outerHTML = renderMessage(m, S.conv.messages.indexOf(m));
+    persist();
+  }
+  return heard;
+}
+// Sounds with no words: what the conversation shows for them (and the AI reads, with the cues)
+const V_SOUNDS = {
+  fr: { whistling: '*siffle*', humming: '*chantonne*', singing: '*chante*', laughing: '*rit*', 'fart-like low rumble': '*prout*', 'clapping or knocking': '*tape*' },
+  en: { whistling: '*whistles*', humming: '*hums*', singing: '*sings*', laughing: '*laughs*', 'fart-like low rumble': '*farts*', 'clapping or knocking': '*claps*' },
+  es: { whistling: '*silba*', humming: '*tararea*', singing: '*canta*', laughing: '*se ríe*', 'fart-like low rumble': '*pedo*', 'clapping or knocking': '*aplaude*' },
+  de: { whistling: '*pfeift*', humming: '*summt*', singing: '*singt*', laughing: '*lacht*', 'fart-like low rumble': '*pupst*', 'clapping or knocking': '*klatscht*' },
+};
+// Whisper writes music and noises as words: "♪", "(Musique)", "[sifflement]"…
+const NOISE_TEXT = /^[\s♪♫🎵*([\-]*(musique|music|musik|música|sifflement|siffle|whistl|pfeif|silb|hum|fredonn|chantonn|tarare|summ|applaudissements|applause|rires?|laugh|pet|prout|fart|bruit|noise)?[\s♪♫🎵*)\]\-.…!]*$/i;
+// Is this just the AI's own voice coming back through the speakers?
+function vEcho(text) {
+  const w = (x) => (String(x).toLowerCase().match(/[\p{L}\d']+/gu) || []);
+  const said = new Set(w(Speaker.said.slice(-3).join(' '))); const heard = w(text);
+  return heard.length > 0 && heard.filter((x) => said.has(x)).length / heard.length >= 0.7;
+}
+async function vHeard(wav, info) {
+  const barge = S.voice.barge; S.voice.barge = null; Mic.endMs = 700;
+  if (!barge) vPhase('transcribing');
   try {
     const last = S.conv && [...S.conv.messages].reverse().find((m) => m.role === 'assistant' && m.content);
-    const r = await api.voice.stt(wav, { lang: sttLang(), prompt: last ? speakable(last.content).slice(-180) : '' });
-    const text = (r.text || '').trim();
-    if (!text || /^[.…\s]*$/.test(text)) { vPhase('listening'); return; }
+    const pr = api.voice.stt(wav, { lang: sttLang(), prompt: last ? speakable(vStripTags(last.content)).slice(-180) : '', fast: true });
+    let feat = null; try { feat = info ? VEar.analyse(info.chunks, info.rate) : null; } catch {} // while Whisper works
+    const r = await pr;
+    let text = (r.text || '').trim();
+    const noise = !text || NOISE_TEXT.test(text);
+    const tags = feat ? VEar.tags(feat, noise ? '' : text) : [];
+    if (noise) text = '';
+    // over the AI's voice: carry on (an "mh", a laugh, its own echo), or turn to what was just said
+    if (barge && (Speaker.busy() || S.streaming)) {
+      if ((!text && !tags.some((x) => !x.startsWith('voice:'))) || vEcho(text) || vRefereeKeepTalking(text, tags, info ? info.dur : 1)) {
+        Speaker.duck(false); vPhase(Speaker.busy() ? 'speaking' : 'thinking'); return;
+      }
+    }
+    if (!text) {
+      const snd = tags.find((x) => !x.startsWith('voice:'));
+      if (!snd) { Speaker.duck(false); vPhase(Speaker.busy() ? 'speaking' : 'listening'); return; }
+      text = (V_SOUNDS[sttLang()] || V_SOUNDS.en)[snd] || '*' + snd + '*';
+    }
+    const cut = barge ? await vCut() : '';
     S.voice.user = text; S.voice.ai = ''; vRenderSubs();
     if (S.mode !== 'chat') { S.mode = 'chat'; renderSidebar(); }
     for (let i = 0; i < 40 && S.streaming; i++) await new Promise((r2) => setTimeout(r2, 50)); // aborted turn settling
-    vPhase('thinking');
-    sendPrompt(text, { voice: true });
-  } catch (e) { S.voice.err = cleanErr(e); vRender(); vPhase('listening'); }
+    Speaker.said = []; vPhase('thinking');
+    sendPrompt(text, { voice: true, cues: tags, cut });
+  } catch (e) { Speaker.duck(false); S.voice.err = cleanErr(e); vRender(); vPhase('listening'); }
+}
+// The model of voice mode: small and very fast. Automatic: if the chosen model runs on this computer and a much
+// smaller one is installed (from about 1 GB — below that they understand too little), that one answers.
+function voiceModel() {
+  const pref = S.settings.voiceModel || 'auto';
+  if (pref === 'same') return null;
+  if (pref !== 'auto') return allModels().find((m) => refKey(m.ref) === pref) || null;
+  const cur = currentModel(); if (!cur || cur.ref.backend !== 'local') return null;
+  const size = (m) => { const x = S.installed.local.find((l) => l.id === m.ref.id); return x ? x.sizeBytes || 0 : 0; };
+  const small = allModels().filter((m) => m.ref.backend === 'local' && size(m) > 0.9e9 && size(m) < 5.6e9).sort((a, b) => size(a) - size(b))[0];
+  return small && size(small) * 1.6 < size(cur) ? small : null;
 }
 function voiceClose() {
-  S.voice.on = false; Mic.stop(); Speaker.stop(); vBuf = '';
+  S.voice.on = false; S.voice.barge = null; Mic.stop(); Speaker.stop(); Speaker.said = []; vBuf = ''; vFeed.started = false;
   cancelAnimationFrame(vSpin.raf); vSpin.raf = 0;
   const el = $('#vx'); if (el) { el.classList.add('out'); setTimeout(() => el.remove(), 260); }
   refreshComposer && refreshComposer();
@@ -202,6 +279,14 @@ function vSceneHtml() {
     : `<iframe class="vs-frame" sandbox="allow-scripts" srcdoc="${esc(x.content)}"></iframe>`;
   return `<div class="vs ${it.length > 1 ? 'grid' : ''}">${it.map(one).join('')}</div>${it[0].title && it.length === 1 && it[0].type !== 'image' ? `<div class="vs-cap">${esc(it[0].title)}</div>` : ''}`;
 }
+// Which model answers in voice mode: automatic (a small installed one when the chosen model is big), the chat's own, or one picked
+function vModelSelect() {
+  const pref = S.settings.voiceModel || 'auto'; const auto = voiceModel();
+  const opts = allModels().filter((m) => !m.mod).map((m) => `<option value="${esc(refKey(m.ref))}" ${pref === refKey(m.ref) ? 'selected' : ''}>${esc(m.label)}</option>`).join('');
+  return `<select class="input sm2" id="vx-model" aria-label="${esc(t('vx_model'))}" title="${esc(t('vx_modelHint'))}">
+    <option value="auto" ${pref === 'auto' ? 'selected' : ''}>⚡ ${esc(t('vx_modelAuto'))}${pref === 'auto' && auto ? ' · ' + esc(auto.label) : ''}</option>
+    <option value="same" ${pref === 'same' ? 'selected' : ''}>${esc(t('vx_modelSame'))}</option><optgroup label="${esc(t('vx_model'))}">${opts}</optgroup></select>`;
+}
 function vRender() {
   let el = $('#vx');
   const st = S.voice.status || {};
@@ -217,6 +302,7 @@ function vRender() {
        <div class="vx-subs"><div class="vx-user" id="vx-user">${esc(S.voice.user)}</div><div class="vx-ai" id="vx-ai">${esc(S.voice.ai)}</div>${S.voice.err ? `<div class="vx-err">${esc(S.voice.err)}</div>` : ''}</div>`;
   const html = `<div class="vx-top"><span class="vx-title">${icon('waveform', 16)} ${esc(t('vx_title'))}</span><span class="grow"></span>
       ${st.runtime && voices.length ? `<select class="input sm2" id="vx-voice" aria-label="${esc(t('vx_voice'))}">${voices.some((v) => v.engine === 'kokoro') ? `<optgroup label="${esc(t('vx_multi'))}">${voices.filter((v) => v.engine === 'kokoro').map((v) => `<option value="${esc(v.id)}" ${st.voice === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</optgroup><optgroup label="Piper">` : ''}${voices.filter((v) => v.engine !== 'kokoro').map((v) => `<option value="${esc(v.id)}" ${st.voice === v.id ? 'selected' : ''}>${esc(v.name)}${v.installed ? '' : ' ↓'}</option>`).join('')}${voices.some((v) => v.engine === 'kokoro') ? '</optgroup>' : ''}</select>` : ''}
+      ${st.runtime ? vModelSelect() : ''}
       ${st.runtime ? `<button class="icon-btn" data-action="vx-vocab" title="${esc(t('vx_vocab'))}">${icon('book', 17)}</button>` : ''}
       <button class="icon-btn" data-action="vx-close" title="${esc(t('close'))}">${icon('x', 18)}</button></div>
     <div class="vx-body">${body}</div>
@@ -226,6 +312,7 @@ function vRender() {
       <button class="vx-btn end" data-action="vx-close" title="${esc(t('vx_end'))}">${icon('x', 22)}</button></div>` : ''}`;
   if (!el) { el = document.createElement('div'); el.id = 'vx'; el.className = 'vx'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', t('vx_title')); document.body.appendChild(el); }
   el.dataset.phase = S.voice.phase; el.innerHTML = html;
+  const vm = $('#vx-model'); if (vm) vm.addEventListener('change', () => saveSettings({ voiceModel: vm.value }).catch(() => {}));
   const sel = $('#vx-voice'); if (sel) sel.addEventListener('change', async () => { try { S.voice.status = await api.voice.setVoice(sel.value); } catch (e) { toast(cleanErr(e), 'err'); } });
 }
 api.on('deps:progress', ({ dep, p }) => { if (dep === 'voice' && S.voice.installing != null) { S.voice.installing = p; if (S.voice.on) vRender(); } });
@@ -238,9 +325,9 @@ onChatEvent = function (ev) {
   if (!live) return;
   if (ev.type === 'token') vFeed(ev.text, false);
   if (ev.type === 'retract') vBuf = vBuf.replace(ev.text, '');
-  if (ev.type === 'tool_start') vPhase('thinking');
+  if (ev.type === 'tool_start' && !S.voice.barge) vPhase('thinking');
   if (ev.type === 'tool_end' && ev.view && ev.view.kind === 'scene') { S.voice.scene = ev.view.items || []; const sc = $('#vx-scene'); if (sc) { vRender(); } }
-  if (ev.type === 'done' || ev.type === 'error') { vFeed('', true); if (!Speaker.busy()) vPhase('listening'); if (ev.type === 'error') { S.voice.err = ev.message; vRenderSubs(); } }
+  if (ev.type === 'done' || ev.type === 'error') { vFeed('', true); if (!Speaker.busy() && !S.voice.barge) vPhase('listening'); if (ev.type === 'error') { S.voice.err = ev.message; vRenderSubs(); } }
 };
 
 // ───────────────────────────── dictation (mic button in the composer) ─────────────────────────────
@@ -282,7 +369,7 @@ Object.assign(actions, {
   'dictate': (el) => dictate(el),
   'vx-close': () => voiceClose(),
   'vx-mute': () => { S.voice.muted = !S.voice.muted; vRender(); },
-  'vx-stop-talk': () => { vInterrupt(); vPhase('listening'); },
+  'vx-stop-talk': () => { vCut(); vPhase('listening'); },
   'vx-install': async () => {
     S.voice.installing = 0; S.voice.err = ''; vRender();
     try { S.voice.status = await api.voice.install(); S.voice.installing = null; vRender(); vStartListening(); }

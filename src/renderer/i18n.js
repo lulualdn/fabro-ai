@@ -2,6 +2,7 @@
 // To add a language: copy the `en` block, translate, and add it to LANGS in app.js.
 const I18N = {
   en: {
+    vx_model: 'Voice model', vx_modelAuto: 'Fastest', vx_modelSame: 'Same as the chat', vx_modelHint: 'A small model answers faster: automatic uses a small installed one (e.g. Gemma 4 E2B) when your model is big.',
     dsgTitle: 'Design of pages and documents', dsgHint: 'Web pages, documents and slides are made with the Fabro Kit and checked like a designer would: rendered on desktop and phone, problems sent back to the AI to fix.', dsgCheck: 'Check the result automatically', dsgCheckHint: 'In chat, Fabro looks at each page or document and asks the AI to fix what is broken.', dsgPexels: 'Pexels key (photos)', dsgPexelsHint: 'Free at pexels.com/api: better photos. Without a key, Fabro uses openly licensed photos (Openverse).', dsgUnsplash: 'Unsplash key (photos)', dsgUnsplashHint: 'Free “Access Key” at unsplash.com/developers.', dsgOptional: 'optional',
     maintBadge: 'Maintenance', maintTitle: 'Fabro Code is under maintenance', maintDesc: 'We are reworking it because it was too unstable. Your code conversations are kept. Meanwhile, agent mode can still read and edit files in the folders you allow.', maintBack: 'Back to chat',
     remoteLite: 'Light phone view', remoteLiteHint: 'Works offline too',
@@ -227,6 +228,7 @@ const I18N = {
   },
 
   fr: {
+    vx_model: 'Modèle du vocal', vx_modelAuto: 'Le plus rapide', vx_modelSame: 'Comme le chat', vx_modelHint: 'Un petit modèle répond plus vite : en automatique, un petit modèle installé (ex. Gemma 4 E2B) répond quand le tien est gros.',
     dsgTitle: 'Design des pages et documents', dsgHint: 'Les pages web, documents et diapositives sont faits avec le Fabro Kit et vérifiés comme le ferait un designer : rendu sur ordinateur et téléphone, problèmes renvoyés à l’IA pour correction.', dsgCheck: 'Vérifier le rendu automatiquement', dsgCheckHint: 'Dans le chat, Fabro regarde chaque page ou document et demande à l’IA de corriger ce qui est cassé.', dsgPexels: 'Clé Pexels (photos)', dsgPexelsHint: 'Gratuite sur pexels.com/api : de meilleures photos. Sans clé, Fabro utilise des photos sous licence libre (Openverse).', dsgUnsplash: 'Clé Unsplash (photos)', dsgUnsplashHint: '« Access Key » gratuite sur unsplash.com/developers.', dsgOptional: 'facultatif',
     maintBadge: 'Maintenance', maintTitle: 'Fabro Code est en maintenance', maintDesc: 'On le retravaille car il était trop instable. Tes conversations de code sont conservées. En attendant, le mode agent peut toujours lire et modifier les fichiers des dossiers que tu autorises.', maintBack: 'Retour au chat',
     remoteLite: 'Vue téléphone allégée', remoteLiteHint: 'Fonctionne aussi hors ligne',
@@ -452,6 +454,7 @@ const I18N = {
   },
 
   es: {
+    vx_model: 'Modelo de voz', vx_modelAuto: 'El más rápido', vx_modelSame: 'Igual que el chat', vx_modelHint: 'Un modelo pequeño responde más rápido: en automático se usa uno pequeño instalado (p. ej. Gemma 4 E2B) si el tuyo es grande.',
     maintBadge: 'Mantenimiento', maintTitle: 'Fabro Code está en mantenimiento', maintDesc: 'Lo estamos rehaciendo porque era demasiado inestable. Tus conversaciones de código se conservan. Mientras tanto, el modo agente puede leer y editar archivos en las carpetas que permitas.', maintBack: 'Volver al chat',
     artType_markdown: 'Notas', artType_document: 'Documento', artChecking: 'Comprobando el resultado…', artFixing: 'Corrigiendo…', artChecked: 'Comprobado', artProblems: '{n} problema(s)', artFixingN: 'Fabro comprobó el resultado y encontró {n} problema(s): corrigiendo…', ag_k_guide: 'Guía de diseño',
     remoteLite: 'Vista ligera del móvil', remoteLiteHint: 'También funciona sin conexión',
@@ -518,6 +521,7 @@ const I18N = {
   },
 
   de: {
+    vx_model: 'Sprachmodell', vx_modelAuto: 'Am schnellsten', vx_modelSame: 'Wie im Chat', vx_modelHint: 'Ein kleines Modell antwortet schneller: automatisch wird ein kleines installiertes (z. B. Gemma 4 E2B) genutzt, wenn deins groß ist.',
     maintBadge: 'Wartung', maintTitle: 'Fabro Code wird gewartet', maintDesc: 'Wir überarbeiten es, weil es zu instabil war. Deine Code-Unterhaltungen bleiben erhalten. Der Agentenmodus kann weiterhin Dateien in freigegebenen Ordnern lesen und bearbeiten.', maintBack: 'Zurück zum Chat',
     artType_markdown: 'Notizen', artType_document: 'Dokument', artChecking: 'Ergebnis wird geprüft…', artFixing: 'Wird korrigiert…', artChecked: 'Geprüft', artProblems: '{n} Problem(e)', artFixingN: 'Fabro hat das Ergebnis geprüft und {n} Problem(e) gefunden: wird korrigiert…', ag_k_guide: 'Design-Leitfaden',
     remoteLite: 'Leichte Handy-Ansicht', remoteLiteHint: 'Funktioniert auch offline',

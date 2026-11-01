@@ -74,6 +74,11 @@
     return new Uint8Array(buf);
   }
 
+  function mergeSys(msgs, extra) {
+    const out = msgs.map((m) => ({ ...m }));
+    if (out[0] && out[0].role === 'system') out[0].content = String(out[0].content || '') + '\n\n' + extra; else out.unshift({ role: 'system', content: extra });
+    return out;
+  }
   async function chatSend(p) {
     const reqId = p.reqId; const ctl = new AbortController(); runs.set(reqId, ctl);
     const ev = (e) => emit('chat:event', { reqId, ...e });
@@ -83,7 +88,10 @@
       ev({ type: 'status', status: 'generating', backend: 'fabro' });
       try {
         const lm = H().localEngine && navigator.onLine === false ? H().localEngine() : null; // offline: the phone's model
-        const out = await FAAgent.run({ messages: p.messages || [], model, agent: !!params.agentMode, allTools: params.agent !== false, lang: H().lang, engine: lm, signal: ctl.signal, onEvent: (e) => ev(e) });
+        let messages = p.messages || [];
+        // voice mode: how to talk (emotions, sound effects, interruptions), from the computer's own instructions
+        if (params.voiceMode && bundleRef && bundleRef.voicePrompt) messages = mergeSys(messages, bundleRef.voicePrompt);
+        const out = await FAAgent.run({ messages, model, agent: !!params.agentMode, allTools: params.agent !== false, lang: H().lang, engine: lm, signal: ctl.signal, onEvent: (e) => ev(e) });
         ev({ type: 'done', stats: { backend: 'fabro', model: out && out.model } });
       } catch (e) {
         if (e && e.name === 'AbortError') ev({ type: 'done', stats: { aborted: true } });

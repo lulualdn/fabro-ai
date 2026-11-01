@@ -215,7 +215,7 @@ function vocabulary() {
   for (const w of words) { const x = String(w || '').trim(); if (x && x.length < 40 && !seen.has(x.toLowerCase())) { seen.add(x.toLowerCase()); out.push(x); } }
   return out.slice(0, 40).join(', ');
 }
-async function stt(wav, { lang, prompt } = {}) {
+async function stt(wav, { lang, prompt, fast } = {}) {
   await recommendedSize();
   const size = activeSize();
   if (!whisperOk(size)) await getWhisper(size);
@@ -224,7 +224,8 @@ async function stt(wav, { lang, prompt } = {}) {
   const u = new URL(`http://127.0.0.1:${p}/stt`);
   u.searchParams.set('model', size);
   // big models on the CPU: a narrower beam keeps a short sentence under a few seconds
-  u.searchParams.set('beam', size === 'turbo' || size === 'medium' ? '3' : '5');
+  // voice mode (fast): greedy decoding — a spoken turn is short, latency matters more than the last 1 %
+  u.searchParams.set('beam', fast ? (size === 'turbo' || size === 'medium' ? '1' : '2') : size === 'turbo' || size === 'medium' ? '3' : '5');
   if (lang && lang !== 'auto') u.searchParams.set('lang', lang);
   if (prompt) u.searchParams.set('prompt', prompt.slice(0, 220));
   u.searchParams.set('hot', vocabulary());
