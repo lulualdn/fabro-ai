@@ -1344,7 +1344,12 @@
     if (q.get('c')) S.cur = q.get('c');
     S.view = S.link || S.settings.guest ? 'main' : 'welcome';
     render();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    if ('serviceWorker' in navigator) {
+      // an update took over: reload once, so the new version shows now and not on the next launch
+      const had = !!navigator.serviceWorker.controller; let done = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !done) { done = true; location.reload(); } });
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
     if (S.link) connect();
     // the same interface as on the computer, with or without it
     if ((S.link || S.settings.guest) && S.view === 'main' && window.FAFull) FAFull.start(); else window.FASplash && FASplash.hide();
