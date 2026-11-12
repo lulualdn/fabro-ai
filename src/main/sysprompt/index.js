@@ -248,3 +248,6 @@ function session({ msgs, messages, params = {}, meta = {}, parent = false, be = 
 }
 
 module.exports = { situation, build, explain, describe, budgetFor, session, runtimeSection, codeSection };
+
+// The notebook and guides tools exist wherever the chat runtime runs (app, tests, headless harness).
+try { notebook().registerTool(); guides().registerTools(); } catch (e) { console.error('sysprompt tools', e.message); }
