@@ -12,6 +12,8 @@ const system = require('./system');
 const { downloadFile } = require('./download');
 const store = require('./store');
 const memory = require('./memory');
+const governor = require('./governor');
+const autotune = require('./autotune');
 
 // Errors carry a stable code the UI turns into a readable card with actions.
 class EngineError extends Error {
@@ -286,49 +288,55 @@ function optionsFor(model) {
   for (const k of Object.keys(DEFAULT_OPTS)) if (prof[k] !== undefined && prof[k] !== null && prof[k] !== '') o[k] = prof[k];
   o.preload = prof.preload || 'demand';
   o.idleMinutes = prof.idleMinutes ?? (s.engine || {}).idleMinutes ?? DEFAULT_OPTS.idleMinutes;
+  if (ctxOverride.has(model.id)) o.ctx = ctxOverride.get(model.id); // resizeContext(): grown on demand
   return o;
 }
+const explicitFor = (model) => { const s = store.getSettings(); const e = autotune.explicitKeys(s.engine || {}, (s.modelProfiles || {})[model.id] || {}); if (ctxOverride.has(model.id)) e.ctx = true; return e; };
+const ctxOverride = new Map(); // model id → context size asked by resizeContext()
 const DEFAULT_OPTS = { ctx: 8192, gpuLayers: -1, threads: 0, flashAttn: 'auto', kvType: 'f16', cpuMoe: 'auto', idleMinutes: 30 };
 
-function energyMode() {
-  const e = (store.getSettings().engine || {}).energy || 'auto';
-  if (e !== 'auto') return e;
-  try { return powerMonitor.isOnBatteryPower() ? 'eco' : 'balanced'; } catch { return 'balanced'; }
-}
-const PRIORITY = () => ({ performance: os.constants.priority.PRIORITY_ABOVE_NORMAL, balanced: os.constants.priority.PRIORITY_NORMAL, eco: os.constants.priority.PRIORITY_BELOW_NORMAL });
-function applyPriority(inst) { try { if (inst.proc && inst.proc.pid) os.setPriority(inst.proc.pid, PRIORITY()[energyMode()]); } catch {} }
+// eco on battery / thermal pressure (governor), unless the user picked a mode
+function energyMode() { return governor.energyMode((store.getSettings().engine || {}).energy || 'auto'); }
+// Below normal by default (see governor.processPriority): the desktop stays responsive while a model works.
+function applyPriority(inst) { try { if (inst.proc && inst.proc.pid) os.setPriority(inst.proc.pid, governor.processPriority(energyMode())); } catch {} }
 
-function argsFor(model, o, pl, port) {
-  // Embedding / reranking servers (Projects semantic search): small, batch-friendly, no chat template.
-  if (o.role === 'embed' || o.role === 'rerank') {
-    const a = ['-m', model.path, '--host', '127.0.0.1', '--port', String(port), '-c', String(pl.ctx), '-ngl', String(pl.ngl), '-b', '2048', '-ub', '2048', '-np', '1', o.role === 'embed' ? '--embedding' : '--reranking'];
-    if (energyMode() === 'eco') a.push('--poll', '0');
-    return a;
-  }
-  const args = ['-m', model.path, '--host', '127.0.0.1', '--port', String(port), '-c', String(pl.ctx), '--jinja', '-np', '1',
-    '-ngl', String(pl.ngl), '--cache-reuse', '256'];
-  if (pl.cpuMoe) args.push('--cpu-moe');
-  const fa = o.flashAttn || 'auto';
-  args.push('-fa', fa);
-  if (o.kvType && o.kvType !== 'f16') args.push('-ctk', o.kvType, '-ctv', o.kvType);
-  const mode = energyMode();
-  const physical = Math.max(1, Math.round(os.cpus().length / 2));
-  const threads = o.threads > 0 ? o.threads : mode === 'eco' ? Math.max(2, Math.floor(physical / 2)) : 0;
-  if (threads > 0) args.push('-t', String(threads));
-  if (mode === 'eco') args.push('--poll', '0');
-  if (model.mmproj && fs.existsSync(model.mmproj)) args.push('--mmproj', model.mmproj);
-  return args;
+// Plans a launch: governor budget (headroom for the OS and other apps) + autotune (threads, layers, ctx, KV,
+// prompt cache, polling) + the engine build's capabilities. Explicit user values win.
+async function planLaunch(meta, model, o, key, specs) {
+  const cpuOnly = meta.variant === 'cpu';
+  const sp = cpuOnly ? { ...specs, accel: 'cpu', gpuBudgetGB: 0, unified: false } : specs;
+  const [topo, caps, bud, bench] = await Promise.all([
+    system.cpuTopology(), autotune.capabilities(meta, binEnv(meta.bin, meta.dir)),
+    governor.currentBudget(sp, { exceptKey: key }), o.role ? null : autotune.cachedBench(model, specs, null, meta).catch(() => null),
+  ]);
+  const t = autotune.tune(model, o, { specs: sp, topo, caps, budget: bud, mode: energyMode(), explicit: o._explicit || {}, bench: o._noBench ? null : bench, planFn: memory.plan });
+  t.caps = caps;
+  return t;
+}
+// The final argv for a plan (pl may have been changed by the out-of-memory fallbacks).
+function argsFor(model, o, pl, port, tuned, safe) {
+  let pairs = tuned.pairs.map((p) => p.slice());
+  const setv = (f, v) => { const p = pairs.find((x) => x[0] === f); if (p) p[1] = v; };
+  setv('-c', pl.ctx); setv('-ngl', pl.ngl);
+  if (!pl.cpuMoe) pairs = pairs.filter((p) => p[0] !== '--cpu-moe');
+  if (o.poll !== undefined && o.poll !== null) { pairs = pairs.filter((p) => p[0] !== '--poll'); pairs.push(['--poll', o.poll]); } // benchmark candidates
+  if (o.threads > 0 && o._bench) { pairs = pairs.filter((p) => p[0] !== '-t'); pairs.push(['-t', o.threads]); }
+  if (safe) pairs = pairs.filter((p) => !['-ctk', '-ctv', '-cram', '-tb', '--poll', '-b', '-ub'].includes(p[0])).map((p) => (p[0] === '-fa' ? ['-fa', 'auto'] : p));
+  const { args, dropped } = autotune.materialize(pairs, port, tuned.caps);
+  if (model.mmproj && !fs.existsSync(model.mmproj)) { const i = args.indexOf('--mmproj'); if (i >= 0) args.splice(i, 2); }
+  return { args, dropped };
 }
 
 // ───────────────────────────── instances ─────────────────────────────
 // key → { key, model, opts, plan, port, proc, status, lastUsed, busy, startedAt }
 const instances = new Map();
-const keyFor = (model, o) => JSON.stringify([model.path, o.ctx, o.gpuLayers, o.threads, o.flashAttn, o.kvType, o.cpuMoe, o.variant, o.role || 'chat']);
+const keyFor = (model, o) => JSON.stringify([model.path, o.ctx, o.gpuLayers, o.threads, o.flashAttn, o.kvType, o.cpuMoe, o.variant, o.role || 'chat', o._bench ? 'bench' : '']);
 
 function loadedList() {
-  return [...instances.values()].map((i) => ({
+  return [...instances.values()].filter((i) => !i.opts._bench).map((i) => ({
     id: i.model.id, name: i.model.name, port: i.port, status: i.status, mode: i.plan && i.plan.mode,
     vramGB: i.plan && i.plan.vramGB, ramGB: i.plan && i.plan.ramGB, lastUsed: i.lastUsed, busy: i.busy, pinned: i.opts.preload === 'always', pid: i.proc && i.proc.pid,
+    ctx: i.plan && i.plan.ctx, auto: i.tuned ? i.tuned.summary : null,
   }));
 }
 function publish(extra = {}) {
@@ -340,15 +348,16 @@ function publish(extra = {}) {
   set({ ...base, ...extra, loaded: loadedList(), energy: energyMode() });
 }
 
-async function launch(meta, model, o, key, pl) {
+async function launch(meta, model, o, key, pl, tuned, safe = false) {
   const port = await freePort();
-  const args = argsFor(model, o, pl, port);
+  const { args, dropped } = argsFor(model, o, pl, port, tuned, safe);
   const binDir = path.dirname(meta.bin);
   const env = binEnv(meta.bin, meta.dir);
   if (!fs.existsSync(model.path)) throw new EngineError('MODEL_FILE', 'The model file is missing (moved or deleted?)', model.path);
 
-  const inst = { key, model, opts: o, plan: pl, port, proc: null, status: 'loading', lastUsed: Date.now(), busy: 0, startedAt: Date.now(), log: [] };
+  const inst = { key, model, opts: o, plan: pl, port, proc: null, status: 'loading', lastUsed: Date.now(), busy: 0, startedAt: Date.now(), log: [], tuned, args, dropped };
   instances.set(key, inst);
+  governor.startWatcher();
   publish({ error: null, errorCode: null });
   const p = spawn(meta.bin, args, { cwd: binDir, env, windowsHide: true });
   inst.proc = p;
@@ -366,6 +375,7 @@ async function launch(meta, model, o, key, pl) {
     exited = true;
     if (instances.get(key) === inst && inst.status === 'ready') { instances.delete(key); publish(); }
   });
+  if (o._signal) o._signal.addEventListener('abort', () => { try { p.kill(); } catch {} }, { once: true });
 
   const t0 = Date.now();
   while (Date.now() - t0 < 300000) {
@@ -378,6 +388,7 @@ async function launch(meta, model, o, key, pl) {
       if (/invalid argument|unknown argument|error: unrecognized/i.test(log)) throw new EngineError('BAD_ARGS', 'The engine rejected an option', tailTxt);
       throw new EngineError('START_FAILED', 'The engine stopped while loading the model', tailTxt || 'Engine exited');
     }
+    if (o._signal && o._signal.aborted) { try { p.kill(); } catch {} instances.delete(key); throw new EngineError('ABORTED', 'Cancelled'); }
     try {
       const r = await fetch(`http://127.0.0.1:${port}/health`);
       if (r.ok) {
@@ -407,24 +418,32 @@ async function stopInstance(inst) {
 }
 
 // Free memory for `need` by unloading least-recently-used idle models.
-async function makeRoom(pl, keepKey) {
-  const specs = await system.getSpecs();
+// The budget (governor) already counts Fabro's other models as free: evict them until the sum fits.
+// A busy model is never evicted: the new load waits for its answer to finish (one heavy job at a time).
+async function makeRoom(pl, keepKey, bud) {
   const multi = (store.getSettings().engine || {}).multiModel !== false;
-  const others = [...instances.values()].filter((i) => i.key !== keepKey);
-  if (!multi) { for (const i of others) await stopInstance(i); return; }
-  const used = () => [...instances.values()].filter((i) => i.key !== keepKey).reduce((a, i) => ({ v: a.v + (i.plan?.vramGB || 0), r: a.r + (i.plan?.ramGB || 0) }), { v: 0, r: 0 });
+  const others = () => [...instances.values()].filter((i) => i.key !== keepKey);
+  const used = () => others().reduce((a, i) => ({ v: a.v + (i.plan?.vramGB || 0), r: a.r + (i.plan?.ramGB || 0) }), { v: 0, r: 0 });
   const over = () => {
+    if (!multi && others().length) return true;
     const u = used();
-    if (specs.unified) return u.v + pl.vramGB > specs.gpuBudgetGB;
-    return u.v + pl.vramGB > (specs.gpuBudgetGB || 0) + 0.01 && pl.vramGB > 0 || u.r + pl.ramGB > specs.ramGB * 0.8;
+    if (bud.unified) return u.v + pl.vramGB > bud.vramGB + 0.05;
+    return (pl.vramGB > 0 && u.v + pl.vramGB > bud.vramGB + 0.05) || u.r + pl.ramGB > bud.ramGB + 0.05;
   };
-  const victims = others.filter((i) => i.busy === 0).sort((a, b) => (a.opts.preload === 'always') - (b.opts.preload === 'always') || a.lastUsed - b.lastUsed);
-  while (over() && victims.length) await stopInstance(victims.shift());
+  const t0 = Date.now();
+  while (over()) {
+    const victims = others().filter((i) => i.busy === 0).sort((a, b) => (a.opts.preload === 'always') - (b.opts.preload === 'always') || a.lastUsed - b.lastUsed);
+    if (victims.length) { await stopInstance(victims[0]); continue; }
+    if (Date.now() - t0 > 10 * 60000) break; // a stuck answer: give up waiting
+    await sleep(500); // everything else is busy answering: wait for it rather than overload the machine
+  }
 }
 
 // Make sure the model is loaded and serving. Returns { port, key }.
 async function ensure(model, overrides = {}) {
   const o = { ...optionsFor(model), ...overrides };
+  if (!o._explicit) o._explicit = { ...explicitFor(model), ...Object.fromEntries(Object.keys(overrides).filter((k) => !k.startsWith('_') && k in DEFAULT_OPTS).map((k) => [k, true])) };
+  if (!o._bench) await yieldBench();
   const key = keyFor(model, o);
   const have = instances.get(key);
   if (have && have.status === 'ready' && have.proc && have.proc.exitCode === null) { have.lastUsed = Date.now(); return have; }
@@ -437,39 +456,48 @@ async function ensure(model, overrides = {}) {
     let meta = await ensureInstalled();
     if (o.variant === 'cpu' && meta.variant !== 'cpu') meta = await install();
     const cpuOnly = meta.variant === 'cpu';
-    const pl = memory.plan(model, o, cpuOnly ? { ...specs, accel: 'cpu', gpuBudgetGB: 0 } : specs);
-    await makeRoom(pl, key);
+    let tuned = await planLaunch(meta, model, o, key, specs);
+    if (tuned.refused) {
+      const pl0 = tuned.plan;
+      const e = new EngineError('NO_ROOM', 'Not enough free memory to load this model without slowing the whole computer down',
+        `needs ~${(specs.unified ? pl0.vramGB : pl0.ramGB + pl0.vramGB).toFixed(1)} GB, ${governorBudgetText(pl0, specs)} (headroom kept for the system). Try a smaller model or a smaller context.`);
+      fail(e); throw e;
+    }
+    let pl = tuned.plan;
+    await makeRoom(pl, key, (await governor.currentBudget(cpuOnly ? { ...specs, accel: 'cpu', gpuBudgetGB: 0, unified: false } : specs, { exceptKey: key })));
     const gpu = !cpuOnly && pl.ngl !== 0;
+    const launch0 = (opts, plan, safe) => launch(meta, model, opts, key, plan, tuned, safe);
     try {
-      const inst = await launch(meta, model, o, key, pl);
+      const inst = await launch0(o, pl);
       if (!meta.verified) { meta.verified = true; await writeMeta(meta); }
       return inst;
     } catch (e1) {
       if (['MODEL_FILE', 'ARCH'].includes(e1.code)) { fail(e1); throw e1; }
       if (e1.code === 'BAD_ARGS') { // older/newer engine without an option: retry with the safest set
-        try { return await launch(meta, model, { ...o, flashAttn: 'auto', kvType: 'f16' }, key, { ...pl, cpuMoe: false }); } catch {}
+        try { return await launch0({ ...o, flashAttn: 'auto', kvType: 'f16' }, { ...pl, cpuMoe: false }, true); } catch {}
       }
       // Out of memory: offload fewer layers, then a smaller context.
       if (e1.code === 'OUT_OF_MEMORY' && gpu) {
         const steps = [Math.floor(pl.layers * 0.6), Math.floor(pl.layers * 0.3), 0].filter((n) => n < (pl.ngl > 900 ? pl.layers + 1 : pl.ngl));
         for (const ngl of steps) {
-          try { return await launch(meta, model, o, key, { ...pl, ngl, cpuMoe: false, mode: ngl ? 'split' : 'cpu' }); } catch (e) { if (e.code !== 'OUT_OF_MEMORY') break; }
+          try { return await launch0(o, { ...pl, ngl, cpuMoe: false, mode: ngl ? 'split' : 'cpu' }); } catch (e) { if (e.code !== 'OUT_OF_MEMORY') break; }
         }
-        if (pl.ctx > 4096) { try { return await launch(meta, model, o, key, { ...pl, ngl: 0, ctx: 4096, cpuMoe: false, mode: 'cpu' }); } catch {} }
+        if (pl.ctx > 4096) { try { return await launch0(o, { ...pl, ngl: 0, ctx: 4096, cpuMoe: false, mode: 'cpu' }); } catch {} }
         fail(e1); throw e1;
       }
       // A freshly updated build that never loaded a model: roll back to the previous one.
       if (!meta.verified && meta.prev && fs.existsSync(meta.prev.bin)) {
         try {
           const back = await rollback(`auto: ${e1.code}`);
-          const inst = await launch(back, model, o, key, pl);
+          tuned = await planLaunch(back, model, o, key, specs);
+          const inst = await launch(back, model, o, key, pl, tuned, true);
           return inst;
         } catch { /* keep going */ }
       }
       // GPU build misbehaves: same build on CPU, then the next build.
       if (gpu) {
-        try { return await launch(meta, model, o, key, { ...pl, ngl: 0, cpuMoe: false, mode: 'cpu' }); } catch { /* next build */ }
-        try { meta = await install({ skip: [meta.build || meta.variant] }); return await launch(meta, model, o, key, memory.plan(model, o, meta.variant === 'cpu' ? { ...specs, accel: 'cpu', gpuBudgetGB: 0 } : specs)); }
+        try { return await launch0(o, { ...pl, ngl: 0, cpuMoe: false, mode: 'cpu' }); } catch { /* next build */ }
+        try { meta = await install({ skip: [meta.build || meta.variant] }); tuned = await planLaunch(meta, model, o, key, specs); return await launch(meta, model, o, key, tuned.plan, tuned); }
         catch (e2) { fail(e2); throw e2; }
       }
       fail(e1); throw e1;
@@ -478,11 +506,12 @@ async function ensure(model, overrides = {}) {
   starting.set(key, promise);
   try { return await promise; } finally { starting.delete(key); }
 }
+function governorBudgetText(pl, specs) { return specs.unified ? `${pl.budgetGB} GB usable` : `${pl.ramBudgetGB} GB RAM / ${pl.budgetGB} GB video memory usable`; }
 function fail(e) { set({ status: 'error', error: e.message, errorCode: e.code || 'UNKNOWN', errorDetail: e.detail || '', loaded: loadedList() }); }
 
 // Request accounting: busy models are never evicted, and idle timers start after the answer.
 function acquire(inst) { inst.busy++; inst.lastUsed = Date.now(); }
-function release(inst) { inst.busy = Math.max(0, inst.busy - 1); inst.lastUsed = Date.now(); publish(); }
+function release(inst) { inst.busy = Math.max(0, inst.busy - 1); inst.lastUsed = Date.now(); publish(); if (!inst.busy) autotune.scheduleIdleCheck(); }
 
 async function stop(id) {
   const list = [...instances.values()].filter((i) => !id || i.model.id === id);
@@ -540,16 +569,98 @@ async function checkUpdate() {
   return { updated: true, version: m.tag, from: meta.tag };
 }
 
+// ───────────────────────────── context resizing (for the growing context window) ─────────────────────────────
+// Relaunches the same model with a bigger (or smaller) context. The conversation lives in the app, not in the
+// server, so nothing is lost: only llama-server's prompt cache is rebuilt on the next request. Waits for the
+// current answer of that model to finish. Returns { ctx, port, key, plan }.
+async function resizeContext(model, newCtx, { timeoutMs = 10 * 60000 } = {}) {
+  const max = await maxContext(model);
+  const ctx = Math.max(512, Math.min(Math.round(newCtx), max.max || newCtx));
+  ctxOverride.set(model.id, ctx);
+  const t0 = Date.now();
+  while ([...instances.values()].some((i) => i.model.id === model.id && i.busy > 0) && Date.now() - t0 < timeoutMs) await sleep(250);
+  const inst = await ensure(model);
+  return { ctx: inst.plan.ctx, port: inst.port, key: inst.key, plan: inst.plan, requested: newCtx, limitedBy: ctx < newCtx ? max.limitedBy : null };
+}
+function resetContext(model) { ctxOverride.delete(model.id); }
+// Largest context this machine can give the model within the governor's headroom:
+// { max, fullGpu (largest with every layer still on the GPU, null without GPU), ctxTrain, current, limitedBy }
+async function maxContext(model) {
+  const specs = await system.getSpecs();
+  const meta = await readMeta();
+  const cpuOnly = !meta || meta.variant === 'cpu';
+  const sp0 = cpuOnly ? { ...specs, accel: 'cpu', gpuBudgetGB: 0, unified: false } : specs;
+  const mine = [...instances.values()].find((i) => i.model.id === model.id && !i.opts._bench);
+  const bud = await governor.currentBudget(sp0, { exceptKey: mine && mine.key });
+  const o = { ...optionsFor(model) };
+  const sp = { ...sp0, gpuBudgetGB: bud.vramGB, ramBudgetGB: bud.ramGB };
+  const shape = memory.shapeOf(model.path) || {};
+  const train = shape.ctxTrain || 131072;
+  const fitsAt = (ctx, needGpu) => {
+    const p = memory.plan(model, { ...o, ctx }, sp);
+    if (needGpu && p.mode !== 'gpu' && p.mode !== 'moe') return false;
+    return sp0.unified ? p.vramGB <= bud.vramGB : p.ramGB <= bud.ramGB && (p.mode === 'cpu' || p.vramGB <= bud.vramGB + 0.05);
+  };
+  const search = (needGpu) => {
+    let lo = 0, hi = Math.floor(train / 256);
+    if (!fitsAt(256, needGpu)) return null;
+    while (lo < hi) { const mid = Math.ceil((lo + hi + 1) / 2); if (fitsAt(mid * 256, needGpu)) lo = mid; else hi = mid - 1; }
+    return lo * 256;
+  };
+  const max = search(false) || 0;
+  const fullGpu = cpuOnly ? null : search(true);
+  return { max, fullGpu, ctxTrain: shape.ctxTrain || null, current: mine ? mine.plan.ctx : null, limitedBy: max >= train ? 'model' : 'memory', budget: { ramGB: bud.ramGB, vramGB: bud.vramGB } };
+}
+
+// ───────────────────────────── autotune hooks ─────────────────────────────
+async function yieldBench() {
+  const st = autotune.status();
+  if (!st.running) return;
+  autotune.cancel();
+  for (let i = 0; i < 100 && autotune.status().running; i++) await sleep(100);
+}
+const benchApi = {
+  // the most recently used local chat model that has no measured profile yet
+  async benchTarget() {
+    const meta = await readMeta(); if (!meta) return null;
+    const specs = await system.getSpecs();
+    const recent = [...instances.values()].filter((i) => !i.opts._bench && !i.opts.role && !i.busy).sort((a, b) => b.lastUsed - a.lastUsed);
+    for (const i of recent) if (!(await autotune.cachedBench(i.model, specs, null, meta))) return { model: i.model };
+    return null;
+  },
+  async benchInfo(model) {
+    const meta = await readMeta(); const specs = await system.getSpecs(); const topo = await system.cpuTopology();
+    const o = { ...optionsFor(model), _explicit: explicitFor(model), _noBench: true };
+    const t = await planLaunch(meta, model, o, 'bench', specs);
+    return { specs, topo, meta, base: t.summary, gpuFull: t.plan.mode === 'gpu' || t.plan.mode === 'moe' };
+  },
+  // launches a throwaway server of `model` with candidate settings (stops the idle copy of the same model first)
+  async benchLaunch(model, cand, signal) {
+    for (const i of [...instances.values()]) if (i.model.path === model.path && !i.busy) { benchApi._was = benchApi._was || i.model; await stopInstance(i); }
+    const inst = await ensure(model, { threads: cand.threads, poll: cand.poll, ctx: cand.ctx, _bench: true, _noBench: true, _signal: signal, preload: 'demand' });
+    return { port: inst.port, stop: () => stopInstance(inst) };
+  },
+  async afterBench(model) {
+    const was = benchApi._was; benchApi._was = null;
+    if (was && governor.isIdle(0)) await ensure(was).catch(() => {}); // back to where the user left it, now tuned
+  },
+};
+
 async function init(emitter) {
   emit = emitter;
+  governor.init({
+    powerMonitor,
+    engine: {
+      instances: () => [...instances.values()].filter((i) => i.status === 'ready').map((i) => ({ key: i.key, model: i.model, plan: i.plan, busy: i.busy, lastUsed: i.lastUsed, pinned: i.opts.preload === 'always', pid: i.proc && i.proc.pid, _inst: i })),
+      unload: (v) => stopInstance(v._inst),
+    },
+  });
+  autotune.init(benchApi);
+  governor.on('energy', () => { for (const i of instances.values()) applyPriority(i); publish(); });
   await fsp.mkdir(root(), { recursive: true });
   const meta = await readMeta();
   if (meta) set({ version: meta.tag, variant: meta.variant, prevVersion: meta.prev ? meta.prev.tag : null });
   setInterval(idleSweep, 30000).unref();
-  try {
-    powerMonitor.on('on-battery', () => { for (const i of instances.values()) applyPriority(i); publish(); });
-    powerMonitor.on('on-ac', () => { for (const i of instances.values()) applyPriority(i); publish(); });
-  } catch {}
 }
 
 function setEnergy() { for (const i of instances.values()) applyPriority(i); publish(); }
@@ -559,4 +670,10 @@ const diagnostics = async () => ({ state: { ...state }, loaded: loadedList(), lo
 const logs = () => logTail.slice();
 function find(id) { return [...instances.values()].find((i) => i.model.id === id && i.status === 'ready') || null; }
 
-module.exports = { init, ensure, acquire, release, stop, install, checkUpdate, rollback, getStatus, diagnostics, logs, preloadAll, setEnergy, optionsFor, find, EngineError };
+// argv of a loaded model (diagnostics / "what was chosen and why")
+function tuning(id) {
+  const i = [...instances.values()].find((x) => x.model.id === id && !x.opts._bench);
+  return i ? { summary: i.tuned && i.tuned.summary, why: i.tuned && i.tuned.why, args: i.args, dropped: i.dropped, plan: i.plan } : null;
+}
+module.exports = { init, ensure, acquire, release, stop, install, checkUpdate, rollback, getStatus, diagnostics, logs, preloadAll, setEnergy, optionsFor, find, EngineError,
+  resizeContext, resetContext, maxContext, tuning, readMeta, instancesList: () => [...instances.values()] };

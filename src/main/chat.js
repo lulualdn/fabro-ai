@@ -430,7 +430,8 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       if (ds) { const sys = msgs.find((m) => m.role === 'system'); if (sys) sys.content = sys.content.replace(/(\n\n# Project: [\s\S]*)?$/, (tail) => `\n\n${ds}${tail || ''}`); else msgs.unshift({ role: 'system', content: ds }); }
     }
     if (!parent && !agentMode && toolSchemas.length) { const sys = msgs.find((m) => m.role === 'system'); const sec = prompts.chatToolsSection(toolSchemas) + (params.voiceMode ? '\n\n' + prompts.VOICE : ''); if (sys) sys.content = sys.content.replace(/(\n\n# Project: [\s\S]*)?$/, (tail) => `\n\n${sec}${tail || ''}`); else msgs.unshift({ role: 'system', content: sec }); }
-    const complete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
+    // governor: one heavy local generation at a time, fair queue (user > sub-agents > background jobs)
+    const complete = require('./governor').gated(be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI, { local: be.kind === 'local' || ['ollama', 'lmstudio'].includes(be.provider && be.provider.kind), priority: parent ? 'sub' : (meta.unattended || /^bg-/.test(reqId)) ? 'bg' : 'user', label: meta.modelLabel || '', signal: ctrl.signal, onWait: (w) => out({ type: 'status', status: w ? 'queued' : 'generating' }) });
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
     const src = { n: 0 };
