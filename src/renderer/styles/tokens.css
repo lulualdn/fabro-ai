@@ -1,0 +1,185 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Fabro design tokens.
+   Every colour, font, size, radius, shadow and motion value the interface uses lives here.
+   Component rules (styles.css, styles/*.css) only read these custom properties, so a theme or a skin
+   is one block that redefines some of them — see docs/v02/design-tokens.md for the full list.
+   Loaded before styles.css.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* ── Surfaces (light: ivory paper, clay sidebar) ── */
+  --bg: #f7f5f0;            /* the page */
+  --panel: #efece5;         /* sidebar, side areas */
+  --elev: #fffefb;          /* raised surfaces: composer, cards, menus, dialogs */
+  --elev-2: #faf8f3;        /* quiet fill inside surfaces: fields, rows */
+  --paper: #ffffff;         /* real "white sheet": documents, web previews, thumbnails */
+  --bubble: #ece8df;        /* the user's messages */
+  --code-bg: #f3f0e9;
+  --code-head: #ebe7de;
+  --scrim: rgba(33, 28, 20, .26);  /* behind dialogs and the phone drawer */
+
+  /* ── Ink ── */
+  --text: #211f1b;
+  --text-2: #4b4740;
+  --muted: #6c675e;         /* AA on --bg, --panel and --elev */
+  --faint: #a29d92;         /* decoration only (never text that must be read) */
+
+  /* ── Lines and fills ── */
+  --border: #e4e0d6;
+  --border-strong: #d2cdc1;
+  --hover: rgba(33, 31, 27, .05);
+  --active: rgba(33, 31, 27, .085);
+  --pressed: rgba(33, 31, 27, .12);
+
+  /* ── Coral ── */
+  --accent: #bf5b30;        /* fills with white text (AA), icons, focus */
+  --accent-hover: #ad4f27;
+  --accent-text: #a94d26;   /* coral words on ivory (AA) */
+  --accent-soft: rgba(207, 106, 60, .12);
+  --accent-line: rgba(191, 91, 48, .38);
+  --accent-ink: #ffffff;    /* text/icons on --accent */
+  --logo: #cf6a3c;          /* the propeller, always the brand coral */
+  --focus: #bf5b30;
+
+  /* ── Status ── */
+  --ok: #2f7d4b; --ok-soft: rgba(47, 125, 75, .12);
+  --warn: #9a6408; --warn-soft: rgba(196, 138, 29, .15);
+  --err: #b8372e; --err-soft: rgba(184, 55, 46, .1);
+  --on-status: #ffffff;     /* text on a filled ok/warn/err */
+  --hl: #ffe9a8; --hl-ink: #211f1b;  /* highlighter mark */
+
+  /* ── Data (charts, meters) ── */
+  --data-1: var(--accent);
+  --data-2: #e2a688;
+  --data-3: #6c7fa8;
+
+  /* ── Code ── */
+  --syn-comment: #8a857a; --syn-keyword: #9b3f84; --syn-string: #3b7637; --syn-number: #a9521d;
+  --syn-title: #2d5fae; --syn-type: #8a6107; --syn-attr: #9d442b; --syn-meta: #5d6b7a;
+  --term-bg: #12161d; --term-fg: #d6dde6; --term-dim: #9fb0c3; --term-line: #232b37;
+
+  /* ── Type ── */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-read: var(--font-ui);     /* message text; a skin may set a serif or a mono here */
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+  --font-mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: var(--font-ui); --serif: var(--font-display); --mono: var(--font-mono);  /* short aliases */
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-ui: 14px;
+  --fs-body: 15px;
+  --fs-read: 16px;          /* messages */
+  --fs-h4: 17px;
+  --fs-h3: 20px;
+  --fs-h2: 26px;
+  --fs-h1: 32px;
+  --fs-display: clamp(30px, 3.6vw, 40px);
+  --lh-tight: 1.25; --lh-ui: 1.45; --lh-read: 1.65;
+  --fw-medium: 500; --fw-strong: 600;
+  --measure: 46rem;         /* reading column (~72 characters at 16px) */
+
+  /* ── Space (4px grid) ── */
+  --sp-0: 2px; --sp-1: 4px; --sp-1h: 6px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-7: 32px; --sp-8: 40px; --sp-9: 56px;
+  --gap: 10px;              /* between the floating panels */
+
+  /* ── Shape ── */
+  --r-xs: 6px; --r-sm: 8px; --r-md: 10px; --r: 12px; --r-lg: 18px; --r-xl: 24px; --r-pill: 999px;
+  --ctl-xs: 26px; --ctl-sm: 30px; --ctl: 34px; --ctl-lg: 42px;  /* control heights */
+  --hit: 32px;              /* minimum hit target (44px on touch screens) */
+  --sb-w: 268px; --measure-composer: var(--measure);
+
+  /* ── Depth: one hairline, a lift for things that float, a deep one for menus and dialogs ── */
+  --shadow-sm: 0 1px 1px rgba(60, 45, 20, .04);
+  --shadow: 0 1px 2px rgba(60, 45, 20, .05), 0 6px 20px -6px rgba(60, 45, 20, .1);
+  --shadow-lg: 0 2px 6px rgba(40, 30, 10, .06), 0 18px 48px -12px rgba(40, 30, 10, .22);
+  --thumb-shadow: 0 8px 22px rgba(40, 30, 20, .18), 0 0 0 1px rgba(0, 0, 0, .05);
+
+  /* ── Texture (off by default; a skin may set a background-image here) ── */
+  --texture: none;
+
+  /* ── Motion ──
+     One language: things answer at once, travel fast, settle softly. Springs are pre-computed linear() curves
+     (critically-ish damped, with initial velocity), so CSS transitions and motion.js use the very same feel. */
+  --dur-press: 110ms;       /* press, hover colour */
+  --dur-1: 160ms;           /* small: fades, chips, toasts out */
+  --dur-2: 240ms;           /* menus, popovers */
+  --dur-3: 360ms;           /* panels: sidebar, side panel, dialogs */
+  --dur-4: 520ms;           /* the one larger moment (greeting) */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+  --ease-inout: cubic-bezier(.65, 0, .35, 1);
+  --ease-spring: cubic-bezier(.2, .9, .25, 1);
+  --ease-bounce: cubic-bezier(.3, 1.3, .5, 1);
+  --ease: var(--ease-out);
+  --spring: var(--ease-bounce);
+  --lift: 6px;              /* how far things travel when they appear */
+
+  color-scheme: light;
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, 0.185, 0.376, 0.547, 0.686, 0.792, 0.87, 0.923, 0.959, 0.981, 0.994, 1.001, 1.005, 1.006, 1.005, 1.005, 1.004, 1.003, 1.002, 1.001, 1.001, 1.001, 1, 1, 1);
+    --ease-bounce: linear(0, 0.196, 0.414, 0.615, 0.78, 0.902, 0.984, 1.032, 1.055, 1.061, 1.056, 1.045, 1.034, 1.022, 1.013, 1.006, 1.001, 0.999, 0.997, 0.997, 0.997, 0.997, 0.998, 0.999, 1);
+  }
+}
+
+/* ── Dark: night blue ── */
+[data-theme="dark"] {
+  --bg: #11151c;
+  --panel: #0d1016;
+  --elev: #1a1f28;
+  --elev-2: #151a22;
+  --paper: #ffffff;
+  --bubble: #222934;
+  --code-bg: #0e1218;
+  --code-head: #161b23;
+  --scrim: rgba(3, 5, 9, .58);
+
+  --text: #f2efe9;
+  --text-2: #c8ced6;
+  --muted: #9aa3af;
+  --faint: #5f6875;
+
+  --border: #252c37;
+  --border-strong: #333b48;
+  --hover: rgba(255, 255, 255, .05);
+  --active: rgba(255, 255, 255, .085);
+  --pressed: rgba(255, 255, 255, .12);
+
+  --accent: #ff6a4d;
+  --accent-hover: #ff8166;
+  --accent-text: #ff8166;
+  --accent-soft: rgba(255, 106, 77, .14);
+  --accent-line: rgba(255, 106, 77, .42);
+  --accent-ink: #14161b;
+  --logo: #ff6a4d;
+  --focus: #ff8166;
+
+  --ok: #3ccf91; --ok-soft: rgba(60, 207, 145, .14);
+  --warn: #f2b24a; --warn-soft: rgba(242, 178, 74, .14);
+  --err: #ff7366; --err-soft: rgba(255, 115, 102, .13);
+  --on-status: #14161b;
+
+  --data-2: #8a4a3d;
+  --data-3: #7d93c4;
+
+  --syn-comment: #8b877e; --syn-keyword: #e08fd2; --syn-string: #9fd18f; --syn-number: #f2a66e;
+  --syn-title: #8ab4f8; --syn-type: #e8c46a; --syn-attr: #f0937a; --syn-meta: #9aa7b4;
+  --term-bg: #0b0e13; --term-line: #1e2530;
+
+  --shadow-sm: 0 1px 1px rgba(0, 0, 0, .25);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -8px rgba(0, 0, 0, .45);
+  --shadow-lg: 0 2px 8px rgba(0, 0, 0, .35), 0 22px 56px -12px rgba(0, 0, 0, .6);
+  color-scheme: dark;
+}
+
+/* Modest computers ("light mode" setting): flatter, shorter. */
+html.light-mode {
+  --shadow: 0 1px 2px rgba(0, 0, 0, .12);
+  --shadow-lg: 0 4px 14px rgba(0, 0, 0, .2);
+  --dur-3: 260ms; --dur-4: 300ms;
+}
+
+/* Touch screens: bigger targets. */
+@media (pointer: coarse) { :root { --hit: 44px; } }
