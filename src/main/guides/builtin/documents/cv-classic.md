@@ -1,10 +1,10 @@
 ---
-name: documents/cv-typographic
-title: CV / résumé — single-column typographic
+name: documents/cv-classic
+title: CV / résumé — classic single column
 when: a CV for most jobs, especially corporate, academic, legal, finance or when applicant tracking systems read it; text-first and very clean
 keywords: cv, resume, curriculum vitae, curriculum, lebenslauf, cv classique, cv simple, cv sobre, ats, cv une colonne, single column, job application, candidature, emploi, stage, alternance
 ---
-# CV / résumé — single-column typographic
+# CV / résumé — classic single column
 
 This approach wins with clarity: one column, strong typographic hierarchy, no sidebar, no skill bars. Recruiters scan it in ten seconds; software can read it.
 

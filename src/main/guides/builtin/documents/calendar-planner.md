@@ -2,7 +2,7 @@
 name: documents/calendar-planner
 title: Calendar / planner
 when: a printable calendar, weekly/monthly planner, timetable, school schedule, revision plan or habit tracker
-keywords: calendar, calendrier, planner, planning, agenda, emploi du temps, timetable, schedule, semainier, weekly planner, monthly planner, planning de revision, revision plan, habit tracker, suivi, to do semaine, programme, calendrier annuel
+keywords: calendar, calendrier, planner, planning, agenda, emploi du temps, timetable, schedule, semainier, weekly planner, monthly planner, planning de revision, revision plan, habit tracker, suivi, to do semaine, programme, calendrier annuel, calendrier de revision, planning de revision bac
 ---
 # Calendar / planner
 

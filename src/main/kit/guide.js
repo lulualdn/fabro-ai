@@ -61,7 +61,7 @@ function score(g, t, tw, medium) {
   for (const k of g.keywords) {
     if (k.includes(' ')) { if ((' ' + tw.join(' ') + ' ').includes(' ' + k + ' ')) s += 4; continue; }
     if (tw.includes(k)) s += 3;
-    else if (k.length >= 5 && tw.some((w) => w.length >= 4 && (w.startsWith(k) || (k.startsWith(w) && w.length >= k.length - 2)))) s += 2;
+    else if (k.length >= 5 && tw.some((w) => w.length >= 4 && ((w.startsWith(k) && w.length - k.length <= 3) || (k.startsWith(w) && w.length >= k.length - 2)))) s += 2;
   }
   if (!s) return 0;
   if (medium) s += g.category === medium ? 3 : g.category === 'technique' ? 0 : -2;
@@ -74,8 +74,9 @@ function pick(text, n = 2) {
   const t = norm(text), tw = words(text);
   const medium = mediumOf(t);
   const ranked = load().map((g) => ({ guide: g, score: score(g, t, tw, medium) })).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
-  const intent = INTENT.test(t) || tw.length <= 10;
-  if (!ranked.length || ranked[0].score < 4 || !intent) {
+  const question = /^\s*(comment|pourquoi|quand|quel|quelle|quels|quelles|qu est|est ce|how|why|what|when|where|which|who|is|are|does|do|can i)\b/.test(t) || /\?\s*$/.test(t);
+  const intent = INTENT.test(t) || (tw.length <= 7 && !question);
+  if (!ranked.length || ranked[0].score < 3 || !intent) {
     if (medium && (intent || /\b(site|pdf|slides|svg)\b/.test(t))) { const d = get(DEFAULT[medium]); return d ? [{ guide: d, score: 1 }] : []; }
     return ranked.length && ranked[0].score >= 7 && intent ? ranked.slice(0, n) : [];
   }

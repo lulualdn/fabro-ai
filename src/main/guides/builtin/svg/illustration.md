@@ -2,7 +2,7 @@
 name: svg/illustration
 title: Illustration
 when: a decorative or narrative illustration in SVG: scene, landscape, character, object, background, spot illustration for a page
-keywords: illustration, illustrer, dessin, drawing, draw, dessine, scene, paysage, landscape, personnage, character, mascotte, mascot, decoration, spot illustration, vector art, art, svg art, image vectorielle, poster art, fond, background
+keywords: illustration, dessin, drawing, scene, paysage, landscape, personnage, character, mascotte, mascot, decoration, spot illustration, vector art, art, svg art, image vectorielle, poster art, fond, background
 ---
 # Illustration
 

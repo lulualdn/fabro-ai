@@ -2,7 +2,7 @@
 name: documents/menu
 title: Menu
 when: a restaurant, café, bar, wine or event menu, or a price list to print
-keywords: menu, carte, carte du restaurant, restaurant menu, carte des vins, wine list, cafe menu, bar menu, cocktails, price list, liste de prix, tarifs, brunch, plats, dishes, boissons, drinks, traiteur
+keywords: menu, carte, carte du restaurant, restaurant menu, carte des vins, wine list, cafe menu, bar menu, cocktails, price list, liste de prix, tarifs, brunch, plats, dishes, boissons, drinks, traiteur, restaurant, italien, pizzeria, bistrot
 ---
 # Menu
 
