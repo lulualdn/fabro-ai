@@ -134,9 +134,11 @@ function codeSection(c) {
 
 function session({ msgs, messages, params = {}, meta = {}, parent = false, be = {}, acc = {}, codeCtx = null, getTools, isAgent }) {
   const st = settings();
-  const ctx = (be.inst && be.inst.plan && be.inst.plan.ctx) || (be.kind === 'local' ? ((st.engine || {}).ctx || 8192) : 128000);
-  const model = { name: be.model || '', ctx, cloud: be.kind === 'provider' && !['ollama', 'lmstudio', 'custom'].includes(be.provider && be.provider.kind), vision: !!params.vision, reasoning: params.reasoning || '' };
-  if (be.kind === 'provider' && !model.cloud) model.size = signals.sizeClass({ name: be.model }); // local servers (Ollama, LM Studio…)
+  // Local servers behind a provider (Ollama, LM Studio, a custom OpenAI-compatible URL) don't tell their context
+  // size: assume a small one (8k), the safe side for the prompt budget.
+  const localServer = be.kind === 'provider' && ['ollama', 'lmstudio', 'custom'].includes(be.provider && be.provider.kind) && /^https?:\/\/(127\.|localhost|0\.0\.0\.0|192\.168\.|10\.)/.test(String(be.base || ''));
+  const ctx = (be.inst && be.inst.plan && be.inst.plan.ctx) || (be.kind === 'local' ? ((st.engine || {}).ctx || 8192) : localServer ? (Number(process.env.FABRO_CTX_HINT) || 8192) : 128000);
+  const model = { name: be.model || '', ctx, cloud: be.kind === 'provider' && !localServer, vision: !!params.vision, reasoning: params.reasoning || '' };
   const txt = signals.textOf;
   const lastArtifact = (() => { const last = (messages || []).filter((m) => m.role === 'assistant').map(txt).reverse().find((t) => /<artifact\b/i.test(t)); const m = last && last.match(/<artifact\b[^>]*type\s*=\s*"([^"]*)"[^>]*?(?:title\s*=\s*"([^"]*)")?/i); return m ? `${m[2] || ''} ${({ html: 'site', document: 'pdf', slides: 'slides', svg: 'svg' })[String(m[1]).toLowerCase()] || ''}` : ''; })();
   // chat mode: the renderer's system message; agent mode: its user-context text (legacy callers)

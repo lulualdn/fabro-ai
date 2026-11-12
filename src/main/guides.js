@@ -69,7 +69,8 @@ function score(g, text) {
   const q = String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const qw = new Set(words(q));
   let s = 0;
-  for (const k of g.keywords || []) { const kk = k.normalize('NFD').replace(/[̀-ͯ]/g, ''); if (kk && (kk.includes(' ') ? q.includes(kk) : qw.has(kk))) s += 3; }
+  const near = (k) => { if (qw.has(k)) return true; if (k.length < 4) return false; const p = k.slice(0, Math.min(5, k.length)); for (const w of qw) if (w.length >= 4 && (w.startsWith(p) || k.startsWith(w.slice(0, 5)))) return true; return false; };
+  for (const k of g.keywords || []) { const kk = k.normalize('NFD').replace(/[̀-ͯ]/g, ''); if (kk && (kk.includes(' ') ? q.includes(kk) : near(kk))) s += 3; }
   for (const w of words(g.title)) if (qw.has(w)) s += 1.5;
   for (const w of words(g.when)) if (qw.has(w)) s += 0.5;
   if (g.source === 'user') s += 0.5; // learned on this machine: worth more than generic advice
