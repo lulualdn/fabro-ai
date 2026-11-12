@@ -6,7 +6,7 @@ const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 let db = null;
-const file = () => path.join(app.getPath('userData'), 'fabro.db');
+const file = () => path.join(require('./paths').dataDir(), 'fabro.db');
 
 function init() {
   if (db) return db;
@@ -142,7 +142,7 @@ function deleteArtifact(id) { q('DELETE FROM artifacts WHERE id = ?').run(id); r
 function migrateJson() {
   const done = db.prepare("SELECT v FROM meta WHERE k = 'json_imported'").get();
   if (done) return;
-  const dir = path.join(app.getPath('userData'), 'conversations');
+  const dir = path.join(require('./paths').dataDir(), 'conversations');
   let n = 0;
   if (fs.existsSync(dir)) {
     for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {

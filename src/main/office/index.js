@@ -179,7 +179,7 @@ function previewOf(buf, ext, title) {
   if (kind === 'sheet') return JSON.stringify(m, null, 1);
   return kind === 'document' ? docToHtml(m, title) : deckToHtml(m, title);
 }
-const pkgDir = (id) => { const d = path.join(require('electron').app.getPath('userData'), 'office', id); fs.mkdirSync(d, { recursive: true }); return d; };
+const pkgDir = (id) => { const d = path.join(require('../paths').dataDir(), 'office', id); fs.mkdirSync(d, { recursive: true }); return d; };
 function storePkg(id, n, ext, buf) { const name = `v${n}.${ext}`; fs.writeFileSync(path.join(pkgDir(id), name), buf); return name; }
 function loadPkg(art, v = null) { const ver = art.versions[v ?? art.versions.length - 1]; if (!ver || !ver.pkg || !art.office) return null; try { return fs.readFileSync(path.join(pkgDir(art.id), ver.pkg)); } catch { return null; } }
 // Code and text files become code/markdown/html artifacts; documents keep their original file.

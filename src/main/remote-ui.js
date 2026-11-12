@@ -145,7 +145,7 @@ function tee(wc) {
 // Fabro's own folders. 25 MB max per file.
 function roots() {
   const store = require('./store'); const s = store.getSettings();
-  const out = [path.join(os.homedir(), 'Documents', 'Fabro'), app.getPath('userData'), os.tmpdir()];
+  const out = [require('./paths').outputDir(), require('./paths').dataDir(), os.tmpdir()];
   for (const f of ((s.agent || {}).folders || [])) out.push(typeof f === 'string' ? f : f && f.path);
   return out.filter(Boolean).map((p) => path.resolve(p));
 }

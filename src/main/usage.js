@@ -3,7 +3,7 @@ const { app } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
-const file = () => path.join(app.getPath('userData'), 'usage.json');
+const file = () => path.join(require('./paths').dataDir(), 'usage.json');
 let data = null, timer = null;
 
 function load() {

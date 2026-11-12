@@ -12,8 +12,8 @@ const web = require('./webapps');
 const browserImport = require('./browser-import');
 
 const BUILTIN = path.join(__dirname, '..', 'mods');
-const userDir = () => path.join(app.getPath('userData'), 'mods');
-const dataRoot = () => path.join(app.getPath('userData'), 'mod-data');
+const userDir = () => path.join(require('./paths').dataDir(), 'mods');
+const dataRoot = () => path.join(require('./paths').dataDir(), 'mod-data');
 const ms = () => store.getSettings().mods || {};
 const active = new Map(); // id -> { exports, fabro, handlers, cleanups }
 let getWin = () => null, getQuick = () => null;
@@ -55,7 +55,7 @@ function emit(id, type, data) {
 function fabroFor(m) {
   const handlers = new Map(); const cleanups = [];
   const dataDir = path.join(dataRoot(), m.id);
-  const partition = 'persist:mod-' + m.id;
+  const partition = require('./paths').partition('mod-' + m.id); // per account
   const vid = (k) => m.id + (k ? ':' + k : '');
   const api = {
     id: m.id, manifest: m, dir: m.dir, dataDir, partition,

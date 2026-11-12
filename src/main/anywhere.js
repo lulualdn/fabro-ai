@@ -15,7 +15,7 @@ const remoteUi = require('./remote-ui');
 
 const SITE = 'https://fabro.ufstudios.eu';
 const APP_URL = `${SITE}/app/`;
-const file = () => path.join(app.getPath('userData'), 'anywhere.json');
+const file = () => path.join(require('./paths').dataDir(), 'anywhere.json');
 const cfg = () => store.getSettings().anywhere || {};
 
 let data = null;          // { identity: { jwk }, vapid, devices: [...], tombstones: [...] }

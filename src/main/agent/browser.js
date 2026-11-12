@@ -45,7 +45,7 @@ function setupSession(ses) {
 }
 
 function newTab(url, focus = true) {
-  const view = new WebContentsView({ webPreferences: { partition: 'persist:fabro-browser', sandbox: true, contextIsolation: true, nodeIntegration: false } });
+  const view = new WebContentsView({ webPreferences: { partition: require('../paths').partition('fabro-browser'), sandbox: true, contextIsolation: true, nodeIntegration: false } });
   view.setBackgroundColor('#ffffff');
   host.contentView.addChildView(view);
   view.setVisible(false);

@@ -8,7 +8,7 @@ const store = require('./store');
 const agent = require('./agent');
 
 let tasks = []; let emit = () => {}; let timer = null; const running = new Set();
-const file = () => path.join(app.getPath('userData'), 'tasks.json');
+const file = () => path.join(require('./paths').dataDir(), 'tasks.json');
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const save = () => { try { fs.writeFileSync(file(), JSON.stringify(tasks, null, 1)); } catch {} emit('tasks:event', { type: 'changed' }); };
 const DAYS = { sun: 0, sunday: 0, dim: 0, dimanche: 0, mon: 1, monday: 1, lun: 1, lundi: 1, tue: 2, tuesday: 2, mar: 2, mardi: 2, wed: 3, wednesday: 3, mer: 3, mercredi: 3, thu: 4, thursday: 4, jeu: 4, jeudi: 4, fri: 5, friday: 5, ven: 5, vendredi: 5, sat: 6, saturday: 6, sam: 6, samedi: 6 };

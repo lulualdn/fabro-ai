@@ -259,7 +259,7 @@ async function install(onProgress = () => {}) {
 
 // ───────────────────────────── checkpoints (undo an agent turn) ─────────────────────────────
 // For each conversation: the content of every file before the agent first touched it, per turn.
-const cpDir = () => path.join(app.getPath('userData'), 'checkpoints');
+const cpDir = () => path.join(require('./paths').dataDir(), 'checkpoints');
 const cpFile = (convId) => path.join(cpDir(), String(convId).replace(/[^a-z0-9_-]/gi, '_') + '.json');
 function loadCp(convId) { try { return JSON.parse(fs.readFileSync(cpFile(convId), 'utf8')); } catch { return { turns: [] }; } }
 function saveCp(convId, data) { fs.mkdirSync(cpDir(), { recursive: true }); fs.writeFileSync(cpFile(convId), JSON.stringify(data)); }

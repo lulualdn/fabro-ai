@@ -1,5 +1,6 @@
-// Persistent settings + conversations (JSON files in userData).
-const { app } = require('electron');
+// Persistent settings + conversations (JSON files in the open account's folder, see paths.js).
+// A few settings describe the computer rather than the person (the engine, where model files live, per-model
+// tuning, downloads, updates): they are kept once for every account in <userData>/machine.json.
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
@@ -39,10 +40,16 @@ const DEFAULTS = {
   skills: { disabled: [], extraDirs: [] },
 };
 
-const dir = () => app.getPath('userData');
+const paths = require('./paths');
+const dir = () => paths.dataDir();
 const convDir = () => path.join(dir(), 'conversations');
 const settingsFile = () => path.join(dir(), 'settings.json');
+const machineFile = () => path.join(paths.sharedDir(), 'machine.json');
+// Machine-wide keys: one value for every account on this computer.
+const SHARED_KEYS = ['engine', 'modelProfiles', 'libraries', 'defaultLibrary', 'downloads', 'autoUpdate', 'firstModel'];
 let settings = null;
+const pick = (o, keys) => Object.fromEntries(Object.entries(o || {}).filter(([k]) => keys.includes(k)));
+const omit = (o, keys) => Object.fromEntries(Object.entries(o || {}).filter(([k]) => !keys.includes(k)));
 
 function isObj(v) { return v && typeof v === 'object' && !Array.isArray(v); }
 const ATOMIC = new Set(['selectedModel']); // replaced as a whole, never deep-merged
@@ -75,16 +82,24 @@ function init() {
   // Settings survive updates: a copy is kept beside them and used if the file is missing or damaged.
   const bak = settingsFile() + '.bak';
   const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
-  try { settings = merge(DEFAULTS, read(settingsFile())); try { fs.copyFileSync(settingsFile(), bak); } catch {} }
-  catch { try { settings = merge(DEFAULTS, read(bak)); fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2)); } catch { settings = merge(DEFAULTS, {}); } }
+  let own;
+  try { own = read(settingsFile()); try { fs.copyFileSync(settingsFile(), bak); } catch {} }
+  catch { try { own = read(bak); fs.writeFileSync(settingsFile(), JSON.stringify(own, null, 2)); } catch { own = {}; } }
+  // machine.json is made once from the first settings file that had those keys (a pre-accounts install)
+  let machine = null;
+  try { machine = read(machineFile()); } catch { /* first start with accounts */ }
+  if (!machine) { machine = pick(own, SHARED_KEYS); try { fs.writeFileSync(machineFile(), JSON.stringify(machine, null, 2)); } catch {} }
+  settings = merge(DEFAULTS, { ...omit(own, SHARED_KEYS), ...machine });
   // Public release: developer mode is turned off once for everyone (it can be turned back on in Settings).
-  if (!settings.devModeReleased) { settings.devMode = false; settings.devModeReleased = true; try { fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2)); } catch {} }
+  if (!settings.devModeReleased) { settings.devMode = false; settings.devModeReleased = true; try { fs.writeFileSync(settingsFile(), JSON.stringify(omit(settings, SHARED_KEYS), null, 2)); } catch {} }
 }
 
 const getSettings = () => settings;
 async function setSettings(patch) {
   settings = merge(settings, patch);
-  await writeJSON(settingsFile(), settings);
+  const writes = [writeJSON(settingsFile(), omit(settings, SHARED_KEYS))];
+  if (Object.keys(patch || {}).some((k) => SHARED_KEYS.includes(k))) writes.push(writeJSON(machineFile(), pick(settings, SHARED_KEYS)));
+  await Promise.all(writes);
   return settings;
 }
 
@@ -125,4 +140,4 @@ async function deleteConversation(id) {
   return true;
 }
 
-module.exports = { init, getSettings, setSettings, listConversations, getConversation, saveConversation, patchConversation, deleteConversation, writeJSON };
+module.exports = { SHARED_KEYS, init, getSettings, setSettings, listConversations, getConversation, saveConversation, patchConversation, deleteConversation, writeJSON };

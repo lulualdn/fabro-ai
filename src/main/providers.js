@@ -50,7 +50,7 @@ function freeEntry() {
 }
 
 // ───────────────────────────── secrets ─────────────────────────────
-const secretsFile = () => path.join(app.getPath('userData'), 'secrets.json');
+const secretsFile = () => path.join(require('./paths').dataDir(), 'secrets.json');
 let secrets = null;
 function loadSecrets() {
   if (secrets) return secrets;

@@ -9,7 +9,7 @@ const agent = require('./index');
 
 function dirs() {
   const s = store.getSettings().skills || {};
-  return [...new Set([path.join(app.getPath('userData'), 'skills'), path.join(os.homedir(), '.claude', 'skills'), path.join(os.homedir(), '.fabro', 'skills'), ...(s.extraDirs || [])])];
+  return [...new Set([path.join(require('../paths').dataDir(), 'skills'), path.join(os.homedir(), '.claude', 'skills'), path.join(os.homedir(), '.fabro', 'skills'), ...(s.extraDirs || [])])];
 }
 function parseFront(md) {
   const m = String(md).match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
@@ -31,7 +31,7 @@ function scan() {
         const { meta } = parseFront(fs.readFileSync(file, 'utf8'));
         const name = meta.name || e.name;
         if (out.some((s) => s.name === name)) continue;
-        out.push({ name, description: (meta.description || '').slice(0, 400), dir: path.join(d, e.name), file, source: d.includes('.claude') ? 'claude' : d.includes(app.getPath('userData')) ? 'fabro' : 'folder', enabled: !off.has(name) });
+        out.push({ name, description: (meta.description || '').slice(0, 400), dir: path.join(d, e.name), file, source: d.includes('.claude') ? 'claude' : d.includes(require('../paths').dataDir()) ? 'fabro' : 'folder', enabled: !off.has(name) });
       } catch {}
     }
   }
@@ -74,7 +74,7 @@ async function setEnabled(name, on) {
 }
 function create(name, description, body) {
   const safe = String(name).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'skill';
-  const d = path.join(app.getPath('userData'), 'skills', safe);
+  const d = path.join(require('../paths').dataDir(), 'skills', safe);
   fs.mkdirSync(d, { recursive: true });
   fs.writeFileSync(path.join(d, 'SKILL.md'), `---\nname: ${safe}\ndescription: ${String(description || '').replace(/\n/g, ' ')}\n---\n\n${body || ''}\n`);
   cache = null; return list();

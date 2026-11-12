@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const kit = require('./index');
 
-const dir = () => path.join(app.getPath('userData'), 'thumbs');
+const dir = () => path.join(require('../paths').dataDir(), 'thumbs');
 const fileOf = (id, v) => path.join(dir(), `${String(id).replace(/[^\w-]/g, '_')}-${v}.jpg`);
 const pending = new Map();
 // at most two pictures rendered at once (an Artifacts page can ask for dozens)
