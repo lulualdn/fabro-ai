@@ -504,7 +504,10 @@ async function ensure(model, overrides = {}) {
     }
   })();
   starting.set(key, promise);
-  try { return await promise; } finally { starting.delete(key); }
+  let inst;
+  try { inst = await promise; } finally { starting.delete(key); }
+  if (!o.role && !o._bench) setTimeout(() => require('./storage').check(model).catch(() => {}), 1500); // slow disk? (once per model)
+  return inst;
 }
 function governorBudgetText(pl, specs) { return specs.unified ? `${pl.budgetGB} GB usable` : `${pl.ramBudgetGB} GB RAM / ${pl.budgetGB} GB video memory usable`; }
 function fail(e) { set({ status: 'error', error: e.message, errorCode: e.code || 'UNKNOWN', errorDetail: e.detail || '', loaded: loadedList() }); }

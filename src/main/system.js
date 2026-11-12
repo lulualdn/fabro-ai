@@ -153,6 +153,7 @@ function getSpecs() {
 async function buildSpecs() {
   const cpus = os.cpus();
   const ramGB = +(os.totalmem() / 2 ** 30).toFixed(1);
+  const topoP0 = cpuTopology().catch(() => null); // in parallel with the GPU queries
   const gpus = await detectGpus();
   const appleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
   // A GPU only helps with enough video memory: tiny or integrated GPUs run on the CPU.
@@ -176,7 +177,7 @@ async function buildSpecs() {
     platform: process.platform,
     arch: process.arch,
     os: `${os.type()} ${os.release()}`,
-    cpu: { model: (cpus[0] && cpus[0].model.trim()) || 'CPU', threads: cpus.length, ...(await cpuTopology().then((t) => ({ physical: t.physical, perf: t.perf, eff: t.eff, hybrid: t.hybrid })).catch(() => ({}))) },
+    cpu: { model: (cpus[0] && cpus[0].model.trim()) || 'CPU', threads: cpus.length, ...(await topoP0.then((t) => (t ? { physical: t.physical, perf: t.perf, eff: t.eff, hybrid: t.hybrid } : {}))) },
     ramGB,
     gpus,
     accel,

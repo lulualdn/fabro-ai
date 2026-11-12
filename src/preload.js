@@ -71,8 +71,9 @@ contextBridge.exposeInMainWorld('api', {
     browsers: i('mods:browsers'), importCookies: i('mods:importCookies'),
   },
   link: { ready: i('link:ready') },
+  resources: { overview: i('resources:overview'), disk: i('resources:disk'), clearCaches: i('resources:clearCaches'), subscribe: i('resources:subscribe'), unsubscribe: i('resources:unsubscribe'), history: i('resources:history'), tips: i('resources:tips'), action: i('resources:action'), maxContext: i('resources:maxContext'), autotune: i('resources:autotune'), autotuneCancel: i('resources:autotuneCancel'), storageAdvice: i('storage:advice'), storageRefuse: i('storage:refuse'), storageClassify: i('storage:classify') },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command', 'resources:sample', 'resources:pressure', 'resources:queue', 'storage:advice'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);
