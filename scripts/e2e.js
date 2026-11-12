@@ -156,6 +156,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   assert.ok(ob.s.onboarded && ob.s.aiName === 'Nova' && ob.s.activeStyle === 'concise' && ob.s.useFor.includes('code'), 'onboarding saved');
   assert.match(ob.sys, /named you "Nova"/);
   await win.evaluate(() => saveSettings({ activeStyle: 'default', aiName: '', useFor: [] }));
+  if (process.env.THEME) await win.evaluate((th) => applySetting('theme', th), process.env.THEME); // onboarding picked a theme: keep the one asked for
 
   // Providers tab
   await win.keyboard.press('Control+,');

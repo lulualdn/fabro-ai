@@ -298,7 +298,7 @@ function renderTopbar() {
     : S.mode === 'code' ? (S.cx.root ? `${S.cx.info ? S.cx.info.name : ''}${S.conv && S.conv.messages.length ? ' · ' + (S.conv.title || t('untitled')) : ''}` : t('mode_code')) : t('nav_' + S.mode);
   $('#topbar').innerHTML = `
     <div class="tb-left">
-      ${compact() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}" aria-label="${esc(t('expandSidebar'))}">${icon('panel', 20)}</button>` : ''}
+      ${compact() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}" aria-label="${esc(t('expandSidebar'))}">${icon('panel', 20)}</button>` : sbHidden() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}" aria-label="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
       <span class="tb-title">${esc(title)}</span>
       ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="chip agent-chip" data-action="open-workspace" title="${esc(t('ws_title'))}">${icon('agent', 13)} ${esc(t('agentBadge'))}</button>` : ''}
       ${S.mode === 'chat' && S.conv && S.conv.project ? `<button class="chip prj-chip" data-action="open-project" data-id="${esc(S.conv.project)}">${icon('folder', 13)} ${esc(((S.prj.list || []).find((p) => p.id === S.conv.project) || S.prj.current || {}).name || t('nav_projects'))}</button>` : ''}
@@ -307,7 +307,6 @@ function renderTopbar() {
     <div class="tb-right">
       ${S.updater.state === 'ready' ? `<button class="chip accent upd-chip" data-action="upd-open">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
       ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="icon-btn ${S.spOpen !== false ? 'on' : ''}" data-action="sp-toggle" title="${esc(t('sp_title'))}">${icon('plan', 18)}</button>` : ''}
-      ${sbHidden() && !compact() ? `<button class="icon-btn" data-action="toggle-sidebar" title="${esc(t('expandSidebar'))}">${icon('panel', 19)}</button>` : ''}
       ${compact() && S.mode === 'chat' && S.conv ? `<button class="icon-btn" data-action="new-chat" title="${esc(t('newChat'))}" aria-label="${esc(t('newChat'))}">${icon('edit', 19)}</button>` : ''}
     </div>`;
   if (typeof renderSessionPanel === 'function') renderSessionPanel();
@@ -755,9 +754,11 @@ function renderViewer() {
   if (!S.viewer) S.sbForce = false;
   if ($('#app').classList.contains('sb-collapsed') !== sbHidden()) { renderSidebar(); renderTopbar(); }
   $('#app').classList.toggle('with-viewer', !!S.viewer);
-  $('#app').classList.toggle('wide-viewer', !!S.viewer && ['artifact', 'htmlpreview', 'agent', 'codefile'].includes(S.viewer.type));
+  if (S.viewer) $('#app').classList.toggle('wide-viewer', ['artifact', 'htmlpreview', 'agent', 'codefile'].includes(S.viewer.type)); // kept while closing: the panel slides out at its own width
   if (!S.viewer || S.viewer.type !== 'agent') setTimeout(() => typeof syncBrowser === 'function' && syncBrowser(), 0);
-  if (!S.viewer) { el.innerHTML = ''; return; }
+  // closing: the panel slides out with its content, emptied once it is gone
+  if (!S.viewer) { clearTimeout(renderViewer._t); renderViewer._t = setTimeout(() => { if (!S.viewer) el.innerHTML = ''; }, 420); el.setAttribute('aria-hidden', 'true'); el.inert = true; return; }
+  clearTimeout(renderViewer._t); el.removeAttribute('aria-hidden'); el.inert = false;
   const v = S.viewer;
   if (v.type === 'agent') { el.innerHTML = workspaceView(); afterViewerRender(); return; }
   if (v.type === 'codefile') { el.innerHTML = codeFileView(); afterCodeFile(); return; }
@@ -1152,7 +1153,10 @@ const actions = {
   'toggle-sidebar': async () => {
     if (compact()) S.drawer = !S.drawer; // phone: open / close the drawer
     else if (sbAuto() && !S.settings.sidebarCollapsed) S.sbForce = !S.sbForce; // auto-hidden in Code mode: just show it for now
-    else await saveSettings({ sidebarCollapsed: !S.settings.sidebarCollapsed });
+    else { // optimistic: the panel moves on the click, the setting is saved behind it (fast toggles stay in step)
+      const v = S._sbWant = !S.settings.sidebarCollapsed; S.settings.sidebarCollapsed = v;
+      saveSettings({ sidebarCollapsed: v }).then(() => { S.settings.sidebarCollapsed = S._sbWant; }).catch(() => {});
+    }
     renderSidebar(); renderTopbar();
   },
   'new-chat': newChat,
