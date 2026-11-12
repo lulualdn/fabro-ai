@@ -135,7 +135,7 @@ function switchTo(id) {
 function lock() { const reg = registry.get(); reg.switchTo = null; reg.lockNext = true; registry.save(); return relaunch(); }
 
 // ───────────────────────────── picker window ─────────────────────────────
-function showPicker(preselect) {
+function showPicker(preselect, direct) {
   const dark = nativeTheme.shouldUseDarkColors;
   picker = new BrowserWindow({
     width: 980, height: 680, minWidth: 560, minHeight: 480, show: false, title: 'Fabro',
@@ -143,7 +143,7 @@ function showPicker(preselect) {
     ...(isMac ? { trafficLightPosition: { x: 24, y: 25 } } : { titleBarOverlay: { color: dark ? '#12161d' : '#f6f5f1', symbolColor: dark ? '#c9cfd6' : '#3b3934', height: 44 } }),
     webPreferences: { preload: path.join(__dirname, '..', '..', 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  picker.loadFile(path.join(__dirname, '..', '..', 'renderer', 'accounts.html'), { query: preselect ? { pick: preselect } : {} });
+  picker.loadFile(path.join(__dirname, '..', '..', 'renderer', 'accounts.html'), { query: preselect ? { pick: preselect, direct: direct ? '1' : '0' } : {} });
   picker.once('ready-to-show', () => picker && picker.show());
   picker.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   picker.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -192,7 +192,7 @@ async function boot({ hidden = false } = {}) {
   }
   state.phase = 'pick';
   const opened = new Promise((r) => { resolveOpen = r; });
-  showPicker((target || last || {}).id);
+  showPicker((target || last || {}).id, !!target);
   return opened;
 }
 
