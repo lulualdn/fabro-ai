@@ -31,10 +31,13 @@ function artHtml(url) {
     if (a && a.type === 'svg') html = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100vh}</style>${html}`;
   }
   if (!/<html|<!doctype/i.test(html)) html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${html}</body></html>`;
-  // the Fabro Kit (design system) for pages that use it; documents are A4 sheets, HTML slides a 16:9 deck
+  // pages written for the old Fabro Kit get it (as before); plain pages only get print/viewer plumbing (kit/runtime.js)
   const a = u.hostname !== 'preview' ? db.getArtifact(u.hostname) : null;
-  const mode = a && a.type === 'document' ? 'doc' : a && a.type === 'slides' ? 'deck' : null;
-  try { html = require('./kit').inject(html, { mode, force: !!mode }); } catch {}
+  try {
+    if (a && a.type === 'sheet') return html;
+    const v = a ? Math.max(0, Math.min(a.versions.length - 1, +(u.searchParams.get('v') ?? a.versions.length - 1))) : null;
+    html = require('./kit/runtime').page(html, a ? { art: a, v, type: a.type } : { legacy: false });
+  } catch {}
   return html;
 }
 function handleProtocol() {
@@ -46,10 +49,15 @@ function handleProtocol() {
 function setPreview(html) { const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); previews.set(token, String(html)); if (previews.size > 30) previews.delete(previews.keys().next().value); return `fabro-art://preview/${token}`; }
 
 // ───────────────────────────── PDF ─────────────────────────────
-async function toPdf(html, { landscape = false } = {}) {
+// legacy: the page was written for the old Fabro Kit (from the artifact version); plain pages print with their own @page.
+async function toPdf(html, { landscape = false, legacy = null, type = null } = {}) {
   const kit = require('./kit');
-  const usesKit = kit.usesKit(html) || /id=["']fabro-kit["']/.test(html);
-  if (usesKit) html = kit.inject(html); else html = kit.resolveImgs(html);
+  const old = legacy != null ? legacy : (/id=["']fabro-kit["']/.test(html) || /<body[^>]*(class\s*=\s*["'][^"']*\b(doc|deck)\b|data-theme\s*=)/i.test(html));
+  const plain = !old && /^(html|document|slides|svg)$/.test(String(type || ''));
+  const usesKit = old && (kit.usesKit(html) || /id=["']fabro-kit["']/.test(html));
+  if (usesKit) html = kit.inject(html);
+  else if (plain) html = require('./kit/runtime').page(html, { legacy: false, type });
+  else html = kit.resolveImgs(html);
   const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: true, offscreen: false } });
   try {
     const tmp = require('path').join(require('os').tmpdir(), `fabro-pdf-${process.pid}-${Date.now().toString(36)}.html`);
@@ -58,7 +66,7 @@ async function toPdf(html, { landscape = false } = {}) {
     await w.webContents.executeJavaScript('Promise.race([Promise.resolve(window.fabroKitReady || (document.fonts ? document.fonts.ready : true)), new Promise((r) => setTimeout(r, 8000))])', true).catch(() => {});
     await new Promise((r) => setTimeout(r, 300)); // fonts / images
     // Fabro Kit pages carry their own page size (A4 sheets, 16:9 slides): let CSS decide
-    if (usesKit) return await w.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } });
+    if (usesKit || (plain && type !== 'html')) return await w.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } });
     return await w.webContents.printToPDF({ landscape, printBackground: true, margins: { marginType: landscape ? 'none' : 'default' }, pageSize: landscape ? { width: 13.333, height: 7.5 } : 'A4' });
   } finally { w.destroy(); }
 }
@@ -122,15 +130,17 @@ function toDocx(blocks) {
 
 // ───────────────────────────── save dialog ─────────────────────────────
 const FILTERS = { pdf: ['PDF', 'pdf'], docx: ['Word', 'docx'], md: ['Markdown', 'md'], html: ['HTML', 'html'], svg: ['SVG', 'svg'], txt: ['Text', 'txt'] };
-async function save(win, { name, format, content, html, blocks, landscape, ext }) {
+async function save(win, { name, format, content, html, blocks, landscape, ext, artId, v }) {
+  const art = artId ? db.getArtifact(artId) : null; // which page system the exported version was written for
+  const legacy = art ? require('./kit/legacy').legacyArt(art, v) : null;
   const f = FILTERS[format] || [String(ext || format).toUpperCase(), ext || format];
   const safe = String(name || 'Fabro').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'Fabro';
   const r = await dialog.showSaveDialog(win, { defaultPath: `${safe}.${f[1]}`, filters: [{ name: f[0], extensions: [f[1]] }] });
   if (r.canceled || !r.filePath) return null;
   let data;
-  if (format === 'pdf') data = await toPdf(html, { landscape });
+  if (format === 'pdf') data = await toPdf(html, { landscape, legacy, type: art && art.type });
   else if (format === 'docx') data = toDocx(blocks || []);
-  else if (format === 'html') data = Buffer.from(require('./kit').inject(String(content ?? '')), 'utf8'); // a standalone page: the kit goes inside
+  else if (format === 'html') data = Buffer.from(legacy === false || (art && !legacy) ? require('./kit/runtime').page(String(content ?? ''), { legacy: false, type: art && art.type }) : require('./kit').inject(String(content ?? '')), 'utf8'); // a standalone page: everything it needs goes inside
   else data = Buffer.from(String(content ?? ''), 'utf8');
   fs.writeFileSync(r.filePath, data);
   return r.filePath;
