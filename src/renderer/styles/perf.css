@@ -1,0 +1,8 @@
+/* v0.2 perf: long conversations don't keep every message laid out and painted.
+   Off-screen messages skip layout/paint (their last size is remembered); the two last ones stay live. */
+.thread > .msg:not(:nth-last-child(-n+2)) { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+/* Hidden window (tray / minimised): no animation keeps running in the background. */
+html.fabro-hidden *, html.fabro-hidden *::before, html.fabro-hidden *::after { animation-play-state: paused !important; }
+/* the slow-disk notice reuses .toast; only its two buttons need a little room */
+.toast.perf-advice { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: 520px; }
+.toast.perf-advice .pa-acts { display: flex; gap: 6px; margin-left: auto; }

@@ -105,6 +105,7 @@ const langName = (l) => LANG_NAMES[(l || '').toLowerCase()] || (l ? l[0].toUpper
 let MD_CTX = { prefix: 'x', n: 0 };
 
 function highlight(code, lang) {
+  if (typeof SR_NOHL !== 'undefined' && SR_NOHL) return esc(code); // streaming: highlighted on idle (stream-render.js)
   try {
     if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
     if (code.length < 20000) return hljs.highlightAuto(code).value;
@@ -527,7 +528,7 @@ function assistantBody(m) {
   if (m.pending && m.artCheck && m.artCheck.status === 'fixing') html += `<div class="art-checkline">${spinner(16)}<span>${esc(t('artFixingN', { n: m.artCheck.count || 1 }))}</span></div>`;
   if (m.content) { MD_CITES = sourceMap(m); try { html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content, m.id)}</div>`) + citedSources(m); } finally { MD_CITES = null; } }
   else if (m.pending && !m.reasoning && !(m.steps || []).length) {
-    const st = m.status === 'loading' ? t('loadingModel') : '';
+    const st = m.status === 'loading' ? t('loadingModel') : m.status === 'queued' ? t('perf_queued') : '';
     html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
   }
   if (m.error) html += errorCard({ code: m.errorCode || (m.error === 'NO_MODEL' ? 'NO_MODEL' : 'UNKNOWN'), message: m.error, detail: m.errorDetail });
@@ -593,7 +594,7 @@ function renderMessage(m, idx) {
   </div>`;
 }
 
-let rafPending = false;
+let rafPending = false, srNextAt = 0;
 function scheduleStreamRender() {
   if (rafPending) return;
   rafPending = true;
@@ -603,11 +604,16 @@ function scheduleStreamRender() {
     if (!m) return;
     const el = $(`#m-${m.id} .a-body`);
     if (!el) return;
+    // full renders (artifacts, fallback) are throttled to what this machine can afford: never more than ~25 % of the time
+    const now = performance.now();
+    if (now < srNextAt) { rafPending = true; setTimeout(() => { rafPending = false; scheduleStreamRender(); }, srNextAt - now); return; }
     const near = isNearBottom();
     const thinkOpen = el.querySelector('details.think')?.open;
     // a field being typed in (an answer to a question card) survives the re-render: value, focus, caret
     const ae = document.activeElement, keep = ae && el.contains(ae) && ae.matches('input, textarea') ? { sel: ae.closest('[data-id]') && ae.closest('[data-id]').dataset.id, v: ae.value, s: ae.selectionStart, e: ae.selectionEnd } : null;
-    el.innerHTML = assistantBody(m);
+    const t0 = performance.now();
+    const fast = !keep && typeof streamPatch === 'function' && streamPatch(el, m); // only the growing tail is parsed
+    if (!fast) { el.innerHTML = assistantBody(m); const d = performance.now() - t0; srNextAt = d > 12 ? performance.now() + d * 3 : 0; } else srNextAt = 0;
     if (keep && keep.sel) { const ni = el.querySelector(`[data-id="${CSS.escape(keep.sel)}"] input, [data-id="${CSS.escape(keep.sel)}"] textarea`); if (ni) { ni.value = keep.v; ni.focus(); try { ni.setSelectionRange(keep.s, keep.e); } catch {} } }
     const th = el.querySelector('details.think');
     if (th && thinkOpen === false) th.open = false;
@@ -1119,7 +1125,9 @@ function finishStream() {
     const late = (m.precisions || []).filter((p) => !p.used);
     if (late.length) { m.precisions = m.precisions.filter((p) => p.used); S._draft = [S._draft, ...late.map((p) => p.text)].filter(Boolean).join('\n'); }
     const el = $(`#m-${m.id}`);
-    if (el) el.outerHTML = renderMessage(m, S.conv.messages.indexOf(m));
+    if (typeof streamDone === 'function') streamDone(m.id);
+    // final render in full (same markup as always); code highlighting happens on idle right after
+    if (el) { const idle = typeof srHighlightIdle === 'function'; if (idle) SR_NOHL = true; try { el.outerHTML = renderMessage(m, S.conv.messages.indexOf(m)); } finally { if (idle) SR_NOHL = false; } const ne = idle && $(`#m-${m.id}`); if (ne) srHighlightIdle(ne); }
   }
   // drop "retry" button from previous assistant messages
   refreshComposer();
