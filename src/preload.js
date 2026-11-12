@@ -71,8 +71,15 @@ contextBridge.exposeInMainWorld('api', {
     browsers: i('mods:browsers'), importCookies: i('mods:importCookies'),
   },
   link: { ready: i('link:ready') },
+  accounts: {
+    status: i('accounts:status'), list: i('accounts:list'), current: i('accounts:current'), create: i('accounts:create'),
+    open: i('accounts:open'), unlock: i('accounts:unlock'), forget: i('accounts:forget'), quit: i('accounts:quit'),
+    update: i('accounts:update'), pickPicture: i('accounts:pickPicture'), clearPicture: i('accounts:clearPicture'), setPassword: i('accounts:setPassword'),
+    switch: i('accounts:switch'), lock: i('accounts:lock'), delete: i('accounts:delete'), counts: i('accounts:counts'),
+    models: i('accounts:models'), linkModel: i('accounts:linkModel'), unlinkModel: i('accounts:unlinkModel'),
+  },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command', 'accounts:event'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

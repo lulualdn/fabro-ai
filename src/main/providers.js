@@ -65,19 +65,16 @@ function saveSecrets() {
 function setKey(id, key) {
   loadSecrets();
   if (!key) delete secrets[id];
-  else if (safeStorage.isEncryptionAvailable()) secrets[id] = 'enc:' + safeStorage.encryptString(key).toString('base64');
-  else secrets[id] = 'plain:' + Buffer.from(key).toString('base64');
+  else secrets[id] = require('./accounts/vault').protect(key); // OS keychain, plus the account password's key when it has one
   saveSecrets();
 }
 function getKey(id) {
   const v = loadSecrets()[id];
   if (!v) return '';
-  try {
-    if (v.startsWith('enc:')) return safeStorage.decryptString(Buffer.from(v.slice(4), 'base64'));
-    if (v.startsWith('plain:')) return Buffer.from(v.slice(6), 'base64').toString();
-  } catch { /* keychain changed */ }
+  try { return require('./accounts/vault').reveal(v) || ''; } catch { /* keychain changed */ }
   return '';
 }
+const reloadSecrets = () => { secrets = null; }; // accounts: the file was re-sealed (password set / removed)
 
 // ───────────────────────────── config ─────────────────────────────
 const cfg = () => store.getSettings().providers || { enabled: false, list: [] };
@@ -305,4 +302,4 @@ async function autoFree(specs, hasLocal) {
   return true;
 }
 
-module.exports = { setSecret: setKey, FREE_ID, refreshFree, setFree, autoFree, PRESETS, view, detect, add, update, remove, refresh, setEnabled, chatModels, target, migrate, ProviderError, getKey };
+module.exports = { reloadSecrets, setSecret: setKey, FREE_ID, refreshFree, setFree, autoFree, PRESETS, view, detect, add, update, remove, refresh, setEnabled, chatModels, target, migrate, ProviderError, getKey };

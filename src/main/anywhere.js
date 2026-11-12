@@ -29,8 +29,10 @@ let relayStatus = [];
 const runs = new Map();   // runId → { reqId, deviceId, convId }
 
 // ───────────────────────────── storage (secrets protected by the OS when possible) ─────────────────────────────
-const protect = (s) => { try { if (safeStorage.isEncryptionAvailable()) return 'enc:' + safeStorage.encryptString(s).toString('base64'); } catch {} return s; };
-const reveal = (s) => { if (typeof s === 'string' && s.startsWith('enc:')) { try { return safeStorage.decryptString(Buffer.from(s.slice(4), 'base64')); } catch { return null; } } return s; };
+// OS keychain (safeStorage), plus the account password's key when the account has one (accounts/vault.js)
+const protect = (s) => require('./accounts/vault').protect(s);
+const reveal = (s) => require('./accounts/vault').reveal(s);
+const reload = () => { data = null; }; // accounts: the file was re-sealed
 function load() {
   if (data) return data;
   try { data = JSON.parse(fs.readFileSync(file(), 'utf8')); } catch { data = {}; }
@@ -376,7 +378,7 @@ function init({ emit, ask }) {
   app.whenReady().then(() => setTimeout(() => start().catch(() => {}), 2500));
 }
 
-module.exports = {
+module.exports = { reload,
   init, status, pairStart, pairStop, revoke, rename, configure, mergeOnSave, tombstone, desktopAgentDone, stop,
   _test: { handle, sync, run, onPaired, load, forPhone },
 };
