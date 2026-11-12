@@ -16,15 +16,20 @@ function fabroQa(opts) {
   if (opts.kind === 'web' && D.documentElement.scrollWidth > W + 2) {
     const wide = all.filter((el) => { const r = el.getBoundingClientRect(); return r.right > W + 2 && r.width > 0 && getComputedStyle(el).position !== 'fixed'; });
     const top = wide.filter((el) => !wide.includes(el.parentElement)).slice(0, 3);
-    add('error', `At ${W}px wide the page is ${D.documentElement.scrollWidth}px: it scrolls sideways${opts.phone ? ' on phones' : ''}. Too wide: ${top.map((el) => `${name(el)} (${Math.round(el.getBoundingClientRect().width)}px)`).join(', ') || 'unknown'}. Use max-width:100%, flex-wrap, kit grids (.grid, .grid-2…) instead of fixed widths.`);
+    add('error', `At ${W}px wide the page is ${D.documentElement.scrollWidth}px: it scrolls sideways${opts.phone ? ' on phones' : ''}. Too wide: ${top.map((el) => `${name(el)} (${Math.round(el.getBoundingClientRect().width)}px)`).join(', ') || 'unknown'}. Fix: replace fixed widths with max-width:100%, let rows wrap (flex-wrap:wrap) or use grid-template-columns:repeat(auto-fit,minmax(240px,1fr)).`);
   }
   // 2. cut-off content: pages, slides, boxes that hide what doesn't fit
-  if (opts.kind === 'doc') D.querySelectorAll('.page.fixed, .page.cover, .page.cv, .page.poster').forEach((p, i) => { if (p.scrollHeight > p.clientHeight + 4) add('error', `Page ${[...D.querySelectorAll('.page')].indexOf(p) + 1} has too much content: ${Math.round((p.scrollHeight - p.clientHeight) / 3.78)} mm is cut at the bottom. Shorten it, or move the end to a new <section class="page">.`); });
-  if (opts.kind === 'deck') D.querySelectorAll('.slide').forEach((s, i) => { if (s.scrollHeight > s.clientHeight + 4 || s.scrollWidth > s.clientWidth + 4) add('error', `Slide ${i + 1} overflows (${s.scrollHeight}px tall for 720px): too much text — split it into two slides or cut words.`); });
+  // fixed sheets (old kit pages, or boxes the page sizes like paper) that hide what does not fit
+  if (opts.kind === 'doc') {
+    const sheets = [...D.querySelectorAll('.page.fixed, .page.cover, .page.cv, .page.poster')];
+    for (const el of D.body.querySelectorAll('section, article, div, main')) { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); if (r.width > 520 && r.height > 700 && /hidden|clip/.test(cs.overflow + cs.overflowY) && !sheets.includes(el)) sheets.push(el); }
+    sheets.forEach((p, i) => { if (p.scrollHeight > p.clientHeight + 4) add('error', `Sheet ${i + 1} (${name(p)}) has too much content: ${Math.round((p.scrollHeight - p.clientHeight) / 3.78)} mm is cut at the bottom. Fix: shorten the text, reduce spacing, or move the end to the next sheet.`); });
+  }
+  if (opts.kind === 'deck') D.querySelectorAll('.slide, body > section').forEach((s, i) => { if (s.scrollHeight > s.clientHeight + 4 || s.scrollWidth > s.clientWidth + 4) add('error', `Slide ${i + 1} overflows (${s.scrollHeight}px of content for ${s.clientHeight}px): too much on one slide. Fix: cut words or split it into two slides.`); });
   for (const el of all) {
     if (!vis(el)) continue; const cs = getComputedStyle(el);
     if (/hidden|clip/.test(cs.overflow + cs.overflowX + cs.overflowY) && el.scrollHeight > el.clientHeight + 4 && el.clientHeight >= 10 && !el.matches('.page, .slide, .hero, body, html, .card, .media, img') && ownText(el) && el.innerText.trim().length > 3)
-      add('error', `Text cut off in ${name(el)} (“${snippet(el)}…”): its box is too small for the text.`);
+      add('error', `Text cut off in ${name(el)} (“${snippet(el)}…”): its box is too small. Fix: remove the fixed height, or shorten the text.`);
   }
   // 3. text on top of text
   const boxes = texts.map((el) => ({ el, r: el.getBoundingClientRect() })).filter((b) => b.r.width * b.r.height > 40);
@@ -32,7 +37,7 @@ function fabroQa(opts) {
   for (let i = 0; i < boxes.length && overl < 3; i++) for (let j = i + 1; j < boxes.length && overl < 3; j++) {
     const a = boxes[i], b = boxes[j]; if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
     const x = Math.max(0, Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left)), y = Math.max(0, Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top));
-    if (x * y > 0.35 * Math.min(a.r.width * a.r.height, b.r.width * b.r.height)) { overl++; add('error', `Texts overlap: “${snippet(a.el)}” and “${snippet(b.el)}” (${name(a.el)} / ${name(b.el)}). Check absolute positions, negative margins or fixed heights.`); }
+    if (x * y > 0.35 * Math.min(a.r.width * a.r.height, b.r.width * b.r.height)) { overl++; add('error', `Texts overlap: “${snippet(a.el)}” and “${snippet(b.el)}” (${name(a.el)} / ${name(b.el)}). Fix: remove position:absolute / negative margins / fixed heights there.`); }
   }
   // 4. contrast (WCAG): text colour against the real background behind it
   const rgb = (s) => { const m = String(s).match(/rgba?\(([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:[, /]+([\d.]+))?/); return m ? [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4]] : null; };
@@ -47,11 +52,11 @@ function fabroQa(opts) {
     const big = parseFloat(cs.fontSize) >= 24 || (parseFloat(cs.fontSize) >= 18.6 && +cs.fontWeight >= 600);
     if (ratio < (big ? 2.6 : 3.6)) lows.push({ el, ratio, f, bg });
   }
-  lows.sort((a, b) => a.ratio - b.ratio).slice(0, 4).forEach((x) => add('error', `Hard to read: “${snippet(x.el)}” (${name(x.el)}) — contrast ${x.ratio.toFixed(1)}:1, text ${hex(x.f)} on ${hex(x.bg)}. Make the text darker/lighter or change the background.`));
+  lows.sort((a, b) => a.ratio - b.ratio).slice(0, 4).forEach((x) => add('error', `Hard to read: “${snippet(x.el)}” (${name(x.el)}) — contrast ${x.ratio.toFixed(1)}:1, text ${hex(x.f)} on ${hex(x.bg)}. Fix: darken (or lighten) the text, or change that background.`));
   // 5. images
   const imgs = [...D.images]; const broken = imgs.filter((i) => (i.getAttribute('src') || i.currentSrc) && i.complete && !i.naturalWidth);
-  if (broken.length) add('error', `${broken.length} image(s) don't load: ${broken.slice(0, 3).map((i) => (i.getAttribute('src') || '').slice(0, 70)).join(', ')}. Use <img data-photo="2-4 words"> and Fabro finds a real photo, or another URL.`);
-  const empty = imgs.filter((i) => !i.getAttribute('src') && i.dataset.photo); if (empty.length) add('warn', `${empty.length} photo(s) (data-photo) have no picture yet (offline or nothing found for “${empty[0].dataset.photo}”): try simpler words.`);
+  if (broken.length) add('error', `${broken.length} image(s) don't load: ${broken.slice(0, 3).map((i) => (i.getAttribute('src') || '').slice(0, 70)).join(', ')}. Fix: use <img data-photo="2-4 English words" alt="…"> (Fabro finds a real photo), or remove the image and design without it.`);
+  const empty = imgs.filter((i) => !i.getAttribute('src') && i.dataset.photo); if (empty.length) add('warn', `${empty.length} photo(s) (data-photo) have no picture yet (offline or nothing found for “${empty[0].dataset.photo}”): try 2 simpler words, or design without it.`);
   const noAlt = imgs.filter((i) => !i.hasAttribute('alt')).length; if (noAlt) add('warn', `${noAlt} image(s) without alt text (accessibility).`);
   const stretched = imgs.filter((i) => i.naturalWidth && vis(i) && getComputedStyle(i).objectFit === 'fill' && Math.abs((i.width / i.height) - (i.naturalWidth / i.naturalHeight)) > 0.25 * (i.naturalWidth / i.naturalHeight)).slice(0, 2);
   stretched.forEach((i) => add('warn', `Stretched image ${name(i)}: add object-fit: cover (or keep its proportions).`));
@@ -60,10 +65,15 @@ function fabroQa(opts) {
   if (txt.length < 30 && opts.kind !== 'svg' && !D.querySelector('button, input, select, textarea, canvas, svg, img, video, iframe')) add('error', 'The page is (nearly) empty.');
   if (/lorem ipsum|dolor sit amet|\bTODO\b|\[(your|insert|votre|ins[ée]rer)[^\]]*\]|placeholder text/i.test(txt)) add('error', 'Placeholder text left in the page (lorem ipsum / TODO / [your …]): write the real content.');
   const sheets = [...D.styleSheets].length + D.querySelectorAll('[style]').length;
-  if (!sheets) add('error', 'No styling at all: start the page with <body data-theme="…"> to use the Fabro Kit, or add CSS.');
+  if (!sheets) add('error', 'No styling at all. Fix: add a <style> block in <head> with your own CSS (fonts, colours, spacing, layout) chosen for this subject.');
   if (opts.kind === 'web' && !D.querySelector('h1')) add('warn', 'No <h1> heading: give the page one main title.');
-  D.querySelectorAll('i[data-icon]').forEach((i) => { if (getComputedStyle(i).display === 'none') add('warn', `Unknown icon “${i.dataset.icon}”: use another name (e.g. star, check, mail, phone, pin, calendar, chart, rocket, user, globe, zap, shield, heart).`); });
-  D.querySelectorAll('[data-chart]').forEach((c) => { if (/invalid JSON/.test(c.textContent)) add('error', `Chart with invalid data-chart JSON in ${name(c)}.`); });
+  if (D.getElementById('fabro-kit')) { // old Fabro Kit pages only
+    D.querySelectorAll('i[data-icon]').forEach((i) => { if (getComputedStyle(i).display === 'none') add('warn', `Unknown icon “${i.dataset.icon}”.`); });
+    D.querySelectorAll('[data-chart]').forEach((c) => { if (/invalid JSON/.test(c.textContent)) add('error', `Chart with invalid data-chart JSON in ${name(c)}.`); });
+  } else if (D.querySelector('i[data-icon], [data-chart]')) add('error', 'data-icon / data-chart do nothing: Fabro does not add icons or charts. Fix: draw them yourself with inline <svg>, or remove them.');
+  // content left invisible by scroll animations (opacity 0 waiting for JavaScript)
+  const ghosts = texts.filter((el) => { let e = el; for (let k = 0; e && k < 4; k++, e = e.parentElement) { if (+getComputedStyle(e).opacity < 0.05) return true; } return false; });
+  if (ghosts.length > 3) add('error', `${ghosts.length} texts are invisible (opacity 0, probably waiting for a scroll animation), e.g. “${snippet(ghosts[0])}”. Fix: content must be visible without animation.`);
   // 7. phones: tiny text, tiny buttons
   if (opts.phone) {
     const tiny = texts.filter((el) => parseFloat(getComputedStyle(el).fontSize) < 11.5 && el.innerText.trim().length > 12);
@@ -72,7 +82,7 @@ function fabroQa(opts) {
     if (taps.length > 2) add('warn', `${taps.length} buttons/links smaller than 30px on phones (hard to tap), e.g. ${name(taps[0])}.`);
   }
   // 8. documents: pages nobody wants
-  if (opts.kind === 'doc') D.querySelectorAll('.page').forEach((p, i) => { if ((p.innerText || '').trim().length < 15 && !p.querySelector('img, svg, .chart')) add('error', `Page ${i + 1} is empty.`); });
+  if (opts.kind === 'doc') D.querySelectorAll('.page, .sheet').forEach((p, i) => { if ((p.innerText || '').trim().length < 15 && !p.querySelector('img, svg, .chart')) add('error', `Page ${i + 1} is empty. Fix: remove it.`); });
   return out;
 }
 if (typeof module !== 'undefined') module.exports = { fabroQa };

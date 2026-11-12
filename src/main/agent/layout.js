@@ -11,41 +11,21 @@ const db = require('../db');
 const SIZES = { A4: [210, 297], A3: [297, 420], A5: [148, 210], Letter: [215.9, 279.4], Legal: [215.9, 355.6], slides: [338.7, 190.5] };
 const safeName = (s) => String(s || 'Document').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'Document';
 
-// The page every create_pdf starts from: good defaults the AI can override with its own CSS.
-// Pages are built with the Fabro Kit (body.doc: A4 sheets, print sizes, themes, components); a full <html>
-// document the AI wrote is used as is (with the kit if it asks for it).
-function pageHtml({ title, html, css = '', size = 'A4', landscape = false, margin = 15, theme = 'fabro' }) {
-  const kit = require('../kit');
-  if (/<html[\s>]/i.test(html)) return kit.inject(html, { markOnly: true, mode: /class\s*=\s*["'][^"']*\b(doc|deck)\b/.test(html) ? null : 'doc' });
+// The page create_pdf prints. The model designs it (its own HTML + CSS); Fabro only adds the page size and margins
+// (an @page rule the model's own CSS can override) and print plumbing. A full <html> document is used as is.
+function pageHtml({ title, html, css = '', size = 'A4', landscape = false, margin = 15 }) {
+  if (/<html[\s>]/i.test(html)) return css ? String(html).replace(/<\/head>/i, `<style>\n${css}\n</style></head>`) : String(html);
   const esc = (x) => String(x || '').replace(/</g, '&lt;');
-  if (size === 'slides') return kit.inject(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>${css ? `\n<style>\n${css}\n</style>` : ''}\n</head>\n<body class="deck" data-theme="${esc(theme)}">\n${html}\n</body>\n</html>`, { force: true, theme, markOnly: true });
-  const pageSize = { Letter: 'letter', Legal: 'legal' }[size] || size;
-  return kit.inject(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>${css ? `\n<style>\n${css}\n</style>` : ''}\n</head>\n<body class="doc${landscape ? ' landscape' : ''}" data-theme="${esc(theme)}" data-page="${esc(pageSize)}">\n${html}\n</body>\n</html>`, { force: true, theme, markOnly: true });
-}
-function legacyPageHtml({ title, html, css = '', size = 'A4', landscape = false, margin = 15 }) {
-  if (/<html[\s>]/i.test(html)) return html;
+  if (size === 'slides') return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>\n<style>\n@page { size: 1280px 720px; margin: 0; }\n${css}\n</style>\n</head>\n<body>\n${html}\n</body>\n</html>`;
   const [w, h] = SIZES[size] || SIZES.A4;
   const pw = landscape ? Math.max(w, h) : w, ph = landscape ? Math.min(w, h) : h;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${String(title || '').replace(/</g, '&lt;')}</title><style>
-@page { size: ${pw}mm ${ph}mm; margin: ${size === 'slides' ? 0 : margin}mm; }
-* { box-sizing: border-box; }
-html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-body { margin: 0; font: 10.5pt/1.5 "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif; color: #1f1e1b; }
-h1, h2, h3 { line-height: 1.2; margin: 0 0 .4em; break-after: avoid; } h1 { font-size: 24pt; } h2 { font-size: 16pt; margin-top: 1em; } h3 { font-size: 12.5pt; }
-p { margin: 0 0 .6em; orphans: 3; widows: 3; }
-table { width: 100%; border-collapse: collapse; margin: .6em 0; break-inside: auto; } tr { break-inside: avoid; }
-th, td { border-bottom: 1px solid #ddd; padding: 5px 7px; text-align: left; vertical-align: top; } th { background: #f2f0ea; }
-img, svg { max-width: 100%; }
-.page-break { break-after: page; height: 0; }
-.no-break { break-inside: avoid; }
-${size === 'slides' ? `section, .slide { width: ${pw}mm; height: ${ph}mm; padding: 14mm 18mm; break-after: page; overflow: hidden; position: relative; }` : ''}
-${css}
-</style></head><body>${html}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>\n<style>\n@page { size: ${pw}mm ${ph}mm; margin: ${margin}mm; }\n${css}\n</style>\n</head>\n<body>\n${html}\n</body>\n</html>`;
 }
 
 // Print HTML to PDF and collect layout problems seen in the page itself.
-async function printHtml(html, { landscape = false } = {}) {
-  html = require('../kit').inject(html); // the stored source stays clean; the kit is added for printing
+// legacy: an old Fabro Kit page (the kit is added, as before); ready: the page was already prepared by the caller.
+async function printHtml(html, { landscape = false, legacy = false, ready = false, kind = 'doc' } = {}) {
+  if (!ready) html = require('../kit/runtime').page(html, { legacy, kind }); // the stored source stays clean
   const w = new BrowserWindow({ show: false, width: 1000, height: 1400, webPreferences: { sandbox: true, javascript: true } });
   try {
     await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
@@ -90,7 +70,7 @@ function report({ file, pages, blank, issues, artifactId, shown }) {
 async function buildPdf(art, ctx) {
   const src = art.pdf || {};
   const html = art.versions[art.versions.length - 1].content;
-  const { pdf, issues } = await printHtml(html, { landscape: !!src.landscape });
+  const { pdf, issues } = await printHtml(html, { landscape: !!src.landscape, legacy: require('../kit/legacy').legacyArt(art), kind: /@page\s*\{[^}]*1280px/.test(html) ? 'deck' : 'doc' });
   fs.mkdirSync(path.dirname(src.file), { recursive: true });
   fs.writeFileSync(src.file, pdf);
   if (ctx) files.touched(ctx, src.file, 'created');
@@ -115,17 +95,16 @@ function findArtifact(ref, ctx) {
 
 agent.register({
   name: 'create_pdf', category: 'documents', risk: 'write', core: true,
-  description: 'Create a designed PDF from HTML using the Fabro Kit (call design_guide first for the matching example: report, cv, letter, invoice, flyer, menu, certificate, slides). Each <section class="page"> is one A4 page; without them the content flows over pages. Returns a picture of the pages and layout problems: fix them with edit_artifact.',
+  description: 'Create a PDF from HTML + CSS you design yourself (read a guide first: design_guide). Content flows over A4 pages by default (set page size/margins with page_size, margin_mm or your own @page rule; break pages with break-before: page). Returns a picture of the pages and layout problems: fix them with edit_artifact.',
   parameters: {
     type: 'object',
     properties: {
       title: { type: 'string', description: 'Document title (also the file name)' },
-      html: { type: 'string', description: 'Body HTML (or a full <html> document)' },
-      css: { type: 'string', description: 'Extra CSS (optional)' },
+      html: { type: 'string', description: 'Body HTML (or a full <html> document with its own <style>)' },
+      css: { type: 'string', description: 'Your CSS for this document (fonts, colours, layout, print rules)' },
       page_size: { type: 'string', enum: ['A4', 'A3', 'A5', 'Letter', 'Legal', 'slides'], description: 'Default A4; slides = 16:9, one <section> per slide' },
       landscape: { type: 'boolean' },
       margin_mm: { type: 'number', description: 'Page margin in mm (default 15)' },
-      theme: { type: 'string', enum: ['fabro', 'ocean', 'forest', 'sunset', 'midnight', 'luxe', 'mono', 'candy', 'paper', 'tech', 'corporate'], description: 'Fabro Kit theme (colours + fonts). Default fabro.' },
       folder: { type: 'string', description: 'Where to save (default: Documents/Fabro)' },
     },
     required: ['title', 'html'],
@@ -140,8 +119,8 @@ agent.register({
     const size = a.page_size === 'slides' ? 'slides' : (SIZES[a.page_size] ? a.page_size : 'A4');
     const landscape = size === 'slides' ? true : !!a.landscape;
     const baked = await require('../kit').bake(String(a.html || '')).catch(() => ({ html: String(a.html || '') }));
-    const html = pageHtml({ title: a.title, html: baked.html, css: a.css || '', size, landscape: size === 'slides' ? false : landscape, margin: Number.isFinite(+a.margin_mm) ? Math.max(0, Math.min(40, +a.margin_mm)) : 15, theme: a.theme || 'fabro' });
-    const art = db.saveArtifact({ id: 'art-' + Date.now().toString(36), convId: ctx.convId || null, type: 'html', title: a.title, pdf: { file, landscape: size === 'slides' ? false : landscape }, versions: [{ content: html, at: Date.now(), by: 'ai' }] });
+    const html = pageHtml({ title: a.title, html: baked.html, css: a.css || '', size, landscape: size === 'slides' ? false : landscape, margin: Number.isFinite(+a.margin_mm) ? Math.max(0, Math.min(40, +a.margin_mm)) : 15 });
+    const art = db.saveArtifact({ id: 'art-' + Date.now().toString(36), convId: ctx.convId || null, type: 'html', title: a.title, pdf: { file, landscape: size === 'slides' ? false : landscape }, versions: [{ content: html, at: Date.now(), by: 'ai', plain: true }] });
     const out = await buildPdf(art, ctx);
     return resultOf(art, out, a.title);
   },
@@ -168,8 +147,9 @@ agent.register({
     // other artifacts: print them the way they would be exported
     const docs = require('./documents');
     const content = art.versions[art.versions.length - 1].content;
-    const html = art.type === 'html' ? content : art.type === 'slides' ? docs.slidesHtml(content) : docs.docHtml(art.title, content);
-    const { pdf, issues } = await printHtml(html, { landscape: art.type === 'slides' });
+    const htmlLike = art.type === 'html' || art.type === 'document' || art.type === 'svg' || (art.type === 'slides' && /<section/i.test(content));
+    const html = htmlLike ? content : art.type === 'slides' ? docs.slidesHtml(content) : docs.docHtml(art.title, content);
+    const { pdf, issues } = await printHtml(html, { landscape: false, legacy: htmlLike && require('../kit/legacy').legacyArt(art), kind: art.type === 'slides' ? 'deck' : art.type === 'html' ? 'web' : 'doc' });
     const r = await renderPdf(pdf);
     return { content: report({ file: `(artifact “${art.title}”, as exported)`, pages: r.pages, blank: r.blank, issues, artifactId: art.id, shown: r.shown }), image: r.sheet, view: { kind: 'shot', image: r.sheet } };
   },
@@ -252,7 +232,7 @@ agent.register({
     if (text === art.versions[art.versions.length - 1].content) return { error: 'Nothing changed.' };
     const design = require('./design');
     if (design.visual(art.type) && /data-photo=|data-icon=|src\s*=\s*["']https?:|url\(\s*['"]?https?:/.test(text)) text = (await require('../kit').bake(text).catch(() => ({ html: text }))).html;
-    art.versions.push({ content: text, at: Date.now(), by: 'ai' });
+    art.versions.push({ content: text, at: Date.now(), by: 'ai', plain: !require('../kit/legacy').legacyArt(art) }); // an edit keeps what the page was written for
     db.saveArtifact(art);
     if (ctx.emit) ctx.emit({ type: 'artifact_updated', id: art.id });
     if (art.pdf && art.pdf.file) { const out = await buildPdf(art, ctx); const res = resultOf(art, out, art.title); res.content = `${done.length} edit(s) applied (version ${art.versions.length}).\n` + res.content; return res; }
