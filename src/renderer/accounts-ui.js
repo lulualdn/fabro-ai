@@ -290,6 +290,7 @@
       }
     };
     draw();
+    const sc = container.closest('.modal'); if (sc) sc.scrollTop = 0;
   }
 
   // ───────────────────────── models (for the future "My models" section) ─────────────────────────

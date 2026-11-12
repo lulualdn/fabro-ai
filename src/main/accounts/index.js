@@ -203,8 +203,10 @@ function register() {
   if (registered) return; registered = true;
   const h = (ch, fn) => ipcMain.handle(ch, (e, ...a) => fn(e, ...a));
   const list = () => registry.get().accounts.map(registry.publicView);
+  // the picker speaks the language last chosen on this computer (else the system's)
+  const lastLang = () => { const a = registry.find(registry.get().lastActive); if (!a) return null; try { const l = JSON.parse(fs.readFileSync(path.join(registry.dirOf(a.id), 'settings.json'), 'utf8')).language; return l && l !== 'auto' ? l : null; } catch { return null; } };
   h('accounts:status', () => ({ phase: state.phase, fallback: state.fallback, error: state.error, max: registry.MAX, count: registry.get().accounts.length, icons: registry.ICONS, colors: registry.COLORS }));
-  h('accounts:list', () => ({ accounts: list(), current: state.current, max: registry.MAX, icons: registry.ICONS, colors: registry.COLORS, langs: app.getPreferredSystemLanguages(), locale: app.getLocale(), fallback: state.fallback }));
+  h('accounts:list', () => ({ accounts: list(), current: state.current, max: registry.MAX, icons: registry.ICONS, colors: registry.COLORS, langs: [lastLang(), ...app.getPreferredSystemLanguages()].filter(Boolean), locale: app.getLocale(), fallback: state.fallback }));
   h('accounts:current', () => { const a = current(); return a ? { ...registry.publicView(a), outDir: paths.outputDir() } : null; });
   h('accounts:create', (_e, o) => create(o || {}));
 
