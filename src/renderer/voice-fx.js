@@ -49,7 +49,7 @@ const VEar = (() => {
       const P = new Float32Array(half);
       for (let k = 1; k < half; k++) { const p = re[k] * re[k] + im[k] * im[k]; P[k] = p; tot += p; wsum += p * k; if (p > max) { max = p; maxK = k; } if (k * bin < 300) low += p; if (k * bin > 50 && k * bin < 2000) { lnSum += Math.log(p + 1e-12); bandSum += p; bandN++; } }
       let around = 0; for (let k = Math.max(1, maxK - 2); k <= Math.min(half - 1, maxK + 2); k++) around += P[k];
-      const D = Math.max(1, Math.round(rate / 16000)), dec = new Float32Array(Math.floor(N / D)); // pitch on ~16 kHz: fast enough
+      const D = Math.max(1, Math.round(rate / 8000)), dec = new Float32Array(Math.floor(N / D)); // pitch on ~8 kHz: a few ms for a whole utterance
       for (let i = 0; i < dec.length; i++) { let v = 0; for (let j = 0; j < D; j++) v += all[s + i * D + j]; dec[i] = v / D; }
       const p = pitch(dec, rate / D);
       frames.push({ rms, crest: pk / (rms + 1e-9), zcr: z / N, cent: (wsum / (tot + 1e-12)) * bin, pure: around / (tot + 1e-12), dom: maxK * bin, low: low / (tot + 1e-12), flat: bandN ? Math.exp(lnSum / bandN) / (bandSum / bandN + 1e-12) : 0, f0: p.c > 0.55 ? p.f : 0, clar: p.c });
