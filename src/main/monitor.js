@@ -20,7 +20,7 @@ function cpuLoad() {
 async function rssOf(pid) {
   try {
     if (process.platform === 'linux') {
-      const m = /VmRSS:\s+(\d+)/.exec(fs.readFileSync(`/proc/${pid}/status`, 'utf8'));
+      const m = /VmRSS:\s+(\d+)/.exec(await fs.promises.readFile(`/proc/${pid}/status`, 'utf8'));
       return m ? +m[1] * 1024 : null;
     }
     if (process.platform === 'darwin') { const o = await run('ps', ['-o', 'rss=', '-p', String(pid)]); return o ? +o.trim() * 1024 : null; }
@@ -62,4 +62,16 @@ async function sample(loaded = []) {
   };
 }
 
-module.exports = { sample };
+// Live GPU memory for the governor (NVIDIA only — other vendors have no cheap query): cached 4 s,
+// one nvidia-smi call at a time, never when no NVIDIA tool exists.
+let gpuC = { at: 0, v: null, p: null };
+function gpuLive() {
+  if (!smi) return Promise.resolve(null);
+  if (Date.now() - gpuC.at < 4000) return Promise.resolve(gpuC.v);
+  if (gpuC.p) return gpuC.p;
+  gpuC.p = Promise.all([gpus(), gpuProcs()]).then(([g, procs]) => { gpuC = { at: Date.now(), v: g.length ? { gpus: g, procs } : null, p: null }; return gpuC.v; })
+    .catch(() => { gpuC = { at: Date.now(), v: null, p: null }; return null; });
+  return gpuC.p;
+}
+
+module.exports = { sample, gpuLive, rssOf, cpuLoad };
