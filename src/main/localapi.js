@@ -58,6 +58,7 @@ async function handle(req, res) {
     const m = await models.getLocal(target._ref.id);
     let inst;
     try { inst = await engine.ensure(m); } catch (e) { return oaiErr(res, 503, e.message, 'engine_error'); }
+    const releaseSlot = await require('./governor').acquire({ priority: 'user', label: 'API' }); // same queue as the app
     engine.acquire(inst);
     try {
       const up = await fetch(`http://127.0.0.1:${inst.port}/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...j, model: m.name, cache_prompt: true }) });
@@ -66,7 +67,7 @@ async function handle(req, res) {
       for (;;) { const { done, value } = await reader.read(); if (done) break; res.write(value); }
       res.end();
     } catch (e) { if (!res.headersSent) oaiErr(res, 502, e.message); else res.end(); }
-    finally { engine.release(inst); }
+    finally { engine.release(inst); releaseSlot(); }
     return;
   }
 

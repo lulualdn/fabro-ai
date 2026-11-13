@@ -55,11 +55,105 @@ async function detectGpus() {
   return gpus;
 }
 
-let cache = null;
-async function getSpecs() {
-  if (cache) return cache;
+// ───────────────────────────── CPU topology ─────────────────────────────
+// physical cores, performance cores (hybrid Intel P/E, Apple P/E), SMT. Async, cached, never blocks.
+const fsp = require('fs').promises;
+const parseList = (s) => String(s || '').trim().split(',').filter(Boolean).reduce((n, r) => { const [a, b] = r.split('-').map(Number); return n + (isNaN(b) ? 1 : b - a + 1); }, 0);
+async function linuxTopology(logical) {
+  const sib = new Set();
+  for (let i = 0; i < logical; i++) {
+    const t = await fsp.readFile(`/sys/devices/system/cpu/cpu${i}/topology/thread_siblings_list`, 'utf8').catch(() => null);
+    if (t == null) break; sib.add(t.trim());
+  }
+  const physical = sib.size || null;
+  // hybrid Intel exposes the two core kinds as separate PMUs
+  const core = await fsp.readFile('/sys/devices/cpu_core/cpus', 'utf8').catch(() => null);
+  const atom = await fsp.readFile('/sys/devices/cpu_atom/cpus', 'utf8').catch(() => null);
+  let perf = null, eff = 0;
+  if (core && atom) {
+    const pl = parseList(core), el = parseList(atom); // logical CPUs of each kind
+    eff = el; perf = physical ? Math.max(1, physical - el) : Math.max(1, Math.round(pl / 2));
+  }
+  return { physical, perf, eff, source: 'sysfs' };
+}
+async function winTopology() {
+  const out = await run('powershell', ['-NoProfile', '-NonInteractive', '-Command',
+    'Get-CimInstance Win32_Processor | Select-Object NumberOfCores,NumberOfLogicalProcessors | ConvertTo-Json -Compress'], 10000);
+  try {
+    let l = JSON.parse(out); if (!Array.isArray(l)) l = [l];
+    const cores = l.reduce((n, x) => n + (x.NumberOfCores || 0), 0), lp = l.reduce((n, x) => n + (x.NumberOfLogicalProcessors || 0), 0);
+    if (!cores) return null;
+    return { physical: cores, logicalWmi: lp, source: 'wmi' };
+  } catch { return null; }
+}
+async function macTopology() {
+  const o = await run('sysctl', ['-n', 'hw.physicalcpu', 'hw.perflevel0.physicalcpu', 'hw.perflevel1.physicalcpu']);
+  const [phys, p0, p1] = String(o || '').trim().split(/\s+/).map(Number);
+  if (!phys) return null;
+  return { physical: phys, perf: p0 || null, eff: p1 || 0, source: 'sysctl' };
+}
+// Pure: turns raw counts into the topology the governor uses. Exported for tests.
+function shapeTopology({ logical, physical, perf, eff, model = '', platform = process.platform }) {
+  logical = logical || 1;
+  physical = physical || (logical > 4 ? Math.round(logical / 2) : logical);
+  let p = perf || null, e = eff || 0;
+  if (!p && platform === 'win32' && /Intel/i.test(model)) {
+    // Hybrid Intel with Hyper-Threading: P cores have 2 threads, E cores 1 → logical = 2P + E, cores = P + E
+    const P = logical - physical, E = physical - P;
+    if (P > 0 && E > 0 && /(1[2-4]\d{2,3}|Core\(TM\) Ultra)/i.test(model)) { p = P; e = E; }
+    // Core Ultra without HT (Lunar / Arrow Lake): logical == cores, guess the P share
+    else if (logical === physical && /Core\(TM\) Ultra/i.test(model) && physical >= 8) { p = Math.max(4, Math.round(physical * 0.35)); e = physical - p; }
+  }
+  if (!p) { p = physical; e = 0; }
+  return { logical, physical, perf: p, eff: e, smt: logical > physical, hybrid: e > 0 };
+}
+let topoP = null;
+function cpuTopology() {
+  if (topoP) return topoP;
+  topoP = (async () => {
+    const cpus = os.cpus(); const logical = cpus.length; const model = (cpus[0] && cpus[0].model) || '';
+    let raw = null;
+    try {
+      if (process.platform === 'linux') raw = await linuxTopology(logical);
+      else if (process.platform === 'win32') raw = await winTopology();
+      else if (process.platform === 'darwin') raw = await macTopology();
+    } catch { raw = null; }
+    return { ...shapeTopology({ logical, model, ...(raw || {}) }), source: (raw && raw.source) || 'guess' };
+  })();
+  return topoP;
+}
+
+// Available RAM (what the OS can hand out without swapping), not just "free" pages. Async, cached 3 s.
+let availC = { at: 0, v: null };
+async function availableRamGB() {
+  if (Date.now() - availC.at < 3000 && availC.v != null) return availC.v;
+  let bytes = null;
+  try {
+    if (process.platform === 'linux') {
+      const m = /MemAvailable:\s+(\d+)/.exec(await fsp.readFile('/proc/meminfo', 'utf8'));
+      if (m) bytes = +m[1] * 1024;
+    } else if (process.platform === 'darwin') {
+      const o = await run('vm_stat', [], 3000);
+      const ps = +((/page size of (\d+)/.exec(o || '') || [])[1] || 16384);
+      const g = (k) => +((new RegExp(`${k}:\\s+(\\d+)`).exec(o || '') || [])[1] || 0);
+      if (o) bytes = (g('Pages free') + g('Pages inactive') + g('Pages speculative') + g('Pages purgeable')) * ps;
+    }
+  } catch {}
+  if (bytes == null) bytes = os.freemem(); // Windows: free = available (standby list counted as free)
+  availC = { at: Date.now(), v: +(bytes / 2 ** 30).toFixed(2) };
+  return availC.v;
+}
+
+let cache = null, specsP = null;
+function getSpecs() {
+  if (cache) return Promise.resolve(cache);
+  if (!specsP) specsP = buildSpecs().finally(() => { specsP = null; });
+  return specsP;
+}
+async function buildSpecs() {
   const cpus = os.cpus();
   const ramGB = +(os.totalmem() / 2 ** 30).toFixed(1);
+  const topoP0 = cpuTopology().catch(() => null); // in parallel with the GPU queries
   const gpus = await detectGpus();
   const appleSilicon = process.platform === 'darwin' && process.arch === 'arm64';
   // A GPU only helps with enough video memory: tiny or integrated GPUs run on the CPU.
@@ -83,7 +177,7 @@ async function getSpecs() {
     platform: process.platform,
     arch: process.arch,
     os: `${os.type()} ${os.release()}`,
-    cpu: { model: (cpus[0] && cpus[0].model.trim()) || 'CPU', threads: cpus.length },
+    cpu: { model: (cpus[0] && cpus[0].model.trim()) || 'CPU', threads: cpus.length, ...(await topoP0.then((t) => (t ? { physical: t.physical, perf: t.perf, eff: t.eff, hybrid: t.hybrid } : {}))) },
     ramGB,
     gpus,
     accel,
@@ -97,4 +191,4 @@ async function getSpecs() {
   return cache;
 }
 
-module.exports = { getSpecs };
+module.exports = { getSpecs, cpuTopology, shapeTopology, availableRamGB };
