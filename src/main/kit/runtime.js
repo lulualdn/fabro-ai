@@ -15,7 +15,8 @@ const DOC = '@page{size:A4;margin:16mm}'
   + '@media screen{:where(html[data-fabro-paper]){background:#e7e5e0}:where(html[data-fabro-paper]) :where(body){max-width:210mm;min-height:297mm;margin:24px auto;padding:16mm;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.12)}}';
 const DECK = '@page{size:1280px 720px;margin:0}:where(section.slide){width:1280px;height:720px;overflow:hidden;position:relative;break-after:page;page-break-after:always}'
   + '@media screen{:where(html[data-fabro-deck]){background:#e7e5e0}:where(html[data-fabro-deck]) :where(section.slide){margin:0 auto 24px;box-shadow:0 2px 14px rgba(0,0,0,.14)}}';
-// screen only: a deck is scaled to fit the panel
+// screen only: a deck, or a document drawing its own sheets, is scaled to fit the panel (never in print)
+const DOC_JS = `(function(){var fit=function(){var b=document.body;if(!b)return;b.style.zoom='';if(matchMedia('print').matches)return;var w=document.documentElement.scrollWidth;if(w>innerWidth+2)b.style.zoom=String(Math.max(.3,(innerWidth-8)/w));};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fit);else fit();addEventListener('resize',fit);addEventListener('beforeprint',function(){document.body.style.zoom='';});addEventListener('afterprint',fit);})();`;
 // a document that draws its own sheets (210mm / 297mm / 794px boxes) is left alone; a flowing one gets a paper frame on screen
 const OWN_SHEETS = /\b(210|297|148|420)mm\b|\b(794|1123)px\b|8\.27in|11\.69in|8\.5in/;
 const DECK_JS = `(function(){var fit=function(){if(matchMedia('print').matches){document.body.style.zoom='';return;}var s=document.querySelector('section.slide');if(!s)return;document.documentElement.setAttribute('data-fabro-deck','');var w=s.offsetWidth||1280;var z=Math.min(1,(innerWidth-24)/w);document.body.style.zoom=z<1?String(z):'';};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fit);else fit();addEventListener('resize',fit);addEventListener('beforeprint',function(){document.body.style.zoom='';});addEventListener('afterprint',fit);})();`;
@@ -63,7 +64,7 @@ function prepare(html, { kind = null, type = null, title = '', resolveImgs = nul
   if (resolveImgs) s = resolveImgs(s);
   if (/id=["']fabro-base["']/.test(s)) return s;
   const css = BASE + (k === 'doc' ? DOC : k === 'deck' ? DECK : '');
-  const js = k === 'deck' ? DECK_JS : '';
+  const js = k === 'deck' ? DECK_JS : k === 'doc' ? DOC_JS : '';
   if (k === 'doc' && !OWN_SHEETS.test(s)) s = s.replace(/<html([^>]*)>/i, (m, a) => /data-fabro-paper/.test(a) ? m : `<html${a} data-fabro-paper>`);
   // first in <head>: everything the page says comes after and wins
   s = s.replace(/<head([^>]*)>/i, `<head$1><style id="fabro-base">${css}</style>`);
