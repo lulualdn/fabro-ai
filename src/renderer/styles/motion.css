@@ -1,0 +1,93 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Motion. One language for the whole app (tokens in styles/tokens.css, runtime in motion.js):
+   – only transform and opacity move; colour fades are limited to small controls (≤ --dur-press);
+   – things answer at once and settle softly (spring curves), travel a few pixels, never bounce for show;
+   – everything is interruptible: CSS transitions reverse from where they are, motion.js restarts from the
+     current position; nothing loops while the app is idle, and all of it stops when the window is hidden.
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(var(--lift)); } }
+@keyframes prop-spin { to { transform: rotate(360deg); } }
+@keyframes breathe { from { opacity: 1; } to { opacity: .45; } }
+@keyframes pulse { 50% { opacity: .4; } }
+
+/* ── The welcome: the propeller turns in once and settles, the greeting arrives with it ── */
+.hero-spin .prop { animation: hero-in 1100ms var(--ease-spring) both; }
+@keyframes hero-in { from { transform: rotate(-240deg) scale(.6); opacity: 0; } 40% { opacity: 1; } }
+.welcome .greet span { animation: rise var(--dur-4) 80ms var(--ease-spring) both; }
+.welcome > .composer, .welcome > .setup-card { animation: rise var(--dur-4) 140ms var(--ease-spring) both; }
+.welcome > .suggestions { animation: fade-in var(--dur-3) 260ms linear both; }
+
+.upd-logo .prop { animation: hero-in 1100ms var(--ease-spring) both; }
+
+/* ── Messages ── */
+.msg.user.fresh { animation: msg-in var(--dur-3) var(--ease-spring) both; transform-origin: 100% 100%; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+.msg.assistant.fresh { animation: fade-in var(--dur-2) linear both; }
+.think[open] .think-body { animation: fade-in var(--dur-2) linear both; }
+.msg.pending .think[open] .think-body { animation: none; }
+.cites, .steps-sum, .art-card, .err-card { animation: fade-in var(--dur-2) linear both; }
+.msg:not(.fresh) .cites, .msg:not(.fresh) .art-card, .msg:not(.pending):not(.fresh) .steps-sum { animation: none; }
+
+/* Streaming caret: solid while words arrive (each update restarts it), breathes when the model pauses. */
+.msg.pending .md > :last-child::after { content: ''; display: inline-block; width: .5em; height: 1.05em; margin-left: 2px; vertical-align: -.17em; border-radius: 2px; background: var(--accent);
+  animation: breathe 900ms 500ms var(--ease-inout) infinite alternate both; }
+.msg.pending .md > pre:last-child::after, .msg.pending .md > .code-card:last-child::after, .msg.pending .md > table:last-child::after, .msg.pending .md > ul:last-child::after, .msg.pending .md > ol:last-child::after { display: none; }
+.msg.pending .md > ul:last-child > li:last-child::after, .msg.pending .md > ol:last-child > li:last-child::after { content: ''; display: inline-block; width: .5em; height: 1.05em; margin-left: 2px; vertical-align: -.17em; border-radius: 2px; background: var(--accent); animation: breathe 900ms 500ms var(--ease-inout) infinite alternate both; }
+.typing em, .shimmer { animation: breathe 1.4s var(--ease-inout) infinite alternate; }
+.r-live, .st-loading .dot, .st-installing .dot { animation: breathe 900ms var(--ease-inout) infinite alternate; }
+
+/* Send: the arrow lifts off; stop appears in place */
+.send.launch .ico { animation: launch 420ms var(--ease-spring); }
+@keyframes launch { 0% { transform: none; } 40% { transform: translateY(-12px); opacity: 0; } 41% { transform: translateY(10px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.send.stop .ico { animation: fade-in var(--dur-1) linear; }
+
+/* Engine just became ready */
+.engine-pop .av-dot { animation: ready-pop 600ms var(--ease-bounce); }
+@keyframes ready-pop { 0% { transform: scale(.4); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
+
+/* Settings: a new tab fades its content in once */
+.st-content.tab-in { animation: tab-in var(--dur-2) var(--ease-out) both; }
+@keyframes tab-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* Modal */
+.modal { animation: modal-in var(--dur-3) var(--ease-spring) both; }
+.modal-backdrop { animation: fade-in var(--dur-2) linear both; }
+#modal-root.closing .modal { animation: modal-out var(--dur-1) var(--ease-in) both; }
+#modal-root.closing .modal-backdrop { animation: fade-out var(--dur-1) linear both; }
+@keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+@keyframes modal-out { to { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes fade-out { to { opacity: 0; } }
+
+/* Session panel, onboarding */
+.onb-prop.talking .logo { animation: prop-spin 1.1s linear infinite; }
+.vx[data-phase=thinking] .vx-ring::before, .vx[data-phase=transcribing] .vx-ring::before { animation: vx-breathe 1.4s var(--ease-inout) infinite; }
+@keyframes vx-breathe { 50% { transform: scale(1.1); opacity: .7; } }
+
+/* ── View swaps (View Transitions API): a quick cross-fade; the sidebar is its own layer and stays put ── */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out); }
+::view-transition-old(root) { animation-name: vt-out; }
+::view-transition-new(root) { animation-name: vt-in; }
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(4px); } }
+::view-transition-group(sidebar) { animation-duration: var(--dur-2); }
+[data-vt="back"]::view-transition-new(root) { animation-name: vt-from-left; }
+[data-vt="fwd"]::view-transition-new(root) { animation-name: vt-from-right; }
+@keyframes vt-from-left { from { opacity: 0; transform: translateX(-16px); } }
+@keyframes vt-from-right { from { opacity: 0; transform: translateX(16px); } }
+[data-vt="theme"]::view-transition-old(root), [data-vt="theme"]::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+/* motion.js marks what is moving right now; nothing else carries will-change */
+.is-moving { will-change: transform; }
+
+/* ── The window is hidden or minimised: every animation holds still ── */
+html.is-hidden *, html.is-hidden *::before, html.is-hidden *::after { animation-play-state: paused !important; }
+
+/* ── Reduced motion (system setting, or Fabro's own "Reduce motion"): no travel, no loops, quick fades only ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+  .spinner .spin { animation: prop-spin 2.4s linear infinite !important; } /* a loading sign must still say "busy" */
+}
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+html.reduce-motion .spinner .spin { animation: prop-spin 2.4s linear infinite !important; }
+html.reduce-motion::view-transition-group(*), html.reduce-motion::view-transition-old(*), html.reduce-motion::view-transition-new(*) { animation: none !important; }

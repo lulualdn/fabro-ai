@@ -6,10 +6,13 @@
         content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co data: blob:; font-src 'self' data:; frame-src fabro-art: http://127.0.0.1:* http://localhost:* https:" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fabro</title>
+  <link rel="stylesheet" href="styles/tokens.css" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="styles/accounts.css" />
   <link rel="stylesheet" href="styles/perf.css" />
   <link rel="stylesheet" href="styles/voice.css" />
+  <link rel="stylesheet" href="styles/skin-halloween.css" />
+  <link rel="stylesheet" href="styles/motion.css" />
 </head>
 <body>
   <div id="dev-banner" class="dev-banner" hidden></div>
@@ -39,6 +42,7 @@
   <script src="icons-data.js"></script>
   <script src="icons.js"></script>
   <script src="zoom.js"></script>
+  <script src="motion.js"></script>
   <script src="app.js"></script>
   <script src="chat-ui.js"></script>
   <script src="custom-ui.js"></script>
