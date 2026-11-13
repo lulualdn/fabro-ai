@@ -152,10 +152,10 @@ const Speaker = {
       const j = this.q[0];
       if (j.sfx) { this.q.shift(); this.scheduleSfx(j); continue; }
       if (!j.ready) break;
-      if (!j.res || j.res.cancelled) { this.q.shift(); continue; }
+      if (!j.buf && (!j.res || j.res.cancelled)) { this.q.shift(); continue; }
       // a few seconds scheduled ahead is plenty (memory stays small, an interruption has little to undo)
       const ahead = this.endAt - VAudio.now(); if (ahead > 6) { clearTimeout(this.aheadT); this.aheadT = setTimeout(() => this.pump(), (ahead - 5) * 1000); break; }
-      if (j.res.sys) { // the system voice: it can't be put on the clock, it speaks when the voice before it is done
+      if (!j.buf && j.res.sys) { // the system voice: it can't be put on the clock, it speaks when the voice before it is done
         const wait = this.endAt - VAudio.now();
         if (this.sysBusy || wait > 0.05) { clearTimeout(this.sysT); this.sysT = setTimeout(() => this.pump(), Math.max(20, wait * 1000)); break; }
         this.q.shift(); this.speakSys(j); break;
@@ -231,7 +231,7 @@ const Speaker = {
     setTimeout(() => {
       for (const j of back) { j.stopped = true; clearTimeout(j.showT); try { j.src.onended = null; j.src.stop(); j.g.disconnect(); } catch {} }
       this.live = this.live.filter((j) => !back.includes(j));
-      if (gen !== this.gen || !this.paused) return; // stopped (or resumed) meanwhile
+      if (gen !== this.gen) return; // stopped meanwhile (a resume comes after this and picks them up)
       // they go back to the front of the queue, to continue from where they stopped
       for (const j of back.reverse()) { const n = { ...j, src: null, g: null, stopped: false, paused: false, counted: j.counted, ready: true }; delete n.done; this.q.unshift(n); }
       this.endAt = 0;
@@ -416,6 +416,8 @@ function vFollowLanguage(text) {
   if (!window.FALang) return;
   const cur = vLang().slice(0, 2); const words = (text.match(/[\p{L}']+/gu) || []).length; if (words < 4) return;
   const l = FALang.detect(text, cur);
+  // accents alone are thin evidence ("plutôt de Rome" is not Portuguese): its common words must say so too
+  if (l !== FALang.detect(text.normalize('NFD').replace(/\p{M}/gu, ''), cur)) return;
   if (l === cur || !['en', 'fr', 'es', 'de', 'it', 'pt', 'nl', 'pl'].includes(l)) return;
   S.voice.lang = l;
   if (vLocalOk()) VLocal.prepare(l); // its voice downloads in the background; meanwhile the system voice speaks it

@@ -44,6 +44,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const say = (text) => w.evaluate((x) => { __stt.push(x); }, text);
   await w.evaluate(() => voiceOpen());
   await w.waitForSelector('#vx');
+  await w.waitForFunction(() => !!Mic.ep, null, { timeout: 10000 }); await w.evaluate(() => { Mic.external = true; }); // the fake device beeps: the test speaks instead
   console.log('• first turn');
   await say('Raconte-moi une histoire'); await w.evaluate(() => __utter(__sine(150, 1)));
   await w.waitForFunction(() => Speaker.busy() && Speaker.said.length >= 1, null, { timeout: 10000 }).catch(async (e) => { console.log(await w.evaluate(() => JSON.stringify({ err: S.voice.err, phase: S.voice.phase, said: Speaker.said, q: Speaker.q.length, live: Speaker.live.length,  model: !!currentModel(), msgs: S.conv && S.conv.messages.map((m) => m.role + ':' + m.content.slice(0, 40)) }))); throw e; });
