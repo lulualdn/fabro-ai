@@ -1,0 +1,24 @@
+/* Themes — what every theme shares (engine: themes.js). Tokens come from the generated <style id="fabro-skin">;
+   theme-specific layout sheets (cli.css…) are loaded next to it only while their theme is active. */
+
+/* A texture drawn over everything (scanlines): one fixed, static, tiled layer. Never animated, never blurred.
+   Dropped when the person asks for less transparency/more contrast, and on modest computers. */
+html[data-tex="over"]::after {
+  content: ""; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
+  background-image: var(--texture-over, none); transform: translateZ(0);
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { html[data-tex="over"]::after { display: none; } }
+html.light-mode[data-tex="over"]::after { display: none; }
+
+/* Keyboard focus is always visible, in the theme's own focus colour. */
+html[data-skin]:not([data-skin="halloween"]) :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Switching theme: the new look fades in over the old one (View Transitions); the duration comes from the new theme's
+   motion tokens, so a terminal theme cuts instantly. */
+html[data-vt="skin"]::view-transition-old(root) { animation: none; }
+html[data-vt="skin"]::view-transition-new(root) { animation: skin-in var(--dur-3, 360ms) var(--ease-out, ease-out) both; transform: none; }
+html[data-vt="skin"]::view-transition-group(sidebar) { animation-duration: 0s; }
+@keyframes skin-in { from { opacity: 0; } }
+
+/* the textarea caret takes the accent in every theme */
+html[data-skin] textarea, html[data-skin] input { caret-color: var(--accent); }
