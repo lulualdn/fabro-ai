@@ -49,7 +49,7 @@ const VEar = (() => {
       const P = new Float32Array(half);
       for (let k = 1; k < half; k++) { const p = re[k] * re[k] + im[k] * im[k]; P[k] = p; tot += p; wsum += p * k; if (p > max) { max = p; maxK = k; } if (k * bin < 300) low += p; if (k * bin > 50 && k * bin < 2000) { lnSum += Math.log(p + 1e-12); bandSum += p; bandN++; } }
       let around = 0; for (let k = Math.max(1, maxK - 2); k <= Math.min(half - 1, maxK + 2); k++) around += P[k];
-      const D = Math.max(1, Math.round(rate / 16000)), dec = new Float32Array(Math.floor(N / D)); // pitch on ~16 kHz: fast enough
+      const D = Math.max(1, Math.round(rate / 8000)), dec = new Float32Array(Math.floor(N / D)); // pitch on ~8 kHz: a few ms for a whole utterance
       for (let i = 0; i < dec.length; i++) { let v = 0; for (let j = 0; j < D; j++) v += all[s + i * D + j]; dec[i] = v / D; }
       const p = pitch(dec, rate / D);
       frames.push({ rms, crest: pk / (rms + 1e-9), zcr: z / N, cent: (wsum / (tot + 1e-12)) * bin, pure: around / (tot + 1e-12), dom: maxK * bin, low: low / (tot + 1e-12), flat: bandN ? Math.exp(lnSum / bandN) / (bandSum / bandN + 1e-12) : 0, f0: p.c > 0.55 ? p.f : 0, clar: p.c });
@@ -95,7 +95,8 @@ const VEar = (() => {
 // ───────────────────────────── VFX: sound effects, synthesised ─────────────────────────────
 const VFX = (() => {
   let ctx = null;
-  const ac = () => { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state !== 'running') ctx.resume().catch(() => {}); return ctx; };
+  // the voice mode's one audio context when there is one (an iPhone wants a single one, made in a tap)
+  const ac = () => { if (window.VAudio) return VAudio.ctx(); ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state !== 'running') ctx.resume().catch(() => {}); return ctx; };
   const noise = (c, sec) => { const b = c.createBuffer(1, Math.ceil(c.sampleRate * sec), c.sampleRate); const d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const s = c.createBufferSource(); s.buffer = b; return s; };
   const env = (g, t, a, peak, hold, rel) => { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.setValueAtTime(peak, t + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + rel); return a + hold + rel; };
   function tone(c, out, t, f, dur, type = 'sine', vol = 0.3, glide) { const o = c.createOscillator(); const g = c.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (glide) o.frequency.exponentialRampToValueAtTime(glide, t + dur); o.connect(g); g.connect(out); env(g, t, 0.01, vol, dur * 0.4, dur * 0.6); o.start(t); o.stop(t + dur + 0.05); }
@@ -124,12 +125,17 @@ const VFX = (() => {
   const NAMES = ['prout', 'sifflet', 'ding', 'tada', 'boing', 'pop', 'woosh', 'applaudissements', 'tambour', 'badumtss', 'cloche', 'tonnerre', 'soupir', 'bisou', 'coeur', 'magie'];
   // plays it now, resolves when it's over
   function play(name) {
-    const k = ALIAS[String(name || '').toLowerCase().replace(/\s+/g, '-')]; if (!k || !S[k]) return Promise.resolve(false);
-    const c = ac(); const g = c.createGain(); g.gain.value = 0.9; g.connect(c.destination);
-    const d = S[k](c, g, c.currentTime + 0.02);
+    const c = ac(); const d = schedule(name, c, c.destination, c.currentTime + 0.02); if (!d) return Promise.resolve(false);
     return new Promise((r) => setTimeout(() => r(true), d * 1000 + 60));
   }
-  return { play, NAMES, known: (n) => !!ALIAS[String(n || '').toLowerCase().replace(/\s+/g, '-')] };
+  // on the audio clock, at `when`, into `dest` (between two pieces of speech, with no gap): its duration in seconds
+  function schedule(name, c, dest, when) {
+    const k = ALIAS[String(name || '').toLowerCase().replace(/\s+/g, '-')]; if (!k || !S[k]) return 0;
+    const g = c.createGain(); g.gain.value = 0.9; g.connect(dest);
+    const d = S[k](c, g, when); setTimeout(() => { try { g.disconnect(); } catch {} }, (when - c.currentTime + d) * 1000 + 500);
+    return d;
+  }
+  return { play, schedule, NAMES, known: (n) => !!ALIAS[String(n || '').toLowerCase().replace(/\s+/g, '-')] };
 })();
 
 // ───────────────────────────── the AI's tags → spoken segments ─────────────────────────────

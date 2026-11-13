@@ -1,0 +1,38 @@
+/* Voice mode — the states must be unmistakable at a glance: listening (calm), hearing you (the ring follows your
+   voice), thinking (a slow breath), speaking (the ring follows its voice), paused, microphone off.
+   Only transform / opacity move; nothing animates while it just listens. */
+.vx { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--bg); }
+.vx-ring { all: unset; box-sizing: border-box; cursor: pointer; width: 210px; height: 210px; border-radius: 50%; display: grid; place-items: center; position: relative; -webkit-tap-highlight-color: transparent; }
+.vx-ring:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; }
+.vx-center.small .vx-ring { width: 110px; height: 110px; }
+.vx-ring::before { opacity: .35; transform: scale(calc(0.86 + var(--lv, 0) * 0.42)); transition: opacity .25s var(--ease), transform .08s linear; }
+.vx-ring::after { content: ''; position: absolute; inset: 6px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; transform: scale(.94); transition: opacity .2s var(--ease), transform .2s var(--ease); }
+.vx-mark { transition: opacity .25s var(--ease); }
+.vx[data-phase=hearing] .vx-ring::before { opacity: .9; }
+.vx[data-phase=hearing] .vx-ring::after { opacity: .55; transform: scale(calc(1 + var(--lv, 0) * 0.06)); }
+.vx[data-phase=speaking] .vx-ring::before { opacity: .75; }
+.vx[data-phase=thinking] .vx-ring::before { opacity: .6; animation: vx-breathe 1.6s ease-in-out infinite; }
+.vx[data-phase=paused] .vx-mark, .vx[data-phase=muted] .vx-mark { opacity: .4; }
+.vx[data-phase=muted] .vx-mark { --logo: var(--muted); }
+.vx[data-phase=paused] .vx-ring::before, .vx[data-phase=muted] .vx-ring::before { opacity: 0; }
+.vx[data-phase=paused] .vx-ring::after { opacity: .35; border-style: dashed; border-color: var(--muted); transform: none; }
+/* the status line: a small dot in the state's colour, then the words */
+.vx-status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); min-height: 20px; }
+.vx-status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: .6; transition: background .2s, opacity .2s; }
+.vx[data-phase=listening] .vx-status::before { background: var(--accent); opacity: .45; }
+.vx[data-phase=hearing] .vx-status::before { background: var(--accent); opacity: 1; }
+.vx[data-phase=thinking] .vx-status::before { background: var(--text-2); opacity: .8; }
+.vx[data-phase=speaking] .vx-status::before { background: var(--accent); opacity: 1; }
+.vx[data-phase=muted] .vx-status::before { background: var(--err); opacity: .8; }
+.vx-dl { font-size: 12.5px; color: var(--muted); min-height: 16px; }
+/* the live transcript: lighter while you are still talking */
+.vx-user { font-size: 16px; color: var(--text-2); transition: opacity .15s; }
+.vx-user.partial { opacity: .7; }
+.vx-user.partial::after { content: '…'; }
+.vx-err { color: var(--err); font-size: 13.5px; }
+.vx-err[hidden] { display: none; }
+.vx-btn.off { color: var(--err); }
+.vx[data-phase=listening] [data-action=vx-stop-talk], .vx[data-phase=muted] [data-action=vx-stop-talk], .vx[data-phase=hearing] [data-action=vx-stop-talk] { opacity: .45; }
+@media (max-width: 520px) { .vx-ring { width: 170px; height: 170px; } .vx-ai { font-size: 20px; } .vx-ctl { padding-bottom: max(22px, env(safe-area-inset-bottom)); } }
+.reduce-motion .vx, .reduce-motion .vx-ring::before, .reduce-motion .vx-ring::after { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .vx-ring::before, .vx-ring::after { animation: none !important; } }

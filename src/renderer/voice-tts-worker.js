@@ -161,6 +161,23 @@ function wav(pcm, rate) {
   return new Uint8Array(buf);
 }
 
+// One sentence at a time, in order; pieces of an answer the user cut off are dropped before they are made.
+const jobs = []; let running = false, cancelBelow = 0;
+async function pumpTts() {
+  if (running) return; running = true;
+  try {
+    while (jobs.length) {
+      const m = jobs.shift();
+      if ((m.gen || 0) < cancelBelow) { postMessage({ t: 'error', id: m.id, error: 'cancelled' }); continue; }
+      try {
+        const t0 = performance.now();
+        const { pcm, rate } = await synth(m.voice, m.text, m.speed);
+        const bytes = wav(pcm, rate);
+        postMessage({ t: 'wav', id: m.id, wav: bytes, ms: Math.round(performance.now() - t0) }, [bytes.buffer]);
+      } catch (err) { postMessage({ t: 'error', id: m.id, error: String((err && err.message) || err).slice(0, 300) }); }
+    }
+  } finally { running = false; }
+}
 self.onmessage = async (e) => {
   const m = e.data || {};
   try {
@@ -168,11 +185,7 @@ self.onmessage = async (e) => {
     if (m.t === 'kokoroCpu') { kokoroCpu = true; postMessage({ t: 'ok', id: m.id }); return; }
     if (m.t === 'phon') { postMessage({ t: 'phon', id: m.id, ...(await (async () => { await base(); return phonemize(m.text, m.lang); })()) }); return; } // tests
     if (m.t === 'load') { await voice(m.voice, (p, what) => postMessage({ t: 'progress', id: m.id, p, what })); postMessage({ t: 'ready', id: m.id }); return; }
-    if (m.t === 'tts') {
-      const t0 = performance.now();
-      const { pcm, rate } = await synth(m.voice, m.text, m.speed);
-      const bytes = wav(pcm, rate);
-      postMessage({ t: 'wav', id: m.id, wav: bytes, ms: Math.round(performance.now() - t0) }, [bytes.buffer]);
-    }
+    if (m.t === 'cancel') { cancelBelow = Math.max(cancelBelow, m.below || 0); postMessage({ t: 'ok', id: m.id }); return; }
+    if (m.t === 'tts') { jobs.push(m); pumpTts(); }
   } catch (err) { postMessage({ t: 'error', id: m.id, error: String((err && err.message) || err).slice(0, 300) }); }
 };

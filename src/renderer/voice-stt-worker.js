@@ -35,18 +35,33 @@ function normalize(x) {
   return y;
 }
 
+// One recognition at a time (two at once on the same session fight for the processor and both get slower).
+// A partial transcript (while the user is still talking) that is still waiting when a newer request comes is
+// dropped: only the latest one matters.
+const queue = []; let busy = false;
+async function pump() {
+  if (busy) return; busy = true;
+  try {
+    while (queue.length) {
+      const m = queue.shift();
+      if (m.partial && queue.length) { postMessage({ t: 'text', id: m.id, stale: true, text: '' }); continue; }
+      try {
+        const t0 = performance.now();
+        const audio = normalize(new Float32Array(m.pcm));
+        const opts = { language: m.lang || null, task: 'transcribe', chunk_length_s: 30, stride_length_s: 4, return_timestamps: false };
+        let r;
+        try { r = await (await load(m.model, m.device))(audio, opts); }
+        catch (e) { if (m.device !== 'webgpu') throw e; r = await (await load(m.model, 'wasm'))(audio, opts); } // GPU lost or refused: the CPU path
+        const text = String((r && r.text) || '').trim();
+        postMessage({ t: 'text', id: m.id, ms: Math.round(performance.now() - t0), text: /^(\[.*\]|\(.*\)|sous-titr|merci d.avoir regard|thanks? for watching)/i.test(text) ? '' : text });
+      } catch (err) { postMessage({ t: 'error', id: m.id, error: String(err && err.message || err).slice(0, 300) }); }
+    }
+  } finally { busy = false; }
+}
 self.onmessage = async (e) => {
   const m = e.data || {};
   try {
     if (m.t === 'load') { await load(m.model, m.device); postMessage({ t: 'ready', id: m.id }); return; }
-    if (m.t === 'stt') {
-      const audio = normalize(new Float32Array(m.pcm));
-      const opts = { language: m.lang || null, task: 'transcribe', chunk_length_s: 30, stride_length_s: 4, return_timestamps: false };
-      let r;
-      try { r = await (await load(m.model, m.device))(audio, opts); }
-      catch (e) { if (m.device !== 'webgpu') throw e; r = await (await load(m.model, 'wasm'))(audio, opts); } // GPU lost or refused: the CPU path
-      const text = String((r && r.text) || '').trim();
-      postMessage({ t: 'text', id: m.id, text: /^(\[.*\]|\(.*\)|sous-titr|merci d.avoir regard|thanks? for watching)/i.test(text) ? '' : text });
-    }
+    if (m.t === 'stt') { queue.push(m); pump(); }
   } catch (err) { postMessage({ t: 'error', id: m.id, error: String(err && err.message || err).slice(0, 300) }); }
 };
