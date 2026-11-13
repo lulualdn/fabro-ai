@@ -421,6 +421,7 @@ app.whenReady().then(async () => {
   try { const [sp, loc] = await Promise.all([system.getSpecs(), models.listLocal ? models.listLocal() : []]); await providers.autoFree(sp, loc.length > 0); } catch (e) { console.warn('autoFree', e.message); }
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
+  require('./myfabro').init(ipcMain); // v0.2 Mon Fabro: memory entries, profile, timeline, reminders, skill ideas
   require('./resources').init(ipcMain, send); require('./storage').init(ipcMain, send); // v0.2 perf: Resources screen data + slow-disk advice
   models.init((p) => send('models:progress', p));
   // First model chosen in the Windows installer: start its download once, into the chosen disk.
