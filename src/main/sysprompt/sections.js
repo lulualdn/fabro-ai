@@ -26,6 +26,8 @@ function langLine(s) {
 }
 
 // Memory: the items that share words with the request first, cut to a share of the budget.
+const DIGEST = '## Last line of every answer\nEnd each answer with one hidden line: <digest>what this answer said or did, 25 words at most, with the exact names (files, numbers, links)</digest>. Fabro hides it from the user and uses it to find this message later in long conversations.';
+
 function memoryLines(s, maxTok) {
   const mem = s.user.memories || []; if (!mem.length) return [];
   const q = new Set(String(s.request || '').toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []);
@@ -149,6 +151,10 @@ const SECTIONS = [
   { id: 'voice', prio: 0, when: (s) => (s.voice && !s.sub ? 'voice mode' : ''), full: () => P.VOICE, short: () => P.VOICE },
   { id: 'sub', prio: 0, when: (s) => (s.sub ? 'sub-agent' : ''), full: () => P.SUB_NOTE, short: () => P.SUB_NOTE },
   { id: 'focus', prio: 0, when: (s) => (focusBlock(s) ? 'situation signals' : ''), full: (s) => focusBlock(s), short: (s) => focusBlock(s) },
+  // smart context (src/main/context): a hidden one-line description at the end of each answer; built mechanically
+  // when the model forgets it, so it is the first thing dropped on a tight budget
+  { id: 'digest', prio: 3, when: (s) => (s.structured && !s.sub && !s.voice && !s.unattended && s.model.size !== 'tiny' ? 'hidden digest line' : ''),
+    full: () => DIGEST, short: () => DIGEST },
 ];
 
 module.exports = { SECTIONS, LANG_NAMES, memoryLines, focusBlock, dateLine, langLine };

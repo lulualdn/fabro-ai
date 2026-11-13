@@ -11,6 +11,11 @@ const agent = require('./agent');
 const skills = require('./agent/skills');
 const code = require('./code');
 const sysprompt = require('./sysprompt'); // the adaptive system prompt (built and patched there)
+const context = require('./context'); // v0.2: summaries at the right moments, <digest> tags, growing window
+const digest = require('./context/digest');
+require('./agent/context-tools'); // context_list / context_read / context_pin
+// memory pressure: conversations whose window was enlarged go back to the normal size
+try { require('./governor').on('pressure', () => context.onPressure((m) => engine.resetContext(m))); } catch {}
 
 // ───────────────────────────── permissions & dependencies (asked in the UI) ─────────────────────────────
 const waiting = new Map(); // `${reqId}:${callId}` → resolve
@@ -353,7 +358,17 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
   const acc = {
     usage: { prompt: 0, completion: 0, has: false }, timings: null, noTools: false,
     addUsage(p, c) { this.usage.prompt = Math.max(this.usage.prompt, p || 0); this.usage.completion += c || 0; this.usage.has = true; },
-    push(type, text) { tFirst = tFirst || Date.now(); if (type === 'token') chars += text.length; out({ type, text }); },
+    push(type, text) {
+      tFirst = tFirst || Date.now();
+      if (type === 'token') { if (!this.dg) this.dg = digest.streamFilter(); text = this.dg.feed(text); if (!text) return; chars += text.length; }
+      out({ type, text });
+    },
+  };
+  // End of one model call: release what the digest filter held back, keep the digest, clean the content.
+  const finishRound = (r) => {
+    if (acc.dg) { const rest = acc.dg.end(); if (rest) { chars += rest.length; out({ type: 'token', text: rest }); } if (acc.dg.digest) acc.digest = acc.dg.digest; acc.dg = null; }
+    if (r && typeof r.content === 'string' && /<digest>/i.test(r.content)) { const d = digest.split(r.content); r.content = d.text.replace(/\s+$/, ''); if (d.digest) acc.digest = d.digest; }
+    if (r && r.content) acc.lastContent = r.content;
   };
   let be = null;
   const cpFiles = {};
@@ -366,6 +381,25 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
   try {
     be = await resolveBackend(model, out);
     if (be.gen) params = { ...params, ...Object.fromEntries(Object.entries(be.gen).filter(([, v]) => v !== null && v !== '' && v !== undefined)) };
+    // v0.2 context: the renderer sends the whole conversation (with ids and digests); a summary may stand for its
+    // older part. Never compressed mid tool round: only here (forced, ~85 %) and after the answer (background, ~65 %).
+    const rawMessages = messages;
+    const ctxConv = !parent && meta.convId && !/^bg-/.test(reqId) ? meta.convId : null;
+    const compressRun = (raw) => context.compress(ctxConv, raw, {
+      ctx: context.ctxOf(be), lang: (params.userContext || {}).lang, modelId: be.inst && be.inst.model && be.inst.model.id,
+      quick: (m2, p2) => quick(model, m2, p2),
+      canGrow: be.kind === 'local' && !!be.inst && ((store.getSettings().context || {}).grow !== false),
+      maxCtx: () => engine.maxContext(be.inst.model), grow: (n) => engine.resizeContext(be.inst.model, n),
+    });
+    let prepared = context.prepare(ctxConv, messages);
+    messages = prepared.messages;
+    if (ctxConv && context.check(ctxConv, messages, null, be).forced) {
+      out({ type: 'status', status: 'compressing' });
+      const cr = await compressRun(rawMessages).catch(() => null);
+      if (cr && cr.grew) be = await resolveBackend(model, out);
+      prepared = context.prepare(ctxConv, rawMessages); messages = prepared.messages;
+      out({ type: 'status', status: 'generating', backend: be.kind === 'local' ? 'local' : be.provider.kind });
+    }
     if (be.inst) engine.acquire(be.inst);
     out({ type: 'status', status: 'generating', backend: be.kind === 'local' ? 'local' : be.provider.kind });
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
@@ -379,7 +413,8 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     const buildTools = () => {
       const chatT = tools.schemas(params.tools || []);
       const agentT = params.agent === false ? [] : agent.select({ agentMode, text: recentText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx }).map(agent.schema);
-      return [...chatT, ...agentT];
+      const ctxT = prepared && (prepared.compressed || rawMessages.length > 24) && params.agent !== false ? ['context_list', 'context_read', 'context_pin'].map((n) => agent.get(n)).filter(Boolean).map(agent.schema) : [];
+      return [...chatT, ...agentT, ...ctxT.filter((x) => !agentT.some((y) => y.function.name === x.function.name))];
     };
     let toolSchemas = buildTools();
     out({ type: 'tools_info', count: toolSchemas.length, tokens: agent.estTokens(toolSchemas) });
@@ -453,7 +488,8 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     for (;;) {
       if (!parent) { const pm = takeInjected(reqId, out); if (pm) msgs.push(pm); }
       pruneToolImages(msgs);
-      compact(msgs, toolSchemas, be);
+      context.inRun(msgs, toolSchemas, be);
+      if (acc.est0 == null) acc.est0 = context.estimate(msgs, toolSchemas, null);
       let r;
       try { r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas); }
       catch (e) {
@@ -464,9 +500,11 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         engine.release(be.inst);
         const m = await models.getLocal(model.id); const inst = await engine.ensure(m);
         be.inst = inst; be.base = `http://127.0.0.1:${inst.port}/v1`; engine.acquire(inst);
-        compact(msgs, toolSchemas, be, 0.5);
+        context.inRun(msgs, toolSchemas, be, { force: true });
         r = await complete(be, msgs, params, ctrl.signal, acc, acc.noTools && !acc.fallback ? [] : toolSchemas);
       }
+      finishRound(r);
+      if (ctxConv) out({ type: 'context', convId: ctxConv, used: (acc.usage.has && acc.usage.prompt) || context.estimate(msgs, toolSchemas, null), ctx: context.ctxOf(be), covered: prepared.covered || 0 });
       if (!r.toolCalls.length) {
         // The user added a precision while this answer was streaming: one more round so the model can address it.
         if (!parent && !ctrl.signal.aborted && (injected.get(reqId) || []).length && (acc.precisionRounds = (acc.precisionRounds || 0) + 1) <= 3) {
@@ -573,7 +611,9 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       tools: steps || undefined, noTools: acc.noTools || undefined,
     };
     flushCp();
-    out({ type: 'done', stats, sysprompt: sp.explain() });
+    const dg = acc.digest || (acc.lastContent ? digest.describeAssistant({ content: acc.lastContent }, { tools: turnTools.map((x) => x.name) }) : '');
+    const ctxInfo = ctxConv ? context.afterTurn(ctxConv, { be, promptTokens: steps === 0 ? stats.promptTokens : null, estimated: steps === 0 ? acc.est0 : null, messages: rawMessages, run: (raw) => compressRun(raw).then((cr) => { if (cr && cr.done) emit({ reqId, type: 'context', convId: ctxConv, ...context.status(ctxConv), compressedNow: !cr.grew, grewNow: !!cr.grew }); }) }) : null;
+    out({ type: 'done', stats, sysprompt: sp.explain(), digest: dg ? digest.clip(dg, 400) : undefined, context: ctxInfo || undefined });
     usage.record({ model: meta.modelLabel || (be.kind === 'local' ? be.model : `${be.provider.name} · ${be.model}`), backend: stats.backend, convId: meta.convId, prompt: stats.promptTokens || 0, completion: stats.completionTokens || 0 });
   } catch (e) {
     flushCp();
