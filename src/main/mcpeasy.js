@@ -482,9 +482,9 @@ const CATALOG = [
   { id: 'fetch', icon: 'globe', command: 'uvx', args: ['mcp-server-fetch'], needs: [] },
   { id: 'memory', icon: 'brain', command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'], needs: [] },
   { id: 'git', icon: 'git', command: 'uvx', args: ['mcp-server-git', '--repository'], needs: [{ where: 'argAppend', name: 'folder', label: 'Git folder (repository)', kind: 'folder', secret: false, required: true }] },
-  { id: 'time', icon: 'clock', command: 'uvx', args: ['mcp-server-time'], needs: [] },
-  { id: 'sequential-thinking', icon: 'list', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sequential-thinking'], needs: [] },
-  { id: 'playwright', icon: 'browser', command: 'npx', args: ['-y', '@playwright/mcp@latest'], needs: [] },
+  { id: 'time', icon: 'calendar', command: 'uvx', args: ['mcp-server-time'], needs: [] },
+  { id: 'sequential-thinking', icon: 'tasks', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sequential-thinking'], needs: [] },
+  { id: 'playwright', icon: 'monitor', command: 'npx', args: ['-y', '@playwright/mcp@latest'], needs: [] },
   { id: 'github', icon: 'git', url: 'https://api.githubcopilot.com/mcp/', headers: { Authorization: '' }, needs: [{ where: 'header', name: 'Authorization', prefix: 'Bearer ', label: 'GitHub personal access token', secret: true, required: true, kind: 'password' }], link: 'https://github.com/settings/personal-access-tokens' },
   { id: 'brave-search', icon: 'search', command: 'npx', args: ['-y', '@brave/brave-search-mcp-server', '--transport', 'stdio'], env: { BRAVE_API_KEY: '' }, needs: [{ where: 'env', name: 'BRAVE_API_KEY', label: 'Brave Search API key', secret: true, required: true, kind: 'password' }], link: 'https://brave.com/search/api/' },
 ];
