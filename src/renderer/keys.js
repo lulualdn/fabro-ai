@@ -17,7 +17,8 @@
   // ───────── rows of the conversation list: focusable, one tab stop ─────────
   function decorate() {
     const list = $('#sb-lists'); if (!list) return;
-    if (!enabled()) { list.removeAttribute('role'); $$('.recent[role]', list).forEach((r) => { r.removeAttribute('role'); r.removeAttribute('tabindex'); r.removeAttribute('aria-selected'); }); return; }
+    // off: undo only what this layer set (rows go back to the app's own role="button" tabindex="0")
+    if (!enabled()) { if (list.getAttribute('role') === 'listbox') list.removeAttribute('role'); $$('.recent[role="option"]', list).forEach((r) => { r.setAttribute('role', 'button'); r.tabIndex = 0; r.removeAttribute('aria-selected'); }); return; }
     list.setAttribute('role', 'listbox'); list.setAttribute('aria-label', t('chats'));
     const rows = $$('.recent', list);
     const stop = rows.find((r) => r.classList.contains('active')) || rows[0];

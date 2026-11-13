@@ -61,7 +61,7 @@
     const keys = T.keysMode();
     const warn = opts.warn || '';
     el.innerHTML = `<div class="thm-sec">
-      <h3 class="st-sec">${esc(t('th_title'))}</h3>
+      ${opts.inDialog ? '' : `<h3 class="st-sec">${esc(t('th_title'))}</h3>`}
       <p class="st-intro">${esc(t('th_intro'))}</p>
       <div class="thm-grid" role="radiogroup" aria-label="${esc(t('th_title'))}">${built.map((m) => card(m, m.id === cur)).join('')}</div>
       ${mine.length ? `<h3 class="st-sec">${esc(t('th_mine'))}</h3><div class="thm-grid" role="radiogroup" aria-label="${esc(t('th_mine'))}">${mine.map((m) => card(m, m.id === cur)).join('')}</div>` : ''}
@@ -76,7 +76,7 @@
         <div class="st-control"><div class="seg" role="radiogroup" aria-label="${esc(t('th_keys'))}">${[['auto', 'th_keysAuto'], ['on', 'th_keysOn'], ['off', 'th_keysOff']].map(([v, k]) => `<button role="radio" aria-checked="${keys === v}" class="${keys === v ? 'on' : ''}" data-thm="keys" data-v="${v}">${esc(t(k))}</button>`).join('')}</div></div></div>
     </div>`;
     applyVars(el);
-    const again = (o) => T.renderSection(el, o);
+    const again = (o) => T.renderSection(el, { inDialog: opts.inDialog, ...(o || {}) });
     const sig = { signal: ac.signal };
     const refocus = (sel) => { const n = $(sel, el); if (n) n.focus(); };
     el.addEventListener('click', async (e) => {
@@ -123,9 +123,9 @@
     root.innerHTML = `<div class="modal-backdrop" data-thm-close></div>
       <div class="modal thm-modal" role="dialog" aria-modal="true" aria-labelledby="thm-dlg"><div class="thm-dlg-head"><h2 id="thm-dlg">${esc(t('th_title'))}</h2>
         <button class="icon-btn" data-thm-close aria-label="${esc(t('close'))}">${icon('x', 18)}</button></div><div class="thm-dlg-body"></div></div>`;
-    root.addEventListener('click', (e) => { if (e.target.closest('[data-thm-close]')) closeModal(); }, { once: false });
+    if (!root._thmClose) { root._thmClose = true; root.addEventListener('click', (e) => { if (e.target.closest('[data-thm-close]')) closeModal(); }); } // once, not per opening
     const body = $('.thm-dlg-body', root);
-    T.renderSection(body);
+    T.renderSection(body, { inDialog: true });
     const first = $('.thm-card.on', body) || $('.thm-card', body); if (first) first.focus();
   };
 
@@ -133,5 +133,5 @@
   if (window.fabro && fabro.commands) fabro.commands.register('themes', { description: t('th_title'), builtin: true, run: () => T.openGallery() });
   else window.addEventListener('DOMContentLoaded', () => window.fabro && fabro.commands.register('themes', { description: t('th_title'), builtin: true, run: () => T.openGallery() }));
   // keep an open gallery in step with the theme and the light/dark mode
-  T.onChange(() => { const b = $('.thm-dlg-body'); if (b && b.isConnected) { const f = document.activeElement; if (!b.contains(f)) T.renderSection(b); } });
+  T.onChange(() => { const b = $('.thm-dlg-body'); if (b && b.isConnected) { const f = document.activeElement; if (!b.contains(f)) T.renderSection(b, { inDialog: true }); } });
 })();

@@ -1,6 +1,6 @@
 // Themes and keyboard layer (themes.js, keys.js, themes-ui.js). English + French (tutoiement).
 Object.assign(I18N.en, {
-  th_title: 'Theme', th_intro: 'Colours, fonts, textures and sometimes the motion. Light and dark still follow your choice above when the theme has both.',
+  th_title: 'Theme', th_intro: 'Colours, fonts, textures and sometimes the motion. When a theme has both, light or dark follows your Appearance setting.',
   th_use: 'Use {n}', th_current: 'In use', th_baseBoth: 'Light + dark', th_baseDark: 'Dark only', th_baseLight: 'Light only',
   th_mine: 'Your themes', th_builtin: 'Built in', th_import: 'Import a theme…', th_export: 'Export', th_dup: 'Duplicate', th_del: 'Delete', th_edit: 'Edit colours',
   th_imported: '“{n}” imported.', th_importedWarn: '“{n}” imported. Some parts were ignored: {w}.', th_importFail: 'This file is not a Fabro theme ({e}).',
@@ -22,7 +22,7 @@ Object.assign(I18N.en, {
   kb_cNew: 'Start a fresh chat', kb_cTheme: 'Change theme', kb_cModel: 'Choose a model', kb_noTheme: 'No theme called “{q}”.', kb_themeOn: 'Theme: {n}',
 });
 Object.assign(I18N.fr, {
-  th_title: 'Thème', th_intro: 'Couleurs, polices, textures et parfois le mouvement. Clair et sombre suivent toujours ton choix ci-dessus quand le thème a les deux.',
+  th_title: 'Thème', th_intro: 'Couleurs, polices, textures et parfois le mouvement. Quand un thème a les deux, clair ou sombre suit ton réglage d’apparence.',
   th_use: 'Utiliser {n}', th_current: 'Utilisé', th_baseBoth: 'Clair + sombre', th_baseDark: 'Sombre seulement', th_baseLight: 'Clair seulement',
   th_mine: 'Tes thèmes', th_builtin: 'Fournis', th_import: 'Importer un thème…', th_export: 'Exporter', th_dup: 'Dupliquer', th_del: 'Supprimer', th_edit: 'Modifier les couleurs',
   th_imported: '« {n} » importé.', th_importedWarn: '« {n} » importé. Certaines parties ont été ignorées : {w}.', th_importFail: 'Ce fichier n’est pas un thème Fabro ({e}).',

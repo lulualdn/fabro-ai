@@ -23,8 +23,8 @@
   T.get = (id) => T.all().find((m) => m.id === id) || null;
   T.current = () => currentId;
   T.isBuiltin = (id) => builtins.some((m) => m.id === id);
-  T.label = (m) => (typeof m.name === 'string' ? m.name : (m.name[(window.S && S.lang) || 'en'] || m.name.en));
-  T.describe = (m) => (!m.desc ? '' : typeof m.desc === 'string' ? m.desc : (m.desc[(window.S && S.lang) || 'en'] || m.desc.en));
+  T.label = (m) => (typeof m.name === 'string' ? m.name : (m.name[(typeof S !== 'undefined' && S.lang) || 'en'] || m.name.en));
+  T.describe = (m) => (!m.desc ? '' : typeof m.desc === 'string' ? m.desc : (m.desc[(typeof S !== 'undefined' && S.lang) || 'en'] || m.desc.en));
   T.onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
   // Fabro's own look is tokens.css; to draw a preview of it in the other mode we derive from its seeds
   const FABRO_SEEDS = { light: { bg: '#f7f5f0', panel: '#efece5', elev: '#fffefb', text: '#211f1b', accent: '#bf5b30', 'accent-ink': '#ffffff' }, dark: { bg: '#11151c', panel: '#0d1016', elev: '#1a1f28', text: '#f2efe9', accent: '#ff6a4d', 'accent-ink': '#14161b' } };

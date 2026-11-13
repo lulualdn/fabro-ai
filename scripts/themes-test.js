@@ -50,7 +50,8 @@ for (const raw of D.BUILTIN) {
     ok(badRaw.length === 0, `${m.id} ${mode}: passes without the safety net (${badRaw.map((b) => b.fg + '/' + b.bg).join(',')})`);
     // the generated CSS holds nothing but declarations
     const out = C.compile(m);
-    ok(!/url\((?!["']?data:image\/svg)|@import|<script|expression\(|javascript:/i.test(out), `${m.id}: compiled CSS has no remote url / import / script`);
+    // inside the inline SVG texture, url(#id) points at its own filter: look only outside data: URIs
+    ok(!/url\((?!["']?data:image\/svg)|@import|<script|expression\(|javascript:/i.test(out.replace(/data:image\/svg\+xml,[^"]*/g, 'data:image/svg+xml,')), `${m.id}: compiled CSS has no remote url / import / script`);
     ok(!['logo'].some((k) => out.includes('--' + k + ':')), `${m.id}: never sets --logo`);
   }
   if (m.layout) ok(C.LAYOUTS.includes(m.layout), `${m.id}: known layout`);
