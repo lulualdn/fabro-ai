@@ -26,7 +26,21 @@
   T.label = (m) => (typeof m.name === 'string' ? m.name : (m.name[(window.S && S.lang) || 'en'] || m.name.en));
   T.describe = (m) => (!m.desc ? '' : typeof m.desc === 'string' ? m.desc : (m.desc[(window.S && S.lang) || 'en'] || m.desc.en));
   T.onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+  // Fabro's own look is tokens.css; to draw a preview of it in the other mode we derive from its seeds
+  const FABRO_SEEDS = { light: { bg: '#f7f5f0', panel: '#efece5', elev: '#fffefb', text: '#211f1b', accent: '#bf5b30', 'accent-ink': '#ffffff' }, dark: { bg: '#11151c', panel: '#0d1016', elev: '#1a1f28', text: '#f2efe9', accent: '#ff6a4d', 'accent-ink': '#14161b' } };
+  T.FABRO_SEEDS = FABRO_SEEDS;
   T.tokensFor = (id, mode) => { const m = T.get(id); return m && (id !== 'fabro') ? C.resolveTokens(m, C.modeFor(m, mode === 'dark')) : null; };
+  // everything a small live preview needs: the theme's tokens, fonts and texture for one mode, as { '--name': value }
+  T.previewVars = function (id, wantDark) {
+    const m = T.get(id) || T.get('fabro');
+    const mode = C.modeFor(m, wantDark);
+    const out = {};
+    const t = id === 'fabro' ? C.resolveTokens({ palette: FABRO_SEEDS, tokens: {} }, mode) : C.resolveTokens(m, mode);
+    Object.keys(t).forEach((k) => { out['--' + k] = t[k]; });
+    Object.keys(m.fonts || {}).forEach((k) => { out['--' + C.FONT_KEYS[k]] = m.fonts[k]; });
+    if (m.texture) { const img = C.textureImage(m.texture, t.text || '#000'); if (img) out['--texture'] = img.image; }
+    return { vars: out, mode, layout: m.layout || '', texLayer: m.texture ? m.texture.layer : '' };
+  };
 
   const userMode = () => {
     const th = hasApp && S.settings ? S.settings.theme : 'system';
