@@ -137,7 +137,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   if (process.env.E2E_CLEAN) await win.evaluate(async (th) => { await applySetting('devMode', false); if (th) await applySetting('theme', th); }, process.env.E2E_THEME || '');
   await win.waitForTimeout(1200);
   step('welcome'); await win.screenshot({ path: `${shots}/01-welcome.png` });
-  assert.match(await win.textContent('.greet'), /Lulu/);
+  assert.match(await win.textContent('.greet'), /Lulu|Un café/); // one early-morning greeting has no name
   // onboarding: the propeller asks a few questions (skipped in tests unless forced)
   await win.evaluate(() => { ONB.i = 0; ONB.a = {}; renderOnboarding(); });
   await win.click('.onb [data-action=onb-next]', { timeout: 8000 });
