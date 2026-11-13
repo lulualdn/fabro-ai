@@ -107,12 +107,16 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   // ── turn 1: a question; everything timed ──
   console.log('• turn 1: speak, get an answer');
   const partialSeen = w.evaluate(() => new Promise((r) => { const t0 = performance.now(); const iv = setInterval(() => { const el = document.querySelector('#vx-user, #vx-partial'); const txt = el ? el.textContent.trim() : ''; if (txt && performance.timeOrigin + performance.now() < (__vf.endWall || Infinity)) { clearInterval(iv); r({ at: performance.timeOrigin + performance.now(), txt }); } if (performance.now() - t0 > 15000) { clearInterval(iv); r(null); } }, 30); }));
-  const fed = await w.evaluate(async () => { const sig = __vf.make(2.6); __vf.lead = 0; const p = __vf.feed(sig); const o = await p; return o; });
+  const fedP = w.evaluate(async () => { const sig = __vf.make(2.6); __vf.lead = 0; const p = __vf.feed(sig); const o = await p; return o; });
+  await wait(2600); await w.screenshot({ path: path.join(process.env.SHOTS || os.tmpdir(), 'voice-hearing.png') }).catch(() => {});
+  const fed = await fedP;
   await w.evaluate((e) => { __vf.endWall = e; }, fed.end);
   await w.waitForFunction(() => __vf.starts.length + __vf.plays.length > 0, null, { timeout: 20000 }).catch(() => {});
+  await wait(1500); await w.screenshot({ path: path.join(process.env.SHOTS || os.tmpdir(), 'voice-speaking.png') }).catch(() => {});
   await w.waitForFunction(() => !S.streaming && !Speaker.busy(), null, { timeout: 40000 }).catch(() => {});
   await wait(300);
   const p1 = await partialSeen;
+  const SH = process.env.SHOTS || os.tmpdir();
   const r1 = await w.evaluate(() => JSON.parse(JSON.stringify(__vf, (k, v) => (typeof v === 'function' ? undefined : v))));
   const req1 = log.find((x) => x.k === "req" && x.n === 0);
   if (process.env.VFLOW_DEBUG || !req1 || !r1.tts.length) console.log("DEBUG", JSON.stringify({ stt: r1.stt, tts: r1.tts, plays: r1.plays, starts: r1.starts, reqs: log.map((x) => ({ n: x.n, sent: x.sent, ab: x.aborted, done: !!x.doneT, ft: !!x.firstTok })), msgs: await w.evaluate(() => S.conv && S.conv.messages.map((m) => m.role + ":" + (m.content || "").slice(0, 60) + (m.error ? " ERR " + m.error : ""))), err: await w.evaluate(() => S.voice.err), phase: await w.evaluate(() => S.voice.phase) }).slice(0, 1500));
