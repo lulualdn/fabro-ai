@@ -2,7 +2,7 @@
 
 Appli desktop d'IA locale (Electron, renderer en JS vanilla, llama.cpp). Propriétaire : Lulu (UFStudios).
 
-- Chantier en cours : **v0.2**. Lire `docs/v02/HANDOFF.md` (état, branches, reste à faire) puis `docs/v02/CONTRACT.md`
+- Chantier en cours : **v0.2**. Lire `docs/v02/PROMPT.md` (demande complète + plan), `docs/v02/HANDOFF.md` (état, branches, reste à faire) puis `docs/v02/CONTRACT.md`
   (règles : nouveau code dans de nouveaux fichiers, `paths.dataDir()` pour les données par compte, tokens CSS, etc.).
   Les chemins `/home/claude/...` et le verrou `flock /tmp/fabro-e2e.lock` cités dans le contrat viennent de l'ancien
   environnement de travail : les ignorer.
