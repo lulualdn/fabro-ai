@@ -55,6 +55,8 @@ function t(key, vars) {
 }
 
 function toast(msg, kind = '') {
+  // the same message already on screen: don't stack a copy of it
+  if ([...$('#toasts').children].some((x) => x.textContent === String(msg) && x.classList.contains('show'))) return;
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
   el.textContent = msg;
@@ -157,7 +159,7 @@ function md(text, prefix, opts) {
 function allModels() {
   const l = S.installed.local.filter((m) => !m.role).map((m) => ({ ref: { backend: 'local', id: m.id }, label: m.name, sub: `${m.quant || 'GGUF'} · ${fmtBytes(m.sizeBytes)}`, vision: m.vision, src: 'local' }));
   const p = (S.provModels || []).map((m) => ({ ref: m.ref, label: m.label, sub: [m.providerName, m.params, m.quant].filter(Boolean).join(' · '), vision: m.vision, src: m.provider, provider: m.providerName, kind: m.kind, remote: !m.local }));
-  return [...l, ...p];
+  return [...l, ...p].map((m) => (window.ModelFinder ? { ...m, tier: ModelFinder.tierOf(m.ref) } : m)); // tier: light | medium | complex (modeltiers.js)
 }
 const refKey = (r) => !r ? '' : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
 const sameRef = (a, b) => !!a && !!b && refKey(a) === refKey(b);
@@ -172,6 +174,7 @@ function currentModel() {
 async function refreshModels() {
   [S.installed, S.provModels] = await Promise.all([api.models.installed(), api.providers.models()]);
   for (const d of S.installed.downloads) S.downloads[d.id] = d;
+  if (window.ModelFinder) ModelFinder.refreshTiers(); // tier badges follow the pool of models
   if (!currentModel()) {
     const first = allModels()[0];
     if (first) await saveSettings({ selectedModel: first.ref });
@@ -341,7 +344,8 @@ function openUpdateDialog() {
   const m = $('#modal-root .modal'); m.querySelectorAll('a[href]').forEach((a) => { a.target = '_blank'; a.rel = 'noopener'; });
   m.querySelector('.btn.primary').focus();
 }
-function closeModal() { const r = $('#modal-root'); const m = r.querySelector('.modal'); if (!m) return; r.classList.add('closing'); setTimeout(() => { r.innerHTML = ''; r.classList.remove('closing'); }, 180); }
+// A dialog opened during the close animation must survive it: only clear the root if it still holds the closed one.
+function closeModal() { const r = $('#modal-root'); const m = r.querySelector('.modal'); if (!m) return; r.classList.add('closing'); setTimeout(() => { if (r.querySelector('.modal') === m) r.innerHTML = ''; r.classList.remove('closing'); }, 180); }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#modal-root .modal')) { e.stopPropagation(); closeModal(); } }, true);
 
 // ───────────────────────────── Views ─────────────────────────────
@@ -435,6 +439,7 @@ function renderSetupCard() {
     ${S.engine.status === 'error' ? errorCard({ code: S.engine.errorCode, message: S.engine.error, detail: S.engine.errorDetail }, 'engine') : ''}
     <div class="sc-links">
       <button class="link-btn" data-action="settings" data-tab="models">${esc(t('chooseAnother'))}</button>
+      <span class="muted">·</span><button class="link-btn" data-action="mf-open">${esc(t('mf_help'))}</button>
       <span class="muted">·</span><button class="link-btn" data-action="settings" data-tab="providers">${esc(t('useProvider'))}</button>
     </div>
   </div>`;
@@ -828,7 +833,7 @@ function openModelMenu(anchor) {
   const groups = {}; list.filter((m) => m.src !== 'local').forEach((m) => { (groups[m.src] ||= { name: m.provider, items: [] }).items.push(m); });
   const mods = (window.modChatModels ? window.modChatModels() : []); // Claude / ChatGPT / Gemini when connected
   const item = (m) => `<button class="pm-item ${sameRef(m.ref, S.settings.selectedModel) ? 'sel' : ''}" data-action="pick-model" data-ref="${esc(JSON.stringify(m.ref))}">
-      <span class="pm-text"><b>${esc(m.label)}</b><small>${esc(m.sub)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></span>
+      <span class="pm-text"><b>${esc(m.label)}${window.ModelFinder ? ModelFinder.tierBadge(m.tier) : ''}</b><small>${esc(m.sub)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></span>
       ${sameRef(m.ref, S.settings.selectedModel) ? icon('check', 16) : ''}</button>`;
   const modItem = (m) => { const ref = { backend: 'mod', id: m.id }; return `<button class="pm-item ${sameRef(ref, S.settings.selectedModel) ? 'sel' : ''}" data-action="pick-model" data-ref="${esc(JSON.stringify(ref))}">
       <span class="pm-ic">${m.icon && String(m.icon).startsWith('data:') ? `<img src="${esc(m.icon)}" alt="">` : icon(m.icon || 'globe', 16)}</span>
@@ -845,6 +850,7 @@ function openModelMenu(anchor) {
       <div class="pm-empty pm-none" hidden>${esc(t('noMatch'))}</div>
       </div>
       <div class="pm-sep"></div>
+      ${window.ModelFinder ? `<button class="pm-item" data-action="mf-open">${icon('search', 16)}<span class="pm-text"><b>${esc(t('mf_help'))}</b></span></button>` : ''}
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="providers">${icon('cloud', 16)}<span class="pm-text"><b>${esc(t('tab_providers'))}</b></span></button>
     </div>`;
@@ -994,7 +1000,7 @@ function generate(opts = {}) {
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
   const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
-  api.chat.send({ reqId, model: cm ? cm.ref : S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  api.chat.send({ reqId, model: cm ? cm.ref : S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), userContext: typeof sysContext === 'function' ? sysContext() : undefined, sysPromptId: typeof sysPromptId === 'function' ? sysPromptId() : null, vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {

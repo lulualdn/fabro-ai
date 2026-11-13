@@ -1,0 +1,856 @@
+{
+ "list": [
+  {
+   "repo": "testorg/Alpha-1.5B-Instruct-GGUF",
+   "downloads": 90000,
+   "likes": 300,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 1500000000,
+    "architecture": "llama",
+    "context_length": 32768
+   }
+  },
+  {
+   "repo": "testorg/Beta-4B-Instruct-GGUF",
+   "downloads": 160000,
+   "likes": 800,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 4000000000,
+    "architecture": "llama",
+    "context_length": 32768
+   }
+  },
+  {
+   "repo": "testorg/Gamma-8B-Instruct-GGUF",
+   "downloads": 400000,
+   "likes": 1500,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 8000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "testorg/Delta-14B-Instruct-GGUF",
+   "downloads": 220000,
+   "likes": 900,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 14000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "testorg/Epsilon-32B-Instruct-GGUF",
+   "downloads": 120000,
+   "likes": 700,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 32000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "testorg/Zeta-Coder-7B-Instruct-GGUF",
+   "downloads": 150000,
+   "likes": 600,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 7000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "testorg/Eta-VL-7B-Instruct-GGUF",
+   "downloads": 130000,
+   "likes": 500,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "image-text-to-text",
+    "license:apache-2.0",
+    "en",
+    "fr"
+   ],
+   "pipeline": "image-text-to-text",
+   "gated": false,
+   "gguf": {
+    "total": 7000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "testorg/Theta-VL-3B-Instruct-GGUF",
+   "downloads": 80000,
+   "likes": 250,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "image-text-to-text",
+    "license:apache-2.0",
+    "en"
+   ],
+   "pipeline": "image-text-to-text",
+   "gated": false,
+   "gguf": {
+    "total": 3000000000,
+    "architecture": "llama",
+    "context_length": 32768
+   }
+  },
+  {
+   "repo": "testorg/Iota-30B-A3B-Instruct-GGUF",
+   "downloads": 140000,
+   "likes": 650,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 30000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "gatedorg/Kappa-70B-Instruct-GGUF",
+   "downloads": 300000,
+   "likes": 2000,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:llama3.1",
+    "en"
+   ],
+   "pipeline": "text-generation",
+   "gated": "manual",
+   "gguf": {
+    "total": 70000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "testorg/Lambda-8B-NC-Instruct-GGUF",
+   "downloads": 20000,
+   "likes": 100,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:cc-by-nc-4.0",
+    "en"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 8000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "oldorg/Legacy-7B-Chat-GGUF",
+   "downloads": 9000000,
+   "likes": 4000,
+   "updated": "2023-08-01T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:llama2",
+    "en"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 7000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "testorg/Mu-8B-Base-GGUF",
+   "downloads": 60000,
+   "likes": 200,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 8000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  },
+  {
+   "repo": "testorg/Nu-Embed-300M-GGUF",
+   "downloads": 500000,
+   "likes": 900,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "feature-extraction",
+   "gated": false,
+   "gguf": {
+    "total": 300000000,
+    "architecture": "llama",
+    "context_length": 32768
+   }
+  },
+  {
+   "repo": "mirror/Gamma-8B-Instruct-GGUF",
+   "downloads": 5000,
+   "likes": 20,
+   "updated": "2026-09-20T10:00:00.000Z",
+   "tags": [
+    "gguf",
+    "text-generation",
+    "license:apache-2.0",
+    "en",
+    "fr",
+    "de",
+    "es"
+   ],
+   "pipeline": "text-generation",
+   "gated": false,
+   "gguf": {
+    "total": 8000000000,
+    "architecture": "llama",
+    "context_length": 131072
+   }
+  }
+ ],
+ "trees": {
+  "testorg/Alpha-1.5B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Alpha-1.5B-Instruct-Q2_K.gguf",
+    "size": 562500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 562500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Alpha-1.5B-Instruct-Q4_K_M.gguf",
+    "size": 909375000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 909375000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Alpha-1.5B-Instruct-Q5_K_M.gguf",
+    "size": 1068750000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 1068750000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Alpha-1.5B-Instruct-Q8_0.gguf",
+    "size": 1593750000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 1593750000
+    }
+   }
+  ],
+  "testorg/Beta-4B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Beta-4B-Instruct-Q2_K.gguf",
+    "size": 1500000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 1500000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Beta-4B-Instruct-Q4_K_M.gguf",
+    "size": 2425000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 2425000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Beta-4B-Instruct-Q5_K_M.gguf",
+    "size": 2850000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 2850000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Beta-4B-Instruct-Q8_0.gguf",
+    "size": 4250000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 4250000000
+    }
+   }
+  ],
+  "testorg/Gamma-8B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Gamma-8B-Instruct-Q2_K.gguf",
+    "size": 3000000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 3000000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Gamma-8B-Instruct-Q4_K_M.gguf",
+    "size": 4850000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 4850000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Gamma-8B-Instruct-Q5_K_M.gguf",
+    "size": 5700000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 5700000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Gamma-8B-Instruct-Q8_0.gguf",
+    "size": 8500000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 8500000000
+    }
+   }
+  ],
+  "testorg/Delta-14B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Delta-14B-Instruct-Q2_K.gguf",
+    "size": 5250000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 5250000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Delta-14B-Instruct-Q4_K_M.gguf",
+    "size": 8487500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 8487500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Delta-14B-Instruct-Q5_K_M.gguf",
+    "size": 9975000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 9975000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Delta-14B-Instruct-Q8_0.gguf",
+    "size": 14875000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 14875000000
+    }
+   }
+  ],
+  "testorg/Epsilon-32B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Epsilon-32B-Instruct-Q2_K.gguf",
+    "size": 12000000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 12000000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Epsilon-32B-Instruct-Q4_K_M.gguf",
+    "size": 19400000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 19400000000
+    }
+   }
+  ],
+  "testorg/Zeta-Coder-7B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Zeta-Coder-7B-Instruct-Q2_K.gguf",
+    "size": 2625000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 2625000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Zeta-Coder-7B-Instruct-Q4_K_M.gguf",
+    "size": 4243750000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 4243750000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Zeta-Coder-7B-Instruct-Q5_K_M.gguf",
+    "size": 4987500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 4987500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Zeta-Coder-7B-Instruct-Q8_0.gguf",
+    "size": 7437500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 7437500000
+    }
+   }
+  ],
+  "testorg/Eta-VL-7B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Eta-VL-7B-Instruct-Q2_K.gguf",
+    "size": 2625000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 2625000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Eta-VL-7B-Instruct-Q4_K_M.gguf",
+    "size": 4243750000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 4243750000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Eta-VL-7B-Instruct-Q5_K_M.gguf",
+    "size": 4987500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 4987500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Eta-VL-7B-Instruct-Q8_0.gguf",
+    "size": 7437500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 7437500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "mmproj-F16.gguf",
+    "size": 858993459,
+    "lfs": {
+     "oid": "mm",
+     "size": 858993459
+    }
+   }
+  ],
+  "testorg/Theta-VL-3B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Theta-VL-3B-Instruct-Q2_K.gguf",
+    "size": 1125000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 1125000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Theta-VL-3B-Instruct-Q4_K_M.gguf",
+    "size": 1818750000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 1818750000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Theta-VL-3B-Instruct-Q5_K_M.gguf",
+    "size": 2137500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 2137500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Theta-VL-3B-Instruct-Q8_0.gguf",
+    "size": 3187500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 3187500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "mmproj-F16.gguf",
+    "size": 858993459,
+    "lfs": {
+     "oid": "mm",
+     "size": 858993459
+    }
+   }
+  ],
+  "testorg/Iota-30B-A3B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Iota-30B-A3B-Instruct-Q2_K.gguf",
+    "size": 11250000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 11250000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Iota-30B-A3B-Instruct-Q4_K_M.gguf",
+    "size": 18187500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 18187500000
+    }
+   }
+  ],
+  "gatedorg/Kappa-70B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Kappa-70B-Instruct-Q2_K.gguf",
+    "size": 26250000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 26250000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Kappa-70B-Instruct-Q4_K_M.gguf",
+    "size": 42437500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 42437500000
+    }
+   }
+  ],
+  "testorg/Lambda-8B-NC-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Lambda-8B-NC-Instruct-Q2_K.gguf",
+    "size": 3000000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 3000000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Lambda-8B-NC-Instruct-Q4_K_M.gguf",
+    "size": 4850000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 4850000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Lambda-8B-NC-Instruct-Q5_K_M.gguf",
+    "size": 5700000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 5700000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Lambda-8B-NC-Instruct-Q8_0.gguf",
+    "size": 8500000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 8500000000
+    }
+   }
+  ],
+  "oldorg/Legacy-7B-Chat-GGUF": [
+   {
+    "type": "file",
+    "path": "Legacy-7B-Chat-Q2_K.gguf",
+    "size": 2625000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 2625000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Legacy-7B-Chat-Q4_K_M.gguf",
+    "size": 4243750000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 4243750000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Legacy-7B-Chat-Q5_K_M.gguf",
+    "size": 4987500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 4987500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Legacy-7B-Chat-Q8_0.gguf",
+    "size": 7437500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 7437500000
+    }
+   }
+  ],
+  "testorg/Mu-8B-Base-GGUF": [
+   {
+    "type": "file",
+    "path": "Mu-8B-Base-Q2_K.gguf",
+    "size": 3000000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 3000000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Mu-8B-Base-Q4_K_M.gguf",
+    "size": 4850000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 4850000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Mu-8B-Base-Q5_K_M.gguf",
+    "size": 5700000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 5700000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Mu-8B-Base-Q8_0.gguf",
+    "size": 8500000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 8500000000
+    }
+   }
+  ],
+  "testorg/Nu-Embed-300M-GGUF": [
+   {
+    "type": "file",
+    "path": "Nu-Embed-300M-Q2_K.gguf",
+    "size": 112500000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 112500000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Nu-Embed-300M-Q4_K_M.gguf",
+    "size": 181875000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 181875000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Nu-Embed-300M-Q5_K_M.gguf",
+    "size": 213750000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 213750000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Nu-Embed-300M-Q8_0.gguf",
+    "size": 318750000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 318750000
+    }
+   }
+  ],
+  "mirror/Gamma-8B-Instruct-GGUF": [
+   {
+    "type": "file",
+    "path": "Gamma-8B-Instruct-Q2_K.gguf",
+    "size": 3000000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ2_K",
+     "size": 3000000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Gamma-8B-Instruct-Q4_K_M.gguf",
+    "size": 4850000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ4_K_M",
+     "size": 4850000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Gamma-8B-Instruct-Q5_K_M.gguf",
+    "size": 5700000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ5_K_M",
+     "size": 5700000000
+    }
+   },
+   {
+    "type": "file",
+    "path": "Gamma-8B-Instruct-Q8_0.gguf",
+    "size": 8500000000,
+    "lfs": {
+     "oid": "xxxxxxxxQ8_0",
+     "size": 8500000000
+    }
+   }
+  ]
+ }
+}

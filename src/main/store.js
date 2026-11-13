@@ -8,12 +8,14 @@ const path = require('path');
 const DEFAULTS = {
   language: 'auto',            // 'auto' or a language code
   theme: 'system',             // system | light | dark
+  skin: { id: 'fabro', user: [], keys: 'auto' }, // app theme (renderer/themes.js): id, imported themes, keyboard navigation auto|on|off
   sidebarCollapsed: false,
   selectedModel: null,         // { backend:'local', id } | { backend:'provider', provider, model }
   providers: { enabled: false, list: [] }, // external providers (OpenAI, Anthropic, Ollama, LM Studio…)
   hfToken: '',
   engine: { ctx: 8192, gpuLayers: -1, threads: 0, flashAttn: 'auto', kvType: 'f16', cpuMoe: 'auto', idleMinutes: 30, energy: 'auto', multiModel: true }, // gpuLayers -1 = auto
   limits: { threads: 'auto', ramHeadroomGB: 'auto', vramHeadroomGB: 'auto', maxGenerations: 1, unloadOnPressure: true, batteryBackoff: true, priority: 'auto', allowSwap: false, autotune: true }, // resource governor (governor.js)
+  modelTiers: { overrides: {}, prefer: { light: null, medium: null, complex: null } }, // light / medium / complex per model + preferred model per tier (modeltiers.js)
   modelProfiles: {},           // per-model overrides: ctx, gpuLayers, threads, kvType, preload, idleMinutes, gen…
   libraries: [], defaultLibrary: 'default',
   downloads: { maxConcurrent: 1, limitMBps: 0 },
@@ -39,6 +41,7 @@ const DEFAULTS = {
   mods: { enabled: { agents: true } },
   mcp: { servers: [] },
   skills: { disabled: [], extraDirs: [] },
+  advanced: { personalPrompts: false, location: '' }, // personal system prompts replace the smart prompt; city for {{location}}
 };
 
 const paths = require('./paths');

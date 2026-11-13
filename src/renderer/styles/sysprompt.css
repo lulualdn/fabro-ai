@@ -1,0 +1,27 @@
+/* Personal system prompts, AI notebook, guides library */
+.sp-section, .nb-section, .gd-section { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.sp-list { display: flex; flex-direction: column; gap: 6px; }
+.sp-open, .gd-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 14px; background: var(--surface-2, rgba(0,0,0,.03)); border: 1px solid transparent; color: inherit; cursor: pointer; transition: transform .18s cubic-bezier(.2,.9,.3,1.2); }
+.sp-open:hover, .gd-item:hover { transform: translateY(-1px); }
+.gd-item.sel { border-color: var(--accent, #e8735a); }
+.sp-open span, .gd-item span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sp-open small, .gd-item small { opacity: .7; }
+.sp-actions, .nb-row, .gd-top, .nb-add, .sp-ed-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sp-ed-top .input, .gd-top .input, .nb-add .input { flex: 1; min-width: 160px; }
+.sp-editor { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 18px; border: 1px solid var(--border, rgba(0,0,0,.08)); }
+.sp-vars { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-body { font-size: 12.5px; line-height: 1.5; }
+.sp-prev-head { display: flex; justify-content: space-between; align-items: baseline; }
+.sp-prev-text, .sp-runtime pre, .gd-body { white-space: pre-wrap; font-size: 12px; max-height: 320px; overflow: auto; padding: 10px; border-radius: 12px; background: var(--surface-2, rgba(0,0,0,.03)); margin: 6px 0 0; }
+.sp-warn { display: flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--warn, #b7791f); }
+.sp-chip.on { color: var(--accent, #e8735a); }
+.nb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.nb-item { padding: 10px 12px; border-radius: 14px; background: var(--surface-2, rgba(0,0,0,.03)); }
+.nb-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.nb-meta small { opacity: .65; }
+.nb-kind { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft, rgba(232,115,90,.14)); }
+.gd-cols { display: grid; grid-template-columns: minmax(200px, 1fr) 1.4fr; gap: 12px; }
+.gd-list { display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow: auto; }
+.gd-view { display: flex; flex-direction: column; gap: 8px; }
+.gd-head { display: flex; justify-content: space-between; align-items: center; }
+@media (max-width: 720px) { .gd-cols { grid-template-columns: 1fr; } }

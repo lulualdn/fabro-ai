@@ -106,10 +106,7 @@ function agentToolsHtml() {
 function mcpHtml() {
   const { mcp, add } = agentVars();
   return `
-    <div class="st-sec">${esc(t('mcpTitle'))}<span class="grow"></span>
-      <button class="btn sm" data-action="mcp-claude">${icon('download', 14)} ${esc(t('mcpImport'))}</button>
-      <button class="btn sm" data-action="mcp-add-open">${icon('plus', 14)} ${esc(t('mcpAdd'))}</button></div>
-    <p class="muted small st-intro">${esc(t('mcpHint'))}</p>
+    <div data-mount="mcpeasy"></div>
     ${add ? `<form class="prov-form" data-form="mcp-add">
       <div class="seg sm">${['stdio', 'http'].map((k) => `<button type="button" class="${add.type === k ? 'on' : ''}" data-action="mcp-type" data-v="${k}">${esc(t('mcp_' + k))}</button>`).join('')}</div>
       <label class="pf-field"><span>${esc(t('provName'))}</span><input class="input" name="name" placeholder="filesystem, github…" required></label>
@@ -122,15 +119,6 @@ function mcpHtml() {
     ${S.claudeCfg ? `<div class="prov-form"><b>${esc(t('mcpFromClaude'))}</b><small class="muted mono">${esc(S.claudeCfg.path)}</small>
       ${S.claudeCfg.servers.length ? S.claudeCfg.servers.map((x, i) => `<label class="imp-row ${x.already ? 'done' : ''}"><input type="checkbox" data-cimp="${i}" ${x.already ? 'disabled' : 'checked'}><span class="m-text"><b>${esc(x.name)}</b><small class="mono">${esc(x.url || [x.command, ...(x.args || [])].join(' '))}</small></span></label>`).join('') : `<div class="muted small">${esc(t('mcpNoClaude'))}</div>`}
       <div class="pf-actions"><button class="btn sm" data-action="mcp-claude-close">${esc(t('cancel'))}</button>${S.claudeCfg.servers.some((x) => !x.already) ? `<button class="btn sm primary" data-action="mcp-claude-go">${esc(t('mcpImportGo'))}</button>` : ''}</div></div>` : ''}
-    <div class="prov-list">${mcp.length ? mcp.map((m) => `<div class="prov-row ${m.status === 'off' ? 'off' : ''} ${m.status === 'error' ? 'err' : ''}">
-        <span class="prov-tile" style="--s:36px;background:var(--panel);color:var(--text-2)">${icon('puzzle', 16)}</span>
-        <div class="m-text"><b>${esc(m.name)}</b><small>${esc(m.type === 'http' ? m.url : [m.command, ...(m.args || [])].join(' '))}</small>
-          <small class="mcp-st st-${m.status}">${m.status === 'ready' ? `<span class="ok-dot"></span>${esc(t('mcpReady', { n: m.tools.length }))}` : m.status === 'connecting' ? `${spinner(12)} ${esc(t('mcpConnecting'))}` : m.status === 'auth' ? `${icon('key', 12)} ${esc(t('mcpNeedsAuth'))}` : m.status === 'error' ? `${icon('warning', 12)} ${esc(m.error || '')}` : esc(t('mcpOff'))}</small></div>
-        ${m.status === 'auth' ? `<button class="btn sm primary" data-action="mcp-signin" data-id="${esc(m.id)}">${esc(t('mcpSignIn'))}</button>` : ''}
-        ${m.status === 'error' ? `<button class="icon-btn sm" data-action="mcp-retry" data-id="${esc(m.id)}" title="${esc(t('errRetry'))}">${icon('refresh', 16)}</button>` : ''}
-        <button class="icon-btn sm" data-action="mcp-remove" data-id="${esc(m.id)}" title="${esc(t('delete'))}">${icon('trash', 16)}</button>
-        ${toggleBtn('mcp-toggle', m.status !== 'off', `data-id="${esc(m.id)}"`)}
-      </div>`).join('') : `<div class="empty-note">${esc(t('mcpEmpty'))}</div>`}</div>
 
 `;
 }
@@ -139,8 +127,12 @@ function skillsHtml() {
   return `
     <div class="st-sec">${esc(t('skillsTitle'))}<span class="grow"></span><button class="btn sm" data-action="skills-folder">${icon('folder', 14)} ${esc(t('skillsOpen'))}</button><button class="btn sm" data-action="skills-refresh">${icon('refresh', 14)}</button></div>
     <p class="muted small st-intro">${esc(t('skillsHint'))}</p>
+    <div data-mount="skillimport"></div>
     <div class="prov-list">${skills.length ? skills.map((x) => `<div class="prov-row ${x.enabled ? '' : 'off'}"><span class="prov-tile" style="--s:36px;background:var(--accent-soft);color:var(--accent)">${icon('book', 16)}</span>
-      <div class="m-text"><b>${esc(x.name)} <span class="src-badge">${esc(t('src_skill_' + x.source))}</span></b><small>${esc(x.description)}</small></div>${toggleBtn('skill-toggle', x.enabled, `data-name="${esc(x.name)}"`)}</div>`).join('') : `<div class="empty-note">${esc(t('skillsEmpty'))}</div>`}</div>`;
+      <div class="m-text"><b>${esc(x.name)} <span class="src-badge">${esc(t('src_skill_' + x.source))}</span></b><small>${esc(x.description)}</small></div>
+      <button class="icon-btn sm" data-action="skill-export" data-name="${esc(x.name)}" title="${esc(t('si_export'))}">${icon('share', 15)}</button>
+      ${x.source === 'fabro' ? `<button class="icon-btn sm" data-action="skill-remove" data-name="${esc(x.name)}" title="${esc(t('delete'))}">${icon('trash', 15)}</button>` : ''}
+      ${toggleBtn('skill-toggle', x.enabled, `data-name="${esc(x.name)}"`)}</div>`).join('') : `<div class="empty-note">${esc(t('skillsEmpty'))}</div>`}</div>`;
 }
 function agentTab() { return agentCoreHtml() + agentToolsHtml() + computerSection() + mcpHtml() + skillsHtml(); }
 

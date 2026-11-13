@@ -6,12 +6,17 @@
         content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co data: blob:; font-src 'self' data:; frame-src fabro-art: http://127.0.0.1:* http://localhost:* https:" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Fabro</title>
+  <script src="themes-boot.js"></script>
   <link rel="stylesheet" href="styles/tokens.css" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="styles/accounts.css" />
   <link rel="stylesheet" href="styles/perf.css" />
   <link rel="stylesheet" href="styles/voice.css" />
+  <link rel="stylesheet" href="styles/sysprompt.css" />
+  <link rel="stylesheet" href="styles/install.css" />
+  <link rel="stylesheet" href="styles/models.css" />
   <link rel="stylesheet" href="styles/skin-halloween.css" />
+  <link rel="stylesheet" href="styles/themes/base.css" />
   <link rel="stylesheet" href="styles/motion.css" />
 </head>
 <body>
@@ -38,6 +43,10 @@
   <script src="i18n/perf.js"></script>
   <script src="i18n/voice.js"></script>
   <script src="i18n/artifacts.js"></script>
+  <script src="i18n/sysprompt.js"></script>
+  <script src="i18n/install.js"></script>
+  <script src="i18n/models.js"></script>
+  <script src="i18n/themes.js"></script>
   <script src="greetings.js"></script>
   <script src="icons-data.js"></script>
   <script src="icons.js"></script>
@@ -61,16 +70,27 @@
   <script src="anywhere-ui.js"></script>
   <script src="a11y-ui.js"></script>
   <script src="extensions-ui.js"></script>
+  <script src="skillsimport-ui.js"></script>
+  <script src="mcpeasy-ui.js"></script>
   <script src="providers-ui.js"></script>
   <script src="desktop-ui.js"></script>
   <script src="models-ui.js"></script>
+  <script src="modelfinder-ui.js"></script>
   <script src="engine-ui.js"></script>
   <script src="onboarding-ui.js"></script>
   <script src="tasks-ui.js"></script>
   <script src="mods-ui.js"></script>
   <script src="accounts-ui.js"></script>
+  <script src="themes-core.js"></script>
+  <script src="themes-data.js"></script>
+  <script src="themes.js"></script>
+  <script src="keys.js"></script>
+  <script src="themes-ui.js"></script>
   <script src="halloween-fx.js"></script>
   <script src="stream-render.js"></script>
   <script src="perf-ui.js"></script>
+  <script src="sysprompts-ui.js"></script>
+  <script src="notebook-ui.js"></script>
+  <script src="guides-ui.js"></script>
 </body>
 </html>

@@ -17,7 +17,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/models'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const computer = require('./computer');
@@ -85,8 +85,12 @@ function openLink(raw) {
 }
 const linkIn = (argv) => (argv || []).find((a) => typeof a === 'string' && a.startsWith(PROTOCOL + '://'));
 app.on('open-url', (e, url) => { e.preventDefault(); openLink(url); }); // macOS
-app.on('second-instance', (_e, argv) => { const pk = accounts.pickerWindow(); if (pk) { if (pk.isMinimized()) pk.restore(); pk.focus(); return; } desktop.showMain(); const l = linkIn(argv); if (l) openLink(l); });
+app.on('second-instance', (_e, argv) => { const pk = accounts.pickerWindow(); if (pk) { if (pk.isMinimized()) pk.restore(); pk.focus(); return; } desktop.showMain(); const l = linkIn(argv); if (l) openLink(l); openSkill(skillImport.skillFileIn(argv.slice(1))); });
 { const l = linkIn(process.argv); if (l) pendingLink = parseLink(l); }
+// .skill files opened with Fabro (double-click, "open with", drop on the icon): the window shows the import preview.
+const skillImport = require('./skillimport'); let pendingSkill = skillImport.skillFileIn(process.argv.slice(1));
+const openSkill = (f) => { if (!f) return; if (!rendererReady || !win) { pendingSkill = f; return; } desktop.showMain(); win.webContents.send('skillimport:open', { path: f }); };
+app.on('open-file', (e, f) => { e.preventDefault(); openSkill(f); }); // macOS
 
 function overlayColors(dark) {
   if (store.getSettings().devMode) return { color: dark ? '#3a2a12' : '#f6d48a', symbolColor: dark ? '#f6d48a' : '#3a2a12', height: 28 };
@@ -388,6 +392,7 @@ function registerIpc() {
   h('skills:toggle', (name, on) => skills.setEnabled(name, on));
   h('skills:create', (o) => skills.create(o.name, o.description, o.body));
   h('skills:openFolder', () => { const d = skills.dirs()[0]; require('fs').mkdirSync(d, { recursive: true }); shell.openPath(d); });
+  skillImport.init(ipcMain, send, () => win); require('./mcpeasy').init(ipcMain); // easy skill import + easy MCP add (docs/v02/api-install.md)
 
   h('updater:check', () => updater.check());
   h('updater:install', () => updater.install());
@@ -395,7 +400,7 @@ function registerIpc() {
   // Extension modes (projects / agent / code) — wired in a later version.
   h('modes:install', async (mode) => ({ ok: false, mode, reason: 'coming_soon' }));
 
-  h('link:ready', () => { rendererReady = true; const l = pendingLink; pendingLink = null; if (l) setTimeout(() => win && win.webContents.send('app:deeplink', l), 300); return true; });
+  h('link:ready', () => { rendererReady = true; const l = pendingLink; pendingLink = null; if (l) setTimeout(() => win && win.webContents.send('app:deeplink', l), 300); const sf = pendingSkill; pendingSkill = null; if (sf) setTimeout(() => win && win.webContents.send('skillimport:open', { path: sf }), 400); return true; });
   h('shell:open', (url) => { if (/^https?:/.test(url)) shell.openExternal(url); });
   h('shell:openPath', (p) => { if (typeof p === 'string' && require('fs').existsSync(p) && !/\.(exe|bat|cmd|ps1|sh|msi|com|scr|vbs|js|lnk)$/i.test(p)) return shell.openPath(p); });
   h('shell:reveal', (p) => { if (typeof p === 'string' && require('fs').existsSync(p)) shell.showItemInFolder(p); });
@@ -410,6 +415,7 @@ app.whenReady().then(async () => {
   accounts.setEmitter((ch, d) => send(ch, d));
   store.init();
   tasks.init(send);
+  require('./notebook').init(ipcMain); require('./guides').init(ipcMain); require('./sysprompts').init(ipcMain, send, { dialog, getWindow: () => win }); // smart prompt: AI notebook, guides, personal prompts
   crash.init(() => win);
   searxng.configure({ deps: process.env.FABRO_DEPS || path.join(app.getPath('userData'), 'deps'), python: async (prog) => { await python.install((p) => prog(p * 0.3)); return python.pyPath(); } });
   // 0.1.9: SearXNG becomes the default search engine (DuckDuckGo stays the fallback).
@@ -422,6 +428,7 @@ app.whenReady().then(async () => {
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
   require('./myfabro').init(ipcMain); // v0.2 Mon Fabro: memory entries, profile, timeline, reminders, skill ideas
+  require('./modelfinder').init(ipcMain); require('./modeltiers').init(ipcMain); // v0.2 models: find a model in plain words, light/medium/complex tiers
   require('./resources').init(ipcMain, send); require('./storage').init(ipcMain, send); // v0.2 perf: Resources screen data + slow-disk advice
   models.init((p) => send('models:progress', p));
   // First model chosen in the Windows installer: start its download once, into the chosen disk.

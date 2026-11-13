@@ -30,14 +30,15 @@ agent.register({
     properties: {
       description: { type: 'string', description: '3-6 word label shown to the user' },
       task: { type: 'string', description: 'Complete, standalone instructions and what to report back' },
+      model: { type: 'string', enum: ['light', 'medium', 'complex'], description: 'Which size of model runs the sub-agent. light: fast and small, for searching, summarising, extracting, listing (default for those). medium: everyday work, writing, coding, analysis (default otherwise). complex: the strongest model, only for hard reasoning, big code changes or when quality matters most; slower. Omit it when unsure.' },
     },
     required: ['description', 'task'],
   },
   summarize: (a) => a.description || '',
   async run(a, ctx) {
     if (!ctx.spawnSub) throw new Error('Sub-agents are not available here');
-    const r = await ctx.spawnSub({ description: String(a.description || '').slice(0, 80), task: String(a.task || '') });
-    return { content: r.text || '(The sub-agent returned nothing.)', view: { kind: 'subagent', report: (r.text || '').slice(0, 6000), steps: r.steps, tokens: r.tokens, error: r.error } };
+    const r = await ctx.spawnSub({ description: String(a.description || '').slice(0, 80), task: String(a.task || ''), model: a.model });
+    return { content: (r.text || '(The sub-agent returned nothing.)') + (r.note ? `\n\n[${r.note}]` : ''), view: { kind: 'subagent', report: (r.text || '').slice(0, 6000), steps: r.steps, tokens: r.tokens, error: r.error, tier: r.tier, model: r.label } };
   },
 });
 
