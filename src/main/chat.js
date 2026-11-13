@@ -445,11 +445,13 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     let subN = 0;
     // A sub-agent: a nested run with a fresh context. Its steps are forwarded to the UI under the parent
     // call, its permission prompts go through this run (same reqId) so the user answers them in place.
-    const spawnSub = (callId) => async ({ description, task }) => {
+    const spawnSub = (callId) => async ({ description, task, model: wantedModel }) => {
       const subId = `${reqId}/s${++subN}`;
       const steps = []; let text = ''; let err = null; let tokens = 0;
+      // v0.2 model tiers (modeltiers.js): light / medium / complex per sub-agent; falls back to the main model when it can't load alongside
+      const tier = await require('./modeltiers').forSubAgent(wantedModel, { main: model, text: `${description} ${task}` });
       const pid = (id) => `${callId}~${id}`;
-      await send({ reqId: subId, model, messages: [{ role: 'system', content: '' }, { role: 'user', content: task }],
+      await send({ reqId: subId, model: tier.model, messages: [{ role: 'system', content: '' }, { role: 'user', content: task }],
         params: { ...params, agentMode: true, usedTools: [], maxTokens: params.maxTokens }, meta: { ...meta, modelLabel: meta.modelLabel } },
         (ev) => {
           if (ev.type === 'token') { text += ev.text; out({ type: 'sub_token', parent: callId, text: ev.text }); }
@@ -464,7 +466,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         },
         { signal: ctrl.signal, callId, checkpoint: ctxBase.checkpoint, ask: (id, req) => ask(reqId, pid(id), req, out, ctrl.signal), needDeps: (id, dep) => needDeps(reqId, pid(id), dep, out, ctrl.signal), grants: convGrants.get(gkey), description });
       if (ctrl.signal.aborted) throw Object.assign(new Error('aborted'), { code: 'ABORTED' });
-      return { text: text.trim() || (err ? `Sub-agent failed: ${err}` : ''), steps: steps.length, tokens, error: err };
+      return { text: text.trim() || (err ? `Sub-agent failed: ${err}` : ''), steps: steps.length, tokens, error: err, note: tier.note, tier: tier.tier, label: tier.label };
     };
     const runAgentTool = (c, args) => {
       const ctx = parent

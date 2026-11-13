@@ -17,7 +17,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/models'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const computer = require('./computer');
@@ -421,6 +421,7 @@ app.whenReady().then(async () => {
   try { const [sp, loc] = await Promise.all([system.getSpecs(), models.listLocal ? models.listLocal() : []]); await providers.autoFree(sp, loc.length > 0); } catch (e) { console.warn('autoFree', e.message); }
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
+  require('./modelfinder').init(ipcMain); require('./modeltiers').init(ipcMain); // v0.2 models: find a model in plain words, light/medium/complex tiers
   require('./resources').init(ipcMain, send); require('./storage').init(ipcMain, send); // v0.2 perf: Resources screen data + slow-disk advice
   models.init((p) => send('models:progress', p));
   // First model chosen in the Windows installer: start its download once, into the chosen disk.
