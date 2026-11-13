@@ -48,7 +48,7 @@ const srv = http.createServer((req, res) => {
     if (req.url !== '/v1/chat/completions') { res.writeHead(404); return res.end('{}'); }
     const body = JSON.parse(b);
     const sys = String((body.messages[0] || {}).content || '');
-    if (/You name conversations|maintain a short memory/.test(sys)) return sse(res, { content: 'Test' });
+    if (/You name conversations|maintain a short memory|keep a small, honest memory/.test(sys)) return sse(res, { content: 'Test' });
     const tools = body.messages.filter((m) => m.role === 'tool');
     const call = (name, args) => sse(res, { tool_calls: [{ index: 0, id: 'k' + tools.length, function: { name, arguments: JSON.stringify(args) } }] });
     if (!tools.length) return call('computer_look', {});

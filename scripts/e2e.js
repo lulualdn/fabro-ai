@@ -31,7 +31,7 @@ const srv = http.createServer((req, res) => {
       const ut = String(lastUser && (typeof lastUser.content === 'string' ? lastUser.content : '') || '');
       const one = (text) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
       if (/You name conversations/.test(sys)) return one('Test de Fabro');
-      if (/maintain a short memory/.test(sys)) return one('["Teste Fabro en profondeur"]');
+      if (/keep a small, honest memory|maintain a short memory/.test(sys)) return one(JSON.stringify({ entries: [{ kind: 'project', title: 'Infos sur Fabro', content: 'Cherche des infos sur Fabro, en profondeur.', evidence: 'Je cherche des infos sur Fabro' }], profile: [] }));
       // ── agent scripts ──
       const toolsDone = body.messages.filter((m) => m.role === 'tool');
       const call1 = (name, args) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 't' + toolsDone.length, function: { name, arguments: JSON.stringify(args) } }] } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
@@ -164,7 +164,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
 
   // Providers tab
   await win.keyboard.press('Control+,');
-  await win.click('.st-tab[data-tab=providers]');
+  await win.evaluate(() => openSettings('providers')); await win.waitForTimeout(300);
   await win.waitForSelector('.prov-empty');
   step('providers off'); await win.screenshot({ path: `${shots}/02-providers-off.png` });
   await win.click('.prov-empty [data-action=prov-enable]');
@@ -185,7 +185,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.click('[data-action=prov-cancel]');
 
   // Desktop tab
-  await win.click('.st-tab[data-tab=shortcut]');
+  await win.evaluate(() => openSettings('shortcut')); await win.waitForTimeout(300);
   await win.waitForSelector('.qb-preview');
   step('desktop tab'); await win.screenshot({ path: `${shots}/06-desktop.png` });
   await win.click('[data-action=close-settings]');
@@ -232,7 +232,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
     await refreshModels();
   }, fx);
   await win.keyboard.press('Control+,');
-  await win.click('.st-tab[data-tab=models]');
+  await win.evaluate(() => openSettings('models')); await win.waitForTimeout(300);
   await win.waitForSelector('.m-card');
   await win.waitForTimeout(600);
   await win.click('.m-card .m-row >> nth=0');
@@ -248,11 +248,10 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.waitForTimeout(600);
   step('moe sheet'); await win.screenshot({ path: `${shots}/12-moe-sheet.png` });
   assert.ok(await win.$('.m-sheet [data-key=cpuMoe]'), 'MoE option shown for MoE models');
-  await win.click('.st-tab[data-tab=storage]');
+  await win.evaluate(() => openSettings('storage')); await win.waitForTimeout(300);
   await win.waitForSelector('.lib-row');
   step('storage'); await win.screenshot({ path: `${shots}/13-storage.png` });
-  await win.click('.st-tab[data-tab=engine]');
-  await win.waitForSelector('#mon .meter');
+  await win.evaluate(() => openSettings('advanced:localapi')); await win.waitForTimeout(300);
   await win.click('[data-action=set][data-key="localApi.enabled"]');
   await win.waitForSelector('.api-box.ok', { timeout: 5000 });
   const apiModels = await (await fetch('http://127.0.0.1:11500/v1/models')).json();
@@ -260,11 +259,13 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   const apiChat = await (await fetch('http://127.0.0.1:11500/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: apiModels.data.find((m) => m.id.includes('fake-model-large')).id, messages: [{ role: 'user', content: 'hi' }] }) })).json();
   assert.match(apiChat.choices[0].message.content, /une réponse/);
   await win.waitForTimeout(500);
-  step('engine'); await win.screenshot({ path: `${shots}/14-engine.png` });
+  step('local api'); await win.screenshot({ path: `${shots}/14-local-api.png` });
+  await win.evaluate(() => openSettings('engine')); await win.waitForTimeout(300);
+  step('engine'); await win.screenshot({ path: `${shots}/14b-engine.png` });
   await win.evaluate(() => document.querySelector('.st-content').scrollTo(0, 99999));
   await win.waitForTimeout(300);
   step('engine bottom'); await win.screenshot({ path: `${shots}/15-engine-bottom.png` });
-  await win.click('.st-tab[data-tab=usage]');
+  await win.evaluate(() => openSettings('usage')); await win.waitForTimeout(300);
   await win.waitForSelector('.u-kpis');
   await win.waitForTimeout(800);
   step('usage'); await win.screenshot({ path: `${shots}/16-usage.png` });
@@ -552,9 +553,10 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   // MCP: a local stdio server, its tools become agent tools
   await win.evaluate((p) => api.mcp.add({ name: 'echo', command: 'node', args: [p] }), path.join(__dirname, 'fixtures', 'mcp-echo.js'));
   await win.keyboard.press('Control+,');
-  await win.click('.st-tab[data-tab=agent]');
+  await win.evaluate(() => openSettings('mcp')); await win.waitForTimeout(300);
   await win.waitForSelector('.mc-st.st-ready', { timeout: 10000 });
   step('agent settings'); await win.screenshot({ path: `${shots}/32-agent-settings.png` });
+  await win.evaluate(() => openSettings('advanced:skills')); await win.waitForTimeout(300); // search settings live with the tools now
   await win.evaluate(() => document.querySelector('[data-input="search.engine"]').scrollIntoView({ block: 'start' }));
   await win.waitForTimeout(200);
   await win.screenshot({ path: `${shots}/32b-search-settings.png` });

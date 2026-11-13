@@ -143,6 +143,14 @@ let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
   toolsNow = tools.slice(0, 3);
   ok(sess.refresh({ turnTools: [] }), 'rebuild when the tools change');
 
+  // My Fabro: when it knows something, its block (profile + notes for this request) replaces the plain memory list
+  {
+    const seen = []; const fm = (tok) => { seen.push(tok); return 'What you know about the user (kept on this computer):\nProfile:\n- Lulu développe Fabro.'; };
+    const txt = sp.build(sp.situation({ ...base, model: big, fabroMemory: fm })).text;
+    ok(/Lulu développe Fabro/.test(txt) && seen.length && seen[0] >= 60, 'My Fabro memory reaches the prompt, within a token budget');
+    const none = sp.build(sp.situation({ ...base, model: big, fabroMemory: () => '' })).text;
+    ok(!/What you know about the user/.test(none), 'nothing known → no My Fabro block (plain list fallback)');
+  }
   console.log(`sysprompt-test: all ${n} checks passed`);
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

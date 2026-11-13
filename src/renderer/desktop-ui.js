@@ -10,7 +10,7 @@ const kbds = (acc) => accelParts(acc).map((k) => `<kbd class="key">${esc(k)}</kb
 
 async function loadHotkeyStatus() {
   try { [S.hotkeyStatus, S.loginItem] = await Promise.all([api.hotkey.status(), api.login.get()]); } catch {}
-  if (S.settingsTab === 'shortcut') renderSettings();
+  if (stShows('shortcut')) renderSettings();
 }
 
 function shortcutTab() {

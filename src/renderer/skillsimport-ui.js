@@ -120,7 +120,7 @@
       pv = null; closeModal();
       if (r.ok && r.installed.length) toast(t('si_done', { n: r.installed.length, name: r.installed[0].name }));
       S.skills = await api.skills.list(); S.agentTools = await api.agent.tools();
-      refreshFound(); if (S.settingsTab === 'agent') renderSettings();
+      refreshFound(); if (typeof stShows === 'function' ? stShows('skills') || stShows('agent') : S.settingsTab === 'agent') renderSettings();
     } catch (e) { busy = false; toast(M(clean(e)), 'err'); renderPreview(); }
   }
 

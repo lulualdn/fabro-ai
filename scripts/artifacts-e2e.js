@@ -36,7 +36,7 @@ const srv = http.createServer((req, res) => {
     const users = body.messages.filter((m) => m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : (m.content || []).map((c) => c.text || '').join(' ')));
     const first = users.filter((u) => !/^\[Fabro/.test(u)).pop() || '';
     const tools = body.messages.filter((m) => m.role === 'tool').map((m) => String(m.content || ''));
-    if (/You name conversations|maintain a short memory/.test(sys)) return sse(res, /memory/.test(sys) ? '[]' : 'Test');
+    if (/You name conversations|maintain a short memory|keep a small, honest memory/.test(sys)) return sse(res, /memory/.test(sys) ? '[]' : 'Test');
     if (/boulangerie/i.test(first) && /site/i.test(first)) {
       seen.tools = tools;
       if (tools.length === 0) return call(res, 'design_guide', { kind: 'bakery website' });

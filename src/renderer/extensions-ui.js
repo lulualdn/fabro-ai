@@ -5,9 +5,9 @@ async function loadAgentSettings() {
   try {
     [S.agentTools, S.mcp, S.skills, S.deps, S.imgStatus] = await Promise.all([api.agent.tools(), api.mcp.view(), api.skills.list(), api.deps.status(), api.images.status()]);
   } catch {}
-  if (S.settingsTab === 'agent') renderSettings();
+  if (stShows('agent')) renderSettings();
 }
-api.on('mcp:status', (v) => { S.mcp = v; if (S.settingsTab === 'agent') renderSettings(); });
+api.on('mcp:status', (v) => { S.mcp = v; if (stShows('agent')) renderSettings(); });
 
 const CAT_ORDER = ['files', 'shell', 'browser', 'computer', 'documents', 'python', 'skills'];
 // Computer Use: the AI sees the screen and uses the mouse and keyboard.
@@ -34,7 +34,8 @@ function computerSection() {
     ${tr && tr.thumb ? `<img class="step-img" src="${tr.thumb}" alt="" style="max-width:420px;margin:4px 0 10px">` : ''}` : ''}` : ''}`;
 }
 
-function agentTab() {
+// Settings › Advanced uses these pieces separately (Agent / Skills & tools / Connectors); agentTab() keeps the whole.
+function agentVars() {
   const ag = S.settings.agent || {};
   const tools = S.agentTools || [];
   const folders = ag.folders || [];
@@ -48,6 +49,10 @@ function agentTab() {
   const depBtn = (dep, ok) => ok ? `<span class="chip ok">${icon('check', 13)} ${esc(t('installed'))}</span>`
     : S.depsBusy === dep ? `<span class="muted small">${spinner(14)} ${Math.round((S.depsP || 0) * 100)} %</span>`
     : `<button class="btn sm" data-action="deps-now" data-dep="${dep}" ${S.depsBusy ? 'disabled' : ''}>${icon('download', 14)} ${esc(t('installDeps'))}</button>`;
+  return { ag, tools, folders, cats, pol, mcp, skills, py, add, srch, br, sx, depBtn };
+}
+function agentCoreHtml() {
+  const { ag, tools, folders, cats, pol } = agentVars();
   return `
     ${row(t('agentEnable'), toggle('agent.enabled', ag.enabled !== false), t('agentEnableHint'))}
     <div class="st-sec">${esc(t('agFolders'))}<span class="grow"></span><button class="btn sm" data-action="ag-folder-add">${icon('plus', 14)} ${esc(t('libAdd'))}</button></div>
@@ -59,6 +64,13 @@ function agentTab() {
     <div class="perm-grid">${cats.map((c) => `<div class="pg-cat"><div class="pg-h">${icon(AGENT_ICONS[c] || 'puzzle', 14)} ${esc(t('agcat_' + c))}</div>
       ${tools.filter((x) => (x.category.startsWith('mcp:') ? 'mcp' : x.category) === c).map((x) => `<div class="pg-row"><span title="${esc(x.description)}"><b>${esc(x.name.replace(/^mcp__/, '').replace(/__/g, ' · '))}</b><small>${esc(t('risk_' + x.risk))}</small></span>${pol(x)}</div>`).join('')}</div>`).join('')}</div>
 
+    ${row(t('subagents'), toggle('agent.subagents', ag.subagents !== false), t('subagentsHint'))}
+
+`;
+}
+function agentToolsHtml() {
+  const { py, srch, br, sx, depBtn } = agentVars();
+  return `
     <div class="st-sec">${esc(t('agDeps'))}</div>
     <div class="lib-row"><div class="m-ico">${icon('code', 17)}</div><div class="m-text"><b>Python 3.12</b><small>${esc(py.installed ? t('depsInstalled') : t('depsPython', { n: py.sizeMB || 32 }))}</small></div>
       ${depBtn('python', py.installed)}</div>
@@ -89,10 +101,11 @@ function agentTab() {
     ${row(t('brAds'), toggle('browser.blockAds', br.blockAds !== false), t('brAdsHint'))}
     ${row(t('brConsent'), toggle('browser.autoConsent', br.autoConsent !== false), t('brConsentHint'))}
     ${row(t('brClear'), `<button class="btn sm" data-action="br-clear">${icon('trash', 14)} ${esc(t('brClearGo'))}</button>`, t('brClearHint'))}
-    ${row(t('subagents'), toggle('agent.subagents', ag.subagents !== false), t('subagentsHint'))}
-
-    ${computerSection()}
-
+`;
+}
+function mcpHtml() {
+  const { mcp, add } = agentVars();
+  return `
     <div data-mount="mcpeasy"></div>
     ${add ? `<form class="prov-form" data-form="mcp-add">
       <div class="seg sm">${['stdio', 'http'].map((k) => `<button type="button" class="${add.type === k ? 'on' : ''}" data-action="mcp-type" data-v="${k}">${esc(t('mcp_' + k))}</button>`).join('')}</div>
@@ -107,6 +120,11 @@ function agentTab() {
       ${S.claudeCfg.servers.length ? S.claudeCfg.servers.map((x, i) => `<label class="imp-row ${x.already ? 'done' : ''}"><input type="checkbox" data-cimp="${i}" ${x.already ? 'disabled' : 'checked'}><span class="m-text"><b>${esc(x.name)}</b><small class="mono">${esc(x.url || [x.command, ...(x.args || [])].join(' '))}</small></span></label>`).join('') : `<div class="muted small">${esc(t('mcpNoClaude'))}</div>`}
       <div class="pf-actions"><button class="btn sm" data-action="mcp-claude-close">${esc(t('cancel'))}</button>${S.claudeCfg.servers.some((x) => !x.already) ? `<button class="btn sm primary" data-action="mcp-claude-go">${esc(t('mcpImportGo'))}</button>` : ''}</div></div>` : ''}
 
+`;
+}
+function skillsHtml() {
+  const { skills } = agentVars();
+  return `
     <div class="st-sec">${esc(t('skillsTitle'))}<span class="grow"></span><button class="btn sm" data-action="skills-folder">${icon('folder', 14)} ${esc(t('skillsOpen'))}</button><button class="btn sm" data-action="skills-refresh">${icon('refresh', 14)}</button></div>
     <p class="muted small st-intro">${esc(t('skillsHint'))}</p>
     <div data-mount="skillimport"></div>
@@ -116,6 +134,7 @@ function agentTab() {
       ${x.source === 'fabro' ? `<button class="icon-btn sm" data-action="skill-remove" data-name="${esc(x.name)}" title="${esc(t('delete'))}">${icon('trash', 15)}</button>` : ''}
       ${toggleBtn('skill-toggle', x.enabled, `data-name="${esc(x.name)}"`)}</div>`).join('') : `<div class="empty-note">${esc(t('skillsEmpty'))}</div>`}</div>`;
 }
+function agentTab() { return agentCoreHtml() + agentToolsHtml() + computerSection() + mcpHtml() + skillsHtml(); }
 
 const parseCmd = (s) => (String(s).match(/"[^"]*"|'[^']*'|\S+/g) || []).map((x) => x.replace(/^["']|["']$/g, ''));
 Object.assign(actions, {
@@ -173,4 +192,4 @@ document.addEventListener('submit', async (e) => {
   catch (err) { S.mcpErr = cleanErr(err); }
   renderSettings();
 });
-api.on('deps:progress', ({ p }) => { S.depsP = p; if (S.settingsTab === 'agent' && S.depsBusy) renderSettings(); });
+api.on('deps:progress', ({ p }) => { S.depsP = p; if (stShows('agent') && S.depsBusy) renderSettings(); });

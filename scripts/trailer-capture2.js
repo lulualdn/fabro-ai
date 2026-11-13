@@ -71,7 +71,7 @@ const srv = http.createServer((req, res) => {
     const users = body.messages.filter((m) => m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : (m.content || []).map((c) => c.text || '').join(' ')));
     const ut = users.filter((u) => !/^\[|Précision|You stopped|Keep going/.test(u)).join(' ');
     if (/You name conversations/.test(sys)) return sse(res, [{ content: /neighbour/.test(ut) ? 'Note to the neighbour' : /lease|Summarize/i.test(ut) ? 'Lease summary' : /Lisbon/.test(ut) ? 'Lisbon slides' : 'Dinner idea' }], 10);
-    if (/maintain a short memory/.test(sys)) return sse(res, [{ content: '[]' }], 10);
+    if (/maintain a short memory|keep a small, honest memory/.test(sys)) return sse(res, [{ content: '[]' }], 10);
     if (/neighbour/.test(ut)) return sse(res, [...words('Keep it warm and polite, no blame, one clear ask.', 'reasoning_content'), ...words(NOTE)], 45);
     if (/Summarize/i.test(ut)) return sse(res, words(LEASE), 45);
     if (/Lisbon/.test(ut)) return sse(res, words(SLIDES), 18);

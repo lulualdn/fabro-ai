@@ -83,6 +83,7 @@ contextBridge.exposeInMainWorld('api', {
     switch: i('accounts:switch'), lock: i('accounts:lock'), delete: i('accounts:delete'), counts: i('accounts:counts'),
     models: i('accounts:models'), linkModel: i('accounts:linkModel'), unlinkModel: i('accounts:unlinkModel'),
   },
+  myfabro: { status: i('myfabro:status'), list: i('myfabro:list'), add: i('myfabro:add'), edit: i('myfabro:edit'), pin: i('myfabro:pin'), remove: i('myfabro:remove'), forgetAll: i('myfabro:forgetAll'), profile: i('myfabro:profile'), setProfile: i('myfabro:setProfile'), editLine: i('myfabro:editLine'), removeLine: i('myfabro:removeLine'), timeline: i('myfabro:timeline'), forgotten: i('myfabro:forgotten'), skills: i('myfabro:skills'), dismiss: i('myfabro:dismiss'), welcome: i('myfabro:welcome'), synced: i('myfabro:synced') },
   modelFinder: { find: i('modelfinder:find') },
   tiers: { list: i('tiers:list'), resolve: i('tiers:resolve'), setOverride: i('tiers:setOverride'), setPreferred: i('tiers:setPreferred') },
   resources: { overview: i('resources:overview'), disk: i('resources:disk'), clearCaches: i('resources:clearCaches'), subscribe: i('resources:subscribe'), unsubscribe: i('resources:unsubscribe'), history: i('resources:history'), tips: i('resources:tips'), action: i('resources:action'), maxContext: i('resources:maxContext'), autotune: i('resources:autotune'), autotuneCancel: i('resources:autotuneCancel'), storageAdvice: i('storage:advice'), storageRefuse: i('storage:refuse'), storageClassify: i('storage:classify') },

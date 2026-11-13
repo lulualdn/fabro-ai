@@ -21,8 +21,11 @@ async function title({ model, user, answer, lang }) {
   return out.split('\n')[0].replace(/^["'«“]+|["'»”.]+$/g, '').replace(/^(title|titre)\s*:\s*/i, '').trim().slice(0, 64);
 }
 
-// Extract durable facts the user stated about themselves.
-async function memories({ model, convId, userTexts, lang }) {
+// Extract durable facts the user stated about themselves. v0.2: "Mon Fabro" (myfabro.js) does it — entries with a
+// title, kind and sources + the profile, one call per turn-batch, background priority. The old extractor stays below
+// as legacyMemories for reference.
+function memories(o) { return require('./myfabro').observe(o || {}); }
+async function legacyMemories({ model, convId, userTexts, lang }) {
   const s = store.getSettings().memory || {};
   if (s.enabled === false || s.auto === false || busy.has(convId)) return [];
   busy.add(convId);
@@ -45,4 +48,4 @@ async function style({ model, sample, lang }) {
   ], { maxTokens: 260 });
 }
 
-module.exports = { title, memories, style };
+module.exports = { title, memories, legacyMemories, style };

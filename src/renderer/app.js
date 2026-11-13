@@ -278,12 +278,13 @@ function openUserMenu(anchor) {
   $('#popover-root').innerHTML = `<div class="pop-backdrop" data-action="close-pop"></div>
     <div class="popover" style="left:${r.left}px; bottom:${innerHeight - r.top + 8}px; min-width:${Math.max(240, r.width)}px">
       <button class="pm-item" data-action="mode" data-mode="custom">${icon('brush', 16)}<span class="pm-text"><b>${esc(t('nav_custom'))}</b></span></button>
-      <button class="pm-item" data-action="settings" data-tab="general">${icon('settings', 16)}<span class="pm-text"><b>${esc(t('settings'))}</b></span><kbd>Ctrl ,</kbd></button>
+      <button class="pm-item" data-action="settings" data-tab="fabro">${icon('sparkle', 16)}<span class="pm-text"><b>${esc(t('st_sec_fabro'))}</b></span></button>
+      <button class="pm-item" data-action="settings" data-tab="account">${icon('settings', 16)}<span class="pm-text"><b>${esc(t('settings'))}</b></span><kbd>Ctrl ,</kbd></button>
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
       <button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'dark' || th === 'halloween' ? 'light' : 'dark'}">${icon(th === 'dark' || th === 'halloween' ? 'sun' : 'moon', 16)}<span class="pm-text"><b>${esc(t(th === 'dark' || th === 'halloween' ? 'themeLight' : 'themeDark'))}</b></span></button>
       ${spookySeason() || th === 'halloween' ? `<button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'halloween' ? 'system' : 'halloween'}">${icon('pumpkin', 16)}<span class="pm-text"><b>${esc(t(th === 'halloween' ? 'themeHalloweenOff' : 'themeHalloween'))}</b></span></button>` : ''}
       <div class="pm-sep"></div>
-      <button class="pm-item" data-action="settings" data-tab="about">${icon('info', 16)}<span class="pm-text"><b>${esc(t('tab_about'))}</b></span></button>
+      <button class="pm-item" data-action="settings" data-tab="advanced:about">${icon('info', 16)}<span class="pm-text"><b>${esc(t('tab_about'))}</b></span></button>
       ${window.FABRO_REMOTE ? `<div class="pm-sep"></div><button class="pm-item" data-action="remote-lite">${icon(window.FABRO_REMOTE.local && !window.FABRO_REMOTE.pcName ? 'link' : 'phone', 16)}<span class="pm-text"><b>${esc(t(window.FABRO_REMOTE.local && !window.FABRO_REMOTE.pcName ? 'remotePair' : 'remoteLite'))}</b><small>${esc(t(window.FABRO_REMOTE.local && !window.FABRO_REMOTE.pcName ? 'remotePairHint' : 'remoteLiteHint'))}</small></span></button>` : ''}
     </div>`;
 }
@@ -869,130 +870,12 @@ function openModelMenu(anchor) {
   }
 }
 
-// ───────────────────────────── Settings overlay ─────────────────────────────
-const TABS = [
-  { id: 'general', icon: 'sliders' }, { id: 'models', icon: 'box' }, { id: 'engine', icon: 'zap' }, { id: 'storage', icon: 'archive' }, { id: 'providers', icon: 'cloud' },
-  { id: 'usage', icon: 'chart' }, { id: 'agent', icon: 'agent' },
-  { id: 'shortcut', icon: 'key' },
-  { id: 'generation', icon: 'edit' }, { id: 'system', icon: 'cpu' }, { id: 'about', icon: 'info' },
-];
-
-async function openSettings(tab = 'general') {
-  S.settingsTab = tab;
-  closePopover();
-  renderSettings();
-  if (tab === 'models' && !S.catalog) { S.catalog = await api.models.catalog(); renderSettings(); }
-  if (tab === 'system') { Promise.all([api.runtime.status(), api.crash.list()]).then(([rt, cr]) => { S.rt = rt; S.crashes = cr; if (S.settingsTab === 'system') renderSettings(); }); }
-  if (tab === 'providers') loadProviders();
-  if (tab === 'models' || tab === 'storage') loadModelExtras();
-  if (tab === 'engine') startMonitor(); else stopMonitor();
-  if (tab === 'usage') loadUsage();
-  if (tab === 'agent') loadAgentSettings();
-  if (tab === 'shortcut') loadHotkeyStatus();
-}
-function closeSettings() {
-  S.settingsTab = null; S._lastTab = null; stopMonitor();
-  const o = $('.overlay');
-  if (o) { o.classList.add('closing'); setTimeout(() => { $('#overlay-root').innerHTML = ''; $('#prompt')?.focus(); }, 160); }
-}
-
-function renderSettings(keepScroll = true) {
-  if (!S.settingsTab) return;
-  const prev = $('.st-content');
-  const scroll = keepScroll && prev ? prev.scrollTop : 0;
-  const existing = $('.overlay');
-  const nav = TABS.map((x) => `<button class="st-tab ${S.settingsTab === x.id ? 'active' : ''}" data-action="settings-tab" data-tab="${x.id}">${icon(x.icon, 17)}<span>${esc(t('tab_' + x.id))}</span></button>`).join('');
-  const html = `<div class="overlay ${existing ? 'shown' : ''}" data-action="overlay-bg">
-    <div class="st-panel" role="dialog" aria-modal="true">
-      <div class="st-nav"><div class="st-heading">${esc(t('settings'))}</div>${nav}</div>
-      <div class="st-main">
-        <div class="st-top"><h2>${esc(t('tab_' + S.settingsTab))}</h2><button class="icon-btn" data-action="close-settings" title="${esc(t('close'))}">${icon('x')}</button></div>
-        <div class="st-content ${S._lastTab !== S.settingsTab ? 'tab-in' : ''}">${settingsBody(S.settingsTab)}</div>
-      </div>
-    </div></div>`;
-  // Keep what the user is typing in forms across re-renders (live status updates re-render the panel).
-  const kept = $$('.st-content form[data-form] [name]').map((el) => [el.closest('form').dataset.form + '|' + el.name, el.value]);
-  const focused = document.activeElement && document.activeElement.closest('.st-content form[data-form]') ? document.activeElement.closest('form').dataset.form + '|' + document.activeElement.name : null;
-  $('#overlay-root').innerHTML = html;
-  for (const [k, v] of kept) { const [f, n] = k.split('|'); const el = $(`.st-content form[data-form="${f}"] [name="${n}"]`); if (el && !el.value) el.value = v; }
-  if (focused) { const [f, n] = focused.split('|'); $(`.st-content form[data-form="${f}"] [name="${n}"]`)?.focus(); }
-  const c = $('.st-content'); if (c) c.scrollTop = scroll;
-  S._lastTab = S.settingsTab;
-  if (window.ModelFinder) ModelFinder.mount(); // v0.2 models: finder + tiers placeholders ([data-mf])
-  if (!existing) requestAnimationFrame(() => $('.overlay')?.classList.add('shown'));
-}
-
+// Settings overlay: src/renderer/settings-ui.js (sections, deep links, live mounts). Shared control helpers below.
 const row = (label, control, hint = '') => `<div class="st-row"><div class="st-label"><span>${esc(label)}</span>${hint ? `<small>${esc(hint)}</small>` : ''}</div><div class="st-control">${control}</div></div>`;
 const seg = (key, value, opts) => `<div class="seg">${opts.map(([v, l, ic]) => `<button class="${String(value) === String(v) ? 'on' : ''}" data-action="set" data-key="${key}" data-value="${esc(v)}">${ic ? icon(ic, 15) : ''}${esc(l)}</button>`).join('')}</div>`;
 const toggle = (key, on) => `<button class="switch ${on ? 'on' : ''}" data-action="set" data-key="${key}" data-value="${!on}" role="switch" aria-checked="${on}"><i></i></button>`;
 const getPath = (o, p) => p.split('.').reduce((a, k) => (a ? a[k] : undefined), o);
 function patchFor(path, value) { const keys = path.split('.'); const out = {}; let cur = out; keys.forEach((k, i) => { cur[k] = i === keys.length - 1 ? value : {}; cur = cur[k]; }); return out; }
-
-function settingsBody(tab) {
-  const st = S.settings;
-  if (tab === 'general') {
-    const langOpts = [['auto', t('langAuto', { l: LANGS[resolveLangAuto()] || 'English' })], ...Object.entries(LANGS)]
-      .map(([v, l]) => `<option value="${v}" ${st.language === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
-    return `
-      ${row(t('yourName'), `<input class="input" type="text" maxlength="40" data-input="userName" value="${esc(st.userName || '')}" placeholder="${esc(prettyName(S.info.userName) || t('yourName'))}">`, t('yourNameHint'))}
-      ${row(t('language'), `<select class="input" data-input="language">${langOpts}</select>`)}
-      ${row(t('reduceMotion'), toggle('reduceMotion', !!st.reduceMotion), t('reduceMotionHint'))}
-      ${row(t('lightMode'), toggle('lightMode', lightModeOn()), t(S.specs && S.specs.lowPower ? 'lightModeHintLow' : 'lightModeHint'))}
-      ${row(t('theme'), seg('theme', st.theme, [['system', t('themeSystem'), 'monitor'], ['light', t('themeLight'), 'sun'], ['dark', t('themeDark'), 'moon'], ...(spookySeason() || st.theme === 'halloween' ? [['halloween', t('themeHalloween'), 'pumpkin']] : [])]))}
-      ${row(t('autoUpdate'), toggle('autoUpdate', st.autoUpdate), t('autoUpdateHint'))}
-      ${row(t('devMode'), toggle('devMode', st.devMode), t('devModeHint'))}
-      ${st.devMode ? row(t('devTools'), `<button class="btn sm" data-action="devtools">${icon('terminal', 14)} ${esc(t('open'))}</button>`, 'F12 · Ctrl+Shift+I · Ctrl+R') : ''}
-      ${row(t('appVersion'), `<span class="mono">v${esc(S.info.version)}</span> <button class="btn sm" data-action="check-update">${esc(t('checkUpdates'))}</button>`, updaterText())}`;
-  }
-  if (tab === 'models') return modelsTab();
-  if (tab === 'providers') return providersTab();
-  if (tab === 'shortcut') return shortcutTab();
-  if (tab === 'engine') return engineTab();
-  if (tab === 'storage') return storageTab();
-  if (tab === 'usage') return usageTab();
-  if (tab === 'agent') return agentTab();
-  if (tab === 'generation') {
-    const g = st.gen;
-    const range = (k, min, max, step, v) => `<div class="range-wrap"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-input="gen.${k}" data-type="float"><span class="rv">${v}</span></div>`;
-    return `
-      ${row(t('temperature'), range('temperature', 0, 2, 0.05, g.temperature), t('temperatureHint'))}
-      ${row('Top P', range('topP', 0.05, 1, 0.05, g.topP))}
-      ${row(t('maxTokens'), `<input class="input sm" type="number" min="0" max="131072" value="${g.maxTokens}" data-input="gen.maxTokens" data-type="int">`, t('maxTokensHint'))}
-      <div class="st-block"><div class="st-label"><span>${esc(t('systemPrompt'))}</span><small>${esc(t('systemPromptHint'))}</small></div>
-      <textarea class="input area" rows="6" data-input="gen.systemPrompt" placeholder="${esc(t('systemPromptPh'))}">${esc(g.systemPrompt)}</textarea></div>
-      ${typeof SysPrompts !== 'undefined' ? SysPrompts.mountPoint() : ''}`;
-  }
-  if (tab === 'system') {
-    const sp = S.specs;
-    if (!sp) return `<div class="muted">${esc(t('detecting'))}</div>`;
-    const accel = { cuda: 'NVIDIA CUDA', metal: 'Apple Metal', vulkan: 'Vulkan', cpu: 'CPU' }[sp.accel];
-    return `<div class="spec-grid">
-      <div class="spec"><small>${esc(t('os'))}</small><b>${esc(sp.os)} · ${esc(sp.arch)}</b></div>
-      <div class="spec"><small>CPU</small><b>${esc(sp.cpu.model)}</b><span>${sp.cpu.threads} threads</span></div>
-      <div class="spec"><small>RAM</small><b>${sp.ramGB} GB</b></div>
-      <div class="spec"><small>${esc(t('acceleration'))}</small><b>${esc(accel)}</b></div>
-      ${sp.gpus.map((g) => `<div class="spec wide"><small>GPU</small><b>${esc(g.name)}</b><span>${g.vramGB ? g.vramGB + ' GB VRAM' : sp.unified ? t('unifiedMemory') : ''}</span></div>`).join('')}
-    </div>
-    <p class="muted small">${esc(t('budgetNote', { g: sp.gpuBudgetGB, r: sp.ramBudgetGB }))}</p>
-    <div class="st-sec">${esc(t('rt_title'))}</div>
-    ${row(t('rt_runtime'), `<span class="chip ${S.rt && S.rt.isolated ? 'ok' : ''}">${esc(S.rt ? (S.rt.isolated ? t('rt_isolated', { p: S.rt.pid || '—' }) : t('rt_inprocess')) : '…')}</span>`, t('rt_hint'))}
-    <div class="st-sec">${esc(t('tel_title'))}</div>
-    <p class="muted small st-intro">${esc(t('tel_hint'))}</p>
-    ${row(t('tel_crash'), toggle('telemetry.crashReports', !!(S.settings.telemetry || {}).crashReports), t('tel_crashHint'))}
-    ${(S.crashes || []).length ? row(t('tel_saved', { n: S.crashes.length }), `<button class="btn sm" data-action="crash-folder">${icon('folder', 14)} ${esc(t('open'))}</button>${(S.crashes || [])[0] ? `<button class="btn sm" data-action="crash-report" data-f="${esc(S.crashes[0].file)}">${icon('share', 14)} ${esc(t('tel_send'))}</button>` : ''}`) : ''}`;
-  }
-  if (tab === 'about') {
-    return `<div class="about">${logo(56)}<h3>Fabro</h3><p class="muted">v${esc(S.info.version)} · ${esc(t('tagline'))}</p>
-      <p class="small">${esc(t('taglineLong'))}</p><p class="small muted">${esc(t('aboutText'))}</p>
-      <p class="small"><a href="https://github.com/ggml-org/llama.cpp" data-action="ext-link">llama.cpp</a> · <a href="https://huggingface.co/models?library=gguf" data-action="ext-link">Hugging Face</a> · <a href="https://ollama.com" data-action="ext-link">Ollama</a></p></div>`;
-  }
-  return '';
-}
-function resolveLangAuto() { const s = S.settings.language; S.settings.language = 'auto'; const l = resolveLang(); S.settings.language = s; return l; }
-function updaterText() {
-  const u = S.updater;
-  return ({ checking: t('upd_checking'), latest: t('upd_latest'), downloading: t('upd_downloading', { p: Math.round((u.progress || 0) * 100) }), ready: t('upd_ready', { v: u.version || '' }), error: t('upd_error'), dev: t('upd_dev') })[u.state] || '';
-}
 
 const FIT_ORDER = { great: 0, good: 1, ok: 2, 'needs-gpu': 3, 'too-big': 4 };
 function specLine() {
@@ -1203,7 +1086,7 @@ const actions = {
   },
   'settings': (el) => { closePopover(); openSettings(el.dataset.tab || 'general'); },
   'settings-tab': (el) => { openSettings(el.dataset.tab); },
-  'close-settings': closeSettings,
+  'close-settings': () => closeSettings(), // defined in settings-ui.js (loaded after this file)
   'overlay-bg': (el, e) => { if (e.target === el) closeSettings(); },
   'send': (el) => { el.classList.remove('launch'); void el.offsetWidth; el.classList.add('launch'); sendPrompt(); },
   'stop': () => { if (S.streaming) api.chat.abort(S.streaming.reqId); },
@@ -1277,7 +1160,7 @@ const actions = {
     el.disabled = true;
     try { await api.models.download({ repo: m.repo, catalogId: m.id }); }
     catch (e) { toast(dlErr(e), 'err'); el.disabled = false; }
-    if (S.settingsTab === 'models') renderSettings();
+    if (stShows('models')) renderSettings();
   },
   'dl-file': async (el) => {
     try { await api.models.download({ repo: el.dataset.repo, file: el.dataset.file }); } catch (e) { toast(dlErr(e), 'err'); }
@@ -1414,7 +1297,7 @@ document.addEventListener('keydown', (e) => {
     if (S.viewer) return closeViewer();
     if (S.streaming) api.chat.abort(S.streaming.reqId);
   }
-  if (mod && e.key === ',') { e.preventDefault(); openSettings('general'); }
+  if (mod && e.key === ',') { e.preventDefault(); openSettings(); }
   if (mod && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); actions['focus-search'](); }
   if (mod && (e.key === 'n' || e.key === 'N') && !e.shiftKey) { e.preventDefault(); newChat(); }
   if (mod && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); actions['toggle-sidebar'](); }
@@ -1445,7 +1328,7 @@ api.on('engine:status', (s) => {
   if (!wasReady && s.status === 'ready') { document.body.classList.add('engine-pop'); setTimeout(() => document.body.classList.remove('engine-pop'), 900); }
   if (document.activeElement?.id !== 'sb-q') renderSidebar();
   const sc = $('.setup-card'); if (sc && S.catalog) sc.outerHTML = renderSetupCard();
-  if (S.settingsTab === 'engine' || (S.settingsTab === 'models' && S.modelOpen)) renderSettings();
+  if (stShows('engine') || (stShows('models') && S.modelOpen)) renderSettings();
 });
 const refreshAfterDl = debounce(async () => {
   await refreshModels(); S.catalog = await api.models.catalog();
@@ -1463,9 +1346,9 @@ api.on('models:progress', (p) => {
   if (rowEl && typeof dlRow === 'function') rowEl.outerHTML = dlRow(p);
   if (els.length) els.forEach((el) => { el.outerHTML = renderProgress(p); });
   if (rowEl || els.length) return;
-  else { if (S.settingsTab === 'models') renderSettings(); if (!S.conv || !S.conv.messages.length) { const sc = $('.setup-card'); if (sc) sc.outerHTML = renderSetupCard(); } }
+  else { if (stShows('models')) renderSettings(); if (!S.conv || !S.conv.messages.length) { const sc = $('.setup-card'); if (sc) sc.outerHTML = renderSetupCard(); } }
 });
-api.on('updater:status', (u) => { const was = S.updater.state; S.updater = u; if (u.state === 'ready' && was !== 'ready') maybeShowUpdate(); renderTopbar(); if (S.settingsTab === 'general') renderSettings(); });
+api.on('updater:status', (u) => { const was = S.updater.state; S.updater = u; if (u.state === 'ready' && was !== 'ready') maybeShowUpdate(); renderTopbar(); if (stShows('general') || stShows('system')) renderSettings(); });
 
 // ───────────────────────────── Boot ─────────────────────────────
 // Boot once every renderer script (chat-ui, models-ui…) is loaded.

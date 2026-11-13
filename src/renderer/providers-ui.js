@@ -15,12 +15,12 @@ const hostOf = (u) => { try { return new URL(u).host; } catch { return u; } };
 
 async function loadProviders(redetect = true) {
   try { S.prov = await api.providers.view(); } catch (e) { S.prov = { enabled: false, presets: [], list: [] }; }
-  if (S.settingsTab === 'providers') renderSettings();
+  if (stShows('providers')) renderSettings();
   if (redetect && S.prov.enabled) {
     S.detect = await api.providers.detect().catch(() => null);
     // Update only the one-click cards: never re-render forms the user may be typing in.
     const grid = $('.oc-grid');
-    if (S.settingsTab === 'providers' && grid) grid.innerHTML = oneClickCards();
+    if (stShows('providers') && grid) grid.innerHTML = oneClickCards();
   }
 }
 async function afterProviderChange(view) {
