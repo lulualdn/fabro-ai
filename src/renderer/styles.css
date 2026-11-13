@@ -268,6 +268,9 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px va
 .scroller { flex: 1; overflow-y: auto; overflow-x: hidden; scroll-behavior: auto; overscroll-behavior: contain; }
 .thread { width: min(var(--measure), 100% - 48px); margin: 0 auto; padding: var(--sp-4) 0 var(--sp-8); display: flex; flex-direction: column; gap: var(--sp-6); }
 .msg { position: relative; }
+/* Messages out of view skip layout and paint (sizes are remembered once seen). Without this, every width change —
+   sidebar, side panel, window — re-flows the whole conversation: ~45 ms for 40 messages on a fast CPU, ~5× that on a weak one. */
+.thread > .msg:not(:last-child) { content-visibility: auto; contain-intrinsic-size: auto 320px; }
 .msg.user { display: flex; flex-direction: column; align-items: flex-end; }
 .msg.user .bubble { max-width: 82%; background: var(--bubble); padding: 9px var(--sp-4) 10px; border-radius: 20px 20px 6px 20px; font-size: var(--fs-read); line-height: 1.5; }
 .u-md { word-wrap: break-word; font-family: var(--font-read); }
