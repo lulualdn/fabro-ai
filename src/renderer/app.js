@@ -952,7 +952,8 @@ function settingsBody(tab) {
       ${row('Top P', range('topP', 0.05, 1, 0.05, g.topP))}
       ${row(t('maxTokens'), `<input class="input sm" type="number" min="0" max="131072" value="${g.maxTokens}" data-input="gen.maxTokens" data-type="int">`, t('maxTokensHint'))}
       <div class="st-block"><div class="st-label"><span>${esc(t('systemPrompt'))}</span><small>${esc(t('systemPromptHint'))}</small></div>
-      <textarea class="input area" rows="6" data-input="gen.systemPrompt" placeholder="${esc(t('systemPromptPh'))}">${esc(g.systemPrompt)}</textarea></div>`;
+      <textarea class="input area" rows="6" data-input="gen.systemPrompt" placeholder="${esc(t('systemPromptPh'))}">${esc(g.systemPrompt)}</textarea></div>
+      ${typeof SysPrompts !== 'undefined' ? SysPrompts.mountPoint() : ''}`;
   }
   if (tab === 'system') {
     const sp = S.specs;
@@ -1109,7 +1110,7 @@ function generate(opts = {}) {
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
   const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
-  api.chat.send({ reqId, model: cm ? cm.ref : S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  api.chat.send({ reqId, model: cm ? cm.ref : S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), userContext: typeof sysContext === 'function' ? sysContext() : undefined, sysPromptId: typeof sysPromptId === 'function' ? sysPromptId() : null, vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {
