@@ -14,7 +14,11 @@ const clip = (t, n) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
 function dateLine(s) {
   const d = s.now || new Date();
   const loc = s.user.location ? ` · ${s.user.location}` : '';
-  return `Now: ${d.toLocaleString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}${loc}.`;
+  // Local engines reuse their prompt cache only while the system message is unchanged: for them the time is
+  // given to the hour, so a new message a minute later doesn't make them re-read the whole conversation.
+  const day = d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const time = s.model.cloud ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : `around ${String(d.getHours()).padStart(2, '0')}:00`;
+  return `Now: ${day}, ${time}${loc}.`;
 }
 function langLine(s) {
   const n = LANG_NAMES[s.lang];
