@@ -18,6 +18,8 @@
 .welcome > .composer, .welcome > .setup-card { animation: rise var(--dur-4) 140ms var(--ease-spring) both; }
 .welcome > .suggestions { animation: fade-in var(--dur-3) 260ms linear both; }
 
+.upd-logo .prop { animation: hero-in 1100ms var(--ease-spring) both; }
+
 /* ── Messages ── */
 .msg.user.fresh { animation: msg-in var(--dur-3) var(--ease-spring) both; transform-origin: 100% 100%; }
 @keyframes msg-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
