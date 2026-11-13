@@ -1,0 +1,8 @@
+/* High contrast: what the tokens cannot say. Thicker focus ring, underlined links, visible borders on controls. */
+[data-skin="contrast"] :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[data-skin="contrast"] a, [data-skin="contrast"] .link-btn, [data-skin="contrast"] .link { text-decoration: underline; text-underline-offset: .18em; }
+[data-skin="contrast"] .btn, [data-skin="contrast"] .input, [data-skin="contrast"] .composer, [data-skin="contrast"] .sidebar, [data-skin="contrast"] .viewer, [data-skin="contrast"] .popover, [data-skin="contrast"] .modal, [data-skin="contrast"] .code-card { border-width: 2px; border-color: var(--border-strong); }
+[data-skin="contrast"] .recent.active, [data-skin="contrast"] .nav-item.active { box-shadow: inset 3px 0 0 var(--accent); background: var(--active); }
+[data-skin="contrast"] .md :not(pre) > code { border-color: var(--border-strong); }
+[data-skin="contrast"] .msg.user .bubble { border: 1px solid var(--border-strong); }
+[data-skin="contrast"] ::selection { background: var(--accent); color: var(--accent-ink); }

@@ -36,7 +36,7 @@ const llm = http.createServer((req, res) => {
     if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'fake-model' }] }));
     const body = JSON.parse(b || '{}'); const sys = String((body.messages && body.messages[0] && body.messages[0].content) || '');
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    const words = /You name conversations/.test(sys) ? ['Capitale'] : /maintain a short memory/.test(sys) ? ['[]'] : 'La capitale de la France est **Paris**.'.split(/(?<= )/);
+    const words = /You name conversations/.test(sys) ? ['Capitale'] : /maintain a short memory|keep a small, honest memory/.test(sys) ? ['[]'] : 'La capitale de la France est **Paris**.'.split(/(?<= )/);
     let i = 0; const tick = () => { if (i < words.length) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: words[i++] } }] })}\n\n`); setTimeout(tick, 30); } else res.end('data: [DONE]\n\n'); }; tick();
   });
 });

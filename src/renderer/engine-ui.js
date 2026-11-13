@@ -10,7 +10,7 @@ function startMonitor() {
     const el = $('#mon'); if (el) el.outerHTML = monitorCard();
   };
   tick(); monTimer = setInterval(tick, 2000);
-  api.localApi.status().then((s) => { S.localApiStatus = s; if (S.settingsTab === 'engine') renderSettings(); }).catch(() => {});
+  api.localApi.status().then((s) => { S.localApiStatus = s; if (stShows('engine')) renderSettings(); }).catch(() => {});
 }
 function stopMonitor() { clearInterval(monTimer); monTimer = null; }
 
@@ -32,7 +32,9 @@ function monitorCard() {
   </div>`;
 }
 
-function engineTab() {
+// Settings › Advanced › Engine shows engineCoreHtml() (the live monitor moved to Settings › Resources) and
+// Advanced › Local API shows localApiHtml(); engineTab() keeps the whole.
+function engineVars() {
   const e = S.engine;
   const st = S.settings;
   const g = st.engine || {};
@@ -43,6 +45,10 @@ function engineTab() {
   const la = st.localApi || {};
   const las = S.localApiStatus || {};
   const url = `http://${la.lan ? (S.info.lanIp || 'localhost') : '127.0.0.1'}:${la.port || 11500}/v1`;
+  return { e, st, g, loaded, ctxOpts, gl, energyNow, la, las, url };
+}
+function engineCoreHtml() {
+  const { e, g, loaded, ctxOpts, gl, energyNow } = engineVars();
   return `
     <div class="eng-card st-${e.status}">
       <span class="dot"></span>
@@ -58,8 +64,6 @@ function engineTab() {
         <span class="muted small">${esc(t(MODE_KEY[l.mode] || 'modeCpu'))}${l.vramGB ? ` · ${gb(l.vramGB)} ${esc(t('vramShort'))}` : ''}${l.ramGB > 0.05 ? ` · ${gb(l.ramGB)} RAM` : ''}${l.pinned ? ' · ' + esc(t('pinnedMem')) : ''}${l.busy ? ' · ' + esc(t('busyNow')) : ''}</span>
         <span class="grow"></span><span class="muted small mono">:${l.port}</span>
         <button class="icon-btn sm" data-action="model-unload" data-id="${esc(l.id || '')}" title="${esc(t('unload'))}">${icon('power', 15)}</button></div>`).join('')}</div>` : ''}
-    <div class="st-sec">${esc(t('monitor'))}</div>
-    ${monitorCard()}
     <div class="st-sec">${esc(t('performance'))}</div>
     ${row(t('energyMode'), seg('engine.energy', g.energy || 'auto', [['auto', t('auto')], ['performance', t('energy_performance')], ['balanced', t('energy_balanced')], ['eco', t('energy_eco')]]), t('energyHint'))}
     ${row(t('multiModel'), toggle('engine.multiModel', g.multiModel !== false), t('multiModelHint'))}
@@ -72,6 +76,16 @@ function engineTab() {
     ${row(t('flashAttn'), seg('engine.flashAttn', g.flashAttn || 'auto', [['auto', t('auto')], ['on', t('on')], ['off', t('off')]]), t('flashAttnHint'))}
     ${row(t('cpuMoe'), seg('engine.cpuMoe', g.cpuMoe || 'auto', [['auto', t('auto')], ['on', t('on')], ['off', t('off')]]), t('cpuMoeHint'))}
     ${row(t('threads'), `<input class="input sm" type="number" min="0" max="256" value="${g.threads || 0}" data-input="engine.threads" data-type="int">`, t('threadsHint'))}
+    <div class="st-sec">${esc(t('engineVersion'))}</div>
+    ${row('llama.cpp', `<span class="mono">${esc(e.version || '—')}</span>${e.prevVersion ? ` <button class="btn sm" data-action="engine-rollback">${icon('back', 14)} ${esc(t('rollbackTo', { v: e.prevVersion }))}</button>` : ''}`, e.prevVersion ? t('rollbackHint') : t('rollbackNone'))}
+    <details class="logs" ${S.logsOpen ? 'open' : ''}><summary data-action="logs-toggle">${icon('terminal', 14)} ${esc(t('engineLogs'))}</summary>
+      <div class="logs-tools"><button class="btn sm" data-action="logs-refresh">${icon('refresh', 13)} ${esc(t('refresh'))}</button><button class="btn sm" data-action="err-copy">${icon('copy', 13)} ${esc(t('errCopy'))}</button></div>
+      <pre class="logs-body">${esc((S.logs || []).slice(-200).join('\n') || t('noLogs'))}</pre></details>
+    <p class="muted small st-foot">${icon('info', 13)} ${esc(t('engineOnlyNote'))} <button class="link-btn" data-action="settings-tab" data-tab="providers">${esc(t('tab_providers'))}</button></p>`;
+}
+function localApiHtml() {
+  const { la, las, url } = engineVars();
+  return `
     <div class="st-sec">${esc(t('localApi'))}</div>
     ${row(t('localApiEnable'), toggle('localApi.enabled', !!la.enabled), t('localApiHint'))}
     ${la.enabled ? `
@@ -87,18 +101,16 @@ function engineTab() {
       ${row(t('apiPort'), `<input class="input sm" type="number" min="1024" max="65535" value="${la.port || 11500}" data-input="localApi.port" data-type="int">`)}
       ${row(t('apiKey'), `<div class="inline-ctl"><input class="input mono" value="${esc(la.key || '')}" placeholder="${esc(t('apiKeyNone'))}" data-input="localApi.key"><button class="btn sm" data-action="api-genkey">${esc(t('generate'))}</button></div>`, t('apiKeyHint'))}
       ${row(t('apiLan'), toggle('localApi.lan', !!la.lan), t('apiLanHint'))}` : ''}
-    <div class="st-sec">${esc(t('engineVersion'))}</div>
-    ${row('llama.cpp', `<span class="mono">${esc(e.version || '—')}</span>${e.prevVersion ? ` <button class="btn sm" data-action="engine-rollback">${icon('back', 14)} ${esc(t('rollbackTo', { v: e.prevVersion }))}</button>` : ''}`, e.prevVersion ? t('rollbackHint') : t('rollbackNone'))}
-    <details class="logs" ${S.logsOpen ? 'open' : ''}><summary data-action="logs-toggle">${icon('terminal', 14)} ${esc(t('engineLogs'))}</summary>
-      <div class="logs-tools"><button class="btn sm" data-action="logs-refresh">${icon('refresh', 13)} ${esc(t('refresh'))}</button><button class="btn sm" data-action="err-copy">${icon('copy', 13)} ${esc(t('errCopy'))}</button></div>
-      <pre class="logs-body">${esc((S.logs || []).slice(-200).join('\n') || t('noLogs'))}</pre></details>
-    <p class="muted small st-foot">${icon('info', 13)} ${esc(t('engineOnlyNote'))} <button class="link-btn" data-action="settings-tab" data-tab="providers">${esc(t('tab_providers'))}</button></p>`;
+`;
+}
+function engineTab() {
+  return engineCoreHtml().replace(`<div class="st-sec">${esc(t('performance'))}</div>`, `<div class="st-sec">${esc(t('monitor'))}</div>${monitorCard()}<div class="st-sec">${esc(t('performance'))}</div>`) + localApiHtml();
 }
 
 // ───────────────────────────── Usage tab ─────────────────────────────
 async function loadUsage() {
   try { S.usage = await api.usage.summary(S.usageDays || 30); } catch { S.usage = null; }
-  if (S.settingsTab === 'usage') renderSettings();
+  if (stShows('usage')) renderSettings();
 }
 function usageTab() {
   const u = S.usage;
@@ -154,4 +166,4 @@ Object.assign(actions, {
   'usage-clear': async () => { if (!confirm(t('usageClearConfirm'))) return; await api.usage.clear(); await loadUsage(); },
 });
 
-api.on('localapi:status', (s) => { S.localApiStatus = s; if (S.settingsTab === 'engine') renderSettings(); });
+api.on('localapi:status', (s) => { S.localApiStatus = s; if (stShows('engine')) renderSettings(); });

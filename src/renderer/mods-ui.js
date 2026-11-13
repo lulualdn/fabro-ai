@@ -80,7 +80,7 @@ const fabro = window.fabro = {
       view: { open: (o) => openModView({ mod: id, ...o }), close: () => { if (S.modView && S.modView.mod === id) closeModView(); }, get current() { return S.modView && S.modView.mod === id ? S.modView : null; } },
     };
   },
-  _loaded() { renderRecents(); if (S.settingsTab === 'mods') renderSettings(); fabro.run('loaded'); },
+  _loaded() { renderRecents(); if (stShows('mods')) renderSettings(); fabro.run('loaded'); },
 };
 api.on('mods:event', ({ mod, type, data }) => { for (const l of MODS.listeners) if (l.id === mod && l.type === type) { try { l.fn(data); } catch (e) { console.error(e); } } });
 api.on('mods:web', (e) => {
@@ -264,7 +264,7 @@ window.modChatModel = (id) => MODS.models.get(id);
 
 // ───────────────────────────── Settings › Mods ─────────────────────────────
 TABS.splice(TABS.findIndex((x) => x.id === 'agent') + 1, 0, { id: 'mods', icon: 'puzzle' });
-async function loadMods() { try { S.modsList = await api.mods.list(); } catch { S.modsList = []; } if (S.settingsTab === 'mods') renderSettings(); }
+async function loadMods() { try { S.modsList = await api.mods.list(); } catch { S.modsList = []; } if (stShows('mods')) renderSettings(); }
 fabro.override('settingsBody', (orig) => function (tab) {
   if (tab !== 'mods') {
     const html = orig(tab);

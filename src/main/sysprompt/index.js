@@ -46,6 +46,9 @@ function situation(inp = {}) {
     custom: String(uc.custom || '').trim(), lang: uc.lang || '',
   } : {};
   user.location = String(((st.advanced || {}).location) || '').trim() || tzCity();
+  // My Fabro memory for this request (local; empty when memory is off or nothing is known). Tests pass their own.
+  const fabroMemory = inp.fabroMemory !== undefined ? inp.fabroMemory
+    : (uc ? (tok) => { try { return require('../myfabro').forPrompt({ budgetTokens: tok, query: request }); } catch { return ''; } } : null);
   const m = inp.model || {};
   const model = { name: m.name || '', ctx: m.ctx || 0, cloud: !!m.cloud, vision: !!m.vision, reasoning: m.reasoning || '', nativeTools: !inp.fallback };
   model.size = m.size || signals.sizeClass({ cloud: model.cloud, name: model.name });
@@ -55,6 +58,7 @@ function situation(inp = {}) {
   let notes = inp.notes;
   if (!notes) { try { notes = notebook().forPrompt(request); } catch { notes = []; } }
   const s = {
+    fabroMemory,
     mode: inp.sub || inp.mode === 'agent' ? 'agent' : 'chat', sub: !!inp.sub, voice: !!inp.voice, unattended: !!inp.unattended,
     project: !!inp.projectText, projectText: inp.projectText || '', codeText: inp.codeText || '', skillsText: inp.skillsText || '',
     tools, toolNames, fallback: !!inp.fallback, folders: inp.folders || [], defaultOut: inp.defaultOut || '',

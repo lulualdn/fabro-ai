@@ -93,6 +93,7 @@ api.on('quick:show', (s) => {
   if (!Q.busy) { Q.atts = Q.atts.filter((a) => !a.screen); if (s.screenshot) Q.atts.unshift({ ...s.screenshot, screen: true }); paintAtts(); }
   Q.target = s.target === 'new' ? 'new' : 'current';
   document.documentElement.dataset.theme = s.dark ? 'dark' : 'light';
+  if (window.Themes) Themes.standalone(); // the account's app theme (themes.js)
   if (!Q.busy) { Q.reqId = null; render(); }
   paintTarget();
   const q = $('#q'); q.focus(); q.select();

@@ -9,7 +9,7 @@ async function loadModelExtras() {
     const [plans, libs] = await Promise.all([api.models.plans(), api.models.libraries()]);
     S.plans = plans; S.libs = libs;
   } catch { /* keep previous */ }
-  if (S.settingsTab === 'models' || S.settingsTab === 'storage') renderSettings();
+  if (stShows('models') || stShows('storage')) renderSettings();
 }
 const refreshPlans = debounce(loadModelExtras, 250);
 
@@ -45,7 +45,7 @@ function modelRow(m) {
   return `<div class="m-card ${open ? 'open' : ''}">
     <div class="m-row" data-action="model-open" data-id="${esc(m.id)}">
       <div class="m-ico">${icon('box', 18)}</div>
-      <div class="m-text"><b>${esc(m.name)} ${src}</b>
+      <div class="m-text"><b>${esc(m.name)} ${src}${window.ModelFinder ? ModelFinder.tierBadge(ref) : ''}</b>
         <small>${esc([m.quant, fmtBytes(m.sizeBytes), m.vision && t('vision'), lib && (S.libs || []).length > 1 && lib.name].filter(Boolean).join(' · '))}</small></div>
       ${ld ? `<span class="chip ${ld.status === 'ready' ? 'ok' : ''}">${ld.status === 'ready' ? `<span class="ok-dot"></span>${esc(t('loadedShort'))}` : `${spinner(12)} ${esc(t('loadingShort'))}`}</span>` : ''}
       ${pl ? `<span class="m-mem ${pl.fits ? '' : 'warn'}" title="${esc(t(MODE_KEY[pl.mode]))}">${esc(pl.vramGB > 0 ? gb(pl.vramGB) + ' ' + t('vramShort') : gb(pl.ramGB) + ' RAM')}</span>` : ''}
@@ -128,7 +128,23 @@ function modelsTab() {
   const dls = Object.values(S.downloads).filter((d) => ['queued', 'downloading', 'paused', 'verifying'].includes(d.status));
   const provRows = (S.provModels || []).length ? `<button class="m-row link-row" data-action="settings-tab" data-tab="providers">
       <div class="m-ico">${icon('cloud', 18)}</div><div class="m-text"><b>${esc(t('provModelsCount', { n: S.provModels.length }))}</b><small>${esc([...new Set(S.provModels.map((m) => m.providerName))].join(' · '))}</small></div>${icon('right', 16)}</button>` : '';
-
+  return `
+    <div class="st-sec">${esc(t('yourModels'))}<span class="grow"></span><button class="link-btn" data-action="settings-tab" data-tab="storage">${icon('archive', 13)} ${esc(t('importModels'))}</button></div>
+    ${loc.length || provRows ? loc.map(modelRow).join('') + provRows : `<div class="empty-note">${esc(t('noModelsYet'))}</div>`}
+    ${dls.length ? `<div class="st-sec">${esc(t('downloads'))}</div><div class="dl-list">${dls.map(dlRow).join('')}</div>` : ''}
+    ${finderBlock()}
+    ${catalogBlock()}
+    ${hfSearchBlock()}`;
+}
+// Pieces reused by Settings › My models.
+// v0.2 models: "find a model in plain words" and the light / medium / complex tiers (modelfinder-ui.js fills them)
+function finderBlock() {
+  return `<div class="st-sec">${esc(t('mf_title'))}</div>
+    <div data-mf="section"></div>
+    <div class="st-sec">${esc(t('tiers_title'))}</div>
+    <div data-mf="tiers"></div>`;
+}
+function catalogBlock() {
   const cat = S.catalog;
   const catHtml = !cat ? `<div class="muted">${esc(t('detecting'))}</div>` : [...cat.items].sort((a, b) => (b.id === cat.recommended) - (a.id === cat.recommended) || (FIT_ORDER[a.fit] ?? 9) - (FIT_ORDER[b.fit] ?? 9) || b.sizeGB - a.sizeGB).map((m) => {
     const dl = Object.values(S.downloads).find((d) => d.repo === m.repo && ['downloading', 'queued', 'paused', 'verifying'].includes(d.status));
@@ -139,7 +155,12 @@ function modelsTab() {
       <div class="cc-act">${m.installed ? `<span class="muted small">${icon('check', 14)} ${esc(t('installed'))}</span>` : dl ? `<span class="muted small">${icon('download', 13)} ${esc(t(dl.status === 'paused' ? 'dlPaused' : dl.status === 'queued' ? 'dlQueued' : 'dlInProgress'))}</span>` : m.blocked ? `<span class="blocked">${icon('lock', 14)} ${esc(t('fitWhy_' + m.fit))}</span>` : `<button class="btn sm" data-action="dl-catalog" data-id="${m.id}">${icon('download', 14)} ${esc(t('download'))}</button>`}</div>
     </div>`;
   }).join('');
-
+  const libs = S.libs || [];
+  const target = libs.length > 1 ? `<select class="input sm2" data-input="defaultLibrary" title="${esc(t('dlTarget'))}">${libs.map((l) => `<option value="${esc(l.id)}" ${l.isDefault ? 'selected' : ''}>${esc(t('libOn', { n: l.name }))}${l.free != null ? ` · ${esc(fmtBytes(l.free))} ${esc(t('free'))}` : ''}</option>`).join('')}</select>` : '';
+  return `<div class="st-sec">${esc(t('recommendedFor'))} <span class="muted small">${S.specs ? esc(specLine()) : ''}</span><span class="grow"></span>${target}</div>
+    <div class="cat-grid">${catHtml}</div>`;
+}
+function hfSearchBlock() {
   const sr = S.search;
   let searchHtml = '';
   if (sr.loading) searchHtml = `<div class="muted small">${esc(t('searching'))}</div>`;
@@ -149,22 +170,13 @@ function modelsTab() {
         ${sr.repo === r.repo ? renderRepoFiles() : ''}
       </div>`).join('') : `<div class="muted small">${esc(t('noResults'))}</div>`;
   }
-  const libs = S.libs || [];
-  const target = libs.length > 1 ? `<select class="input sm2" data-input="defaultLibrary" title="${esc(t('dlTarget'))}">${libs.map((l) => `<option value="${esc(l.id)}" ${l.isDefault ? 'selected' : ''}>${esc(t('libOn', { n: l.name }))}${l.free != null ? ` · ${esc(fmtBytes(l.free))} ${esc(t('free'))}` : ''}</option>`).join('')}</select>` : '';
-
-  return `
-    <div class="st-sec">${esc(t('yourModels'))}<span class="grow"></span><button class="link-btn" data-action="settings-tab" data-tab="storage">${icon('archive', 13)} ${esc(t('importModels'))}</button></div>
-    ${loc.length || provRows ? loc.map(modelRow).join('') + provRows : `<div class="empty-note">${esc(t('noModelsYet'))}</div>`}
-    ${dls.length ? `<div class="st-sec">${esc(t('downloads'))}</div><div class="dl-list">${dls.map(dlRow).join('')}</div>` : ''}
-    <div class="st-sec">${esc(t('recommendedFor'))} <span class="muted small">${S.specs ? esc(specLine()) : ''}</span><span class="grow"></span>${target}</div>
-    <div class="cat-grid">${catHtml}</div>
-    <div class="st-sec">${esc(t('searchHF'))}</div>
-    <form class="search-row" data-form="hf-search">${icon('search', 16)}<input class="input bare" name="q" value="${esc(sr.q)}" placeholder="${esc(t('searchPh'))}"><button class="btn sm" type="submit">${esc(t('search'))}</button></form>
+  return `<div class="st-sec">${esc(t('searchHF'))}</div>
+    <form class="search-row" data-form="hf-search">${icon('search', 16)}<input class="input bare" name="q" value="${esc(sr.q)}" placeholder="${esc(t('searchPh'))}" aria-label="${esc(t('searchHF'))}"><button class="btn sm" type="submit">${esc(t('search'))}</button></form>
     <div class="sr-list">${searchHtml}</div>`;
 }
 
 // ───────────────────────────── Storage tab ─────────────────────────────
-function storageTab() {
+function storageVars() {
   const libs = S.libs;
   const d = S.settings.downloads || {};
   const libHtml = !libs ? `<div class="muted">${esc(t('loading'))}</div>` : libs.map((l) => {
@@ -191,20 +203,26 @@ function storageTab() {
         <span class="muted small">${esc(fmtBytes(c.sizeBytes))}${c.mmproj ? ' · ' + esc(t('vision')) : ''}${c.already ? ' · ' + esc(t('alreadyIn')) : ''}</span></label>`).join('')}</div>
       ${fresh.length ? `<div class="pf-actions"><button class="btn sm primary" data-action="import-go">${icon('download', 14)} ${esc(t('importN', { n: fresh.length }))}</button></div>` : ''}`;
   }
-  return `
+  return { libs, d, libHtml, imp };
+}
+function librariesBlock() { const { libHtml } = storageVars(); return `
     <div class="st-sec">${esc(t('libraries'))}<span class="grow"></span><button class="btn sm" data-action="lib-add">${icon('plus', 14)} ${esc(t('libAdd'))}</button></div>
     <p class="muted small st-intro">${esc(t('librariesHint'))}</p>
     <div class="lib-list">${libHtml}</div>
+`; }
+function importBlock() { const { imp } = storageVars(); return `
     <div class="st-sec">${esc(t('importTitle'))}</div>
     <p class="muted small st-intro">${esc(t('importHint'))}</p>
     <div class="imp-actions"><button class="btn sm" data-action="import-scan">${icon('search', 14)} ${esc(t('importScanApps'))}</button>
       <button class="btn sm" data-action="import-folder">${icon('folder', 14)} ${esc(t('importFolder'))}</button></div>
     ${imp}
+`; }
+function downloadOptsBlock() { const { d } = storageVars(); return `
     <div class="st-sec">${esc(t('downloads'))}</div>
     ${row(t('dlParallel'), seg('downloads.maxConcurrent', d.maxConcurrent || 1, [[1, '1'], [2, '2'], [3, '3']]), t('dlParallelHint'))}
     ${row(t('dlLimit'), `<select class="input" data-input="downloads.limitMBps" data-type="float">${[[0, t('unlimited')], [2, '2 MB/s'], [5, '5 MB/s'], [10, '10 MB/s'], [25, '25 MB/s'], [50, '50 MB/s'], [100, '100 MB/s']].map(([v, l]) => `<option value="${v}" ${(d.limitMBps || 0) == v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`, t('dlLimitHint'))}
-    ${row(t('hfToken'), `<input class="input mono" type="password" autocomplete="off" placeholder="hf_…" value="${esc(S.settings.hfToken || '')}" data-input="hfToken">`, t('hfTokenHint'))}`;
-}
+    ${row(t('hfToken'), `<input class="input mono" type="password" autocomplete="off" placeholder="hf_…" value="${esc(S.settings.hfToken || '')}" data-input="hfToken">`, t('hfTokenHint'))}`; }
+function storageTab() { return librariesBlock() + importBlock() + downloadOptsBlock(); }
 
 // ───────────────────────────── actions ─────────────────────────────
 async function saveProfile(id, key, value) {
@@ -283,7 +301,7 @@ Object.assign(actions, {
 
 // Live progress for moves / verification (download progress is handled in app.js).
 api.on('models:progress', (p) => {
-  if (p.kind === 'move' && p.status === 'moving') { (S.moving ||= {})[p.id] = p.total ? p.received / p.total : 0; if (S.settingsTab === 'models') { const el = $(`.m-card.open .ms-actions .muted`); if (el) el.innerHTML = `${spinner(14)} ${esc(t('moving', { p: Math.round(S.moving[p.id] * 100) }))}`; } }
+  if (p.kind === 'move' && p.status === 'moving') { (S.moving ||= {})[p.id] = p.total ? p.received / p.total : 0; if (stShows('models')) { const el = $(`.m-card.open .ms-actions .muted`); if (el) el.innerHTML = `${spinner(14)} ${esc(t('moving', { p: Math.round(S.moving[p.id] * 100) }))}`; } }
   if (p.kind === 'verify' && p.status === 'verifying' && S.verify && S.verify[p.id]) {
     S.verify[p.id].p = p.total ? p.received / p.total : 0;
     const b = $(`[data-action="model-verify"][data-id="${CSS.escape(p.id)}"]`); if (b) b.innerHTML = `${icon('shield', 14)} ${esc(t('verifying', { p: Math.round(S.verify[p.id].p * 100) }))}`;

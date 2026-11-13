@@ -48,7 +48,7 @@ const srv = http.createServer((req, res) => {
     if (req.url !== '/v1/chat/completions') { res.writeHead(404); return res.end('{}'); }
     const body = JSON.parse(b);
     const sys = String((body.messages[0] || {}).content || '');
-    if (/You name conversations|maintain a short memory/.test(sys)) return sse(res, { content: 'Test' });
+    if (/You name conversations|maintain a short memory|keep a small, honest memory/.test(sys)) return sse(res, { content: 'Test' });
     const tools = body.messages.filter((m) => m.role === 'tool');
     const call = (name, args) => sse(res, { tool_calls: [{ index: 0, id: 'k' + tools.length, function: { name, arguments: JSON.stringify(args) } }] });
     if (!tools.length) return call('computer_look', {});
@@ -214,7 +214,7 @@ const srv = http.createServer((req, res) => {
   // (Xvfb has no window manager, so Fabro cannot minimize itself here: keep the app under test on top)
   await app.evaluate(() => { global.__target.show(); global.__target.setAlwaysOnTop(true, 'screen-saver'); });
   await win.waitForSelector('#sb-lists', { timeout: 30000 });
-  await win.evaluate(async (u) => { await api.providers.enable(true); await api.providers.add({ kind: 'custom', name: 'Fake', baseUrl: u }); await refreshModels(); const m = allModels()[0]; if (m) await saveSettings({ selectedModel: m.ref }); }, base);
+  await win.evaluate(async (u) => { await api.providers.enable(true); await api.providers.add({ kind: 'custom', name: 'Fake', baseUrl: u }); await refreshModels(); const m = allModels().find((x) => x.provider === 'Fake'); if (m) await saveSettings({ selectedModel: m.ref }); }, base);
   const before = await page('LOG.clicks');
   await win.click('[data-action=new-chat]');
   await win.fill('#prompt', 'Clique sur le bouton VALIDER sur mon écran');
