@@ -64,7 +64,7 @@ function fabroQa(opts) {
   const txt = (D.body.innerText || '').trim();
   if (txt.length < 30 && opts.kind !== 'svg' && !D.querySelector('button, input, select, textarea, canvas, svg, img, video, iframe')) add('error', 'The page is (nearly) empty.');
   if (/lorem ipsum|dolor sit amet|\bTODO\b|\[(your|insert|votre|ins[ée]rer)[^\]]*\]|placeholder text/i.test(txt)) add('error', 'Placeholder text left in the page (lorem ipsum / TODO / [your …]): write the real content.');
-  const sheets = [...D.styleSheets].length + D.querySelectorAll('[style]').length;
+  const sheets = [...D.styleSheets].filter((x) => !(x.ownerNode && x.ownerNode.id === 'fabro-base')).length + [...D.querySelectorAll('[style]')].filter((el) => !el.hasAttribute('data-fabro-credits')).length; // Fabro's own plumbing doesn't count
   if (!sheets) add('error', 'No styling at all. Fix: add a <style> block in <head> with your own CSS (fonts, colours, spacing, layout) chosen for this subject.');
   if (opts.kind === 'web' && !D.querySelector('h1')) add('warn', 'No <h1> heading: give the page one main title.');
   if (D.getElementById('fabro-kit')) { // old Fabro Kit pages only
