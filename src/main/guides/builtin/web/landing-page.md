@@ -2,7 +2,7 @@
 name: web/landing-page
 title: Landing page
 when: a one-page website that presents a product, app, service, project or association and asks visitors to do one thing
-keywords: landing page, landing, page d accueil, homepage, site vitrine, site web, website, site internet, startup, saas, app, produit, product launch, lancement, association, projet, one page, page unique
+keywords: landing page, landing, page d accueil, homepage, site vitrine, startup, saas, application mobile, mobile app, produit, product launch, lancement, association, projet, one page, page unique
 ---
 # Landing page
 

@@ -75,8 +75,9 @@ function pick(text, n = 2) {
   const medium = mediumOf(t);
   const ranked = load().map((g) => ({ guide: g, score: score(g, t, tw, medium) })).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
   const question = /^\s*(comment|pourquoi|quand|quel|quelle|quels|quelles|qu est|est ce|how|why|what|when|where|which|who|is|are|does|do|can i)\b/.test(t) || /\?\s*$/.test(t);
-  const intent = INTENT.test(t) || (tw.length <= 7 && !question);
-  if (!ranked.length || ranked[0].score < 3 || !intent) {
+  const intent = INTENT.test(t) || (!question && (tw.length <= 7 || /^\s*(un|une|des|le|la|les|mon|ma|mes|a|an|the|my|our|notre|nos)\b/.test(t))); // a noun phrase is a request too
+  const strong = !question && ranked.length && ranked[0].score >= 6; // "fiche de révision sur les ondes": clearly a piece to make
+  if (!ranked.length || ranked[0].score < 3 || !(intent || strong)) {
     if (medium && (intent || /\b(site|pdf|slides|svg)\b/.test(t))) { const d = get(DEFAULT[medium]); return d ? [{ guide: d, score: 1 }] : []; }
     return ranked.length && ranked[0].score >= 7 && intent ? ranked.slice(0, n) : [];
   }

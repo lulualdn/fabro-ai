@@ -29,7 +29,7 @@ Every colour in the page goes through a variable; no hard-coded `#fff` hidden in
 - **Text is off-white**, never pure `#fff` on pure `#000`.
 - **Images**: reduce glare with `img { filter: brightness(.92); }` in dark mode.
 - **SVG icons and charts** use `currentColor` so they follow the theme.
-- A toggle stores the choice: `document.documentElement.dataset.theme = 'dark'` plus `localStorage`, and CSS `[data-theme=dark] { … }`.
+- A toggle stores the choice: `document.documentElement.dataset.mode = 'dark'` plus `localStorage`, and CSS `[data-mode=dark] { … }`.
 
 ## Avoid
 - Pure black backgrounds with saturated colours.
