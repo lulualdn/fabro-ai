@@ -533,7 +533,7 @@ function assistantBody(m) {
   if (m.pending && m.artCheck && m.artCheck.status === 'fixing') html += `<div class="art-checkline">${spinner(16)}<span>${esc(t('artFixingN', { n: m.artCheck.count || 1 }))}</span></div>`;
   if (m.content) { MD_CITES = sourceMap(m); try { html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content, m.id)}</div>`) + citedSources(m); } finally { MD_CITES = null; } }
   else if (m.pending && !m.reasoning && !(m.steps || []).length) {
-    const st = m.status === 'loading' ? t('loadingModel') : m.status === 'queued' ? t('perf_queued') : '';
+    const st = m.status === 'loading' ? t('loadingModel') : m.status === 'queued' ? t('perf_queued') : m.status === 'compressing' ? t('ctx_compressing') : '';
     html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
   }
   if (m.error) html += errorCard({ code: m.errorCode || (m.error === 'NO_MODEL' ? 'NO_MODEL' : 'UNKNOWN'), message: m.error, detail: m.errorDetail });
@@ -955,7 +955,7 @@ function buildMessages() {
         const add = `\n\n[Précisions ajoutées pendant la réponse]\n${pr.join('\n')}`;
         if (typeof u.content === 'string') u.content += add; else if (u.content[0]) u.content[0].text += add;
       }
-      out.push({ role: 'assistant', content: m.content }); continue;
+      out.push({ role: 'assistant', content: m.content, id: m.id, digest: m.digest }); continue; // id + digest: read by the context manager, stripped before the model
     }
     const texts = (m.attachments || []).filter((a) => a.kind === 'text').map((a) => `File: ${a.name}\n\`\`\`${a.ext || ''}\n${a.text}\n\`\`\``)
       .concat((m.attachments || []).filter((a) => (a.kind === 'file' || a.kind === 'audio') && a.path).map((a) => `Attached file: ${a.name} (${a.ext}, ${fmtBytes(a.size)}${a.pages ? `, ${a.pages} pages` : ''}) — saved in your workspace at ${a.path}. ${a.kind === 'audio' ? 'Transcribe it with convert_file (to: "transcript").' : a.text ? `Its text${a.chars > a.text.length ? ` (first ${a.text.length} of ${a.chars} chars)` : ''}:\n${a.text}` : 'Use convert_file to read it.'}${a.ext === 'pdf' ? '\n(To see the layout use inspect_document with pages; to change it keeping the layout use pdf_find_text + pdf_edit.)' : ''}`));
@@ -964,8 +964,8 @@ function buildMessages() {
     const cues = m.cues && m.cues.length ? `\n\n(${m.cues.map((x) => (x.startsWith('voice:') ? 'voice: ' + x.slice(6) : 'heard: ' + x)).join('; ')})` : '';
     const content = said + [...texts, m.content].filter(Boolean).join('\n\n') + cues;
     const imgs = (m.attachments || []).filter((a) => a.kind === 'image');
-    if (imgs.length) out.push({ role: 'user', content: [{ type: 'text', text: content || ' ' }, ...imgs.map((a) => ({ type: 'image_url', image_url: { url: a.data } }))] });
-    else out.push({ role: 'user', content });
+    if (imgs.length) out.push({ role: 'user', id: m.id, content: [{ type: 'text', text: content || ' ' }, ...imgs.map((a) => ({ type: 'image_url', image_url: { url: a.data } }))] });
+    else out.push({ role: 'user', id: m.id, content });
   }
   return out;
 }
@@ -1041,7 +1041,7 @@ function onChatEvent(ev) {
     case 'artifact_check': m.artCheck = { status: ev.status, count: ev.count, round: ev.round || (m.artCheck && m.artCheck.round) }; scheduleStreamRender(); break;
     case 'precision_used': { let n = ev.count; for (const p of m.precisions || []) if (!p.used && n-- > 0) p.used = true; scheduleStreamRender(); break; }
     case 'precision_round': case 'tool_round': if (m.content && !/\n\n$/.test(m.content)) m.content += '\n\n'; break;
-    case 'done': m.stats = ev.stats; finishStream(); break;
+    case 'done': m.stats = ev.stats; if (ev.digest) m.digest = ev.digest; finishStream(); break; // digest: hidden one-line description (src/main/context)
     case 'error': m.error = ev.message; m.errorCode = ev.code; m.errorDetail = ev.detail; finishStream(); break;
   }
 }
