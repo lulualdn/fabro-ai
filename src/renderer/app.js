@@ -650,7 +650,7 @@ function renderComposer() {
       <button class="icon-btn" data-action="plus-menu" title="${esc(t('plusMenu'))}">${icon('plus', 19)}</button>
       <div class="c-extras">${composerExtras()}</div>
       <div class="grow"></div>
-      <button class="model-pill" data-action="model-menu">${esc(cm ? cm.label : t('chooseModel'))}${icon('down', 14)}</button>
+      <button class="model-pill" data-action="model-menu"><span class="mp-label">${esc(cm ? cm.label : t('chooseModel'))}</span>${icon('down', 14)}</button>
       ${ctxRing()}
       <button class="icon-btn mic-btn" data-action="dictate" title="${esc(t('vx_dictate'))}">${icon('mic', 18)}</button>
       ${S.mode !== 'code' ? `<button class="icon-btn vx-open" data-action="voice-mode" title="${esc(t('vx_title'))}">${icon('waveform', 18)}</button>` : ''}

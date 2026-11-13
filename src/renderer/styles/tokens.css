@@ -94,6 +94,8 @@
   --shadow: 0 1px 2px rgba(60, 45, 20, .05), 0 6px 20px -6px rgba(60, 45, 20, .1);
   --shadow-lg: 0 2px 6px rgba(40, 30, 10, .06), 0 18px 48px -12px rgba(40, 30, 10, .22);
   --thumb-shadow: 0 8px 22px rgba(40, 30, 20, .18), 0 0 0 1px rgba(0, 0, 0, .05);
+  --knob-shadow: 0 1px 3px rgba(0, 0, 0, .22);      /* switch and slider knobs */
+  --tile-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 1px 2px rgba(0, 0, 0, .12); /* provider logo tiles */
 
   /* ── Texture (off by default; a skin may set a background-image here) ── */
   --texture: none;
