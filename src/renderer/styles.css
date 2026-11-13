@@ -1511,7 +1511,8 @@ body.drop-on .drop-veil { opacity: 1; }
   .st-top { padding: 10px 8px 4px 16px; }
   .st-content { padding: 4px 16px calc(24px + var(--safe-b, 0px)); }
   .st-row { flex-wrap: wrap; gap: 10px; }
-  .st-control { flex: 1 1 auto; justify-content: flex-end; flex-wrap: wrap; }
+  .st-label { flex: 1 1 170px; }
+  .st-control { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; flex-wrap: wrap; }
   .input { min-width: 0; max-width: 100%; }
   input.input, select.input, textarea, .input.area, .ag-composer textarea, .ag-f input, .ag-f textarea { font-size: 16px; }
   .popover { max-width: calc(100vw - 16px); }
