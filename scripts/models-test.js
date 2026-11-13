@@ -240,6 +240,24 @@ const sizeOf = (p) => p.variant.downloadGB;
     const tool = require('../src/main/agent'); require('../src/main/agent/plan'); const p = tool.get('run_subagent').parameters.properties.model; assert.deepStrictEqual(p.enum, ['light', 'medium', 'complex']); assert.ok(/light/.test(p.description) && /default/.test(p.description)); ok('run_subagent has model: light | medium | complex with one-line guidance');
     let got = null; const r2 = await tool.get('run_subagent').run({ description: 'd', task: 't', model: 'light' }, { spawnSub: async (a) => { got = a; return { text: 'done', steps: 1, tokens: 2, note: 'Sub-agent ran on X (light tier).', tier: 'light', label: 'X' }; } });
     assert.strictEqual(got.model, 'light'); assert.ok(/light tier/.test(r2.content)); ok('the tier reaches spawnSub and the note reaches the calling model');
+
+    // cloud privacy: two providers in the pool; a conversation on provider A never sends a sub-task to provider B by itself
+    const prov = require('../src/main/providers'); const realCM = prov.chatModels;
+    prov.chatModels = () => [
+      { ref: { backend: 'provider', provider: 'pa', model: 'a-large-70b' }, label: 'A large 70B', providerName: 'A', kind: 'openai' },
+      { ref: { backend: 'provider', provider: 'pb', model: 'b-mini' }, label: 'B mini', providerName: 'B', kind: 'anthropic' },
+    ];
+    try {
+      const mainA = { backend: 'provider', provider: 'pa', model: 'a-large-70b' };
+      await tiers.setOverride('p:pb:b-mini', 'light'); await tiers.setOverride('l:r/Small-1.5B-GGUF/s.gguf', 'medium');
+      const lt = await tiers.resolve('light'); assert.strictEqual(lt.key, 'p:pb:b-mini', 'light tier is provider B here');
+      s = await tiers.forSubAgent('light', { main: mainA, check: fits });
+      assert.deepStrictEqual(s.model, mainA); assert.ok(/another provider/.test(s.note));
+      await tiers.setOverride('p:pb:b-mini', null); await tiers.setOverride('l:r/Small-1.5B-GGUF/s.gguf', null);
+      ok('never another cloud provider unless chosen in settings');
+      await tiers.setPreferred('light', 'p:pb:b-mini'); s = await tiers.forSubAgent('light', { main: mainA, check: fits }); assert.strictEqual(s.model.provider, 'pb'); await tiers.setPreferred('light', null); ok('…but a provider chosen for the tier is used');
+      s = await tiers.forSubAgent('light', { main, check: fits }); assert.ok(s.model.backend === 'local'); ok('a local conversation stays local');
+    } finally { prov.chatModels = realCM; }
   }
 
   console.log(`\n${n} checks passed`);

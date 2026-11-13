@@ -209,6 +209,10 @@ async function forSubAgent(wanted, { main, text, check = canLoadAlongside } = {}
     if (!chosen.local && mainItem && mainItem.local && !item && !preferredByUser) {
       return keep(`Sub-agent used the main model (the ${tier} tier points to a cloud model, which is only used when you choose it in settings).`, { tier, label: mainItem.label });
     }
+    // …and a conversation on one cloud provider never sends sub-tasks to another provider unless the user chose it
+    if (!chosen.local && mainItem && !mainItem.local && chosen.ref.provider !== (main && main.provider) && !item && !preferredByUser) {
+      return keep(`Sub-agent used the main model (the ${tier} tier points to another provider, which is only used when you choose it in settings).`, { tier, label: mainItem.label });
+    }
     if (chosen.ref.backend === 'local') {
       const file = await models.getLocal(chosen.ref.id);
       if (!file) return keep(`Sub-agent used the main model (${chosen.label} is not available).`, { tier });

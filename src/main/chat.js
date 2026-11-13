@@ -408,27 +408,36 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     // A sub-agent: a nested run with a fresh context. Its steps are forwarded to the UI under the parent
     // call, its permission prompts go through this run (same reqId) so the user answers them in place.
     const spawnSub = (callId) => async ({ description, task, model: wantedModel }) => {
-      const subId = `${reqId}/s${++subN}`;
-      const steps = []; let text = ''; let err = null; let tokens = 0;
       // v0.2 model tiers (modeltiers.js): light / medium / complex per sub-agent; falls back to the main model when it can't load alongside
       const tier = await require('./modeltiers').forSubAgent(wantedModel, { main: model, text: `${description} ${task}` });
       const pid = (id) => `${callId}~${id}`;
-      await send({ reqId: subId, model: tier.model, messages: [{ role: 'system', content: '' }, { role: 'user', content: task }],
-        params: { ...params, agentMode: true, usedTools: [], maxTokens: params.maxTokens }, meta: { ...meta, modelLabel: meta.modelLabel } },
-        (ev) => {
-          if (ev.type === 'token') { text += ev.text; out({ type: 'sub_token', parent: callId, text: ev.text }); }
-          else if (ev.type === 'retract') text = text.replace(ev.text, '');
-          else if (ev.type === 'tool_round') text = '';
-          else if (['tool_start', 'tool_end', 'tool_progress'].includes(ev.type)) {
-            if (ev.type === 'tool_start') steps.push(ev.name);
-            const { reqId: _r, ...rest } = ev; out({ ...rest, id: pid(ev.id), parent: callId });
-          } else if (ev.type === 'plan') out({ type: 'plan', steps: ev.steps, sub: callId });
-          else if (ev.type === 'done') tokens = (ev.stats && ev.stats.completionTokens) || 0;
-          else if (ev.type === 'error') err = ev.message;
-        },
-        { signal: ctrl.signal, callId, checkpoint: ctxBase.checkpoint, ask: (id, req) => ask(reqId, pid(id), req, out, ctrl.signal), needDeps: (id, dep) => needDeps(reqId, pid(id), dep, out, ctrl.signal), grants: convGrants.get(gkey), description });
-      if (ctrl.signal.aborted) throw Object.assign(new Error('aborted'), { code: 'ABORTED' });
-      return { text: text.trim() || (err ? `Sub-agent failed: ${err}` : ''), steps: steps.length, tokens, error: err, note: tier.note, tier: tier.tier, label: tier.label };
+      const runOn = async (subModel) => {
+        const subId = `${reqId}/s${++subN}`;
+        const r = { steps: [], text: '', err: null, tokens: 0 };
+        await send({ reqId: subId, model: subModel, messages: [{ role: 'system', content: '' }, { role: 'user', content: task }],
+          params: { ...params, agentMode: true, usedTools: [], maxTokens: params.maxTokens }, meta: { ...meta, modelLabel: meta.modelLabel } },
+          (ev) => {
+            if (ev.type === 'token') { r.text += ev.text; out({ type: 'sub_token', parent: callId, text: ev.text }); }
+            else if (ev.type === 'retract') r.text = r.text.replace(ev.text, '');
+            else if (ev.type === 'tool_round') r.text = '';
+            else if (['tool_start', 'tool_end', 'tool_progress'].includes(ev.type)) {
+              if (ev.type === 'tool_start') r.steps.push(ev.name);
+              const { reqId: _r, ...rest } = ev; out({ ...rest, id: pid(ev.id), parent: callId });
+            } else if (ev.type === 'plan') out({ type: 'plan', steps: ev.steps, sub: callId });
+            else if (ev.type === 'done') r.tokens = (ev.stats && ev.stats.completionTokens) || 0;
+            else if (ev.type === 'error') r.err = ev.message;
+          },
+          { signal: ctrl.signal, callId, checkpoint: ctxBase.checkpoint, ask: (id, req) => ask(reqId, pid(id), req, out, ctrl.signal), needDeps: (id, dep) => needDeps(reqId, pid(id), dep, out, ctrl.signal), grants: convGrants.get(gkey), description });
+        if (ctrl.signal.aborted) throw Object.assign(new Error('aborted'), { code: 'ABORTED' });
+        return r;
+      };
+      let r = await runOn(tier.model); let note = tier.note; let label = tier.label;
+      // the tier's model failed before doing anything (it would not load, its provider refused…): redo the task on the main model
+      if (tier.switched && r.err && !r.text.trim() && !r.steps.length) {
+        note = `Sub-agent used the main model: ${tier.label} failed (${String(r.err).slice(0, 120)}).`; label = null;
+        r = await runOn(model);
+      }
+      return { text: r.text.trim() || (r.err ? `Sub-agent failed: ${r.err}` : ''), steps: r.steps.length, tokens: r.tokens, error: r.err, note, tier: tier.tier, label };
     };
     const runAgentTool = (c, args) => {
       const ctx = parent

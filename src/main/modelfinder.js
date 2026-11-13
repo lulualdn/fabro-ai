@@ -401,6 +401,12 @@ async function find({ need, constraints = {}, specs, offline = !!process.env.FAB
     rows.push({ c, row: best.v, a: best.a, score: best.v._score, eff: effParams(c, best.v.sizeGB) });
   }
   rows.sort((x, y) => y.score - x.score);
+  // Asked for code: a code model that runs at a usable speed is the recommendation, even when a smaller general model
+  // scores higher on speed; that one can still show up as the "lighter" alternative, with its weakness spelled out.
+  if (crit.needs.code && rows.length && !rows[0].c.tags.has('code')) {
+    const k = rows.findIndex((r) => r.c.tags.has('code') && r.a.speed !== 'very-slow');
+    if (k > 0) rows.unshift(rows.splice(k, 1)[0]);
+  }
 
   const picks = [];
   if (rows.length) {

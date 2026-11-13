@@ -55,6 +55,8 @@ function t(key, vars) {
 }
 
 function toast(msg, kind = '') {
+  // the same message already on screen: don't stack a copy of it
+  if ([...$('#toasts').children].some((x) => x.textContent === String(msg) && x.classList.contains('show'))) return;
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
   el.textContent = msg;
@@ -277,7 +279,6 @@ function openUserMenu(anchor) {
     <div class="popover" style="left:${r.left}px; bottom:${innerHeight - r.top + 8}px; min-width:${Math.max(240, r.width)}px">
       <button class="pm-item" data-action="mode" data-mode="custom">${icon('brush', 16)}<span class="pm-text"><b>${esc(t('nav_custom'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="general">${icon('settings', 16)}<span class="pm-text"><b>${esc(t('settings'))}</b></span><kbd>Ctrl ,</kbd></button>
-      <button class="pm-item" data-action="mf-open">${icon('search', 16)}<span class="pm-text"><b>${esc(t('mf_help'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
       <button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'dark' || th === 'halloween' ? 'light' : 'dark'}">${icon(th === 'dark' || th === 'halloween' ? 'sun' : 'moon', 16)}<span class="pm-text"><b>${esc(t(th === 'dark' || th === 'halloween' ? 'themeLight' : 'themeDark'))}</b></span></button>
       ${spookySeason() || th === 'halloween' ? `<button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'halloween' ? 'system' : 'halloween'}">${icon('pumpkin', 16)}<span class="pm-text"><b>${esc(t(th === 'halloween' ? 'themeHalloweenOff' : 'themeHalloween'))}</b></span></button>` : ''}
@@ -848,6 +849,7 @@ function openModelMenu(anchor) {
       <div class="pm-empty pm-none" hidden>${esc(t('noMatch'))}</div>
       </div>
       <div class="pm-sep"></div>
+      ${window.ModelFinder ? `<button class="pm-item" data-action="mf-open">${icon('search', 16)}<span class="pm-text"><b>${esc(t('mf_help'))}</b></span></button>` : ''}
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="providers">${icon('cloud', 16)}<span class="pm-text"><b>${esc(t('tab_providers'))}</b></span></button>
     </div>`;

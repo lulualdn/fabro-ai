@@ -298,7 +298,6 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   // the model picker: tier badges + "Aide-moi à choisir…" opens the finder with example chips
   await win.click('[data-action=model-menu]'); await win.waitForSelector('.models-pop');
   assert.ok((await win.$$('.models-pop .tier-badge')).length >= 2, 'tier badges in the picker');
-  console.log(await win.evaluate(() => (document.querySelector('.models-pop') || {}).outerHTML?.slice(-700)));
   await win.click('.models-pop [data-action=mf-open]'); await win.waitForSelector('.mf-modal .mf-chip');
   await win.click('.mf-modal .mf-chip >> nth=3');
   await win.waitForSelector('.mf-modal .mf-pick', { timeout: 30000 });
@@ -311,7 +310,10 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.selectOption('[data-mf-pref=complex]', await win.evaluate(() => api.tiers.list().then((d) => d.models.find((m) => /mini/.test(m.label)).key)));
   await win.waitForFunction(() => api.tiers.list().then((d) => /mini/.test(d.chosen.complex.label)), null, { timeout: 8000 });
   await win.selectOption('[data-mf-pref=complex]', '');
+  await win.evaluate(() => document.querySelector('[data-mf=tiers]').scrollIntoView({ block: 'start' })); await win.waitForTimeout(250);
   step('tiers'); await win.screenshot({ path: `${shots}/08f-tiers.png` });
+  await win.evaluate(() => document.querySelector('[data-mf=section]').scrollIntoView({ block: 'start' })); await win.waitForTimeout(250);
+  await win.screenshot({ path: `${shots}/08g-finder-settings.png` });
   await win.click('[data-action=close-settings]');
   // scheduled task: weekly on Monday and Thursday at 15:00, with a variable
   const tk = await win.evaluate(async () => { const t = await api.tasks.create({ title: 'Test hebdo', prompt: 'Dis bonjour à {{name}}', when: { type: 'weekly', days: ['mon', 'thu'], time: '15:00' }, vars: { name: 'Lulu' } }); return (await api.tasks.list()).find((x) => x.id === t.id); });
