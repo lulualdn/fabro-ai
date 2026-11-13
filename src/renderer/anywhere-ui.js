@@ -85,7 +85,7 @@ settingsBody = function (tab) { return tab === 'anywhere' ? anywhereTab() : _set
 const _openSettingsAw = openSettings;
 openSettings = async function (tab) {
   await _openSettingsAw(tab);
-  if (tab === 'anywhere') { S.aw.status = await api.anywhere.status(); if (S.settingsTab === 'anywhere') renderSettings(); }
+  if (tab === 'anywhere') { S.aw.status = await api.anywhere.status(); if (stShows('anywhere')) renderSettings(); }
 };
 
 const awRelTime = (ts) => {
@@ -199,7 +199,7 @@ Object.assign(actions, {
 // ───────────────────────────── events from the main process ─────────────────────────────
 let awConvT = null;
 api.on('anywhere:event', async (ev) => {
-  if (ev.type === 'status') { S.aw.status = ev.status; if (S.settingsTab === 'anywhere') renderSettings(); return; }
+  if (ev.type === 'status') { S.aw.status = ev.status; if (stShows('anywhere')) renderSettings(); return; }
   if (ev.type === 'paired') {
     if (S.aw.pair) { S.aw.pair = { ...S.aw.pair, paired: ev.device }; clearInterval(S.aw.timer); renderPair(); }
     if (typeof announce === 'function') announce(t('aw_pairedT', { n: ev.device.name }));
