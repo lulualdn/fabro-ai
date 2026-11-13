@@ -157,7 +157,7 @@ function md(text, prefix, opts) {
 function allModels() {
   const l = S.installed.local.filter((m) => !m.role).map((m) => ({ ref: { backend: 'local', id: m.id }, label: m.name, sub: `${m.quant || 'GGUF'} · ${fmtBytes(m.sizeBytes)}`, vision: m.vision, src: 'local' }));
   const p = (S.provModels || []).map((m) => ({ ref: m.ref, label: m.label, sub: [m.providerName, m.params, m.quant].filter(Boolean).join(' · '), vision: m.vision, src: m.provider, provider: m.providerName, kind: m.kind, remote: !m.local }));
-  return [...l, ...p];
+  return [...l, ...p].map((m) => (window.ModelFinder ? { ...m, tier: ModelFinder.tierOf(m.ref) } : m)); // tier: light | medium | complex (modeltiers.js)
 }
 const refKey = (r) => !r ? '' : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
 const sameRef = (a, b) => !!a && !!b && refKey(a) === refKey(b);
@@ -172,6 +172,7 @@ function currentModel() {
 async function refreshModels() {
   [S.installed, S.provModels] = await Promise.all([api.models.installed(), api.providers.models()]);
   for (const d of S.installed.downloads) S.downloads[d.id] = d;
+  if (window.ModelFinder) ModelFinder.refreshTiers(); // tier badges follow the pool of models
   if (!currentModel()) {
     const first = allModels()[0];
     if (first) await saveSettings({ selectedModel: first.ref });
@@ -276,6 +277,7 @@ function openUserMenu(anchor) {
     <div class="popover" style="left:${r.left}px; bottom:${innerHeight - r.top + 8}px; min-width:${Math.max(240, r.width)}px">
       <button class="pm-item" data-action="mode" data-mode="custom">${icon('brush', 16)}<span class="pm-text"><b>${esc(t('nav_custom'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="general">${icon('settings', 16)}<span class="pm-text"><b>${esc(t('settings'))}</b></span><kbd>Ctrl ,</kbd></button>
+      <button class="pm-item" data-action="mf-open">${icon('search', 16)}<span class="pm-text"><b>${esc(t('mf_help'))}</b></span></button>
       <button class="pm-item" data-action="settings" data-tab="models">${icon('box', 16)}<span class="pm-text"><b>${esc(t('manageModels'))}</b></span></button>
       <button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'dark' || th === 'halloween' ? 'light' : 'dark'}">${icon(th === 'dark' || th === 'halloween' ? 'sun' : 'moon', 16)}<span class="pm-text"><b>${esc(t(th === 'dark' || th === 'halloween' ? 'themeLight' : 'themeDark'))}</b></span></button>
       ${spookySeason() || th === 'halloween' ? `<button class="pm-item" data-action="set" data-key="theme" data-value="${th === 'halloween' ? 'system' : 'halloween'}">${icon('pumpkin', 16)}<span class="pm-text"><b>${esc(t(th === 'halloween' ? 'themeHalloweenOff' : 'themeHalloween'))}</b></span></button>` : ''}
@@ -434,6 +436,7 @@ function renderSetupCard() {
     ${S.engine.status === 'error' ? errorCard({ code: S.engine.errorCode, message: S.engine.error, detail: S.engine.errorDetail }, 'engine') : ''}
     <div class="sc-links">
       <button class="link-btn" data-action="settings" data-tab="models">${esc(t('chooseAnother'))}</button>
+      <span class="muted">·</span><button class="link-btn" data-action="mf-open">${esc(t('mf_help'))}</button>
       <span class="muted">·</span><button class="link-btn" data-action="settings" data-tab="providers">${esc(t('useProvider'))}</button>
     </div>
   </div>`;
@@ -827,7 +830,7 @@ function openModelMenu(anchor) {
   const groups = {}; list.filter((m) => m.src !== 'local').forEach((m) => { (groups[m.src] ||= { name: m.provider, items: [] }).items.push(m); });
   const mods = (window.modChatModels ? window.modChatModels() : []); // Claude / ChatGPT / Gemini when connected
   const item = (m) => `<button class="pm-item ${sameRef(m.ref, S.settings.selectedModel) ? 'sel' : ''}" data-action="pick-model" data-ref="${esc(JSON.stringify(m.ref))}">
-      <span class="pm-text"><b>${esc(m.label)}</b><small>${esc(m.sub)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></span>
+      <span class="pm-text"><b>${esc(m.label)}${window.ModelFinder ? ModelFinder.tierBadge(m.tier) : ''}</b><small>${esc(m.sub)}${m.vision ? ' · ' + esc(t('vision')) : ''}</small></span>
       ${sameRef(m.ref, S.settings.selectedModel) ? icon('check', 16) : ''}</button>`;
   const modItem = (m) => { const ref = { backend: 'mod', id: m.id }; return `<button class="pm-item ${sameRef(ref, S.settings.selectedModel) ? 'sel' : ''}" data-action="pick-model" data-ref="${esc(JSON.stringify(ref))}">
       <span class="pm-ic">${m.icon && String(m.icon).startsWith('data:') ? `<img src="${esc(m.icon)}" alt="">` : icon(m.icon || 'globe', 16)}</span>
@@ -912,6 +915,7 @@ function renderSettings(keepScroll = true) {
   if (focused) { const [f, n] = focused.split('|'); $(`.st-content form[data-form="${f}"] [name="${n}"]`)?.focus(); }
   const c = $('.st-content'); if (c) c.scrollTop = scroll;
   S._lastTab = S.settingsTab;
+  if (window.ModelFinder) ModelFinder.mount(); // v0.2 models: finder + tiers placeholders ([data-mf])
   if (!existing) requestAnimationFrame(() => $('.overlay')?.classList.add('shown'));
 }
 

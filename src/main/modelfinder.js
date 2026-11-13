@@ -331,8 +331,8 @@ function buildPick(role, c, row, a, crit, m, installed) {
 const sleepTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 async function pool(items, n, fn) { const out = []; let i = 0; await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]).catch(() => null); } })); return out; }
 
-async function find({ need, constraints = {}, specs, offline, llm, useModel = true } = {}) {
-  const t0 = Date.now();
+async function find({ need, constraints = {}, specs, offline = !!process.env.FABRO_E2E, llm, useModel = true } = {}) {
+  const t0 = Date.now(); // (the Electron e2e runs without network: FABRO_E2E = catalog only)
   let crit = extractCriteria(need, constraints);
   if (useModel && crit.confidence < 0.5 && crit.text.split(/\s+/).length >= 4) crit = await refineWithModel(crit, llm).catch(() => crit);
   const sys = specs || await require('./system').getSpecs();

@@ -45,7 +45,7 @@ function modelRow(m) {
   return `<div class="m-card ${open ? 'open' : ''}">
     <div class="m-row" data-action="model-open" data-id="${esc(m.id)}">
       <div class="m-ico">${icon('box', 18)}</div>
-      <div class="m-text"><b>${esc(m.name)} ${src}</b>
+      <div class="m-text"><b>${esc(m.name)} ${src}${window.ModelFinder ? ModelFinder.tierBadge(ref) : ''}</b>
         <small>${esc([m.quant, fmtBytes(m.sizeBytes), m.vision && t('vision'), lib && (S.libs || []).length > 1 && lib.name].filter(Boolean).join(' · '))}</small></div>
       ${ld ? `<span class="chip ${ld.status === 'ready' ? 'ok' : ''}">${ld.status === 'ready' ? `<span class="ok-dot"></span>${esc(t('loadedShort'))}` : `${spinner(12)} ${esc(t('loadingShort'))}`}</span>` : ''}
       ${pl ? `<span class="m-mem ${pl.fits ? '' : 'warn'}" title="${esc(t(MODE_KEY[pl.mode]))}">${esc(pl.vramGB > 0 ? gb(pl.vramGB) + ' ' + t('vramShort') : gb(pl.ramGB) + ' RAM')}</span>` : ''}
@@ -156,6 +156,10 @@ function modelsTab() {
     <div class="st-sec">${esc(t('yourModels'))}<span class="grow"></span><button class="link-btn" data-action="settings-tab" data-tab="storage">${icon('archive', 13)} ${esc(t('importModels'))}</button></div>
     ${loc.length || provRows ? loc.map(modelRow).join('') + provRows : `<div class="empty-note">${esc(t('noModelsYet'))}</div>`}
     ${dls.length ? `<div class="st-sec">${esc(t('downloads'))}</div><div class="dl-list">${dls.map(dlRow).join('')}</div>` : ''}
+    <div class="st-sec">${esc(t('mf_title'))}</div>
+    <div data-mf="section"></div>
+    <div class="st-sec">${esc(t('tiers_title'))}</div>
+    <div data-mf="tiers"></div>
     <div class="st-sec">${esc(t('recommendedFor'))} <span class="muted small">${S.specs ? esc(specLine()) : ''}</span><span class="grow"></span>${target}</div>
     <div class="cat-grid">${catHtml}</div>
     <div class="st-sec">${esc(t('searchHF'))}</div>
