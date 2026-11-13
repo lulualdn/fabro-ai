@@ -185,6 +185,11 @@ function rawZip(entries) {
     assert.ok(/not available in Fabro/.test(compat.note('Use the NotebookEdit tool')));
     assert.strictEqual(compat.rewritePaths('cd /mnt/skills/public/docx/scripts', '/x/y', (n) => (n === 'docx' ? '/home/u/skills/docx' : null)), 'cd /home/u/skills/docx/scripts');
   });
+  await t('pasted text: loose words refused, a titled snippet accepted; scheme-less GitHub link is a link', async () => {
+    const r1 = await si.preview('pas un lien'); assert.ok(!r1.ok); assert.strictEqual(r1.code, 'IMPORT_NOT_SKILL');
+    const r2 = await si.preview('# Factures\nQuand on parle de factures, range-les par mois.'); assert.ok(r2.ok, r2.error); assert.strictEqual(r2.skills[0].name, 'factures');
+    const r3 = await si.preview('github.com/foo'); assert.ok(!r3.ok); assert.strictEqual(r3.code, 'IMPORT_URL'); // classified as a link, not as text
+  });
   console.log(`\n${pass} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })();

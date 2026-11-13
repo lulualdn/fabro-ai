@@ -6,6 +6,7 @@
 (() => {
   const E = (s) => esc(s);
   const ic = (n, s) => icon(n, s);
+  const M = (s) => (window.installMsg ? installMsg(s) : String(s == null ? '' : s)); // main-process English → UI language
   const clean = (e) => String((e && e.message) || e || '').replace(/^Error invoking remote method '[^']+': (\w*Error: )?/, '');
   const st = { tab: 'paste', text: '', parsed: null, cards: {}, found: null, sel: new Set(), catalog: null, openCat: null, importing: false, expanded: new Set() };
   let parseSeq = 0; let parseTimer = null;
@@ -19,7 +20,7 @@
     if (m.status === 'ready') return `${t('mc_ready', { n: m.tools.length })}`;
     if (m.status === 'connecting') return t('mcpConnecting');
     if (m.status === 'auth') return t('mc_needsAuth');
-    if (m.status === 'error') return m.error || t('mc_failed');
+    if (m.status === 'error') return M(m.error) || t('mc_failed');
     return t('mcpOff');
   }
   function plainTool(tool) { return `<li class="mc-tool"><div class="m-text"><b class="mono">${E(tool.name)}</b><small>${E(tool.description || '')}</small></div>${toggleBtn('mc-tool', tool.enabled, `data-id="__ID__" data-tool="${E(tool.name)}"`)}</li>`; }
@@ -32,7 +33,7 @@
         <div class="m-text"><b>${E(m.name)}</b>
           <small class="mc-kind">${E(m.type === 'http' ? t('mc_online') : t('mc_local'))} · <span class="mc-st st-${m.status}">${E(statusText(m))}</span></small>
           ${m.status === 'ready' && what ? `<small class="mc-what">${E(t('mc_canDo'))} ${E(what)}</small>` : ''}
-          ${m.note ? `<small class="muted">${E(m.note)}</small>` : ''}</div>
+          ${m.note ? `<small class="muted">${E(M(m.note))}</small>` : ''}</div>
         ${m.status === 'auth' ? `<button class="btn sm primary" data-action="mcp-signin" data-id="${E(m.id)}">${E(t('mcpSignIn'))}</button>` : ''}
         ${m.status === 'error' ? `<button class="icon-btn sm" data-action="mcp-retry" data-id="${E(m.id)}" title="${E(t('errRetry'))}">${ic('refresh', 16)}</button>` : ''}
         ${m.tools.length ? `<button class="icon-btn sm ${open ? 'on' : ''}" data-action="mc-expand" data-id="${E(m.id)}" aria-expanded="${open}" title="${E(t('mc_tools'))}">${ic('sliders', 16)}</button>` : ''}
@@ -81,15 +82,15 @@
   const card = (d) => st.cards[d.draftId] || (st.cards[d.draftId] = { values: {}, name: d.name, test: null, added: false, prereq: null });
   function needInput(d, n) {
     const c = card(d); const k = `${n.where}:${n.name !== undefined ? n.name : n.index}`;
-    if (n.set && c.values[k] === undefined) return `<div class="mc-need ok"><span>${E(n.label)}</span><small>${ic('check', 12)} ${E(t('mc_keyFound'))}</small><button class="btn sm" data-action="mc-change" data-draft="${E(d.draftId)}" data-k="${E(k)}">${E(t('mc_change'))}</button></div>`;
+    if (n.set && c.values[k] === undefined) return `<div class="mc-need ok"><span>${E(M(n.label))}</span><small>${ic('check', 12)} ${E(t('mc_keyFound'))}</small><button class="btn sm" data-action="mc-change" data-draft="${E(d.draftId)}" data-k="${E(k)}">${E(t('mc_change'))}</button></div>`;
     const folder = n.kind === 'folder';
-    return `<label class="field mc-need"><span>${E(n.label)}${n.required ? '' : ` <small>${E(t('mc_optional'))}</small>`}</span>
+    return `<label class="field mc-need"><span>${E(M(n.label))}${n.required ? '' : ` <small>${E(t('mc_optional'))}</small>`}</span>
       <span class="mc-need-in"><input class="input ${folder ? 'mono' : ''}" type="${n.kind === 'password' ? 'password' : 'text'}" autocomplete="off" spellcheck="false" data-mc-val="${E(k)}" data-draft="${E(d.draftId)}" value="${E(c.values[k] || '')}" placeholder="${E(n.kind === 'password' ? t('mc_pasteKey') : folder ? t('mc_folderPh') : '')}">
       ${folder ? `<button type="button" class="btn sm" data-action="mc-folder" data-draft="${E(d.draftId)}" data-k="${E(k)}">${ic('folder', 14)} ${E(t('mc_browse'))}</button>` : ''}</span></label>`;
   }
   function prereqLine(c) {
     if (!c.prereq) return '';
-    return c.prereq.items.map((i) => i.found ? `<p class="mc-pre ok">${ic('check', 13)} ${E(t('mc_found', { p: i.tool }))}</p>` : `<p class="mc-pre bad">${ic('warning', 13)} <span>${E(t('mc_missing', { p: i.label }))} ${E(i.help)}</span></p>`).join('');
+    return c.prereq.items.map((i) => i.found ? `<p class="mc-pre ok">${ic('check', 13)} ${E(t('mc_found', { p: i.tool }))}</p>` : `<p class="mc-pre bad">${ic('warning', 13)} <span>${E(t('mc_missing', { p: M(i.label) }))} ${E(M(i.help))}</span></p>`).join('');
   }
   function testBox(c) {
     const r = c.test; if (!r) return '';
@@ -97,10 +98,10 @@
     if (r.ok) {
       const names = r.tools.slice(0, 14).map((x) => `<code>${E(x.name)}</code>`).join(' ');
       return `<div class="mc-test ok"><p>${ic('success', 15)} <b>${E(r.auth && !r.ready ? t('mc_reachAuth') : t('mc_works', { n: r.count }))}</b></p>
-        ${r.auth && !r.ready ? `<p class="small muted">${E(r.hint)}</p>` : `<p class="mc-names">${names}${r.tools.length > 14 ? ` <span class="muted small">+${r.tools.length - 14}</span>` : ''}</p>`}</div>`;
+        ${r.auth && !r.ready ? `<p class="small muted">${E(M(r.hint))}</p>` : `<p class="mc-names">${names}${r.tools.length > 14 ? ` <span class="muted small">+${r.tools.length - 14}</span>` : ''}</p>`}</div>`;
     }
-    return `<div class="mc-test bad"><p>${ic('warning', 15)} <b>${E(r.cause || r.error || t('mc_failed'))}</b></p>${r.hint ? `<p class="small">${E(r.hint)}</p>` : ''}
-      ${r.stderr ? `<details open><summary>${E(t('mc_details'))}</summary><pre>${E(r.stderr)}</pre></details>` : (r.error && r.error !== r.cause ? `<pre>${E(r.error)}</pre>` : '')}</div>`;
+    return `<div class="mc-test bad"><p>${ic('warning', 15)} <b>${E(M(r.cause || r.error) || t('mc_failed'))}</b></p>${r.hint ? `<p class="small">${E(M(r.hint))}</p>` : ''}
+      ${r.stderr ? `<details open><summary>${E(t('mc_details'))}</summary><pre>${E(r.stderr)}</pre></details>` : (r.error && r.error !== r.cause ? `<pre>${E(M(r.error))}</pre>` : '')}</div>`;
   }
   function serverCard(d) {
     const c = card(d);
@@ -111,7 +112,7 @@
       <div class="mc-card-h"><label class="field mc-name"><span>${E(t('mc_name'))}</span><input class="input" data-mc-name="${E(d.draftId)}" value="${E(c.name)}" maxlength="32"></label>
         <span class="chip">${E(d.type === 'http' ? t('mc_online') : t('mc_local'))}</span></div>
       <div class="mc-run"><span class="mc-run-l">${E(d.type === 'http' ? t('mc_connectsTo') : t('mc_willRun'))}</span><code class="mc-cmd">${E(d.command_line)}</code></div>
-      ${(d.notes || []).map((n) => `<p class="small muted mc-note">${ic('info', 13)} ${E(n)}</p>`).join('')}
+      ${(d.notes || []).map((n) => `<p class="small muted mc-note">${ic('info', 13)} ${E(M(n))}</p>`).join('')}
       ${needs.length ? `<div class="mc-needs">${needs.map((n) => needInput(d, n)).join('')}</div>` : ''}
       ${prereqLine(c)}
       <p class="mc-warn small">${ic('shield', 14)} ${E(d.type === 'http' ? t('mc_warnHttp') : t('mc_warnRun'))}</p>
@@ -127,7 +128,7 @@
     const p = st.parsed;
     return `<p class="small muted">${E(t('mc_pasteHint'))}</p>
       <textarea id="mc-paste" class="input area mono" rows="5" spellcheck="false" placeholder="${E(t('mc_pastePh'))}" data-mc-paste>${E(st.text)}</textarea>
-      ${p && !p.ok && st.text.trim() ? `<p class="mc-err">${ic('warning', 14)} ${E((p.errors || [])[0] || t('mc_noServer'))}</p>` : ''}
+      ${p && !p.ok && st.text.trim() ? `<p class="mc-err">${ic('warning', 14)} ${E(M((p.errors || [])[0]) || t('mc_noServer'))}</p>` : ''}
       ${p && p.ok ? p.servers.map(serverCard).join('') : ''}`;
   }
   function otherTab() {
@@ -137,7 +138,7 @@
     const n = st.sel.size;
     return `<p class="small muted">${ic('shield', 13)} ${E(t('mc_importNote'))}</p>
       ${apps.map((a) => `<div class="mc-app"><div class="mc-app-h"><b>${E(a.app)}</b><small class="mono muted">${E(a.file)}</small></div>
-        ${a.error ? `<p class="small si-unmapped">${ic('warning', 13)} ${E(a.error)}</p>` : `<div class="list">${a.servers.map((s) => `<label class="list-row mc-imp ${s.already ? 'done' : ''}"><input type="checkbox" data-mc-imp="${E(s.key)}" ${s.already ? 'disabled' : st.sel.has(s.key) ? 'checked' : ''}>
+        ${a.error ? `<p class="small si-unmapped">${ic('warning', 13)} ${E(M(a.error))}</p>` : `<div class="list">${a.servers.map((s) => `<label class="list-row mc-imp ${s.already ? 'done' : ''}"><input type="checkbox" data-mc-imp="${E(s.key)}" ${s.already ? 'disabled' : st.sel.has(s.key) ? 'checked' : ''}>
           <span class="m-text"><b>${E(s.name)}${s.scope && s.scope !== 'all projects' ? ` <span class="chip">${E(s.scope)}</span>` : ''}${s.already ? ` <span class="chip ok">${E(t('mc_already'))}</span>` : ''}</b><small class="mono">${E(s.command_line)}</small></span></label>`).join('')}</div>`}</div>`).join('')}
       <div class="mc-actions"><button class="btn primary" data-action="mc-import" ${n && !st.importing ? '' : 'disabled'}>${st.importing ? spinner(14) : ic('download', 15)} ${E(t('mc_importN', { n }))}</button></div>`;
   }

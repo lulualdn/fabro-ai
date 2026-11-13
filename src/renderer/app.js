@@ -340,7 +340,8 @@ function openUpdateDialog() {
   const m = $('#modal-root .modal'); m.querySelectorAll('a[href]').forEach((a) => { a.target = '_blank'; a.rel = 'noopener'; });
   m.querySelector('.btn.primary').focus();
 }
-function closeModal() { const r = $('#modal-root'); const m = r.querySelector('.modal'); if (!m) return; r.classList.add('closing'); setTimeout(() => { r.innerHTML = ''; r.classList.remove('closing'); }, 180); }
+// A dialog opened during the close animation must survive it: only clear the root if it still holds the closed one.
+function closeModal() { const r = $('#modal-root'); const m = r.querySelector('.modal'); if (!m) return; r.classList.add('closing'); setTimeout(() => { if (r.querySelector('.modal') === m) r.innerHTML = ''; r.classList.remove('closing'); }, 180); }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#modal-root .modal')) { e.stopPropagation(); closeModal(); } }, true);
 
 // ───────────────────────────── Views ─────────────────────────────

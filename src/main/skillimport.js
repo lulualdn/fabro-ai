@@ -180,6 +180,9 @@ function loadText(text, name) {
   const buf = Buffer.from(String(text), 'utf8');
   if (!buf.length) throw new ImportError('Nothing to import', 'IMPORT_EMPTY');
   if (buf.length > LIMITS.maxSkillMd) throw new ImportError('That text is too long for a SKILL.md', 'IMPORT_TOO_BIG');
+  // A few loose words are not a skill: ask for front matter, a title, or at least a couple of lines of instructions.
+  const txt = String(text).trim(); const lines = txt.split(/\r?\n/).filter((l) => l.trim()).length;
+  if (!/^---\s*\r?\n/.test(txt) && !/^#{1,3}\s+\S/m.test(txt) && (lines < 2 || txt.length < 60)) throw new ImportError('That text does not look like a skill. Paste a whole SKILL.md (a title and instructions), or a link.', 'IMPORT_NOT_SKILL');
   return { sets: [{ key: 'one', hint: name || '', files: [{ path: 'SKILL.md', data: buf }] }], skipped: [], label: 'pasted text' };
 }
 
@@ -282,6 +285,8 @@ function classify(src) {
   if (typeof src === 'string') {
     const s = src.trim();
     if (/^https?:\/\//i.test(s) && !/\s/.test(s)) return { type: 'url', url: s };
+    // a link pasted without its scheme ("github.com/owner/repo/tree/…")
+    if (/^(www\.)?(github\.com|raw\.githubusercontent\.com)\/\S+$/i.test(s)) return { type: 'url', url: 'https://' + s };
     if (!/\n/.test(s) && s.length < 1000 && (path.isAbsolute(s) || /^~[\\/]/.test(s) || /^[a-zA-Z]:[\\/]/.test(s))) return { type: 'file', path: s.replace(/^~/, os.homedir()) };
     return { type: 'text', text: src };
   }

@@ -5,6 +5,7 @@
 (() => {
   const E = (s) => esc(s);
   const ic = (n, s) => icon(n, s);
+  const M = (s) => (window.installMsg ? installMsg(s) : String(s == null ? '' : s)); // main-process English → UI language
   const clean = (e) => String((e && e.message) || e || '').replace(/^Error invoking remote method '[^']+': (\w*Error: )?/, '');
   let found = null;        // [{ id, tool, label, name, description, installed, alreadyActive }]
   let scanning = false;
@@ -32,7 +33,7 @@
         <div class="si-found-h"><b>${E(t('si_found'))}</b><span class="grow"></span><button class="icon-btn sm" data-action="si-rescan" title="${E(t('si_rescan'))}">${scanning ? spinner(14) : ic('refresh', 15)}</button></div>
         ${list.length ? `<div class="list">${list.map((f) => `<div class="list-row">
             <div class="m-text"><b>${E(f.name)}</b><small>${E(f.description || '')}</small></div>
-            <span class="chip">${E(f.label)}</span>
+            <span class="chip">${E(M(f.label))}</span>
             ${f.installed ? `<span class="chip ok">${ic('check', 13)} ${E(t('si_inFabro'))}</span>` : `<button class="btn sm" data-action="si-import-found" data-id="${E(f.id)}">${ic('download', 14)} ${E(t('si_import'))}</button>`}
           </div>`).join('')}</div>`
           : `<div class="empty-note">${E(found ? t('si_foundNone') : t('si_scanning'))}</div>`}
@@ -64,7 +65,7 @@
   const close = () => { if (pv && pv.previewId) api.skillimport.discard(pv.previewId).catch(() => {}); pv = null; closeModal(); };
 
   function warnRow(w) {
-    return `<li class="si-warn ${w.kind}">${ic(w.kind === 'binary' ? 'error' : 'warning', 14)}<span>${E(w.text)}</span></li>`;
+    return `<li class="si-warn ${w.kind}">${ic(w.kind === 'binary' ? 'error' : 'warning', 14)}<span>${E(M(w.text))}</span></li>`;
   }
   function skillCard(s, multi) {
     const on = pick.has(s.key);
@@ -77,7 +78,7 @@
       </div>
       <p class="si-desc">${E(s.description || t('si_noDesc'))}</p>
       ${s.warnings.length ? `<ul class="si-warns">${s.warnings.map(warnRow).join('')}</ul>` : `<p class="si-ok">${ic('check', 14)} ${E(t('si_nothingRuns'))}</p>`}
-      ${s.notes.length ? `<ul class="si-notes">${s.notes.map((n) => `<li>${ic('info', 13)} ${E(n)}</li>`).join('')}</ul>` : ''}
+      ${s.notes.length ? `<ul class="si-notes">${s.notes.map((n) => `<li>${ic('info', 13)} ${E(M(n))}</li>`).join('')}</ul>` : ''}
       ${mapped.length || un.length ? `<div class="si-tools"><b>${E(t('si_compatTitle'))}</b>
         ${mapped.length ? `<p class="small muted">${E(t('si_compatMapped'))} ${mapped.map((m) => `<code>${E(m.name)}</code> → <code>${E(m.to)}</code>`).join(', ')}</p>` : ''}
         ${un.length ? `<p class="small si-unmapped">${ic('warning', 13)} ${E(t('si_compatMissing'))} ${un.map((m) => `<code>${E(m.name)}</code>`).join(', ')}</p>` : ''}</div>` : ''}
@@ -91,11 +92,11 @@
     if (!pv) return;
     const multi = pv.skills.length > 1;
     const n = multi ? pick.size : 1;
-    const m = open(`<div class="si-head"><h2>${E(multi ? t('si_titleMany', { n: pv.skills.length }) : t('si_title'))}</h2><small class="muted">${E(pv.label || '')}</small></div>
+    const m = open(`<div class="si-head"><h2>${E(multi ? t('si_titleMany', { n: pv.skills.length }) : t('si_title'))}</h2><small class="muted">${E(M(pv.label || ''))}</small></div>
       <p class="si-intro small muted">${E(t('si_intro'))}</p>
       <div class="si-body">${pv.skills.map((s) => skillCard(s, multi)).join('')}
         ${(pv.skippedFiles || []).length ? `<p class="small muted">${ic('shield', 13)} ${E(t('si_skipped', { n: pv.skippedFiles.length }))}</p>` : ''}
-        ${(pv.errors || []).length ? `<p class="small si-unmapped">${ic('warning', 13)} ${pv.errors.map(E).join(' · ')}</p>` : ''}</div>
+        ${(pv.errors || []).length ? `<p class="small si-unmapped">${ic('warning', 13)} ${pv.errors.map((x) => E(M(x))).join(' · ')}</p>` : ''}</div>
       <div class="modal-actions"><button class="btn" data-action="si-close">${E(t('cancel'))}</button>
         <button class="btn primary" data-action="si-install" ${busy || (multi && !n) ? 'disabled' : ''}>${busy ? spinner(14) : ic('plus', 15)} ${E(multi ? t('si_addN', { n }) : t('si_add'))}</button></div>`);
     const b = m.querySelector('.btn.primary'); if (b && !b.disabled) b.focus();
@@ -105,7 +106,7 @@
     const m = open(`<div class="si-loading">${spinner(22)} <span>${E(t('si_reading'))}</span></div>`, 'si-small');
     try { r = await api.skillimport.preview(source); } catch (e) { r = { ok: false, error: clean(e) }; }
     if (!r.ok) {
-      open(`<div class="si-head"><h2>${E(t('si_cantTitle'))}</h2></div><p class="si-err">${ic('warning', 15)} ${E(r.error || '')}</p><p class="small muted">${E(t('si_cantHelp'))}</p><div class="modal-actions"><button class="btn" data-action="si-close">${E(t('close'))}</button></div>`, 'si-small');
+      open(`<div class="si-head"><h2>${E(t('si_cantTitle'))}</h2></div><p class="si-err">${ic('warning', 15)} ${E(M(r.error || ''))}</p><p class="small muted">${E(t('si_cantHelp'))}</p><div class="modal-actions"><button class="btn" data-action="si-close">${E(t('close'))}</button></div>`, 'si-small');
       return;
     }
     pv = r; pick = new Set(r.skills.map((s) => s.key)); coll = {}; busy = false;
@@ -120,7 +121,7 @@
       if (r.ok && r.installed.length) toast(t('si_done', { n: r.installed.length, name: r.installed[0].name }));
       S.skills = await api.skills.list(); S.agentTools = await api.agent.tools();
       refreshFound(); if (S.settingsTab === 'agent') renderSettings();
-    } catch (e) { busy = false; toast(clean(e), 'err'); renderPreview(); }
+    } catch (e) { busy = false; toast(M(clean(e)), 'err'); renderPreview(); }
   }
 
   // ───────── link / text dialog ─────────
@@ -144,7 +145,7 @@
     'si-import-found': (el) => showPreview({ type: 'found', id: el.dataset.id }),
     'si-coll': (el) => { coll[el.dataset.key] = el.dataset.v; renderPreview(); },
     'si-install': () => install(),
-    'skill-export': async (el) => { try { const r = await api.skillimport.export(el.dataset.name); if (r) toast(t('si_exported', { f: r.files })); } catch (e) { toast(clean(e), 'err'); } },
+    'skill-export': async (el) => { try { const r = await api.skillimport.export(el.dataset.name); if (r) toast(t('si_exported', { f: r.files })); } catch (e) { toast(M(clean(e)), 'err'); } },
     'skill-remove': async (el) => {
       if (!confirm(t('si_removeConfirm', { name: el.dataset.name }))) return;
       try { S.skills = await api.skillimport.remove(el.dataset.name); S.agentTools = await api.agent.tools(); refreshFound(); renderSettings(); } catch (e) { toast(clean(e), 'err'); }
