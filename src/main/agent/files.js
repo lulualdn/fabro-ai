@@ -29,7 +29,7 @@ function fixCase(p) {
   }
   return cur;
 }
-const defaultOut = () => path.join(os.homedir(), 'Documents', 'Fabro');
+const defaultOut = () => require('../paths').outputDir(); // ~/Documents/Fabro (each account has its own)
 const BLOCKED = /([\\/]\.ssh|[\\/]\.gnupg|[\\/]\.aws|[\\/]AppData[\\/]Roaming[\\/]Microsoft[\\/]Credentials|[\\/]Library[\\/]Keychains|[\\/]\.config[\\/]gh|\.env$|id_rsa|id_ed25519|\.kdbx$)/i;
 
 // Folder access: inside an allowed folder → ok; else ask once to add the folder.

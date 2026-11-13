@@ -11,7 +11,7 @@ const engine = require('./engine');
 const models = require('./models');
 
 let emit = () => {};
-const pdir = (pid) => path.join(app.getPath('userData'), 'projects', pid, 'files');
+const pdir = (pid) => path.join(require('./paths').dataDir(), 'projects', pid, 'files');
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 // ───────────────────────────── text extraction ─────────────────────────────
@@ -233,7 +233,7 @@ async function status() {
   return { embed: e && { id: e.id, name: e.name }, rerank: r && { id: r.id, name: r.name } };
 }
 function removeFile(pid, id) { const f = db.listProjectFiles(pid).find((x) => x.id === id); if (f) { try { fs.rmSync(f.path, { force: true }); } catch {} db.deleteProjectFile(id); } return db.getProject(pid); }
-function removeProject(pid) { db.deleteProject(pid); try { fs.rmSync(path.join(app.getPath('userData'), 'projects', pid), { recursive: true, force: true }); } catch {} return true; }
+function removeProject(pid) { db.deleteProject(pid); try { fs.rmSync(path.join(require('./paths').dataDir(), 'projects', pid), { recursive: true, force: true }); } catch {} return true; }
 async function reindexAll() { for (const p of db.listProjects()) await embedProject(p.id).catch(() => {}); }
 function init(emitter) { emit = emitter; }
 

@@ -50,7 +50,9 @@ const DENY = new Set([
   'skills:openFolder', 'crash:folder', 'anywhere:pairStart', 'anywhere:pairStop', 'anywhere:revoke', 'anywhere:rename',
   'anywhere:configure', 'anywhere:reply',
 ]);
-const denied = (ch) => DENY.has(ch) || ch.startsWith('aw:');
+// Accounts: a phone belongs to the account that paired it; it may read who it is and its models, nothing more.
+const ACCOUNTS_OK = new Set(['accounts:current', 'accounts:counts', 'accounts:models']);
+const denied = (ch) => DENY.has(ch) || ch.startsWith('aw:') || (ch.startsWith('accounts:') && !ACCOUNTS_OK.has(ch));
 
 // ───────────────────────────── wire format ─────────────────────────────
 // JSON both ways; binary as { __u8: base64 }. Absolute paths seen on the way out are remembered per phone.
@@ -145,7 +147,7 @@ function tee(wc) {
 // Fabro's own folders. 25 MB max per file.
 function roots() {
   const store = require('./store'); const s = store.getSettings();
-  const out = [path.join(os.homedir(), 'Documents', 'Fabro'), app.getPath('userData'), os.tmpdir()];
+  const out = [require('./paths').outputDir(), require('./paths').dataDir(), os.tmpdir()];
   for (const f of ((s.agent || {}).folders || [])) out.push(typeof f === 'string' ? f : f && f.path);
   return out.filter(Boolean).map((p) => path.resolve(p));
 }

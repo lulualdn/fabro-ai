@@ -6,7 +6,7 @@ const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 let db = null;
-const file = () => path.join(app.getPath('userData'), 'fabro.db');
+const file = () => path.join(require('./paths').dataDir(), 'fabro.db');
 
 function init() {
   if (db) return db;
@@ -142,7 +142,7 @@ function deleteArtifact(id) { q('DELETE FROM artifacts WHERE id = ?').run(id); r
 function migrateJson() {
   const done = db.prepare("SELECT v FROM meta WHERE k = 'json_imported'").get();
   if (done) return;
-  const dir = path.join(app.getPath('userData'), 'conversations');
+  const dir = path.join(require('./paths').dataDir(), 'conversations');
   let n = 0;
   if (fs.existsSync(dir)) {
     for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {
@@ -221,10 +221,16 @@ function vecChunks(pid, model) {
 function projectChars(pid) { return q('SELECT COALESCE(SUM(LENGTH(text)), 0) AS n FROM chunks WHERE project_id = ?').get(pid).n; }
 function projectText(pid, limit) { return q('SELECT c.text, f.name FROM chunks c JOIN project_files f ON f.id = c.file_id WHERE c.project_id = ? ORDER BY f.added, c.idx').all(pid).map((r) => ({ ...r })).slice(0, limit || 1e9); }
 
+// What the open account holds (Settings → My account).
+function counts() {
+  const n = (sql) => { try { return q(sql).get().n; } catch { return 0; } };
+  return { conversations: n('SELECT COUNT(*) AS n FROM conversations'), memories: n('SELECT COUNT(*) AS n FROM memories'), artifacts: n('SELECT COUNT(*) AS n FROM artifacts'), projects: n('SELECT COUNT(*) AS n FROM projects') };
+}
+
 function close() { try { db && db.close(); } catch {} db = null; }
 
 module.exports = {
-  init, close, saveConversation, getConversation, listConversations, patchConversation, deleteConversation, searchConversations,
+  init, close, counts, saveConversation, getConversation, listConversations, patchConversation, deleteConversation, searchConversations,
   listMemories, addMemory, updateMemory, deleteMemory, clearMemories, saveArtifact, getArtifact, listArtifacts, deleteArtifact,
   saveProject, getProject, listProjects, deleteProject, listProjectFiles, addProjectFile, setProjectFile, deleteProjectFile,
   addChunks, setChunkVecs, chunksWithoutVec, ftsChunks, vecChunks, projectChars, projectText,

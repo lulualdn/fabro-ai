@@ -34,6 +34,7 @@ const crash = require('./crash');
 const runtime = require('./runtime');
 const anywhere = require('./anywhere');
 const mods = require('./mods');
+const accounts = require('./accounts'); // local accounts: picks / migrates the account before anything else starts
 const S = () => store.getSettings();
 exporter.registerScheme();
 // Fabro Anywhere: let phones on the same network reach the computer directly (real local addresses
@@ -84,7 +85,7 @@ function openLink(raw) {
 }
 const linkIn = (argv) => (argv || []).find((a) => typeof a === 'string' && a.startsWith(PROTOCOL + '://'));
 app.on('open-url', (e, url) => { e.preventDefault(); openLink(url); }); // macOS
-app.on('second-instance', (_e, argv) => { desktop.showMain(); const l = linkIn(argv); if (l) openLink(l); });
+app.on('second-instance', (_e, argv) => { const pk = accounts.pickerWindow(); if (pk) { if (pk.isMinimized()) pk.restore(); pk.focus(); return; } desktop.showMain(); const l = linkIn(argv); if (l) openLink(l); });
 { const l = linkIn(process.argv); if (l) pendingLink = parseLink(l); }
 
 function overlayColors(dark) {
@@ -208,7 +209,7 @@ function registerIpc() {
   h('models:cancel', (id) => models.cancel(id));
   h('models:pause', (id) => models.pause(id));
   h('models:resume', (id) => models.resume(id));
-  h('models:delete', async (id) => { await engine.stop(id); return models.remove(id); });
+  h('models:delete', async (id) => { await engine.stop(id); const r = await models.remove(id); if (r && r.sharedWith) send('accounts:event', { type: 'modelKept', id, sharedWith: r.sharedWith }); return r; });
   h('models:rename', (id, name) => models.rename(id, name));
   h('models:verify', (id) => models.verify(id));
   h('models:move', (id, lib) => models.move(id, lib, () => engine.stop(id)));
@@ -403,6 +404,9 @@ function registerIpc() {
 }
 
 app.whenReady().then(async () => {
+  // Accounts: migrate a pre-accounts install once, show the picker when needed, point paths.dataDir() at the account.
+  await accounts.boot({ hidden: process.argv.includes('--hidden') });
+  accounts.setEmitter((ch, d) => send(ch, d));
   store.init();
   tasks.init(send);
   crash.init(() => win);
@@ -431,6 +435,7 @@ app.whenReady().then(async () => {
   setTimeout(() => engine.preloadAll(async () => (await models.installed()).local).catch(() => {}), 2500);
   updater.init(send);
   createWindow();
+  accounts.handoff(win);
   browser.init(win, send);
   computer.init({ getMain: () => win });
   mcp.init(send);
@@ -452,7 +457,7 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on('window-all-closed', () => { if (!isMac) app.quit(); });
-app.on('activate', () => { if (win) desktop.showMain(); else createWindow(); });
+app.on('window-all-closed', () => { if (!isMac || !accounts.isOpen()) app.quit(); });
+app.on('activate', () => { if (win) desktop.showMain(); else if (accounts.isOpen()) createWindow(); });
 app.on('before-quit', () => { computer.shutdown();  engine.stop(); searxng.stop(); voice.stop(); runtime.stop(); });
 app.on('will-quit', () => { engine.stop(); mcp.stopAll(); db.close(); });

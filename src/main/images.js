@@ -11,7 +11,7 @@ const { downloadFile } = require('./download');
 
 const root = () => path.join(process.env.FABRO_DEPS || path.join(app.getPath('userData'), 'deps'), 'sd');
 const modelsDir = () => path.join(app.getPath('userData'), 'models', 'images');
-const outDir = () => path.join(os.homedir(), 'Documents', 'Fabro', 'Images');
+const outDir = () => path.join(require('./paths').outputDir(), 'Images');
 const settings = () => store.getSettings().images || {};
 const hf = (repo, file) => `https://huggingface.co/${repo}/resolve/main/${file}?download=true`;
 

@@ -49,7 +49,7 @@ function usesKit(html) {
 }
 
 // ── icons ──
-const iconCacheFile = () => { try { return path.join(require('electron').app.getPath('userData'), 'kit-icons.json'); } catch { return null; } };
+const iconCacheFile = () => { try { return path.join(require('../paths').dataDir(), 'kit-icons.json'); } catch { return null; } };
 let extra = null;
 function extraIcons() { if (extra) return extra; try { extra = JSON.parse(fs.readFileSync(iconCacheFile(), 'utf8')); } catch { extra = {}; } return extra; }
 function iconNames(html) { return [...new Set([...String(html).matchAll(/data-icon\s*=\s*["']([\w-]+)["']/g)].map((m) => m[1].toLowerCase()))]; }
@@ -83,7 +83,7 @@ const LIC = (l, v) => { l = String(l || '').toLowerCase(); return l === 'cc0' ? 
 // Openverse (openly licensed: Flickr, StockSnap, Rawpixel, Wikimedia), then Wikimedia Commons.
 const UA = { 'User-Agent': 'Fabro (https://fabro.ufstudios.eu)' };
 const designKeys = () => { try { return (require('../store').getSettings().design) || {}; } catch { return {}; } };
-const photoFile = () => { try { return path.join(require('electron').app.getPath('userData'), 'kit-photos.json'); } catch { return null; } };
+const photoFile = () => { try { return path.join(require('../paths').dataDir(), 'kit-photos.json'); } catch { return null; } };
 let diskPhotos = null;
 function disk() { if (diskPhotos) return diskPhotos; try { diskPhotos = JSON.parse(fs.readFileSync(photoFile(), 'utf8')); } catch { diskPhotos = {}; } return diskPhotos; }
 function saveDisk() { try { const d = disk(); const keys = Object.keys(d); if (keys.length > 800) for (const k of keys.slice(0, keys.length - 800)) delete d[k]; fs.writeFileSync(photoFile(), JSON.stringify(d)); } catch {} }
@@ -157,7 +157,7 @@ async function bakePhotos(html) {
 // Every picture of an artifact is kept by Fabro itself (no hotlink that breaks later): it is downloaded once,
 // stored in userData/webimg and written as fabro-img:<id>; it becomes base64 inside the page when shown/exported.
 const IMG_EXT = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif' };
-function imgDir() { const d = path.join(require('electron').app.getPath('userData'), 'webimg'); fs.mkdirSync(d, { recursive: true }); return d; }
+function imgDir() { const d = path.join(require('../paths').dataDir(), 'webimg'); fs.mkdirSync(d, { recursive: true }); return d; }
 function sniff(buf) { const h = buf.subarray(0, 12).toString('hex'); if (h.startsWith('89504e47')) return 'png'; if (h.startsWith('ffd8')) return 'jpg'; if (h.startsWith('47494638')) return 'gif'; if (buf.subarray(8, 12).toString() === 'WEBP') return 'webp'; if (buf.subarray(4, 12).toString().includes('ftypavi')) return 'avif'; return null; }
 function saveImg(buf, { maxW = 1600 } = {}) {
   let ext = sniff(buf); if (!ext) return null;

@@ -98,7 +98,7 @@ function pausedError() {
 }
 
 // ───────────────────────────── seeing ─────────────────────────────
-const shotsDir = () => { const d = path.join(app.getPath('userData'), 'computer', 'shots'); fs.mkdirSync(d, { recursive: true }); return d; };
+const shotsDir = () => { const d = path.join(require('../paths').dataDir(), 'computer', 'shots'); fs.mkdirSync(d, { recursive: true }); return d; };
 const ROLE = { edit: 'text field', listitem: 'list item', menuitem: 'menu item', tabitem: 'tab', treeitem: 'tree item', dataitem: 'cell', checkbox: 'checkbox', radiobutton: 'radio', combobox: 'dropdown', splitbutton: 'split button', hyperlink: 'link', headeritem: 'column header', document: 'document', spinner: 'number box', slider: 'slider', image: 'image', text: 'text', button: 'button', progressbar: 'progress bar' };
 const INTERACTIVE = new Set(['button', 'splitbutton', 'menuitem', 'hyperlink', 'checkbox', 'radiobutton', 'combobox', 'edit', 'listitem', 'treeitem', 'tabitem', 'dataitem', 'slider', 'spinner', 'headeritem']);
 function kindOf(e) {

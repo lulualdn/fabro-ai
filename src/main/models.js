@@ -9,6 +9,7 @@ const { downloadFile } = require('./download');
 const memory = require('./memory');
 const crypto = require('crypto');
 const os = require('os');
+const share = require('./accounts/models-share'); // each account has its own list of models (files are shared)
 
 // Curated starting points. Sizes are Q4 estimates; exact sizes are resolved on download.
 const CATALOG = [
@@ -142,7 +143,8 @@ async function writeIndex(list) {
 
 let namesCache = [];
 async function listLocal() {
-  const l = (await readIndex()).filter((m) => fs.existsSync(m.path));
+  const my = share.mine();
+  const l = (await readIndex()).filter((m) => fs.existsSync(m.path) && (!my || my.has(m.id)));
   namesCache = l.map((m) => String(m.name || '').split(' · ')[0]).filter(Boolean);
   return l;
 }
@@ -248,12 +250,15 @@ async function download({ repo, file, catalogId, library }) {
   if (!v) throw new Error('File not found in repository');
   if (v.blocked) { const e = new Error(v.fit === 'needs-gpu' ? 'NEEDS_GPU' : 'TOO_BIG'); throw e; }
   const id = `${repo}/${v.file}`;
-  if (downloads.has(id)) { const d = downloads.get(id); if (d.status === 'paused') resume(id); return id; }
+  // already on this computer (another account has it): added to my list at once, nothing downloaded
+  const have = (await readIndex()).find((m) => m.id === id && fs.existsSync(m.path));
+  if (have) { share.add(id); emit({ id, repo, file: v.file, status: 'done', received: have.sizeBytes || 0, total: have.sizeBytes || 0, model: have, linked: true }); return id; }
+  if (downloads.has(id)) { const d = downloads.get(id); const me = require('./paths').accountId(); if (me && d.owners && !d.owners.includes(me)) { d.owners.push(me); persistDownloads(); } if (d.status === 'paused') resume(id); return id; }
   const lib = libById(library || store.getSettings().defaultLibrary || 'default');
   const need = v.size + (v.mmprojSize || 0);
   const free = freeBytes(lib.path);
   if (free != null && free < need * 1.02) { const e = new Error('NO_SPACE'); e.detail = `${(need / 2 ** 30).toFixed(1)} GB needed, ${(free / 2 ** 30).toFixed(1)} GB free`; throw e; }
-  const d = { id, repo, file: v.file, received: 0, total: need, status: 'queued', catalogId, library: lib.id, libraryName: lib.name,
+  const d = { id, repo, file: v.file, received: 0, total: need, status: 'queued', catalogId, library: lib.id, libraryName: lib.name, owners: [require('./paths').accountId()].filter(Boolean),
     plan: { parts: v.parts, mmproj: v.mmproj, sha: v.sha, quant: v.quant, size: v.size } };
   downloads.set(id, d);
   report(d);
@@ -320,6 +325,7 @@ async function run(d) {
     const idx = (await readIndex()).filter((m) => m.id !== d.id);
     idx.push(entry);
     await writeIndex(idx);
+    share.add(entry.id, d.owners && d.owners.length ? d.owners : undefined); // the accounts that started it
     downloads.delete(d.id);
     report(d, { status: 'done', received: d.total, model: entry, elapsed: Date.now() - t0 });
   } catch (e) {
@@ -454,7 +460,8 @@ async function scanDir(dir, source, depth = 5) {
 }
 async function scanImports(folder) {
   const idx = await readIndex();
-  const known = new Set(idx.map((m) => path.resolve(m.path)));
+  const my = share.mine();
+  const known = new Set(idx.filter((m) => !my || my.has(m.id)).map((m) => path.resolve(m.path)));
   const lists = folder ? [await scanDir(folder, 'folder')] : await Promise.all([
     scanOllama(),
     scanDir(path.join(home(), '.lmstudio', 'models'), 'lmstudio'),
@@ -469,7 +476,8 @@ async function importModels(list) {
   const added = [];
   for (const c of list) {
     if (!c || !c.path || !fs.existsSync(c.path) || !isGguf(c.path)) continue;
-    if (idx.some((m) => path.resolve(m.path) === path.resolve(c.path))) continue;
+    const known = idx.find((m) => path.resolve(m.path) === path.resolve(c.path));
+    if (known) { share.add(known.id); continue; }
     const shape = memory.shapeOf(c.path) || {};
     const id = 'import:' + crypto.createHash('sha1').update(path.resolve(c.path)).digest('hex').slice(0, 16);
     const parts = /-00001-of-(\d+)\.gguf$/i.test(c.path)
@@ -480,7 +488,7 @@ async function importModels(list) {
       addedAt: Date.now(), imported: true, source: c.source || 'folder', arch: shape.arch, moe: shape.moe, ctxTrain: shape.ctxTrain,
       role: roleOf(c.name || path.basename(c.path), shape),
     };
-    idx.push(entry); added.push(entry);
+    idx.push(entry); added.push(entry); share.add(id);
   }
   await writeIndex(idx);
   return added;
@@ -488,6 +496,10 @@ async function importModels(list) {
 
 // ───────────────────────────── remove / list ─────────────────────────────
 async function remove(id) {
+  // other accounts still use it: it only leaves my list, the file stays (no space freed)
+  const users = share.active() ? share.usersOf(id) : [];
+  share.drop(id);
+  if (users.length) return { ok: true, sharedWith: users.length };
   const idx = await readIndex();
   const m = idx.find((x) => x.id === id);
   if (m && !m.imported) {
@@ -518,7 +530,8 @@ function roleOf(name, shape) {
 async function getLocal(id) { return (await listLocal()).find((m) => m.id === id) || null; }
 
 async function installed() {
-  return { local: await listLocal(), downloads: [...downloads.values()].map(publicDl) };
+  const me = require('./paths').accountId();
+  return { local: await listLocal(), downloads: [...downloads.values()].filter((d) => !me || !d.owners || !d.owners.length || d.owners.includes(me)).map(publicDl) };
 }
 
 // Memory plan for each local model with its current profile (for the UI).
@@ -528,6 +541,25 @@ async function plans(engineOptions) {
   for (const m of await listLocal()) { try { out[m.id] = memory.plan(m, engineOptions(m), specs); } catch {} }
   return out;
 }
+
+// Files of models no account lists any more (an account was deleted). Imported files belong to the user: only
+// their entry goes. Works without an open account (the picker) — it touches no settings.
+async function purge(ids) {
+  const idx = await readIndex(); const gone = new Set(ids);
+  const keep = idx.filter((x) => !gone.has(x.id));
+  const stillUsed = new Set(keep.flatMap((x) => [...(x.parts || [x.path]), x.mmproj]));
+  let freed = 0;
+  for (const m of idx.filter((x) => gone.has(x.id) && !x.imported)) {
+    for (const f of [...(m.parts || [m.path]), m.mmproj].filter(Boolean)) if (!stillUsed.has(f)) { try { freed += fs.statSync(f).size; } catch {} await fsp.rm(f, { force: true }).catch(() => {}); }
+    try { const dir = path.dirname(m.path); if (!(await fsp.readdir(dir)).length) await fsp.rmdir(dir); } catch {}
+  }
+  await writeIndex(keep);
+  return freed;
+}
+const allIndexed = async () => (await readIndex()).filter((m) => fs.existsSync(m.path));
+// "Use a model from another account": added to my list instantly, no download.
+async function link(id) { const m = (await allIndexed()).find((x) => x.id === id); if (!m || !share.usersOf(id).length) throw new Error('Model not found'); share.add(id); return m; }
+async function sharing() { return { mine: (await listLocal()).map((m) => ({ id: m.id, name: m.name, sizeBytes: m.sizeBytes || 0, sharedWith: share.active() ? share.usersOf(m.id).length : 0 })), others: share.othersHave(await allIndexed()) }; }
 
 function init(emitter) {
   emit = emitter;
@@ -540,5 +572,6 @@ function init(emitter) {
 module.exports = {
   installedNames, listLocal,
   BLOCKED, init, catalog, search, repoFiles, download, pause, resume, cancel, remove, rename, installed, getLocal, CATALOG,
+  purge, link, sharing, allIndexed, readIndex,
   librariesView, addLibrary, removeLibrary, setDefaultLibrary, verify, move, scanImports, importModels, plans,
 };
