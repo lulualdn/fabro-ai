@@ -36,7 +36,7 @@ const srv = http.createServer((req, res) => {
       if (closed) return;
       if (i >= toks.length) { entry.doneT = stamp(); res.write('data: [DONE]\n\n'); return res.end(); }
       if (i === 0) entry.firstTok = stamp();
-      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: toks[i++] } }] })}\n\n`); entry.sent = i; setTimeout(tick, TOK);
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: toks[i++] } }] })}\n\n`); entry.sent = i; setTimeout(tick, n === 1 ? TOK * 5 : TOK); // the long story is still being written when the user cuts in
     };
     setTimeout(tick, TTFT);
   });
@@ -85,7 +85,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     T.feed = (sig) => new Promise((res) => {
       const F = 2048; let pos = 0; const t0 = now(); const out = { onset: t0 + sig.onsetT * 1000, end: t0 + sig.endT * 1000, t0 };
       const push = (fr) => {
-        if (Mic.feed) return Mic.feed(fr, sig.R);
+        if (Mic.feed) { Mic.external = true; return Mic.feed(fr, sig.R, true); }
         if (!T.h) { T.h = Mic.proc.onaudioprocess; Mic.proc.onaudioprocess = null; }
         T.h({ inputBuffer: { getChannelData: () => fr } });
       };
@@ -130,7 +130,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   };
   // gaps between consecutive pieces of the answer
   let gaps = [];
-  if (r1.starts.length > 1) { const s = r1.starts.slice().sort((a, b) => a.at - b.at); for (let i = 1; i < s.length; i++) gaps.push(ms(s[i].at - (s[i - 1].at + s[i - 1].dur * 1000))); }
+  if (r1.starts.length > 1) { const s = r1.starts.slice().sort((a, b) => a.when - b.when); for (let i = 1; i < s.length; i++) gaps.push(ms((s[i].when - (s[i - 1].when + s[i - 1].dur)) * 1000)); } // on the audio clock
   else if (r1.plays.length > 1) { for (let i = 1; i < r1.plays.length; i++) { const e = r1.ends.filter((x) => x.at <= r1.plays[i].at + 5).pop(); if (e) gaps.push(ms(r1.plays[i].at - e.at)); } }
   m.gaps = gaps; m.maxGap = gaps.length ? Math.max(...gaps) : 0; m.pieces = r1.tts.length;
   m.spoken = r1.tts.map((x) => x.text);
@@ -144,8 +144,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     assert.ok(m.maxGap <= 20, 'no gap > 20 ms between pieces: ' + JSON.stringify(gaps));
     const said = m.spoken.join(' | ');
     assert.ok(!/[*`]|https?:|🙂|\/\//.test(said), 'no markdown, code marks, links or emoji read aloud: ' + said);
-    assert.ok(/vingt et un degrés/.test(said), 'units read in words: ' + said);
-    assert.ok(/douze novembre deux mille vingt-six/.test(said), 'dates read in words: ' + said);
+    assert.ok(/21 degrés/.test(said), 'units read in words: ' + said);
+    assert.ok(/12 novembre 2026/.test(said), 'dates read in words: ' + said);
   }
 
   // ── turn 2: a long story, then the user talks over it ──

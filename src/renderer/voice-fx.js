@@ -95,7 +95,8 @@ const VEar = (() => {
 // ───────────────────────────── VFX: sound effects, synthesised ─────────────────────────────
 const VFX = (() => {
   let ctx = null;
-  const ac = () => { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state !== 'running') ctx.resume().catch(() => {}); return ctx; };
+  // the voice mode's one audio context when there is one (an iPhone wants a single one, made in a tap)
+  const ac = () => { if (window.VAudio) return VAudio.ctx(); ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state !== 'running') ctx.resume().catch(() => {}); return ctx; };
   const noise = (c, sec) => { const b = c.createBuffer(1, Math.ceil(c.sampleRate * sec), c.sampleRate); const d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const s = c.createBufferSource(); s.buffer = b; return s; };
   const env = (g, t, a, peak, hold, rel) => { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.setValueAtTime(peak, t + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + rel); return a + hold + rel; };
   function tone(c, out, t, f, dur, type = 'sine', vol = 0.3, glide) { const o = c.createOscillator(); const g = c.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (glide) o.frequency.exponentialRampToValueAtTime(glide, t + dur); o.connect(g); g.connect(out); env(g, t, 0.01, vol, dur * 0.4, dur * 0.6); o.start(t); o.stop(t + dur + 0.05); }
@@ -124,12 +125,17 @@ const VFX = (() => {
   const NAMES = ['prout', 'sifflet', 'ding', 'tada', 'boing', 'pop', 'woosh', 'applaudissements', 'tambour', 'badumtss', 'cloche', 'tonnerre', 'soupir', 'bisou', 'coeur', 'magie'];
   // plays it now, resolves when it's over
   function play(name) {
-    const k = ALIAS[String(name || '').toLowerCase().replace(/\s+/g, '-')]; if (!k || !S[k]) return Promise.resolve(false);
-    const c = ac(); const g = c.createGain(); g.gain.value = 0.9; g.connect(c.destination);
-    const d = S[k](c, g, c.currentTime + 0.02);
+    const c = ac(); const d = schedule(name, c, c.destination, c.currentTime + 0.02); if (!d) return Promise.resolve(false);
     return new Promise((r) => setTimeout(() => r(true), d * 1000 + 60));
   }
-  return { play, NAMES, known: (n) => !!ALIAS[String(n || '').toLowerCase().replace(/\s+/g, '-')] };
+  // on the audio clock, at `when`, into `dest` (between two pieces of speech, with no gap): its duration in seconds
+  function schedule(name, c, dest, when) {
+    const k = ALIAS[String(name || '').toLowerCase().replace(/\s+/g, '-')]; if (!k || !S[k]) return 0;
+    const g = c.createGain(); g.gain.value = 0.9; g.connect(dest);
+    const d = S[k](c, g, when); setTimeout(() => { try { g.disconnect(); } catch {} }, (when - c.currentTime + d) * 1000 + 500);
+    return d;
+  }
+  return { play, schedule, NAMES, known: (n) => !!ALIAS[String(n || '').toLowerCase().replace(/\s+/g, '-')] };
 })();
 
 // ───────────────────────────── the AI's tags → spoken segments ─────────────────────────────

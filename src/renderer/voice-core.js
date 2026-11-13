@@ -221,6 +221,7 @@
         return out;
       },
       flush() { const p = buf.trim(); buf = ''; if (p) { count++; return [p]; } return []; },
+      retract(t) { buf = buf.replace(t, ''); },
       reset() { buf = ''; count = 0; },
       get pending() { return buf; },
     };

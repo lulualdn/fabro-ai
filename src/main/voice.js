@@ -309,6 +309,17 @@ async function setVoice(id, onProgress) {
 async function setWhisper(size, onProgress) { await getWhisper(size, onProgress); await store.setSettings({ voice: { whisper: size } }); return status(); }
 async function setVocab(text) { await store.setSettings({ voice: { vocab: String(text || '').slice(0, 2000) } }); return status(); }
 
+// Voice mode opens: start the speech server and load Whisper now, so the first sentence isn't spent waiting
+// for them. Nothing happens when the voice runs in the page (nothing installed here) or is already warm.
+let warmed = 0;
+function warm() {
+  if (!runtimeOk() || !whisperOk(activeSize()) || (proc && Date.now() - warmed < 10 * 60000)) return { ok: false };
+  warmed = Date.now();
+  const n = 1600, b = Buffer.alloc(44 + n * 2); b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(16000, 24); b.writeUInt32LE(32000, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
+  stt(new Uint8Array(b), { fast: true }).catch(() => { warmed = 0; });
+  return { ok: true };
+}
+
 function init(pythonInstaller) { pyInstall = pythonInstaller; recommendedSize().then(() => { if (runtimeOk()) { upgradeInBackground(); ensureKokoro(); } }).catch(() => {}); }
 
-module.exports = { init, status, install, stt, transcribeFile, tts, setVoice, setWhisper, setVocab, stop, VOICES, recommendedSize, ensureKokoro };
+module.exports = { init, status, install, warm, stt, transcribeFile, tts, setVoice, setWhisper, setVocab, stop, VOICES, recommendedSize, ensureKokoro };

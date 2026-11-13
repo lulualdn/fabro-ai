@@ -30,7 +30,7 @@
   const EARS = { small: 'onnx-community/whisper-base', big: 'onnx-community/whisper-small' };
   const LOCALE = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE', it: 'it-IT', pt: 'pt-BR', nl: 'nl-NL', pl: 'pl-PL', ru: 'ru-RU', ja: 'ja-JP', zh: 'zh-CN', ko: 'ko-KR', tr: 'tr-TR', uk: 'uk-UA' };
 
-  const st = { voices: {}, ears: null, earsModel: '', earsP: 0, gpu: null, pref: {} }; // voices: id → 'ready' | progress 0..1 | 'error'
+  const st = { voices: {}, ears: null, earsModel: '', earsP: 0, gpu: null, pref: {}, sttMs: 0, phone: false }; // voices: id → 'ready' | progress 0..1 | 'error'
   const subs = new Set(); const emit = () => [...subs].forEach((f) => { try { f(st); } catch {} });
   const on = (f) => { subs.add(f); return () => subs.delete(f); };
 
@@ -58,6 +58,7 @@
   const base = (l) => String(l || 'en').slice(0, 2).toLowerCase();
   // phones: the lighter version of a voice (twice as fast, still natural)
   const phone = /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent || '') || (/Macintosh/.test(navigator.userAgent || '') && navigator.maxTouchPoints > 1);
+  st.phone = phone;
   const LIGHT = { 'fr_FR-siwis-medium': 'fr_FR-siwis-low', 'en_US-amy-medium': 'en_US-amy-low', 'en_US-ryan-medium': 'en_US-ryan-low', 'en_US-lessac-medium': 'en_US-lessac-low', 'de_DE-thorsten-medium': 'de_DE-thorsten-low' };
   const voicesOf = (l) => [...(st.gpu && !phone ? KOKORO[l] || [] : []), ...(VOICES[l] || [])];
   function voiceFor(lang) { const l = base(lang); const list = voicesOf(l); if (!list.length) return null; const p = st.pref[l]; const id = (p && list.find((v) => v[0] === p)) ? p : list[0][0]; return phone && LIGHT[id] ? LIGHT[id] : id; }
@@ -71,14 +72,14 @@
     });
   }
   // the voice for this text, as WAV bytes — or null while it is still downloading (the system voice speaks then)
-  async function say(text, { lang = 'en', speed = 1 } = {}) {
+  async function say(text, { lang = 'en', speed = 1, gen = 0 } = {}) {
     // the user's language first: another one only for a real sentence in it, with its voice already here
     // (never a 60 MB download in the middle of a conversation for one English word)
     const u = base(lang); let id = voiceFor(u);
     if (window.FALang && (String(text).match(/\S+/g) || []).length >= 6) { const o = FALang.detect(text, u); const oid = o !== u && voiceFor(o); if (oid && st.voices[oid] === 'ready') id = oid; }
     if (!id) return null;
     if (st.voices[id] !== 'ready') { loadVoice(id); return null; }
-    try { return (await tts({ t: 'tts', voice: id, text, speed })).wav; } catch { return null; }
+    try { return (await tts({ t: 'tts', voice: id, text, speed, gen })).wav; } catch (e) { if (/cancelled/.test(e.message)) return { cancelled: true }; return null; }
   }
   // the system's own voice: instant, while the natural one downloads
   let sysVoices = []; const loadSys = () => { try { sysVoices = speechSynthesis.getVoices() || []; } catch {} };
@@ -126,12 +127,18 @@
     const r = rate / 16000, m = Math.floor(n / r), y = new Float32Array(m); for (let i = 0; i < m; i++) y[i] = x[Math.floor(i * r)]; return y;
   }
   // speech → text; null while the ears are still downloading (wait: true waits for them)
-  async function hear(wav, { lang, wait = false } = {}) {
-    if (st.ears !== 'ready') { const p = ears(); if (!wait) return null; await p; }
+  // partial: a transcript while the user is still talking — may come back stale (a newer one replaced it): null
+  async function hear(wav, { lang, wait = false, partial = false } = {}) {
+    if (st.ears !== 'ready') { if (partial) { ears().catch(() => {}); return null; } const p = ears(); if (!wait) return null; await p; }
     const pcm = pcm16k(wav);
-    const r = await stt({ t: 'stt', pcm: pcm.buffer, model: st.earsModel, device: st.earsDev, lang: lang && lang !== 'auto' ? base(lang) : null }, null, [pcm.buffer]);
+    const t0 = performance.now();
+    const r = await stt({ t: 'stt', pcm: pcm.buffer, model: st.earsModel, device: st.earsDev, partial, lang: lang && lang !== 'auto' ? base(lang) : null }, null, [pcm.buffer]);
+    if (r.stale) return null;
+    st.sttMs = Math.round(performance.now() - t0);
     return r.text || '';
   }
+  // drop the pieces of speech still waiting (the user interrupted); gen: pieces made for an older answer
+  const cancelSay = (below) => tts({ t: 'cancel', below }).catch(() => {});
 
   // get everything ready for a voice conversation in this language (downloads in the background)
   // phones: one thing at a time (the voice, then the ears) — loading both at once is too much memory for an iPhone
@@ -144,7 +151,7 @@
   async function warm(lang) { const id = voiceFor(lang); if (!id || st.voices[id] === 'ready') return; try { if ((await tts({ t: 'has', voice: id })).ok) loadVoice(id); } catch {} }
 
   window.VLocal = {
-    VOICES, st, voicesOf, phon: (text, lang) => tts({ t: 'phon', text, lang }), _kokoroCpu: () => { st.gpu = true; return tts({ t: 'kokoroCpu' }); }, prepare, warm, say, sys, sysStop, hear, ears, voiceFor, loadVoice,
+    VOICES, st, voicesOf, phon: (text, lang) => tts({ t: 'phon', text, lang }), _kokoroCpu: () => { st.gpu = true; return tts({ t: 'kokoroCpu' }); }, prepare, warm, say, cancelSay, sys, sysStop, hear, ears, voiceFor, loadVoice,
     setVoice(lang, id) { st.pref[base(lang)] = id; loadVoice(id); emit(); },
     on(f) { subs.add(f); return () => subs.delete(f); },
     // progress of what a conversation in this language still needs (null: all there)
