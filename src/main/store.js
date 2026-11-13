@@ -8,6 +8,7 @@ const path = require('path');
 const DEFAULTS = {
   language: 'auto',            // 'auto' or a language code
   theme: 'system',             // system | light | dark
+  skin: { id: 'fabro', user: [], keys: 'auto' }, // app theme (renderer/themes.js): id, imported themes, keyboard navigation auto|on|off
   sidebarCollapsed: false,
   selectedModel: null,         // { backend:'local', id } | { backend:'provider', provider, model }
   providers: { enabled: false, list: [] }, // external providers (OpenAI, Anthropic, Ollama, LM Studio…)
