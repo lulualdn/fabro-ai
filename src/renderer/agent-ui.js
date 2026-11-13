@@ -2,7 +2,7 @@
 /* Agent mode UI: automatic switch, tool steps (files, terminal, browser, documents, Python, MCP, skills),
    permission cards, on-demand dependencies, and the workspace panel with the live browser. */
 
-const AGENT_ICONS = { design: 'brush', files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', git: 'git', code: 'flask', image: 'image', computer: 'monitor' };
+const AGENT_ICONS = { design: 'brush', files: 'folder', shell: 'terminal', browser: 'globe', documents: 'file', python: 'code', skills: 'book', mcp: 'puzzle', plan: 'plan', subagent: 'subagent', models: 'box', git: 'git', code: 'flask', image: 'image', computer: 'monitor' };
 const base = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p;
 function catOf(name) {
   if (name.startsWith('mcp__')) return 'mcp';
@@ -19,6 +19,7 @@ function catOf(name) {
   if (name.startsWith('git_')) return 'git';
   if (name === 'run_tests' || name === 'run_lint') return 'code';
   if (name === 'generate_image') return 'image';
+  if (name === 'find_model') return 'models';
   return 'mcp';
 }
 const state0 = () => S.browser || {};
@@ -46,6 +47,7 @@ function stepLabel(st) {
     case 'browser_tabs': return k('tabs');
     case 'update_plan': { const st0 = a.steps || []; return t('ag_plan', { d: st0.filter((x) => x.status === 'done').length, n: st0.length }); }
     case 'run_subagent': return k('sub', { d: a.description || '' });
+    case 'find_model': return t(run ? 'mf_step_run' : 'mf_step_done');
     case 'generate_image': return k('img', { p: String(a.prompt || '').slice(0, 70) });
     case 'run_tests': return k('tests');
     case 'run_lint': return k('lint');
@@ -125,6 +127,7 @@ let STEP_NO_OUT = false;
 function isDeliverable(st) {
   const v = st.view || {};
   if (st.status !== 'done') return false;
+  if (v.kind === 'modelpicks') return true; // the picks card stays visible (find_model)
   if ((st.name === 'write_file' || st.name === 'edit_file') && v.path && S.conv && S.conv.code) return true;
   if (['create_document', 'create_pdf', 'edit_artifact', 'generate_speech'].includes(st.name) && v.path) return true;
   if (['create_artifact', 'edit_artifact'].includes(st.name) && v.kind === 'artifact') return true;
@@ -134,6 +137,7 @@ function stepOutputs(steps) { return steps.filter(isDeliverable).map((st) => ste
 function stepDetail(st, force) {
   const v = st.view || {};
   if (STEP_NO_OUT && !force && isDeliverable(st)) return '';
+  if (v.kind === 'modelpicks' && window.ModelFinder) return ModelFinder.cardsHtml(v, { inChat: true }); // find_model: cards with an Install button
   if (st.name === 'run_command') {
     const out = st.live != null ? st.live : v.out || '';
     return `<div class="term"><div class="term-head">$ ${esc(st.args.command || '')}${v.code != null ? `<span class="${v.code === 0 ? 'ok-txt' : 'err-txt'}">exit ${v.code}</span>` : ''}</div>${out ? `<pre>${esc(out.slice(-4000))}</pre>` : ''}</div>`;

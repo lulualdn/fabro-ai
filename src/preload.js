@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('api', {
   settings: { get: i('settings:get'), set: i('settings:set') },
   system: { specs: i('system:specs') },
   conv: { list: i('conv:list'), get: i('conv:get'), save: i('conv:save'), delete: i('conv:delete'), patch: i('conv:patch'), search: i('conv:search') },
+  notebook: { list: i('notebook:list'), add: i('notebook:add'), update: i('notebook:update'), delete: i('notebook:delete'), clear: i('notebook:clear') },
+  guides: { list: i('guides:list'), get: i('guides:get'), save: i('guides:save'), delete: i('guides:delete') },
+  sysprompts: { list: i('sysprompts:list'), get: i('sysprompts:get'), save: i('sysprompts:save'), delete: i('sysprompts:delete'), starter: i('sysprompts:starter'), variables: i('sysprompts:variables'), preview: i('sysprompts:preview'), import: i('sysprompts:import'), importText: i('sysprompts:importText'), export: i('sysprompts:export'), explain: i('sysprompt:explain') },
   memory: { list: i('memory:list'), add: i('memory:add'), update: i('memory:update'), delete: i('memory:delete'), clear: i('memory:clear') },
   artifacts: { list: i('artifacts:list'), get: i('artifacts:get'), save: i('artifacts:save'), delete: i('artifacts:delete'), thumb: i('artifacts:thumb'), check: i('artifacts:check'), import: i('artifacts:import'), exportOffice: i('artifacts:exportOffice'), applyEdits: i('artifacts:applyEdits'), describe: i('artifacts:describe'), saveImage: i('artifacts:saveImage') },
   exporter: { save: i('export:save'), preview: i('art:preview') },
@@ -48,6 +51,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   mcp: { view: i('mcp:view'), add: i('mcp:add'), remove: i('mcp:remove'), toggle: i('mcp:toggle'), signIn: i('mcp:signin'), reconnect: i('mcp:reconnect'), claudeConfig: i('mcp:claudeConfig'), importClaude: i('mcp:importClaude') },
   skills: { list: i('skills:list'), toggle: i('skills:toggle'), create: i('skills:create'), openFolder: i('skills:openFolder') },
+  skillimport: { preview: i('skillimport:preview'), install: i('skillimport:install'), found: i('skillimport:found'), remove: i('skillimport:remove'), discard: i('skillimport:discard'), pick: i('skillimport:pick'), export: i('skillimport:export'), openFile: i('skillimport:openFile') },
+  mcpeasy: { parse: i('mcpeasy:parse'), catalog: i('mcpeasy:catalog'), prereq: i('mcpeasy:prereq'), test: i('mcpeasy:test'), add: i('mcpeasy:add'), found: i('mcpeasy:found'), import: i('mcpeasy:import'), setTool: i('mcpeasy:setTool') },
   providers: {
     view: i('providers:view'), detect: i('providers:detect'), add: i('providers:add'), update: i('providers:update'),
     remove: i('providers:remove'), refresh: i('providers:refresh'), enable: i('providers:enable'), models: i('providers:models'), free: i('providers:free'),
@@ -78,9 +83,11 @@ contextBridge.exposeInMainWorld('api', {
     switch: i('accounts:switch'), lock: i('accounts:lock'), delete: i('accounts:delete'), counts: i('accounts:counts'),
     models: i('accounts:models'), linkModel: i('accounts:linkModel'), unlinkModel: i('accounts:unlinkModel'),
   },
+  modelFinder: { find: i('modelfinder:find') },
+  tiers: { list: i('tiers:list'), resolve: i('tiers:resolve'), setOverride: i('tiers:setOverride'), setPreferred: i('tiers:setPreferred') },
   resources: { overview: i('resources:overview'), disk: i('resources:disk'), clearCaches: i('resources:clearCaches'), subscribe: i('resources:subscribe'), unsubscribe: i('resources:unsubscribe'), history: i('resources:history'), tips: i('resources:tips'), action: i('resources:action'), maxContext: i('resources:maxContext'), autotune: i('resources:autotune'), autotuneCancel: i('resources:autotuneCancel'), storageAdvice: i('storage:advice'), storageRefuse: i('storage:refuse'), storageClassify: i('storage:classify') },
   on: (channel, cb) => {
-    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command', 'accounts:event', 'resources:sample', 'resources:pressure', 'resources:queue', 'storage:advice'];
+    const allowed = ['chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command', 'accounts:event', 'resources:sample', 'resources:pressure', 'resources:queue', 'storage:advice', 'skillimport:open'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

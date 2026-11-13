@@ -1,0 +1,33 @@
+// Strings for personal system prompts, the AI notebook and the guides library (sp_, nb_, gd_).
+Object.assign(I18N.en, {
+  sp_toggle: 'My personal system prompts', sp_toggleHint: 'Write the whole system prompt yourself. The smart prompt is turned off for the conversations that use one of yours.',
+  sp_location: 'Your city', sp_locationHint: 'Used for {{location}} and the time. Empty: your time zone.', sp_locationPh: 'e.g. Lyon',
+  sp_empty: 'No personal prompt yet. Start from the smart prompt and change what you want.', sp_new: 'New prompt', sp_newName: 'My prompt', sp_import: 'Import a file',
+  sp_export: 'Export', sp_name: 'Name', sp_preview: 'What the AI will read in this conversation', sp_tokens: '~{n} tokens',
+  sp_unknown: 'Unknown variables, left as they are: {v}', sp_runtime: 'Fabro always adds this at the end, so the tools keep working:',
+  sp_saved: 'Prompt saved', sp_exported: 'Prompt exported', sp_imported: 'Prompt imported', sp_confirmDelete: 'Delete this prompt?',
+  sp_pickTitle: 'System prompt for this conversation', sp_smart: 'Smart prompt', sp_smartHint: 'Fabro adapts it to the conversation', sp_manage: 'Manage my prompts',
+  nb_intro: 'What the AI noted about how you like to work with it. It reads these in every conversation. Change or delete anything.',
+  nb_empty: 'Nothing yet. When you tell the AI how you want it to work, it writes it down here.', nb_addPh: 'e.g. Don’t ask before each step, just do it.', nb_add: 'Add',
+  nb_kind_autonomy: 'Autonomy', nb_kind_communication: 'Answers', nb_kind_workflow: 'Way of working', nb_kind_other: 'Other',
+  gd_intro: 'Short how-tos the AI reads before a kind of task. It writes its own when it figures something out on this computer.',
+  gd_search: 'Search the guides', gd_new: 'New guide', gd_mine: 'Written on this computer', gd_mineEmpty: 'None yet.', gd_builtin: 'Built in',
+  gd_title: 'Title', gd_when: 'When to read it (one line)', gd_keywords: 'Keywords, separated by commas', gd_saved: 'Guide saved', gd_confirmDelete: 'Delete this guide?',
+  gd_builtinHint: 'Built-in guide, read only. Create your own with the same title to replace it.',
+});
+Object.assign(I18N.fr, {
+  sp_toggle: 'Mes prompts système personnels', sp_toggleHint: 'Écris toi-même tout le prompt système. Le prompt intelligent est coupé pour les conversations qui en utilisent un.',
+  sp_location: 'Ta ville', sp_locationHint: 'Sert pour {{location}} et l’heure. Vide : ton fuseau horaire.', sp_locationPh: 'ex. Lyon',
+  sp_empty: 'Aucun prompt perso pour l’instant. Pars du prompt intelligent et change ce que tu veux.', sp_new: 'Nouveau prompt', sp_newName: 'Mon prompt', sp_import: 'Importer un fichier',
+  sp_export: 'Exporter', sp_name: 'Nom', sp_preview: 'Ce que l’IA lira dans cette conversation', sp_tokens: '~{n} tokens',
+  sp_unknown: 'Variables inconnues, laissées telles quelles : {v}', sp_runtime: 'Fabro ajoute toujours ceci à la fin, pour que les outils marchent :',
+  sp_saved: 'Prompt enregistré', sp_exported: 'Prompt exporté', sp_imported: 'Prompt importé', sp_confirmDelete: 'Supprimer ce prompt ?',
+  sp_pickTitle: 'Prompt système de cette conversation', sp_smart: 'Prompt intelligent', sp_smartHint: 'Fabro l’adapte à la conversation', sp_manage: 'Gérer mes prompts',
+  nb_intro: 'Ce que l’IA a noté sur ta façon de travailler avec elle. Elle le relit à chaque conversation. Tu peux tout changer ou supprimer.',
+  nb_empty: 'Rien pour l’instant. Quand tu dis à l’IA comment tu veux qu’elle travaille, elle le note ici.', nb_addPh: 'ex. Ne me demande pas avant chaque étape, fais-le.', nb_add: 'Ajouter',
+  nb_kind_autonomy: 'Autonomie', nb_kind_communication: 'Réponses', nb_kind_workflow: 'Façon de faire', nb_kind_other: 'Autre',
+  gd_intro: 'De courtes marches à suivre que l’IA lit avant un type de tâche. Elle écrit les siennes quand elle trouve comment faire sur cet ordinateur.',
+  gd_search: 'Chercher un guide', gd_new: 'Nouveau guide', gd_mine: 'Écrits sur cet ordinateur', gd_mineEmpty: 'Aucun pour l’instant.', gd_builtin: 'Intégrés',
+  gd_title: 'Titre', gd_when: 'Quand le lire (une ligne)', gd_keywords: 'Mots-clés, séparés par des virgules', gd_saved: 'Guide enregistré', gd_confirmDelete: 'Supprimer ce guide ?',
+  gd_builtinHint: 'Guide intégré, en lecture seule. Crée le tien avec le même titre pour le remplacer.',
+});

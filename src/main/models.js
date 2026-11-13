@@ -96,9 +96,25 @@ async function search(q) {
   return list.map((m) => ({ repo: m.id, downloads: m.downloads, likes: m.likes, updated: m.lastModified }));
 }
 
+// Richer search for the model finder (modelfinder.js): the metadata HF returns with the list (tags, pipeline, gated,
+// GGUF parameter count and context length), sorted by downloads (default) or trendingScore / lastModified.
+async function searchRich(q, { sort = 'downloads', limit = 24, signal } = {}) {
+  const u = new URL('https://huggingface.co/api/models');
+  if (q) u.searchParams.set('search', q);
+  u.searchParams.set('filter', 'gguf');
+  u.searchParams.set('sort', sort);
+  u.searchParams.set('direction', '-1');
+  u.searchParams.set('limit', String(limit));
+  for (const f of ['downloads', 'likes', 'lastModified', 'createdAt', 'tags', 'pipeline_tag', 'gated', 'gguf', 'library_name']) u.searchParams.append('expand[]', f);
+  const r = await fetch(u.toString(), { headers: { 'User-Agent': 'Fabro', ...hfHeaders() }, signal });
+  if (!r.ok) throw new Error(`Hugging Face ${r.status}`);
+  const list = await r.json();
+  return (Array.isArray(list) ? list : []).map((m) => ({ repo: m.id || m.modelId, downloads: m.downloads || 0, likes: m.likes || 0, updated: m.lastModified || m.createdAt || null, tags: m.tags || [], pipeline: m.pipeline_tag || null, gated: m.gated || false, gguf: m.gguf || null }));
+}
+
 // Group a repo's GGUF files into downloadable variants (handles split files + mmproj).
-async function repoFiles(repo) {
-  const specs = await system.getSpecs();
+async function repoFiles(repo, specsIn) {
+  const specs = specsIn || await system.getSpecs();
   const tree = await hf(`https://huggingface.co/api/models/${repo}/tree/main?recursive=true`);
   const files = tree.filter((f) => f.type === 'file' && /\.gguf$/i.test(f.path));
   const mmprojs = files.filter((f) => /mmproj/i.test(f.path));
@@ -571,7 +587,7 @@ function init(emitter) {
 
 module.exports = {
   installedNames, listLocal,
-  BLOCKED, init, catalog, search, repoFiles, download, pause, resume, cancel, remove, rename, installed, getLocal, CATALOG,
+  BLOCKED, fitFor, QUANT_RE, init, catalog, search, searchRich, repoFiles, download, pause, resume, cancel, remove, rename, installed, getLocal, CATALOG,
   purge, link, sharing, allIndexed, readIndex,
   librariesView, addLibrary, removeLibrary, setDefaultLibrary, verify, move, scanImports, importModels, plans,
 };
