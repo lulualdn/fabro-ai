@@ -1,5 +1,5 @@
 ---
-name: answering-about-this-computer
+name: agent/answering-about-this-computer
 title: Questions about this computer, the app or yourself
 when: The user asks what is installed, the OS, versions, disk space, what Fabro can do
 keywords: computer, système, system, installed, installé, version, os, windows, ram, disk, disque, capable, fabro, analyse

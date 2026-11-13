@@ -1,5 +1,5 @@
 ---
-name: verify-before-done
+name: agent/verify-before-done
 title: Checking your work before saying it is done
 when: Before you tell the user something is created, fixed, tested or measured
 keywords: verify, check, test, done, fini, vérifier, tester, terminé, résultat

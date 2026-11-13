@@ -1,5 +1,5 @@
 ---
-name: long-documents
+name: agent/long-documents
 title: Writing and editing long documents
 when: Reports, essays, guides, documentation, long letters
 keywords: document, rapport, report, essay, dissertation, long, rédige, write, chapitre, chapter, word, docx, pdf

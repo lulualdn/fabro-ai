@@ -1,5 +1,5 @@
 ---
-name: project-conventions
+name: agent/project-conventions
 title: Learning a project's conventions
 when: Working in a user's code or document project for the first time
 keywords: project, projet, conventions, style, readme, structure, repo, codebase

@@ -1,5 +1,5 @@
 ---
-name: sub-agents
+name: agent/sub-agents
 title: Splitting work across sub-agents
 when: Big tasks with independent parts (research several topics, several files, several sites)
 keywords: subagent, sous-agent, parallel, parallèle, split, delegate, déléguer, plusieurs

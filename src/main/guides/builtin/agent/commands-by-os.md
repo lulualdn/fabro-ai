@@ -1,5 +1,5 @@
 ---
-name: commands-by-os
+name: agent/commands-by-os
 title: Running commands on Windows, macOS and Linux
 when: Before using run_command, especially on Windows (PowerShell)
 keywords: command, commande, terminal, powershell, bash, shell, cmd, run, exécute, windows, mac, linux

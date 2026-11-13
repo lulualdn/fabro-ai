@@ -84,7 +84,8 @@ function kitBlock(s, c) {
   if (s.mode !== 'chat' || s.sub || s.noArtifactGuide) return '';
   try {
     const g = require('../kit/guide');
-    const budgetTokens = Math.max(200, Math.min(c.left, 3500));
+    // the guide is the one thing a visual request needs: give it room even when the prompt is tight
+    const budgetTokens = Math.max(450, Math.min(c.left, 3500));
     let ds = g.chatSection(s.request, { budgetTokens });
     if (!ds && s.lastArtifact) ds = g.chatSection(s.lastArtifact, { budgetTokens });
     return ds || '';
@@ -140,7 +141,7 @@ const SECTIONS = [
   { id: 'style', prio: 4, when: (s) => (s.mode === 'agent' && !s.voice ? 'answer style' : ''), full: () => P.STYLE, short: null },
   { id: 'artifacts', prio: (s) => (s.kinds.has('build') || s.kinds.has('writing') ? 1 : 3), when: (s) => (s.mode === 'chat' && s.structured && !s.voice ? 'chat artifacts' : ''),
     full: () => P.ARTIFACTS, short: () => P.ARTIFACTS_SHORT, smallShort: (s) => !s.kinds.has('build') },
-  { id: 'kit', prio: 1, when: (s) => (s.mode === 'chat' && !s.sub && !s.noArtifactGuide ? 'artifact guide (if the request is visual)' : ''), full: (s, c) => kitBlock(s, c), short: null, sized: true },
+  { id: 'kit', prio: 0, when: (s) => (s.mode === 'chat' && !s.sub && !s.noArtifactGuide ? 'artifact guide (if the request is visual)' : ''), full: (s, c) => kitBlock(s, c), short: null, sized: true },
   { id: 'voice', prio: 0, when: (s) => (s.voice && !s.sub ? 'voice mode' : ''), full: () => P.VOICE, short: () => P.VOICE },
   { id: 'sub', prio: 0, when: (s) => (s.sub ? 'sub-agent' : ''), full: () => P.SUB_NOTE, short: () => P.SUB_NOTE },
   { id: 'focus', prio: 0, when: (s) => (focusBlock(s) ? 'situation signals' : ''), full: (s) => focusBlock(s), short: (s) => focusBlock(s) },

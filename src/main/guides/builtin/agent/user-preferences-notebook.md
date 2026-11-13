@@ -1,5 +1,5 @@
 ---
-name: user-preferences-notebook
+name: agent/user-preferences-notebook
 title: Remembering how the user wants you to work
 when: The user corrects your behaviour or states a working preference
 keywords: preference, préférence, notebook, note_to_self, autonomous, autonome, ask, demande, style, always, toujours, never, jamais

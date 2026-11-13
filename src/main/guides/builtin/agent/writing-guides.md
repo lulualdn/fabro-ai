@@ -1,5 +1,5 @@
 ---
-name: writing-guides
+name: agent/writing-guides
 title: Writing your own guides
 when: After you solved something the hard way on this computer
 keywords: guide, write_guide, remember, retenir, next time, la prochaine fois, apprendre, learned

@@ -30,7 +30,7 @@ function serialize(g) {
   const kw = (g.keywords || []).join(', ');
   return `---\nname: ${g.name}\ntitle: ${String(g.title || g.name).replace(/\n/g, ' ')}\nwhen: ${String(g.when || '').replace(/\n/g, ' ')}\nkeywords: ${kw}\n---\n\n${String(g.body || '').trim()}\n`;
 }
-const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9/]+/g, '-').replace(/\/+/g, '/').replace(/^[-/]+|[-/]+$/g, '').slice(0, 64);
 
 // ───────────────────────────── scanning (async, cached) ─────────────────────────────
 let builtinCache = null; let userCache = null; let userCacheDir = null;
@@ -106,7 +106,7 @@ async function get(name) {
 const SECRET = /(password|passwd|mot de passe|api[_ -]?key|bearer\s+[a-z0-9]|private key|\bsk-[a-z0-9]{8,}|\bghp_[a-z0-9]{10,}|\bxox[abp]-|\bAKIA[0-9A-Z]{12,}|\b(?:\d[ -]?){13,19}\b)/i;
 async function write({ name, title, when, keywords, body }, { overwrite = true } = {}) {
   await load();
-  const n = slug(name || title);
+  const n = slug(name || title).replace(/\//g, '-'); // own guides are flat files
   if (!n) throw new Error('A guide needs a name (a few words, e.g. "deploy-netlify").');
   const b = String(body || '').trim();
   if (b.length < 40) throw new Error('The guide body is too short: write the steps that worked (commands, paths, gotchas).');

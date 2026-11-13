@@ -1,5 +1,5 @@
 ---
-name: computer-use
+name: agent/computer-use
 title: Using the computer (screen, mouse, keyboard) effectively
 when: Tasks in desktop apps: Discord, Paint, settings, any window
 keywords: computer, écran, screen, app, application, click, clique, souris, mouse, discord, desktop

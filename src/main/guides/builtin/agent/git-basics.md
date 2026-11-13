@@ -1,5 +1,5 @@
 ---
-name: git-basics
+name: agent/git-basics
 title: Git basics
 when: Working in a git repository: status, commits, branches, diffs
 keywords: git, commit, branch, branche, merge, diff, push, pull, repository, dépôt

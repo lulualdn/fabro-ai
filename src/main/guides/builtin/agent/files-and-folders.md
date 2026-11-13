@@ -1,5 +1,5 @@
 ---
-name: files-and-folders
+name: agent/files-and-folders
 title: Working with files and folders safely
 when: Sorting, renaming, moving, cleaning up or summarising files
 keywords: file, fichier, folder, dossier, range, sort, trie, rename, renomme, move, déplace, clean, nettoie, downloads, téléchargements

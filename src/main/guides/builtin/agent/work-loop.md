@@ -1,5 +1,5 @@
 ---
-name: work-loop
+name: agent/work-loop
 title: How to work in Fabro: the loop, verifying, reporting
 when: Any task with tools, especially long ones
 keywords: work, loop, task, agent, autonomous, autonome, tâche, faire

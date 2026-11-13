@@ -1,5 +1,5 @@
 ---
-name: debug-failing-command
+name: agent/debug-failing-command
 title: Debugging a failing command or script
 when: A command, script or install fails with an error
 keywords: error, erreur, fail, échec, bug, debug, crash, exception, traceback, not found, introuvable

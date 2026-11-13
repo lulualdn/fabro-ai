@@ -1,5 +1,5 @@
 ---
-name: web-research
+name: agent/web-research
 title: Researching on the web properly
 when: The user asks for current information, comparisons, prices, news or sources
 keywords: search, recherche, cherche, web, internet, sources, compare, prix, price, news, actualité, latest

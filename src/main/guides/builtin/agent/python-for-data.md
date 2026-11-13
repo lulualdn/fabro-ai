@@ -1,5 +1,5 @@
 ---
-name: python-for-data
+name: agent/python-for-data
 title: Python for data tasks (CSV, Excel, charts, calculations)
 when: Calculations, statistics, CSV/Excel processing, charts, conversions
 keywords: python, csv, excel, xlsx, data, données, chart, graphique, calcul, statistics, statistiques, pandas, moyenne, average

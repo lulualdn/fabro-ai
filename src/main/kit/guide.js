@@ -22,7 +22,7 @@ const words = (s) => norm(s).split(/[^a-z0-9+#]+/).filter(Boolean);
 function load() {
   if (CACHE) return CACHE;
   const out = [];
-  let cats = []; try { cats = fs.readdirSync(ROOT, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch {}
+  let cats = []; try { cats = fs.readdirSync(ROOT, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).filter((c) => c !== 'agent'); } catch {} // 'agent' know-how guides belong to guides.js (read_guide), not to artifact design
   for (const cat of cats.sort()) {
     for (const f of fs.readdirSync(path.join(ROOT, cat)).filter((x) => x.endsWith('.md')).sort()) {
       const file = path.join(ROOT, cat, f);

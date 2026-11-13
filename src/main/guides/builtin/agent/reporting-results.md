@@ -1,5 +1,5 @@
 ---
-name: reporting-results
+name: agent/reporting-results
 title: Reporting results to the user
 when: The final message of a task
 keywords: report, rapport, summary, résumé, result, résultat, final, done, terminé

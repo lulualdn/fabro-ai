@@ -1,5 +1,5 @@
 ---
-name: long-and-scheduled-tasks
+name: agent/long-and-scheduled-tasks
 title: Long tasks and scheduled tasks
 when: Work that takes many steps, or must run later or repeatedly
 keywords: schedule, planifie, every, tous les, chaque, demain, tomorrow, rappel, reminder, long, recurring, récurrent

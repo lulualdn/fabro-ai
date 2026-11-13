@@ -1,5 +1,5 @@
 ---
-name: browser
+name: agent/browser
 title: Driving the browser
 when: Websites that need clicks, logins, forms or JavaScript
 keywords: browser, navigateur, site, website, click, form, formulaire, login, connexion, page

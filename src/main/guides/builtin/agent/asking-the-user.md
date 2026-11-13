@@ -1,5 +1,5 @@
 ---
-name: asking-the-user
+name: agent/asking-the-user
 title: Asking the user well
 when: You are about to ask the user a question
 keywords: ask, question, demander, clarify, préciser, confirm, confirmer, ask_user
