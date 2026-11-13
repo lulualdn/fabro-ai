@@ -1,7 +1,7 @@
-// Design tools: everything a model needs to make good-looking artifacts without being a designer —
-// a guide with a complete example per kind (design_guide), libraries with exact CDN URLs (find_library),
-// real free photos (find_images), and artifacts that are rendered and checked like a designer would
-// (create_artifact / check_artifact: phone + desktop or printed pages, pictures + problems to fix).
+// Design tools: guides that teach a method for each kind of piece (design_guide — the model then makes its own
+// design decisions; nothing is injected into the page), libraries with exact CDN URLs (find_library), real free
+// photos (find_images), and artifacts that are rendered and checked like a designer would (create_artifact /
+// check_artifact: phone + desktop or printed pages, pictures + problems to fix).
 const agent = require('./index');
 const db = require('../db');
 const kit = require('../kit');
@@ -9,10 +9,10 @@ const guide = require('../kit/guide');
 
 // Libraries that work from a CDN without a build step, with pinned versions.
 const LIBS = [
-  { name: 'Chart.js', k: 'chart graph courbe graphique diagramme barres camembert statistics stats', tags: ['<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>'], use: 'new Chart(canvas, { type: "bar", data: { labels, datasets: [{ label, data }] } })', note: 'For simple static charts the kit’s data-chart is enough (and prints in PDF).' },
+  { name: 'Chart.js', k: 'chart graph courbe graphique diagramme barres camembert statistics stats', tags: ['<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>'], use: 'new Chart(canvas, { type: "bar", data: { labels, datasets: [{ label, data }] } })', note: 'For a few static numbers, a chart drawn by hand in inline SVG is lighter and prints perfectly (guide technique/svg-charts).' },
   { name: 'Leaflet (maps)', k: 'map carte géographique gps location localisation openstreetmap itinéraire', tags: ['<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">', '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'], use: 'const m = L.map("map").setView([48.85, 2.35], 13); L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(m); L.marker([48.85, 2.35]).addTo(m);', note: 'Give #map a height (e.g. 360px).' },
   { name: 'three.js (3D)', k: '3d three webgl scène scene modèle model rotation globe', tags: ['<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>', '<script type="module">import * as THREE from "three"; /* … */</script>'], use: 'const r = new THREE.WebGLRenderer({ antialias: true }); …' },
-  { name: 'GSAP (animations)', k: 'animation animer scroll timeline motion transition parallax', tags: ['<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>', '<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>'], use: 'gsap.from(".hero h1", { y: 40, opacity: 0, duration: .8 })', note: 'For simple fade-ins the kit’s class="reveal" is enough.' },
+  { name: 'GSAP (animations)', k: 'animation animer scroll timeline motion transition parallax', tags: ['<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>', '<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>'], use: 'gsap.from(".hero h1", { y: 40, opacity: 0, duration: .8 })', note: 'Simple hover/fade effects need no library: plain CSS transitions.' },
   { name: 'canvas-confetti', k: 'confetti fête celebration bravo victoire win', tags: ['<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>'], use: 'confetti({ particleCount: 120, spread: 70 })' },
   { name: 'D3', k: 'd3 dataviz visualisation réseau network treemap force custom chart', tags: ['<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>'], use: 'd3.select("#viz").append("svg")…' },
   { name: 'Mermaid (diagrams)', k: 'diagram diagramme organigramme flowchart schéma séquence gantt mindmap', tags: ['<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.esm.min.mjs"; mermaid.initialize({ startOnLoad: true });</script>'], use: '<pre class="mermaid">graph TD; A-->B;</pre>' },
@@ -48,8 +48,8 @@ async function npmSearch(need) {
 
 agent.register({
   name: 'design_guide', category: 'design', risk: 'read', core: true,
-  description: 'Before making a web page, app, document/PDF, slide deck or drawing: get the design guide for that kind — what to think about, the Fabro Kit classes (themes, components, icons, real photos, charts) and a complete example to follow.',
-  parameters: { type: 'object', properties: { kind: { type: 'string', enum: guide.kindsList(), description: 'What you are making' } }, required: ['kind'] },
+  description: 'Before making a web page, app, document/PDF, slide deck or drawing: read the guide for that kind of piece. It teaches a method (decisions to make, how to build it, techniques, mistakes to avoid); you then make your own design for this subject.',
+  parameters: { type: 'object', properties: { kind: { type: 'string', description: 'What you are making, in a few words (e.g. "restaurant website", "CV", "lab report", "pitch deck", "logo") or a guide name like "documents/letter"' } }, required: ['kind'] },
   summarize: (a) => a.kind,
   async run(a) { return { content: guide.guide(a.kind) }; },
 });
@@ -66,7 +66,7 @@ agent.register({
       const npm = await npmSearch(a.need);
       if (npm.length) lines.push('## Other packages on npm (load from jsDelivr; check that they work in the browser)\n' + npm.map((p) => `- ${p.name}@${p.version} — ${p.description}\n  <script src="https://cdn.jsdelivr.net/npm/${p.name}@${p.version}"></script>  (ES module: import x from "https://cdn.jsdelivr.net/npm/${p.name}@${p.version}/+esm")`).join('\n'));
     }
-    return { content: lines.length ? lines.join('\n\n') + '\n\nPut <link> in <head> and <script> before your own script at the end of <body>. Prefer no library when plain HTML/CSS/JS or the Fabro Kit can do it.' : `No library found for “${a.need}”. Plain JavaScript is often enough.` };
+    return { content: lines.length ? lines.join('\n\n') + '\n\nPut <link> in <head> and <script> before your own script at the end of <body>. Prefer no library when plain HTML/CSS/JS can do it.' : `No library found for “${a.need}”. Plain JavaScript is often enough.` };
   },
 });
 
@@ -78,7 +78,7 @@ agent.register({
   async run(a) {
     const list = await kit.searchPhotos(String(a.query || ''), Math.max(1, Math.min(8, a.count | 0 || 4)));
     if (!list.length) return { content: `No photo found for “${a.query}” (or offline). Try simpler, concrete words (e.g. "coffee cup", "mountain lake").` };
-    return { content: list.map((p, i) => `${i + 1}. ${p.url}\n   credit: ${p.credit}${p.title ? ` · “${p.title.slice(0, 60)}”` : ''} · ${p.width || '?'}×${p.height || '?'}`).join('\n') + '\n\nUse <img src="URL" data-credit="CREDIT" alt="…"> — the kit lists the credits at the bottom of the page.' };
+    return { content: list.map((p, i) => `${i + 1}. ${p.url}\n   credit: ${p.credit}${p.title ? ` · “${p.title.slice(0, 60)}”` : ''} · ${p.width || '?'}×${p.height || '?'}`).join('\n') + '\n\nUse <img src="URL" data-credit="CREDIT" alt="…"> and show the credit near the photo (a small caption); otherwise Fabro lists it at the end of the page.' };
   },
 });
 
@@ -88,7 +88,7 @@ const visual = (t) => ['html', 'document', 'slides', 'svg'].includes(t);
 async function checkResult(art, extra = '') {
   const qa = require('../kit/qa');
   const content = art.versions[art.versions.length - 1].content;
-  const r = await qa.check(content, { type: art.type, title: art.title }).catch((e) => ({ ok: true, text: `(Visual check failed: ${e.message})`, image: null, errors: [], warnings: [] }));
+  const r = await qa.check(content, { type: art.type, title: art.title, legacy: require('../kit/legacy').legacyArt(art) }).catch((e) => ({ ok: true, text: `(Visual check failed: ${e.message})`, image: null, errors: [], warnings: [] }));
   art.qa = { ok: r.ok, errors: r.errors.length, warnings: r.warnings.length, v: art.versions.length - 1, at: Date.now() };
   db.saveArtifact(art);
   return { content: `${extra}${extra ? '\n' : ''}Artifact ${art.id} “${art.title}” (${art.type}, version ${art.versions.length}).\n${r.text}`, image: r.image || undefined, view: { kind: 'artifact', artifactId: art.id, title: art.title, type: art.type, v: art.versions.length - 1, shot: r.image || undefined, qa: art.qa } };
@@ -102,7 +102,7 @@ agent.register({
     properties: {
       type: { type: 'string', enum: TYPES },
       title: { type: 'string' },
-      content: { type: 'string', description: 'The full content: a complete HTML page (Fabro Kit: <body data-theme="…">, class "doc" for documents, "deck" for slides), for sheet a JSON workbook {"sheets":[{"name":"…","rows":[["Item","Price"],["A",12],["Total","=SUM(B2:B2)"]],"cols":[160,90],"style":{"1":{"b":1,"bg":"#f2efe8"},"B3":{"fmt":"# ##0.00 €"}},"freeze":1}]} (or CSV), an <svg>, Markdown or code' },
+      content: { type: 'string', description: 'The full content: a complete, self-contained HTML page with your own <style> (document: printed on A4 by default, set your own @page; slides: one <section class="slide"> per 1280×720 slide), for sheet a JSON workbook {"sheets":[{"name":"…","rows":[["Item","Price"],["A",12],["Total","=SUM(B2:B2)"]],"cols":[160,90],"style":{"1":{"b":1,"bg":"#f2efe8"},"B3":{"fmt":"# ##0.00 €"}},"freeze":1}]} (or CSV), an <svg>, Markdown or code' },
       lang: { type: 'string', description: 'For code: the language' },
       from_file: { type: 'string', description: 'Instead of content: path of a file to open as an artifact (docx, odt, pptx, odp, xlsx, ods, csv, html, md, svg, code)' },
     },
@@ -121,6 +121,7 @@ agent.register({
     }
     const type = TYPES.includes(a.type) ? a.type : 'html';
     let content = String(a.content || '');
+    if (type !== 'code' && type !== 'markdown') content = content.replace(/^\s*```[\w-]*[^\n]*\n/, '').replace(/\n\s*```\s*$/, ''); // a code fence around the page
     if (type === 'sheet') {
       const office = require('../office'); const wb = office.calc.normalize(content);
       const art = db.saveArtifact({ id: 'art-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), convId: ctx.convId || null, type, title: String(a.title || 'Untitled').slice(0, 120), versions: [{ content: JSON.stringify(wb), at: Date.now(), by: 'ai' }] });
@@ -128,9 +129,9 @@ agent.register({
       return { content: `Created Fabro Calc ${art.id} “${art.title}”.\n${sheetText(wb, 30)}`, view: { kind: 'artifact', artifactId: art.id, title: art.title, type, v: 0 } };
     }
     if (!content.trim()) return { error: 'Empty content.' };
-    if (visual(type) && type !== 'svg' && /^\s*(#|\*|-)\s/m.test(content) && !/<[a-z][\s\S]*>/i.test(content)) return { error: 'This looks like Markdown. Visual artifacts are HTML: call design_guide for the example to follow, or use type "markdown" if the user asked for Markdown.' };
+    if (visual(type) && type !== 'svg' && /^\s*(#|\*|-)\s/m.test(content) && !/<[a-z][\s\S]*>/i.test(content)) return { error: 'This looks like Markdown. Visual artifacts are a complete HTML page with your own <style> (read design_guide for the method), or use type "markdown" if the user asked for Markdown.' };
     const baked = visual(type) ? await kit.bake(content).catch(() => ({ html: content })) : { html: content };
-    const art = db.saveArtifact({ id: 'art-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), convId: ctx.convId || null, type, title: String(a.title || 'Untitled').slice(0, 120), lang: a.lang || '', versions: [{ content: baked.html, at: Date.now(), by: 'ai' }] });
+    const art = db.saveArtifact({ id: 'art-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), convId: ctx.convId || null, type, title: String(a.title || 'Untitled').slice(0, 120), lang: a.lang || '', versions: [{ content: baked.html, at: Date.now(), by: 'ai', plain: true }] });
     if (ctx.emit) ctx.emit({ type: 'artifact_updated', id: art.id });
     if (!visual(type)) return { content: `Created artifact ${art.id} “${art.title}” (${type}).`, view: { kind: 'artifact', artifactId: art.id, title: art.title, type, v: 0 } };
     return checkResult(art, baked.photos ? `${baked.photos} photo(s) inserted.` : '');

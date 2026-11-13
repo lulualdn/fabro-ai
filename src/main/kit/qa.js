@@ -6,17 +6,11 @@ const { BrowserWindow, nativeImage } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const kit = require('./index');
 const { fabroQa } = require('./qa-page');
 
 const dbg = (...a) => { if (process.env.FABRO_QA_DEBUG) console.log('[qa]', ...a); };
-const kindOf = (html, type) => {
-  const body = (String(html).match(/<body[^>]*>/i) || [''])[0];
-  if (type === 'document' || /\bclass\s*=\s*["'][^"']*\bdoc\b/.test(body)) return 'doc';
-  if (type === 'slides' || /\bclass\s*=\s*["'][^"']*\bdeck\b/.test(body)) return 'deck';
-  if (type === 'svg' || /^\s*<svg[\s>]/i.test(html)) return 'svg';
-  return 'web';
-};
+const { kindOf: kindOfPage, page: pageFor } = require('./runtime');
+const kindOf = (html, type) => kindOfPage(html, type);
 
 async function shoot(file, { width, height, kind, phone, maxH = 2400 }) {
   const w = new BrowserWindow({ show: false, width, height, useContentSize: true, webPreferences: { sandbox: true, javascript: true, backgroundThrottling: false } });
@@ -25,7 +19,7 @@ async function shoot(file, { width, height, kind, phone, maxH = 2400 }) {
   try {
     // (no device emulation: enabling it before the first load crashes Electron; a 390px window lays out like a phone)
     dbg('load', width); await w.loadFile(file, { hash: 'fk-static' }); dbg('loaded', width);
-    await w.webContents.executeJavaScript('Promise.race([Promise.resolve(window.fabroKitReady || true), new Promise((r) => setTimeout(r, 8000))])', true).catch(() => {});
+    await w.webContents.executeJavaScript('Promise.race([Promise.resolve(window.fabroKitReady || (document.fonts ? document.fonts.ready : true)), new Promise((r) => setTimeout(r, 8000))])', true).catch(() => {});
     await new Promise((r) => setTimeout(r, 250));
     const issues = await w.webContents.executeJavaScript(`(${fabroQa.toString()})(${JSON.stringify({ width, phone, kind })})`, true).catch((e) => [{ level: 'warn', msg: 'Check failed: ' + e.message }]);
     for (const m of consoleErrors.filter((x) => !/favicon|ERR_BLOCKED_BY|Failed to load resource/i.test(x)).slice(0, 3)) issues.push({ level: 'error', msg: `JavaScript error: ${m}` });
@@ -59,16 +53,15 @@ function report({ kind, errors, warnings, pages }) {
   const lines = [`Visual check — ${where}: ${errors.length ? `${errors.length} problem(s) to fix` : 'no visible problem'}${warnings.length ? `, ${warnings.length} warning(s)` : ''}.`];
   for (const e of errors) lines.push('✗ ' + e);
   for (const w of warnings) lines.push('! ' + w);
-  lines.push(errors.length ? 'Fix the ✗ problems, then check again.' : 'Still look at the picture critically (hierarchy, spacing, balance, real content) before calling it done.');
+  lines.push(errors.length ? 'Fix the ✗ problems (change only what is needed), then check again.' : 'Now look at the picture like a designer: is the most important thing the most visible? Is it clearly about this subject, not a generic template?');
   return lines.join('\n');
 }
 
 const dedupe = (arr) => [...new Set(arr)];
-async function check(html, { type = null, title = 'artifact' } = {}) {
+// legacy: true for a page written for the old Fabro Kit (it gets the kit, as before); false/absent: plain page.
+async function check(html, { type = null, title = 'artifact', legacy = false } = {}) {
   const kind = kindOf(html, type);
-  let page = String(html || '');
-  if (kind === 'svg' && !/<html[\s>]/i.test(page)) page = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#fff;display:grid;place-items:center;min-height:100vh}svg{max-width:92vw;max-height:92vh}</style></head><body>${page}</body></html>`;
-  page = kit.inject(page, { mode: kind === 'doc' ? 'doc' : kind === 'deck' ? 'deck' : null, force: kind === 'doc' || kind === 'deck' });
+  const page = pageFor(html, { kind, type, title, legacy });
   const file = path.join(os.tmpdir(), `fabro-qa-${process.pid}-${Date.now().toString(36)}.html`);
   fs.writeFileSync(file, page);
   try {
@@ -82,10 +75,10 @@ async function check(html, { type = null, title = 'artifact' } = {}) {
     } else {
       const d = await shoot(file, { width: 1100, height: 900, kind, maxH: 600 }); issues = d.issues;
       const layout = require('../agent/layout');
-      const pr = await layout.printHtml(page, { landscape: false }).catch(() => null);
+      const pr = await layout.printHtml(page, { landscape: false, ready: true }).catch(() => null);
       if (pr) {
         const r = await layout.renderPdf(pr.pdf, { maxPages: kind === 'deck' ? 12 : 8, width: kind === 'deck' ? 360 : null }).catch(() => null);
-        if (r) { pages = r.pages; image = r.sheet; if (r.blank && r.blank.length) issues.push({ level: 'error', msg: `Nearly empty page(s): ${r.blank.join(', ')} — usually content that spills a few lines onto a new page, or a page break too many.` }); }
+        if (r) { pages = r.pages; image = r.sheet; if (r.blank && r.blank.length) issues.push({ level: 'error', msg: `Nearly empty page(s) ${r.blank.join(', ')}: a few lines spill onto a new page, or there is one page break too many. Shorten the previous page or remove the break.` }); }
       }
     }
     const errors = dedupe(issues.filter((x) => x.level === 'error').map((x) => x.msg)).slice(0, 10);

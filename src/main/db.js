@@ -123,6 +123,7 @@ function clearMemories() { q('DELETE FROM memories').run(); return true; }
 // ───────────────────────────── artifacts ─────────────────────────────
 // data = { id, type, title, versions: [{ content, at, by: 'ai'|'user', msgId }], style }
 function saveArtifact(a) {
+  try { require('./kit/legacy').stamp(a); } catch {} // new versions: plain pages (no Fabro Kit), see kit/legacy.js
   const t = now();
   q(`INSERT INTO artifacts (id, conv_id, type, title, created, updated, data) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET type=excluded.type, title=excluded.title, updated=excluded.updated, data=excluded.data`)

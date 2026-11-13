@@ -4,7 +4,7 @@
 
 const ART_TYPES = { markdown: 'file', document: 'filePdf', slides: 'slides', sheet: 'table', html: 'globe', svg: 'brush', code: 'code' };
 const typeIcon = (t) => ART_TYPES[t] || 'file';
-const htmlSlides = (c) => /^\s*(<!doctype|<html|<body|<section)/i.test(String(c || '')); // slides written as HTML (Fabro Kit deck)
+const htmlSlides = (c) => /^\s*(<!doctype|<html|<head|<style|<body|<section|<main|<div)/i.test(String(c || '')); // slides written as HTML
 
 // ───────────────────────────── card picture ─────────────────────────────
 // Each artifact gets its own soft pastel and a picture of its first page (rendered by the computer, cached).
@@ -47,38 +47,14 @@ function artCardFor({ id, type, title, v = 0, lang = '', live = false, lines = n
 }
 
 // ───────────────────────────── parsing ─────────────────────────────
-// <artifact type="markdown|slides|html|svg|code" title="…" lang="py">…</artifact>
-function parseAttrs(s) { const o = {}; for (const m of String(s).matchAll(/(\w+)\s*=\s*"([^"]*)"/g)) o[m[1].toLowerCase()] = m[2]; return o; }
-function splitArtifacts(content) {
-  const out = [];
-  let rest = String(content || ''), idx = 0;
-  for (;;) {
-    const open = rest.match(/<artifact\b([^>]*)>/i);
-    if (!open) { if (rest) out.push({ kind: 'text', text: rest }); break; }
-    if (open.index) out.push({ kind: 'text', text: rest.slice(0, open.index) });
-    const after = rest.slice(open.index + open[0].length);
-    const close = after.search(/<\/artifact>/i);
-    const attrs = parseAttrs(open[1]);
-    const body = (close < 0 ? after : after.slice(0, close)).replace(/^\n+/, '').replace(/\s+$/, '');
-    out.push({ kind: 'artifact', i: idx++, type: normType(attrs.type, body), title: attrs.title || '', lang: attrs.lang || attrs.language || '', body, open: close < 0 });
-    if (close < 0) break;
-    rest = after.slice(close + '</artifact>'.length);
-  }
-  return out;
-}
-function normType(t, body) { // same rules as the computer side (kit/chatcheck.js)
-  t = String(t || '').toLowerCase();
-  if (/sheet|calc|spreadsheet|excel|xlsx|csv|tableur|table/.test(t)) return 'sheet';
-  if (/slide|deck|present/.test(t)) return 'slides';
-  if (/svg|draw/.test(t)) return 'svg';
-  if (/^(document|doc|pdf|print|report|cv|letter|invoice|flyer|poster|menu)/.test(t)) return 'document';
-  if (/html|page|web|site|app/.test(t)) return 'html';
-  if (/code|script|program/.test(t)) return 'code';
-  if (/^\s*<svg/i.test(body)) return 'svg';
-  if (/^\s*(<!doctype|<html)/i.test(body)) return /<body[^>]*class\s*=\s*["'][^"']*\bdoc\b/i.test(body) ? 'document' : 'html';
-  return 'markdown';
-}
-const hasArtifacts = (m) => /<artifact\b/i.test(m.content || '');
+// <artifact type="html|document|slides|svg|markdown|code" title="…">…</artifact> — parsed by kit/artparse.js (shared with
+// the computer side): forgiving about attribute order/quotes, a missing title or type, an unclosed tag at the end, and
+// complete pages or drawings written in a code fence instead of the tag.
+const AP = window.FabroArtParse;
+const parseAttrs = AP.parseAttrs;
+const splitArtifacts = (content) => AP.split(content);
+const normType = AP.normType;
+const hasArtifacts = (m) => AP.has(m.content || '');
 
 // Card shown in the conversation in place of the artifact.
 function artCard(m, seg) {
@@ -308,6 +284,8 @@ async function saveArtifactVersion(content, by = 'user') {
 // ───────────────────────────── export ─────────────────────────────
 function docHtml(a, content, style) {
   const css = `body{font:15px/1.6 "Segoe UI",system-ui,sans-serif;color:#1f1e1b;max-width:760px;margin:40px auto;padding:0 24px}h1,h2,h3{font-family:Georgia,serif;line-height:1.2}code{background:#f2f0ea;padding:1px 5px;border-radius:4px}pre{background:#f2f0ea;padding:12px;border-radius:8px;white-space:pre-wrap}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:6px 10px}`;
+  const plain = ((a.versions || [])[S.viewer && S.viewer.v != null ? S.viewer.v : a.versions.length - 1] || {}).plain === true; // written without the old Fabro Kit
+  if (plain && (a.type === 'document' || (a.type === 'slides' && htmlSlides(content)))) return content; // the computer adds only page plumbing
   if (a.type === 'slides' && htmlSlides(content)) return /<body/i.test(content) ? content : `<!doctype html><html><head><meta charset="utf-8"></head><body class="deck">${content}</body></html>`;
   if (a.type === 'document') return /<body/i.test(content) ? content : `<!doctype html><html><head><meta charset="utf-8"></head><body class="doc">${content}</body></html>`;
   if (a.type === 'slides') {
@@ -346,8 +324,8 @@ async function exportAs(fmt) {
   let r;
   if (fmt.startsWith('o:')) { try { r = await api.artifacts.exportOffice(a.id, S.viewer.v, fmt.slice(2)); } catch (e) { return toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'err'); } if (r) toast(t('artExported')); return; }
   if (fmt === 'docx') r = await api.exporter.save({ name: a.title, format: 'docx', blocks: mdToBlocks(c) });
-  else if (fmt === 'pdf') r = await api.exporter.save({ name: a.title, format: 'pdf', html: docHtml(a, c, a.style), landscape: a.type === 'slides' });
-  else if (fmt === 'html') r = await api.exporter.save({ name: a.title, format: 'html', content: docHtml(a, c, a.style) });
+  else if (fmt === 'pdf') r = await api.exporter.save({ name: a.title, format: 'pdf', html: docHtml(a, c, a.style), landscape: a.type === 'slides', artId: a.id, v: S.viewer.v });
+  else if (fmt === 'html') r = await api.exporter.save({ name: a.title, format: 'html', content: docHtml(a, c, a.style), artId: a.id, v: S.viewer.v });
   else if (fmt === 'code') r = await api.exporter.save({ name: a.title, format: 'file', ext: EXT[(a.lang || '').toLowerCase()] || 'txt', content: c });
   else r = await api.exporter.save({ name: a.title, format: fmt, content: c });
   if (r) toast(t('artExported'));

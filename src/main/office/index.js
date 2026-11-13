@@ -70,7 +70,7 @@ const WALK = function (mode) {
   }
   // deck
   return (async () => {
-    const list = [...document.querySelectorAll('.slide, .fslide')].filter((s) => !s.parentElement.closest('.slide, .fslide'));
+    const list = [...document.querySelectorAll('.slide, .fslide, body > section')].filter((s) => !s.parentElement.closest('.slide, .fslide'));
     const out = [];
     for (const s of list) {
       const R = s.getBoundingClientRect(), k = 1280 / R.width; const box = (r) => ({ x: (r.left - R.left) * k, y: (r.top - R.top) * k, w: r.width * k, h: r.height * k });
@@ -96,10 +96,10 @@ const WALK = function (mode) {
   })();
 };
 const dataToBuf = (d) => { const m = /^data:([^;]+);base64,(.*)$/.exec(d || ''); return m ? { mime: m[1], data: Buffer.from(m[2], 'base64') } : null; };
-async function walkHtml(html, mode) {
+async function walkHtml(html, mode, { legacy = true } = {}) { // legacy: a page written for the old Fabro Kit
   const { BrowserWindow } = require('electron');
   const kit = require('../kit');
-  const page = kit.inject(html, { mode: mode === 'doc' ? 'doc' : 'deck', force: true });
+  const page = legacy || /<meta[^>]+fabro-kit/i.test(html) ? kit.inject(html, { mode: mode === 'doc' ? 'doc' : 'deck', force: true }) : require('../kit/runtime').page(html, { legacy: false, kind: mode === 'doc' ? 'doc' : 'deck' });
   const tmp = path.join(require('os').tmpdir(), `fabro-office-${process.pid}-${Date.now().toString(36)}.html`);
   fs.writeFileSync(tmp, page);
   const w = new BrowserWindow({ show: false, width: mode === 'doc' ? 900 : 1280, height: 900, webPreferences: { sandbox: true, javascript: true, offscreen: false } });
@@ -208,12 +208,12 @@ async function exportArtifact(art, fmt, v = null) {
   if (art.type === 'sheet') { const wb = calc.normalize(content); if (fmt === 'xlsx') return sheets.writeXlsx(wb); if (fmt === 'ods') return sheets.writeOds(wb); if (fmt === 'csv') { const b = new calc.Workbook(wb); return Buffer.from(b.computed(0).map((r) => r.map((x) => (/[",;\n]/.test(String(x)) ? `"${String(x).replace(/"/g, '""')}"` : x)).join(',')).join('\n'), 'utf8'); } }
   if (art.type === 'document' || art.type === 'markdown' || art.type === 'html') {
     if (fmt !== 'docx' && fmt !== 'odt') throw new Error(`A document exports as docx or odt (not ${fmt}).`);
-    const model = art.office && loadPkg(art, v) ? readModel(loadPkg(art, v), art.office.ext) : await walkHtml(art.type === 'markdown' ? mdPage(content) : content, 'doc');
+    const model = art.office && loadPkg(art, v) ? readModel(loadPkg(art, v), art.office.ext) : await walkHtml(art.type === 'markdown' ? mdPage(content) : content, 'doc', { legacy: art.type === 'markdown' || require('../kit/legacy').legacyArt(art, v) });
     return fmt === 'docx' ? docs.writeDocx(model) : docs.writeOdt(model);
   }
   if (art.type === 'slides') {
     if (fmt !== 'pptx' && fmt !== 'odp') throw new Error(`A deck exports as pptx or odp (not ${fmt}).`);
-    const model = art.office && loadPkg(art, v) ? readModel(loadPkg(art, v), art.office.ext) : await walkHtml(/<section|class=["'][^"']*slide/.test(content) ? content : mdDeck(content), 'deck');
+    const model = art.office && loadPkg(art, v) ? readModel(loadPkg(art, v), art.office.ext) : await walkHtml(/<section|class=["'][^"']*slide/.test(content) ? content : mdDeck(content), 'deck', { legacy: !/<section|class=["'][^"']*slide/.test(content) || require('../kit/legacy').legacyArt(art, v) });
     return fmt === 'pptx' ? slides.writePptx(model) : slides.writeOdp(model);
   }
   throw new Error(`Can't export a ${art.type} artifact as ${fmt}.`);

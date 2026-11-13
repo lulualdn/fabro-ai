@@ -89,8 +89,8 @@ const srv = http.createServer((req, res) => {
       if (/version B/.test(ut)) return one('Réponse à la version B.');
       if (/rédige/i.test(ut)) return one('Voici la lettre.\n\n<artifact type="markdown" title="Lettre de motivation">\n# Lettre de motivation\n\nMadame, Monsieur,\n\nJe souhaite rejoindre **votre équipe**.\n\n- Motivé\n- Curieux\n</artifact>\n\nDites-moi si vous voulez l’ajuster.');
       if (/diapos/i.test(ut)) return one('Voici le deck.\n<artifact type="slides" title="Présentation Fabro">\n# Fabro\nLift off, locally.\n\n---\n\n## Pourquoi\n- Local\n- **Rapide**\n- Privé\n\n---\n\n## Merci\n</artifact>');
-      // Fabro's visual check of the counter page (it had no styling at all): the fixed version uses the Fabro Kit
-      if (/\[Fabro visual check\]/.test(ut)) return one('Voici la version corrigée.\n<artifact type="html" title="Compteur">\n<!doctype html><html lang="fr"><body data-theme="ocean"><main class="narrow section"><h1 id="n">0</h1><button class="btn" onclick="n.textContent=+n.textContent+1">+1</button></main></body></html>\n</artifact>');
+      // Fabro's visual check of the counter page (it had no styling at all): the fixed version has its own CSS
+      if (/\[Fabro visual check\]/.test(ut)) return one('Voici la version corrigée.\n<artifact type="html" title="Compteur">\n<!doctype html><html lang="fr"><head><style>body{font:18px/1.5 Georgia,serif;background:#f6f1e7;color:#2b1d14;display:grid;place-items:center;min-height:100vh;margin:0}button{font:inherit;padding:12px 22px;border:0;border-radius:10px;background:#b5651d;color:#fff}</style></head><body><main><h1 id="n">0</h1><button onclick="n.textContent=+n.textContent+1">+1</button></main></body></html>\n</artifact>');
       if (/page web/i.test(ut)) return one('<artifact type="html" title="Compteur">\n<!doctype html><html><body><h1 id="n">0</h1><button onclick="n.textContent=+n.textContent+1">+1</button></body></html>\n</artifact>');
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const parts = reply.match(/.{1,6}/gs);
@@ -422,8 +422,8 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await frame.click('button'); await frame.click('button');
   await frame.waitForFunction(() => document.querySelector('#n').textContent === '2', null, { timeout: 5000 });
   // Fabro looked at the first version (no styling at all), sent it back once, and kept the fixed one
-  const chk = await win.evaluate(() => { const m = S.conv.messages.at(-1); return { st: m.artCheck && m.artCheck.status, kit: /data-theme/.test(m.content) }; });
-  assert.deepStrictEqual(chk, { st: 'ok', kit: true }, 'artifact checked and fixed: ' + JSON.stringify(chk));
+  const chk = await win.evaluate(() => { const m = S.conv.messages.at(-1); return { st: m.artCheck && m.artCheck.status, styled: /<style>/.test(m.content) }; });
+  assert.deepStrictEqual(chk, { st: 'ok', styled: true }, 'artifact checked and fixed: ' + JSON.stringify(chk));
   await win.waitForFunction(() => { const i = document.querySelector('.msg.assistant:last-child .art-card .art-thumb img'); return i && i.naturalWidth > 0; }, null, { timeout: 20000 });
   step('html artifact'); await win.screenshot({ path: `${shots}/27-html.png` });
   await win.click('[data-action=viewer-close]');
