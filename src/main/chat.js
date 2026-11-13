@@ -14,6 +14,8 @@ const sysprompt = require('./sysprompt'); // the adaptive system prompt (built a
 const context = require('./context'); // v0.2: summaries at the right moments, <digest> tags, growing window
 const digest = require('./context/digest');
 require('./agent/context-tools'); // context_list / context_read / context_pin
+// memory pressure: conversations whose window was enlarged go back to the normal size
+try { require('./governor').on('pressure', () => context.onPressure((m) => engine.resetContext(m))); } catch {}
 
 // ───────────────────────────── permissions & dependencies (asked in the UI) ─────────────────────────────
 const waiting = new Map(); // `${reqId}:${callId}` → resolve
