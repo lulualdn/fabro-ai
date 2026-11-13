@@ -3,17 +3,36 @@
 Ce fichier sert à reprendre le chantier v0.2 dans une autre session (Claude Code). Lire aussi `docs/v02/CONTRACT.md`
 (règles de travail + ce que chaque bloc expose).
 
+## État au 13 nov. 2026 (2ᵉ session)
+
+**Vague 2 terminée et fusionnée dans `v0.2`** : skills + MCP (`api-install.md`), modèles (`models.md`), thèmes
+(`themes.md`), paramètres + Mon Fabro + Ressources (`settings-map.md`), contexte (`context.md`). Les branches
+`v02-*` sont fusionnées, on peut les supprimer. La section « Reste à faire › Vague 2 » plus bas est donc close.
+
+Tests ajoutés : `node scripts/{skills,mcpeasy,models,themes,myfabro,context}-test.js` et, sous `xvfb-run -a`,
+`scripts/{install,keys,settings,context}-e2e.js`. `agents-e2e.js` est réparé (il appelait le vrai Fabro Cloud).
+Tout est vert sous Linux. `accounts-test.js` a échoué une fois machine chargée puis repassé : à surveiller.
+
+Toujours **jamais lancé sous Windows ni sur GPU** (pas de machine attachée à la session) : toute la liste
+« Jamais vérifié » reste valable, plus : double-clic sur un `.skill`, import des configs MCP d'autres applis sur un
+vrai poste, GROW de la fenêtre de contexte sur GPU, ligne `<digest>` écrite par un vrai Gemma, estimation de vitesse
+du chercheur de modèles (pessimiste sur CPU portable), écran Ressources avec une vraie carte.
+
+Éval petit modèle (Gemma 4 E4B Q4_K_M, llama.cpp CPU, 16k) : voir `docs/v02/small-model-eval.md`.
+
+Reste : vague 3 (ordre à valider avec Lulu), dont le passage « vous » → « tu » de l'interface existante.
+
 ## Branches
 
 | Branche | Contenu | État |
 |---|---|---|
 | `main` | v0.1.56, ce qui est publié | intact |
 | `v0.2` | vague 1 fusionnée et intégrée | toutes les suites vertes sous Linux, **jamais lancé sous Windows ni sur GPU** |
-| `v02-settings` | paramètres en 5 sections + Mon Fabro + écran Ressources | WIP, non testé |
-| `v02-themes` | thèmes façon Discord + thème CLI + navigation clavier | WIP, non testé |
-| `v02-models` | recherche de modèle en langage courant + niveaux léger/intermédiaire/complexe | WIP, non testé |
-| `v02-skills` | import de skills (.skill, zip, dossier, lien) + ajout MCP simplifié | WIP, non testé |
-| `v02-context` | compression, contexte intelligent, fenêtre variable | à peine commencé (2 fichiers) |
+| `v02-settings` | paramètres en 5 sections + Mon Fabro + écran Ressources | terminé, fusionné dans `v0.2` |
+| `v02-themes` | thèmes façon Discord + thème CLI + navigation clavier | terminé, fusionné dans `v0.2` |
+| `v02-models` | recherche de modèle en langage courant + niveaux léger/intermédiaire/complexe | terminé, fusionné dans `v0.2` |
+| `v02-skills` | import de skills (.skill, zip, dossier, lien) + ajout MCP simplifié | terminé, fusionné dans `v0.2` |
+| `v02-context` | compression, contexte intelligent, fenêtre variable | terminé, fusionné dans `v0.2` |
 
 Les branches `v02-settings/themes/models/skills` partent d'un `v0.2` antérieur à la fusion du system prompt :
 faire `git merge v0.2` dans chacune avant de continuer. Le dernier commit de chaque branche WIP est un instantané
