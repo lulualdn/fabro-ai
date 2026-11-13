@@ -1086,7 +1086,7 @@ const actions = {
   },
   'settings': (el) => { closePopover(); openSettings(el.dataset.tab || 'general'); },
   'settings-tab': (el) => { openSettings(el.dataset.tab); },
-  'close-settings': closeSettings,
+  'close-settings': () => closeSettings(), // defined in settings-ui.js (loaded after this file)
   'overlay-bg': (el, e) => { if (e.target === el) closeSettings(); },
   'send': (el) => { el.classList.remove('launch'); void el.offsetWidth; el.classList.add('launch'); sendPrompt(); },
   'stop': () => { if (S.streaming) api.chat.abort(S.streaming.reqId); },

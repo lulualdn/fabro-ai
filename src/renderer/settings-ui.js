@@ -37,7 +37,7 @@ const ST_LEGACY = {
 // which old pages a view shows (for stShows)
 const ST_LEAVES = {
   account: ['general', 'providers', 'anywhere'], models: ['models', 'storage'], fabro: ['fabro'], resources: ['resources', 'usage'],
-  'advanced:connectors': ['agent', 'mcp'], 'advanced:skills': ['agent', 'skills'], 'advanced:agent': ['agent'], 'advanced:engine': ['engine', 'generation', 'storage'],
+  'advanced:connectors': ['agent', 'mcp'], 'advanced:skills': ['agent', 'skills'], 'advanced:agent': ['agent'], 'advanced:engine': ['engine', 'generation'],
   'advanced:voice': ['voice'], 'advanced:shortcuts': ['shortcut'], 'advanced:localapi': ['engine', 'localapi'], 'advanced:mods': ['mods'],
   'advanced:tasks': ['tasks'], 'advanced:updates': ['system', 'general', 'updates'], 'advanced:developer': ['system', 'developer'],
   'advanced:prompts': ['prompts'], 'advanced:about': ['about'],
@@ -108,12 +108,11 @@ const ST_MOUNTS = {
   'model-finder': (el) => window.ModelFinder && ModelFinder.renderSection && ModelFinder.renderSection(el),
   resources: (el) => window.ResourcesUI && ResourcesUI.mount(el),
   myfabro: (el) => window.MyFabroUI && MyFabroUI.mount(el),
-  'mcp-easy': (el) => window.McpEasy && McpEasy.renderSection(el),
-  'skills-import': (el) => window.SkillsImport && SkillsImport.renderSection(el),
+  // mcpeasy / skillimport: filled by their modules after every render (mcpeasy-ui.js, skillsimport-ui.js wrap renderSettings)
   devlab: (el) => window.DevLab && DevLab.renderSection(el),
-  sysprompts: (el) => window.SysPrompts && SysPrompts.renderSection(el),
-  notebook: (el) => window.Notebook && Notebook.renderSection(el),
-  guides: (el) => window.Guides && Guides.renderSection(el),
+  sysprompts: (el) => typeof SysPrompts !== 'undefined' && SysPrompts.renderSection(el),
+  notebook: (el) => typeof Notebook !== 'undefined' && Notebook.renderSection(el),
+  guides: (el) => typeof Guides !== 'undefined' && Guides.renderSection(el),
 };
 const stMounted = new Map(); // key → element (with its module's content)
 function stUnmountAll() {
@@ -153,11 +152,14 @@ function renderSettings(keepScroll = true) {
   const af = document.activeElement;
   const focused = af && af.closest('.st-content form[data-form]') ? af.closest('form').dataset.form + '|' + af.name : null;
   const focusedInput = af && content.contains(af) && !af.closest('[data-mount]') && af.matches('[data-input],[data-prof]') ? (af.dataset.input || af.dataset.prof + '|' + af.dataset.key) : null;
+  // collapsible blocks the user (or a deep link) opened stay open when the same view re-renders
+  const openDetails = same ? $$('details[data-anchor]', content).filter((d) => d.open).map((d) => d.dataset.anchor) : [];
   // take live mounts out before replacing the HTML
   if (!same) stUnmountAll();
   for (const el of $$('[data-mount]', content)) if (stMounted.has(el.dataset.mount)) el.remove();
   content.innerHTML = stBody(view);
   content.dataset.view = view;
+  for (const k of openDetails) { const d = $(`details[data-anchor="${CSS.escape(k)}"]`, content); if (d) d.open = true; }
   for (const ph of $$('[data-mount]', content)) {
     const k = ph.dataset.mount; const live = stMounted.get(k);
     if (live) { ph.replaceWith(live); continue; }
@@ -178,6 +180,7 @@ function renderSettings(keepScroll = true) {
     S.stAnchor = null;
   }
   S._lastTab = view;
+  if (window.ModelFinder) ModelFinder.mount(content); // finder + tiers placeholders ([data-mf]) in My models
 }
 
 function stBody(view) {
@@ -257,8 +260,7 @@ function stTuneText(m) {
 function stModelRow(m) {
   let h = modelRow(m);
   const tune = stTuneText(m);
-  const tier = m.tier ? `<span class="chip tier tier-${esc(m.tier)}">${esc(t('st_tier_' + m.tier) !== 'st_tier_' + m.tier ? t('st_tier_' + m.tier) : m.tier)}</span>` : '';
-  if (tier) h = h.replace('</b>', ` ${tier}</b>`);
+  // (the light / intermediate / complex badge comes from modelRow → ModelFinder.tierBadge)
   if (tune && tune.text) h = h.replace('</small></div>', `</small><small class="st-tune ${tune.now ? 'now' : ''}">${icon(tune.now ? 'zap' : 'info', 12)} ${esc(tune.text)}</small></div>`);
   return h;
 }
@@ -281,9 +283,10 @@ function stModels() {
     ${others.length ? stGroup(t('st_others'), `<div class="list">${others.map((o) => `<div class="list-row"><div class="m-ico">${icon('box', 17)}</div>
         <div class="m-text"><b>${esc(o.name)}</b><small>${esc(fmtBytes(o.sizeBytes))} · ${esc(t('st_othersNoDl'))}</small></div>
         <button class="btn sm" data-action="st-link-model" data-id="${esc(o.id)}">${icon('plus', 14)} ${esc(t('st_useToo'))}</button></div>`).join('')}</div>`, { intro: t('st_othersIntro'), icon: 'user' }) : ''}
-    ${mount('model-finder', 'set-model-finder')}
+    ${stGroup(t('mf_title'), `<div data-mf="section"></div>`, { icon: 'search', anchor: 'find' })}
+    <section class="st-group" data-anchor="tiers"><div data-mf="tiers"></div></section>
     ${stGroup(t('st_install'), catalogBlock() + hfSearchBlock(), { icon: 'download', anchor: 'install' })}
-    ${stMore(t('st_where'), librariesBlock() + importBlock(), 'storage')}`;
+    ${stMore(t('st_where'), librariesBlock() + importBlock() + downloadOptsBlock(), 'storage')}`;
 }
 
 // ───────────────────────────── Resources ─────────────────────────────
@@ -301,8 +304,8 @@ function stSubBody(sub) {
   const st = S.settings;
   const g = st.gen || {};
   switch (sub) {
-    case 'connectors': return `<p class="st-intro">${esc(t('st_connIntro'))}</p>${window.McpEasy ? mount('mcp-easy', 'set-mcp-easy') : mcpHtml()}`;
-    case 'skills': return `${window.SkillsImport ? mount('skills-import', 'set-skills-import') : skillsHtml()}${agentToolsHtml()}`;
+    case 'connectors': return mcpHtml(); // the MCP block has its own intro
+    case 'skills': return skillsHtml() + agentToolsHtml();
     case 'agent': return agentCoreHtml() + computerSection();
     case 'engine': {
       const range = (k, min, max, step, v) => `<div class="range-wrap"><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-input="gen.${k}" data-type="float" aria-label="${esc(k)}"><span class="rv">${v}</span></div>`;
@@ -311,8 +314,7 @@ function stSubBody(sub) {
         ${row(t('temperature'), range('temperature', 0, 2, 0.05, g.temperature), t('temperatureHint'))}
         ${row('Top P', range('topP', 0.05, 1, 0.05, g.topP))}
         ${row(t('maxTokens'), `<input class="input sm" type="number" min="0" max="131072" value="${g.maxTokens}" data-input="gen.maxTokens" data-type="int" aria-label="${esc(t('maxTokens'))}">`, t('maxTokensHint'))}
-        ${row(t('st_autoTitle'), toggle('autoTitle', st.autoTitle !== false), t('st_autoTitleHint'))}
-        ${downloadOptsBlock()}`;
+        ${row(t('st_autoTitle'), toggle('autoTitle', st.autoTitle !== false), t('st_autoTitleHint'))}`;
     }
     case 'voice': {
       const pref = st.voiceModel || 'same';
@@ -354,9 +356,10 @@ function stSubBody(sub) {
         ${window.DevLab ? mount('devlab', 'set-devlab') : ''}`;
     }
     case 'prompts': {
-      const any = window.SysPrompts || window.Notebook || window.Guides;
+      const has = { sp: typeof SysPrompts !== 'undefined', nb: typeof Notebook !== 'undefined', gd: typeof Guides !== 'undefined' };
+      const any = has.sp || has.nb || has.gd;
       return `<p class="st-intro">${esc(t('st_promptsIntro'))}</p>
-        ${window.SysPrompts ? mount('sysprompts', 'set-sysprompts') : ''}${window.Notebook ? mount('notebook', 'set-notebook') : ''}${window.Guides ? mount('guides', 'set-guides') : ''}
+        ${has.sp ? mount('sysprompts', 'set-sysprompts') : ''}${has.nb ? mount('notebook', 'set-notebook') : ''}${has.gd ? mount('guides', 'set-guides') : ''}
         ${any ? '' : `<div class="empty-note">${esc(t('st_promptsEmpty'))} <button class="link-btn" data-action="settings-tab" data-tab="account#instructions">${esc(t('st_instructions'))}</button></div>`}`;
     }
     case 'about': return stAbout();

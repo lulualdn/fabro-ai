@@ -27,7 +27,7 @@ const srv = http.createServer((req, res) => {
       const body = JSON.parse(b || '{}');
       const sys = String(((body.messages || [])[0] || {}).content || '');
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-      if (/You name conversations|maintain a short memory/.test(sys)) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Test' } }] })}\n\n`); return res.end('data: [DONE]\n\n'); }
+      if (/You name conversations|maintain a short memory|keep a small, honest memory/.test(sys)) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Test' } }] })}\n\n`); return res.end('data: [DONE]\n\n'); }
       const parts = LONG.match(/.{1,4}/gs); let i = 0;
       const tick = setInterval(() => {
         if (i < parts.length) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: parts[i++] } }] })}\n\n`); return; }

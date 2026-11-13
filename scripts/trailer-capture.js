@@ -63,7 +63,7 @@ const srv = http.createServer((req, res) => {
     const ut = users[users.length - 1] || ''; const all = users.join(' ');
     const tools = body.messages.filter((m) => m.role === 'tool');
     if (/You name conversations/.test(sys)) return sse(res, [{ content: /Lisbon/.test(all) ? 'Lisbon in 3 days' : /llama/.test(all) ? 'Local AI news' : /notes/.test(all) ? 'Q3 report' : /slides/.test(all) ? 'Launch deck' : 'Fix units bug' }]);
-    if (/maintain a short memory/.test(sys)) return sse(res, [{ content: '[]' }]);
+    if (/maintain a short memory|keep a small, honest memory/.test(sys)) return sse(res, [{ content: '[]' }]);
     if (/# Code session/.test(sys)) {
       if (tools.length === 0) return call(res, [['read_file', { path: 'src/units.js' }]], 'c0');
       if (tools.length === 1) return call(res, [['edit_file', { path: 'src/units.js', old_text: 'return c * 9 / 5;', new_text: 'return c * 9 / 5 + 32;' }]], 'c1');

@@ -28,10 +28,8 @@ const step = (s) => console.log('✓ ' + s);
 
   // Settings → Agent: the two new blocks are mounted
   await win.keyboard.press('Control+,');
-  await win.click('.st-tab[data-tab=agent]');
+  await win.evaluate(() => openSettings('mcp')); await win.waitForTimeout(300);
   await win.waitForSelector('[data-mount=mcpeasy] .mc-list', { timeout: 8000 });
-  await win.waitForSelector('[data-mount=skillimport] .si-zone', { timeout: 8000 });
-  await win.waitForFunction(() => !document.querySelector('[data-mount=skillimport] .si-found .spinner'), null, { timeout: 8000 }).catch(() => {});
   await win.evaluate(() => document.querySelector('[data-mount=mcpeasy]').scrollIntoView({ block: 'start' }));
   await win.waitForTimeout(250);
   await win.screenshot({ path: `${shots}/01-agent-mcp-skills.png` });
@@ -88,7 +86,11 @@ const step = (s) => console.log('✓ ' + s);
   assert.ok(after < before, `switching a tool off hides it from the agent (${before} → ${after})`);
   step('MCP: per-tool switch hides the tool from the agent');
 
-  // Skills: a .skill opens the preview (same path as double-click), nothing runs, install
+  // Skills (Settings › Advanced › Skills & tools): a .skill opens the preview (same path as double-click), nothing runs, install
+  await win.evaluate(() => openSettings('advanced:skills')); await win.waitForTimeout(300);
+  await win.waitForSelector('[data-mount=skillimport] .si-zone', { timeout: 8000 });
+  await win.waitForFunction(() => !document.querySelector('[data-mount=skillimport] .si-found .spinner'), null, { timeout: 8000 }).catch(() => {});
+  await win.screenshot({ path: `${shots}/06b-skills-tab.png` });
   await win.evaluate((p) => SkillsImport.openFile(p), skillFile);
   await win.waitForSelector('.si-modal .si-card', { timeout: 10000 });
   const pv = await win.textContent('.si-modal');

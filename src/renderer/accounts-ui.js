@@ -221,6 +221,7 @@
   // ───────────────────────── "My account" block (Settings) ─────────────────────────
   async function renderSection(container) {
     if (!container) return;
+    if (typeof S !== 'undefined' && S.lang) lang = S.lang; // inside the app: the UI language (the picker has its own)
     await refresh();
     if (!me) { container.innerHTML = ''; return; }
     const st = { pw: null, msg: '' };

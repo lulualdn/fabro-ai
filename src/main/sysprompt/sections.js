@@ -44,8 +44,12 @@ function userBlock(s, c, short) {
   if (u.aiName && u.aiName.toLowerCase() !== 'fabro') lines.push(`The user named you "${u.aiName}". That is your name: introduce yourself as ${u.aiName} (you run inside the Fabro app).`);
   if (u.useFor && !short) lines.push(u.useFor);
   if (u.style) lines.push(short ? clip(u.style, 300) : u.style);
-  const mem = memoryLines(s, Math.max(60, Math.round(s.budget * (short ? 0.06 : 0.12))));
-  if (mem.length) lines.push(`What you remember about the user (use it when relevant, don't recite it):\n${mem.join('\n')}`);
+  const memTok = Math.max(60, Math.round(s.budget * (short ? 0.06 : 0.12)));
+  // My Fabro (myfabro.forPrompt): profile + notes ranked for this request, within the budget; else the plain list
+  const fm = typeof s.fabroMemory === 'function' ? s.fabroMemory(memTok) : '';
+  const mem = fm ? [] : memoryLines(s, memTok);
+  if (fm) lines.push(`${fm}\n(Use it when relevant, don't recite it.)`);
+  else if (mem.length) lines.push(`What you remember about the user (use it when relevant, don't recite it):\n${mem.join('\n')}`);
   if (u.custom) lines.push(`The user's personal instructions (follow them):\n${clip(u.custom, Math.max(400, Math.round(s.budget * 0.3 * 3.3)))}`);
   return lines.length ? `## About the user\n${lines.join('\n')}` : '';
 }
