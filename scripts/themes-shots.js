@@ -5,7 +5,7 @@ const { _electron: electron } = require('playwright-core');
 const http = require('http'); const fs = require('fs'); const os = require('os'); const path = require('path');
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const OUT = arg('out', '/tmp/shots-themes');
-const ONLY = (arg('only', 'welcome,chat,settings,panel,palette') || '').split(',');
+const ONLY = (arg('only', 'welcome,chat,settings,panel,palette,gallery') || '').split(',');
 const WANT = arg('themes', '') ? arg('themes').split(',') : null;
 const PHONE = arg('phone', 'cli');
 const APP = path.join(__dirname, '..');
@@ -86,6 +86,11 @@ async function shotsFor(win, id, mode, tag, w, h) {
     await win.evaluate((t) => openViewer({ type: 'markdown', title: 'Lettre', text: t }), DOC); await win.waitForTimeout(800);
     await win.screenshot({ path: f('5-panel') });
     await win.evaluate(() => closeViewer()); await win.waitForTimeout(500);
+  }
+  if (ONLY.includes('gallery')) {
+    await win.evaluate(() => Themes.openGallery()); await win.waitForTimeout(700);
+    await win.screenshot({ path: f('7-gallery') });
+    await win.keyboard.press('Escape'); await win.waitForTimeout(400);
   }
   if (ONLY.includes('palette')) {
     await win.keyboard.press('Control+Shift+P').catch(() => {}); await win.waitForTimeout(500);

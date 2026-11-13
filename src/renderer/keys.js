@@ -100,6 +100,7 @@
     const A = [
       mkItem(t('newChat'), { hint: MOD + '+N', run: () => newChat(), group: 'a' }),
       mkItem(t('kb_changeTheme'), { run: () => openPalette('themes'), keep: true, group: 'a', search: t('kb_changeTheme') + ' theme thème apparence' }),
+      mkItem(t('th_title') + '…', { run: () => Themes.openGallery && Themes.openGallery(), group: 'a', search: t('th_title') + ' themes thèmes import export gallery galerie' }),
       mkItem(t('searchChats'), { hint: '', run: () => { if ($('#app').classList.contains('sb-collapsed')) actions['toggle-sidebar'](); setTimeout(() => $('#sb-q')?.focus(), 40); }, group: 'a' }),
       mkItem(t('kb_toggleSidebar'), { hint: MOD + '+B', run: () => actions['toggle-sidebar'](), group: 'a' }),
       mkItem(t('settings'), { hint: MOD + '+,', run: () => openSettings('general'), group: 'a' }),

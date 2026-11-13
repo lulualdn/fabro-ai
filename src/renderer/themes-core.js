@@ -225,6 +225,7 @@
 
   // palette ({bg, panel, elev, text, accent, + optional seeds}) → a complete token map for one mode, AA by construction.
   function derive(p, dark) {
+    const M = 0.06; // headroom: hex rounding must never push a pair under its threshold
     const P = (k, d) => parseColor(p[k]) || (d && parseColor(d));
     const bg = P('bg'), text = P('text');
     if (!bg || !text) return {};
@@ -245,26 +246,26 @@
     const code = parseColor(t['code-bg']);
     const shadowInk = P('shadow') || (dark ? black : mix(text, bg, 0.2));
     S('scrim', alpha(shadowInk, dark ? 0.6 : 0.28));
-    S('text', ensure(text, [bg, panel, elev, bubble], 7));
+    S('text', ensure(text, [bg, panel, elev, bubble], 7 + M));
     const tx = parseColor(t.text);
-    S('text-2', ensure(mix(tx, bg, 0.22), [bg, panel, elev, bubble], 5.5, tx));
-    S('muted', ensure(mix(tx, bg, 0.42), [bg, panel, elev, bubble], 4.7, tx));
+    S('text-2', ensure(mix(tx, bg, 0.22), [bg, panel, elev, bubble], 5.5 + M, tx));
+    S('muted', ensure(mix(tx, bg, 0.42), [bg, panel, elev, bubble], 4.7 + M, tx));
     S('faint', mix(tx, bg, 0.66));
     S('border', P('border') || mix(bg, tx, 0.1));
     S('border-strong', P('border-strong') || mix(bg, tx, 0.19));
     S('hover', alpha(tx, 0.05)); S('active', alpha(tx, 0.085)); S('pressed', alpha(tx, 0.12));
     // accent: fills with readable ink; words/links in an AA variant
-    const accent = accent0;
+    const accent = ensure(accent0, surf, 3 + M, tx); // fills, icons and the focus ring must show against every surface
     S('accent', accent);
     S('accent-ink', P('accent-ink') || inkFor(accent, white, { r: 20, g: 22, b: 27, a: 1 }));
-    t['accent-ink'] = fmt(ensure(parseColor(t['accent-ink']), [accent], 4.6));
+    t['accent-ink'] = fmt(ensure(parseColor(t['accent-ink']), [accent], 4.6 + M));
     S('accent-hover', mix(accent, dark ? white : black, dark ? 0.14 : 0.1));
-    S('accent-text', ensure(accent, surf, 4.6, tx));
+    S('accent-text', ensure(accent, surf, 4.6 + M, tx));
     S('accent-soft', alpha(accent, dark ? 0.15 : 0.12));
     S('accent-line', alpha(accent, 0.4));
-    S('focus', ensure(accent, surf, 3.2, tx));
+    S('focus', ensure(accent, surf, 3.2 + M, tx));
     const stat = (k) => {
-      const base = P(k, B[k]); const txt = ensure(base, [bg, panel, elev, bubble], 4.6, tx);
+      const base = P(k, B[k]); const txt = ensure(base, [bg, panel, elev, bubble], 4.6 + M, tx);
       S(k, txt); S(k + '-soft', alpha(base, 0.13));
       return base;
     };
@@ -272,10 +273,10 @@
     // text on a filled status colour
     S('on-status', inkFor(ok, white, { r: 20, g: 22, b: 27, a: 1 }));
     const fills = [parseColor(t.ok), parseColor(t.warn), parseColor(t.err)];
-    t['on-status'] = fmt(ensure(parseColor(t['on-status']), fills, 4.5));
+    t['on-status'] = fmt(ensure(parseColor(t['on-status']), fills, 4.5 + M));
     S('hl', parseColor(B.hl)); S('hl-ink', inkFor(parseColor(B.hl), white, { r: 20, g: 18, b: 12, a: 1 }));
     S('data-1', accent); S('data-2', mix(accent, bg, 0.5)); S('data-3', dark ? { r: 125, g: 147, b: 196, a: 1 } : { r: 108, g: 127, b: 168, a: 1 });
-    SYN.forEach((k, i) => S(k, ensure(P(k, B.syn[i]), [code], 4.5, tx)));
+    SYN.forEach((k, i) => S(k, ensure(P(k, B.syn[i]), [code], (k === 'syn-comment' ? 3.6 : 4.5) + M, tx)));
     // shadows: tinted by the theme, flat when asked
     const sh = (p.depth || 'soft');
     const si = shadowInk;
@@ -310,6 +311,7 @@
     const tw = lum(bg) > 0.4 ? { r: 0, g: 0, b: 0, a: 1 } : { r: 255, g: 255, b: 255, a: 1 };
     t.text = fmt(ensure(tx, [...surf, bub], 7, tw)); const T = parseColor(t.text);
     for (const [k, min] of [['text-2', 5.5], ['muted', 4.5], ['accent-text', 4.5], ['ok', 4.5], ['warn', 4.5], ['err', 4.5]]) if (P(k)) t[k] = fmt(ensure(P(k), surf, min, T));
+    if (P('accent')) { t.accent = fmt(ensure(P('accent'), surf, 3, T)); if (P('accent-ink')) t['accent-ink'] = fmt(ensure(P('accent-ink'), [P('accent')], 4.5)); }
     if (P('focus')) t.focus = fmt(ensure(P('focus'), surf, 3, T));
     if (P('accent') && P('accent-ink')) t['accent-ink'] = fmt(ensure(P('accent-ink'), [P('accent')], 4.5));
     if (P('code-bg')) SYN.forEach((k) => { if (P(k)) t[k] = fmt(ensure(P(k), [P('code-bg')], k === 'syn-comment' ? 3.6 : 4.5, T)); });
