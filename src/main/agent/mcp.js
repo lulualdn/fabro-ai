@@ -19,6 +19,39 @@ const publish = () => emit('mcp:status', view());
 const cfgs = () => (store.getSettings().mcp || {}).servers || [];
 const clean = (s) => String(s).replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
 
+// ───────────────────────────── secrets ─────────────────────────────
+// Secret env vars / headers live in the encrypted secret store (providers.setSecret), never in settings.
+// cfg.secretEnv / cfg.secretHeaders list their NAMES; values are looked up when the server starts.
+const secKey = (id, kind, name) => `mcp:${id}:${kind}:${name}`;
+function saveSecrets(id, env, headers) {
+  for (const [k, v] of Object.entries(env || {})) providers.setSecret(secKey(id, 'env', k), v);
+  for (const [k, v] of Object.entries(headers || {})) providers.setSecret(secKey(id, 'hdr', k), v);
+}
+function dropSecrets(cfg) {
+  for (const k of cfg.secretEnv || []) providers.setSecret(secKey(cfg.id, 'env', k), '');
+  for (const k of cfg.secretHeaders || []) providers.setSecret(secKey(cfg.id, 'hdr', k), '');
+}
+function resolvedEnv(cfg) {
+  const env = { ...(cfg.env || {}) };
+  for (const k of cfg.secretEnv || []) { const v = providers.getKey(secKey(cfg.id, 'env', k)); if (v) env[k] = v; }
+  return env;
+}
+function resolvedHeaders(cfg) {
+  const h = { ...(cfg.headers || {}) };
+  for (const k of cfg.secretHeaders || []) { const v = providers.getKey(secKey(cfg.id, 'hdr', k)); if (v) h[k] = v; }
+  return h;
+}
+// GUI apps do not always inherit the shell's PATH (macOS especially): add the usual install places.
+function launchEnv(cfg) {
+  const env = { ...process.env, ...resolvedEnv(cfg) };
+  if (process.platform !== 'win32') {
+    const extra = ['/opt/homebrew/bin', '/usr/local/bin', path.join(os.homedir(), '.local', 'bin'), path.join(os.homedir(), '.cargo', 'bin'), path.join(os.homedir(), '.bun', 'bin')];
+    const have = String(env.PATH || '').split(path.delimiter);
+    env.PATH = [...have, ...extra.filter((x) => !have.includes(x))].filter(Boolean).join(path.delimiter);
+  }
+  return env;
+}
+
 // ───────────────────────────── transports ─────────────────────────────
 class StdioClient {
   constructor(cfg, onLog) {
@@ -26,8 +59,9 @@ class StdioClient {
   }
   start() {
     const win = process.platform === 'win32';
-    const env = { ...process.env, ...(this.cfg.env || {}) };
+    const env = launchEnv(this.cfg);
     this.p = spawn(this.cfg.command, this.cfg.args || [], { env, cwd: this.cfg.cwd || os.homedir(), shell: win, windowsHide: true });
+    this.p.stdin.on('error', () => {}); // a server that never started must not crash the app
     this.p.stdout.on('data', (d) => {
       this.buf += d;
       let i;
@@ -60,7 +94,7 @@ class HttpClient {
   constructor(cfg, onLog) { this.cfg = cfg; this.onLog = onLog; this.id = 0; this.session = null; }
   start() {}
   async headers() {
-    const h = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': PROTOCOL, ...(this.cfg.headers || {}) };
+    const h = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': PROTOCOL, ...resolvedHeaders(this.cfg) };
     const tok = loadToken(this.cfg.id);
     if (tok && tok.access_token) h.Authorization = `Bearer ${tok.access_token}`;
     if (this.session) h['Mcp-Session-Id'] = this.session;
@@ -180,7 +214,9 @@ async function connect(cfg) {
 function registerTools(cfg, tools, client) {
   const sid = clean(cfg.name || cfg.id).slice(0, 20) || 'srv';
   agent.unregisterWhere((t) => t.category === `mcp:${cfg.id}`);
+  const off = new Set(cfg.disabledTools || []);
   for (const t of tools) {
+    if (off.has(t.name)) continue;
     const ann = t.annotations || {};
     agent.register({
       name: `mcp__${sid}__${clean(t.name)}`.slice(0, 64), category: `mcp:${cfg.id}`, untrusted: true,
@@ -206,27 +242,77 @@ function disconnect(id) {
   agent.unregisterWhere((t) => t.category === `mcp:${id}`);
 }
 function view() {
-  return cfgs().map((c) => { const s = servers.get(c.id) || {}; return { ...c, env: c.env ? Object.keys(c.env) : [], status: c.enabled === false ? 'off' : s.status || 'idle', error: s.error || null, tools: (s.tools || []).map((t) => ({ name: t.name, description: (t.description || '').slice(0, 160) })), log: (s.log || []).slice(-20) }; });
+  return cfgs().map((c) => {
+    const s = servers.get(c.id) || {};
+    const off = new Set(c.disabledTools || []);
+    const { headers, secretEnv, secretHeaders, ...rest } = c;
+    return { ...rest, env: c.env ? Object.keys(c.env) : [], secretEnv: secretEnv || [], headers: [...Object.keys(headers || {}), ...(secretHeaders || [])], secretHeaders: secretHeaders || [],
+      status: c.enabled === false ? 'off' : s.status || 'idle', error: s.error || null,
+      tools: (s.tools || []).map((t) => ({ name: t.name, description: (t.description || '').slice(0, 160), enabled: !off.has(t.name), readOnly: !!(t.annotations && t.annotations.readOnlyHint) })),
+      disabledTools: c.disabledTools || [], log: (s.log || []).slice(-20) };
+  });
 }
 async function startAll() { for (const c of cfgs()) if (c.enabled !== false) connect(c).catch(() => {}); }
 
 async function save(list) { await store.setSettings({ mcp: { servers: list } }); }
+// cfg: { name, command, args, env, url, headers, secretEnv?: {NAME: value}, secretHeaders?: {NAME: value}, enabled?: false, disabledTools? }
+// Values in secretEnv / secretHeaders go to the encrypted secret store; settings only keep their names.
 async function add(cfg) {
   const id = clean(cfg.name || 'server').toLowerCase().slice(0, 24) + '-' + Date.now().toString(36).slice(-4);
-  const entry = { id, name: cfg.name || id, type: cfg.url ? 'http' : 'stdio', command: cfg.command, args: cfg.args || [], env: cfg.env || {}, url: cfg.url, headers: cfg.headers, enabled: true };
+  const sEnv = cfg.secretEnv || {}; const sHdr = cfg.secretHeaders || {};
+  const entry = { id, name: cfg.name || id, type: cfg.url ? 'http' : 'stdio', command: cfg.command, args: cfg.args || [], env: cfg.env || {}, url: cfg.url, headers: cfg.headers, enabled: cfg.enabled !== false };
+  if (Object.keys(sEnv).length) entry.secretEnv = Object.keys(sEnv);
+  if (Object.keys(sHdr).length) entry.secretHeaders = Object.keys(sHdr);
+  if (cfg.cwd) entry.cwd = cfg.cwd;
+  if (cfg.disabledTools && cfg.disabledTools.length) entry.disabledTools = cfg.disabledTools;
+  if (cfg.note) entry.note = String(cfg.note).slice(0, 200);
+  saveSecrets(id, sEnv, sHdr);
   await save([...cfgs(), entry]);
-  await connect(entry);
+  if (entry.enabled) await connect(entry);
+  publish();
   return view();
 }
-async function remove(id) { disconnect(id); saveToken(id, null); await save(cfgs().filter((c) => c.id !== id)); publish(); return view(); }
+async function remove(id) { const c = cfgs().find((x) => x.id === id); disconnect(id); saveToken(id, null); if (c) dropSecrets(c); await save(cfgs().filter((x) => x.id !== id)); publish(); return view(); }
 async function toggle(id, on) {
   await save(cfgs().map((c) => (c.id === id ? { ...c, enabled: on } : c)));
   if (on) await connect(cfgs().find((c) => c.id === id)); else { disconnect(id); publish(); }
   return view();
 }
+// Per-tool switch: no reconnect, the server keeps running and only the agent's tool list changes.
+async function setToolEnabled(id, tool, on) {
+  const list = cfgs().map((c) => {
+    if (c.id !== id) return c;
+    const off = new Set(c.disabledTools || []); if (on) off.delete(tool); else off.add(tool);
+    return { ...c, disabledTools: [...off] };
+  });
+  await save(list);
+  const c = list.find((x) => x.id === id); const s = servers.get(id);
+  if (c && s && s.status === 'ready' && s.client) registerTools(c, s.tools, s.client);
+  publish();
+  return view();
+}
 async function signIn(id) { const c = cfgs().find((x) => x.id === id); const s = servers.get(id); await authorize(c, s && s.www); return connect(c); }
 
-// Import from Claude Desktop's config file.
+// Start a server that is NOT saved, list its tools, stop it. For the "test before adding" step.
+// cfg carries real values (env, headers). Returns { ok, auth?, tools, serverInfo, error, stderr, ms }.
+async function probe(cfg, timeoutMs = 60000) {
+  const t0 = Date.now(); const logs = [];
+  const log = (l) => { logs.push(...String(l).split('\n').filter(Boolean)); };
+  const c = { ...cfg, id: 'probe', type: cfg.url ? 'http' : 'stdio' };
+  const client = c.type === 'http' ? new HttpClient(c, log) : new StdioClient(c, log);
+  try {
+    client.start();
+    const init = await client.request('initialize', { protocolVersion: PROTOCOL, capabilities: { roots: { listChanged: false } }, clientInfo: { name: 'Fabro', version: app.getVersion() } }, timeoutMs);
+    client.notify('notifications/initialized', {});
+    let tools = [], cursor;
+    do { const r = await client.request('tools/list', cursor ? { cursor } : {}, timeoutMs); tools = tools.concat((r && r.tools) || []); cursor = r && r.nextCursor; } while (cursor && tools.length < 500);
+    return { ok: true, tools: tools.map((t) => ({ name: t.name, description: (t.description || t.title || '').slice(0, 240), readOnly: !!(t.annotations && t.annotations.readOnlyHint) })), serverInfo: (init && init.serverInfo) || null, stderr: logs.slice(-30).join('\n'), ms: Date.now() - t0 };
+  } catch (e) {
+    return { ok: false, auth: e.code === 'MCP_AUTH', error: e.message, stderr: logs.slice(-40).join('\n'), ms: Date.now() - t0 };
+  } finally { try { client.close(); } catch {} }
+}
+
+// Import from Claude Desktop's config file (kept for the old settings UI). Imported servers start OFF.
 function claudeConfigPath() {
   if (process.platform === 'win32') return path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json');
   if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
@@ -241,11 +327,11 @@ function readClaudeConfig() {
 }
 async function importClaude(names) {
   const { servers: list } = readClaudeConfig();
-  for (const s of list.filter((x) => names.includes(x.name) && !x.already)) await add(s);
+  for (const s of list.filter((x) => names.includes(x.name) && !x.already)) await add({ ...s, enabled: false });
   return view();
 }
 
 function init(emitter) { emit = emitter; startAll(); }
 function stopAll() { for (const id of servers.keys()) disconnect(id); }
 
-module.exports = { init, view, add, remove, toggle, signIn, connect, readClaudeConfig, importClaude, stopAll };
+module.exports = { init, view, add, remove, toggle, setToolEnabled, signIn, connect, probe, launchEnv, readClaudeConfig, importClaude, stopAll };
