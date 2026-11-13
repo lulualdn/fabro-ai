@@ -10,7 +10,7 @@ const tools = require('./tools');
 const agent = require('./agent');
 const skills = require('./agent/skills');
 const code = require('./code');
-const prompts = require('./prompts');
+const sysprompt = require('./sysprompt'); // the adaptive system prompt (built and patched there)
 
 // ───────────────────────────── permissions & dependencies (asked in the UI) ─────────────────────────────
 const waiting = new Map(); // `${reqId}:${callId}` → resolve
@@ -37,7 +37,6 @@ function needDeps(reqId, callId, dep, out, signal) {
 }
 function answer(reqId, callId, value) { const k = `${reqId}:${callId}`; const r = waiting.get(k); if (r) { waiting.delete(k); r(value); } return !!r; }
 
-const SUB_NOTE = `\n\nYou are a sub-agent working for the main Fabro agent, not talking to the user. Do the task you were given with your tools, without asking questions (decide reasonably and note assumptions). Finish with a concise, complete report of what you found or did — files you created (full paths), key facts with sources, anything left undone. That report is all the main agent will see.`;
 // Code mode: permissions per project — "ask before acting", "accept edits" (default) or "auto".
 function codePolicy(tool, base, c) {
   const ps = code.projectSettings(c.root);
@@ -51,17 +50,6 @@ function codePolicy(tool, base, c) {
   if (tool.category === 'plan') return 'always';
   return tool.risk === 'net' ? base : 'ask';
 }
-function codeSection(c) {
-  const ins = code.instructions(c.root);
-  const cmd = code.detect(c.root);
-  return [
-    `# Code session\nProject folder: ${c.root}\nRelative paths are inside it and commands run there by default. Work like a careful senior engineer: read the relevant files before changing them, prefer edit_file for small changes, keep the existing style, then run the tests/linter and fix what you broke. Summarize what changed at the end (files and why).`,
-    Object.values(cmd).some((v) => v && v !== 'unknown') ? `Project commands (${cmd.kind}): ${['test', 'lint', 'build', 'run'].filter((k) => cmd[k]).map((k) => `${k}: \`${cmd[k]}\``).join(' · ')}` : '',
-    c.branch ? `Git branch: ${c.branch}. Commit only when the user asks (git_commit).` : 'Not a git repository.',
-    ins ? `# Project instructions (${ins.file}) — follow them\n${ins.text}` : '',
-  ].filter(Boolean).join('\n\n');
-}
-
 const active = new Map();
 const injected = new Map(); // reqId → precisions typed by the user while the answer is being generated
 function inject(reqId, text) { if (!active.has(reqId) || !text) return false; const q = injected.get(reqId) || []; q.push(String(text)); injected.set(reqId, q); return true; }
@@ -396,40 +384,14 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     let toolSchemas = buildTools();
     out({ type: 'tools_info', count: toolSchemas.length, tokens: agent.estTokens(toolSchemas) });
     const msgs = messages.slice();
-    // Projects: instructions + files (whole when small, else the best passages for this question).
-    if (meta.project && !parent) {
-      try {
-        const ctx = await require('./rag').context(meta.project, userText);
-        if (ctx) {
-          const p = ctx.project;
-          const sec = [`# Project: ${p.name}`, p.description ? p.description : '', p.instructions ? `## Project instructions (follow them)\n${p.instructions}` : '',
-            p.files.length ? `## Project files (${p.files.length}): ${p.files.map((f) => f.name).join(', ')}\n${ctx.full ? 'Full content below.' : 'Most relevant excerpts for this message below; use project_search to look for anything else in these files.'}\n${ctx.files}\nCite file names when you use them.` : ''].filter(Boolean).join('\n\n');
-          const sys = msgs.find((m) => m.role === 'system');
-          if (sys) sys.content = `${sys.content}\n\n${sec}`; else msgs.unshift({ role: 'system', content: sec });
-          if (!ctx.full && p.files.length) { params = { ...params, tools: [...new Set([...(params.tools || []), 'project_search'])] }; toolSchemas = buildTools(); }
-          out({ type: 'project_ctx', files: p.files.length, full: ctx.full });
-        }
-      } catch {}
-    }
-    const setSystem = (text) => { const sys = msgs.find((m) => m.role === 'system'); const keep = sys && (sys.content.match(/\n\n# Project: [\s\S]*$/) || [''])[0]; if (sys) sys.content = text + keep; else msgs.unshift({ role: 'system', content: text }); };
-    // Dynamic agent prompt: the exact tools sent this turn, a strict work loop, honesty + recovery rules.
-    const folders = ((store.getSettings().agent || {}).folders || []);
-    const sysAgent = () => prompts.agentPrompt({ base: params.agentPrompt || '', schemas: toolSchemas, codeSection: codeCtx ? codeSection(codeCtx) : '', folders, skillsSection: skills.promptSection(), sub: !!parent, fallback: !!acc.fallback, defaultOut: require('./agent/files').defaultOut() }) + (params.voiceMode && !parent ? '\n\n' + prompts.VOICE : '') + (parent ? SUB_NOTE : '');
-    const toolSig = () => toolSchemas.map((x) => x.function.name).join(',');
-    let promptSig = '';
-    const applyAgentPrompt = () => { setSystem(sysAgent()); promptSig = toolSig(); };
-    if (parent || agentMode) applyAgentPrompt();
-    // Something visual asked in chat (site, document, slides, drawing): the Fabro Kit + an example of the same kind.
-    if (!parent && !agentMode && params.artifactGuide !== false) {
-      let ds = '';
-      try {
-        const g = require('./kit/guide');
-        ds = g.chatSection(userText);
-        if (!ds) { const last = messages.filter((m) => m.role === 'assistant').map(txt).reverse().find((t) => /<artifact\b/i.test(t)); const m = last && last.match(/<artifact\b[^>]*type\s*=\s*"([^"]*)"[^>]*?(?:title\s*=\s*"([^"]*)")?/i); if (m) ds = g.chatSection(`${m[2] || ''} ${({ html: 'site', document: 'pdf', slides: 'slides', svg: 'svg' })[String(m[1]).toLowerCase()] || ''}`); }
-      } catch {}
-      if (ds) { const sys = msgs.find((m) => m.role === 'system'); if (sys) sys.content = sys.content.replace(/(\n\n# Project: [\s\S]*)?$/, (tail) => `\n\n${ds}${tail || ''}`); else msgs.unshift({ role: 'system', content: ds }); }
-    }
-    if (!parent && !agentMode && toolSchemas.length) { const sys = msgs.find((m) => m.role === 'system'); const sec = prompts.chatToolsSection(toolSchemas) + (params.voiceMode ? '\n\n' + prompts.VOICE : ''); if (sys) sys.content = sys.content.replace(/(\n\n# Project: [\s\S]*)?$/, (tail) => `\n\n${sec}${tail || ''}`); else msgs.unshift({ role: 'system', content: sec }); }
+    // System prompt: built by ./sysprompt from the situation (mode, model, request, tools, signals…) and
+    // rebuilt there when the situation changes. Projects add their instructions + files (and project_search).
+    const sp = sysprompt.session({ msgs, messages, params, meta, parent: !!parent, be, acc, codeCtx, getTools: () => toolSchemas, isAgent: () => agentMode });
+    const prep = await sp.prepare(userText);
+    if (prep.extraTools) { params = { ...params, tools: [...new Set([...(params.tools || []), ...prep.extraTools])] }; toolSchemas = buildTools(); }
+    if (sp.projectInfo) out({ type: 'project_ctx', files: sp.projectInfo.files, full: sp.projectInfo.full });
+    sp.apply('start');
+    const applyAgentPrompt = () => sp.apply('agent_switch');
     // governor: one heavy local generation at a time, fair queue (user > sub-agents > background jobs)
     const complete = require('./governor').gated(be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI, { local: be.kind === 'local' || ['ollama', 'lmstudio'].includes(be.provider && be.provider.kind), priority: parent ? 'sub' : (meta.unattended || /^bg-/.test(reqId)) ? 'bg' : 'user', label: meta.modelLabel || '', signal: ctrl.signal, onWait: (w) => out({ type: 'status', status: w ? 'queued' : 'generating' }) });
     const gkey = meta.convId || reqId;
@@ -504,7 +466,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         // Fabro looks at the artifacts written in the answer: visibly broken → back to the model with the problems.
         // a fix round that came back without the artifact: keep the previous answer rather than lose the work
         if (acc.artPrev && !/<artifact\b/i.test(r.content || '')) { if (r.content) out({ type: 'retract', text: r.content }); out({ type: 'token', text: acc.artPrev }); r.content = acc.artPrev; acc.artPrev = null; out({ type: 'artifact_check', status: 'kept' }); break; }
-        if (!parent && !ctrl.signal.aborted && params.artifactCheck !== false && !params.voiceMode && (acc.artRounds || 0) < 2 && /<artifact\b/i.test(r.content || '')) {
+        if (!parent && !ctrl.signal.aborted && params.artifactCheck !== false && !params.voiceMode && (acc.artRounds || 0) < 2 && require('./kit/artparse').has(r.content || '')) {
           const cc = require('./kit/chatcheck');
           const res = await cc.review(r.content, { onStatus: (st) => out({ type: 'artifact_check', status: st }) }).catch(() => null);
           if (res && !res.ok && !ctrl.signal.aborted) {
@@ -519,7 +481,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           if (res) out({ type: 'artifact_check', status: 'ok', rounds: acc.artRounds || 0 });
         }
         const nudge = nudges < 3 && !ctrl.signal.aborted && !(acc.noTools && !acc.fallback) && steps < maxSteps()
-          ? prompts.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText, qaBad }) : null;
+          ? sp.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText, qaBad }) : null;
         if (!nudge) break;
         nudges++;
         if (r.content) { msgs.push({ role: 'assistant', content: r.content }); out({ type: 'retract', text: r.content }); }
@@ -578,13 +540,14 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           out({ type: 'tool_end', id: c.id, name: c.name, error: e.message, code: e.code });
           turnTools.push({ name: c.name, ok: false }); lastError = { name: c.name, error: e.message };
         }
-        msgs.push({ role: 'tool', tool_call_id: c.id, content: result.content });
+        msgs.push({ role: 'tool', tool_call_id: c.id, content: sp.toolResult(c.name, result.content, !turnTools.length || turnTools[turnTools.length - 1].ok) });
         if (result.image) {
           if (params.vision) msgs.push({ role: 'user', content: [{ type: 'text', text: `(Image returned by ${c.name})` }, { type: 'image_url', image_url: { url: result.image } }] });
           else msgs[msgs.length - 1].content += '\n(An image was produced but this model cannot see images.)';
         }
       }
-      if (agentMode) { toolSchemas = buildTools(); if (toolSig() !== promptSig) applyAgentPrompt(); }
+      if (agentMode) toolSchemas = buildTools();
+      sp.refresh({ turnTools, nudges, steps });
       out({ type: 'tool_round' });
     }
     const elapsed = (Date.now() - (tFirst || t0)) / 1000;
@@ -599,7 +562,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       tools: steps || undefined, noTools: acc.noTools || undefined,
     };
     flushCp();
-    out({ type: 'done', stats });
+    out({ type: 'done', stats, sysprompt: sp.explain() });
     usage.record({ model: meta.modelLabel || (be.kind === 'local' ? be.model : `${be.provider.name} · ${be.model}`), backend: stats.backend, convId: meta.convId, prompt: stats.promptTokens || 0, completion: stats.completionTokens || 0 });
   } catch (e) {
     flushCp();

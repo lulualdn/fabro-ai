@@ -39,6 +39,7 @@ const DEFAULTS = {
   mods: { enabled: { agents: true } },
   mcp: { servers: [] },
   skills: { disabled: [], extraDirs: [] },
+  advanced: { personalPrompts: false, location: '' }, // personal system prompts replace the smart prompt; city for {{location}}
 };
 
 const paths = require('./paths');

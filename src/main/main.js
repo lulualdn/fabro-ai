@@ -410,6 +410,7 @@ app.whenReady().then(async () => {
   accounts.setEmitter((ch, d) => send(ch, d));
   store.init();
   tasks.init(send);
+  require('./notebook').init(ipcMain); require('./guides').init(ipcMain); require('./sysprompts').init(ipcMain, send, { dialog, getWindow: () => win }); // smart prompt: AI notebook, guides, personal prompts
   crash.init(() => win);
   searxng.configure({ deps: process.env.FABRO_DEPS || path.join(app.getPath('userData'), 'deps'), python: async (prog) => { await python.install((p) => prog(p * 0.3)); return python.pyPath(); } });
   // 0.1.9: SearXNG becomes the default search engine (DuckDuckGo stays the fallback).
