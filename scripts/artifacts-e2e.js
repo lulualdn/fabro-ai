@@ -13,15 +13,17 @@ fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpda
 const step = (s) => console.log('✓', s);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const BAD = `<!doctype html><html lang="fr"><head><title>Boulangerie Dupain</title></head><body data-theme="forest">
-<nav class="nav"><div class="container"><a class="logo"><i data-icon="coffee"></i> Dupain</a><div class="links"><a href="#pains">Pains</a><a href="#infos">Infos</a></div></div></nav>
-<header class="hero center"><div class="container"><span class="eyebrow">Depuis 1972</span><h1>Le pain du quartier, cuit au feu de bois</h1><p class="lead">Levain naturel, farines locales, et des croissants qui partent avant 9 h.</p>
-<div class="actions"><a class="btn" href="#infos">Nous trouver</a></div></div></header>
-<section class="section" id="pains"><div class="container"><div style="width:1400px" class="grid-3"><div class="card"><h3>Tradition</h3><p>1,30 €</p></div><div class="card"><h3>Campagne</h3><p>3,90 €</p></div><div class="card"><h3>Croissant</h3><p>1,20 €</p></div></div></div></section>
-<footer class="footer" id="infos"><div class="container"><p>12 rue Haute, Nantes · 7 h – 19 h30</p></div></footer></body></html>`;
-const FLYER = `<!doctype html><html lang="fr"><head><title>Fête de l’école</title></head><body class="doc" data-theme="sunset">
-<section class="page fixed poster"><div class="poster-body"><span class="eyebrow">Samedi 20 juin</span><h1>Fête de l’école Jules-Verne</h1><p class="lead">Jeux, kermesse, spectacle des CM2 et barbecue des parents.</p>
-<div class="info"><div><b>Quand</b><br>Samedi 20 juin<br>de 10 h à 17 h</div><div><b>Où</b><br>Cour de l’école<br>3 rue des Écoles</div><div><b>Entrée</b><br>Libre<br>Tickets jeux 1 €</div></div></div></section></body></html>`;
+const BAD = `<!doctype html><html lang="fr"><head><title>Boulangerie Dupain</title><style>
+body{margin:0;font:17px/1.6 Charter,Georgia,serif;background:#f6f1e7;color:#2b1d14}header{padding:64px 24px;max-width:1000px;margin:auto}
+h1{font:800 clamp(2.4rem,7vw,4.6rem)/1 "Avenir Next",Avenir,sans-serif;margin:0 0 16px}.prices{display:flex;gap:16px;padding:24px}.prices div{flex:1;background:#fff;border-radius:12px;padding:16px}
+</style></head><body><header><p>Depuis 1972 · Nantes</p><h1>Le pain du quartier, cuit au feu de bois</h1><p>Levain naturel, farines locales, et des croissants qui partent avant 9 h.</p><a href="#infos">Nous trouver</a></header>
+<section id="pains"><div style="width:1400px" class="prices"><div><h3>Tradition</h3><p>1,30 €</p></div><div><h3>Campagne</h3><p>3,90 €</p></div><div><h3>Croissant</h3><p>1,20 €</p></div></div></section>
+<footer id="infos"><p>12 rue Haute, Nantes · 7 h – 19 h 30</p></footer></body></html>`;
+const FLYER = `<!doctype html><html lang="fr"><head><title>Fête de l’école</title><style>
+@page{size:A4;margin:0}body{margin:0;font:12pt/1.4 system-ui,sans-serif}.sheet{width:210mm;height:297mm;overflow:hidden;padding:18mm;background:#ffd23f;color:#1d1a16;display:flex;flex-direction:column;justify-content:space-between}
+h1{font:900 64pt/.9 "Avenir Next",Avenir,sans-serif;text-transform:uppercase;margin:0}.info{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm;font-weight:600}
+</style></head><body><div class="sheet"><p>Samedi 20 juin 2026</p><h1>Fête de l’école Jules-Verne</h1><p>Jeux, kermesse, spectacle des CM2 et barbecue des parents.</p>
+<div class="info"><div>Quand<br>Samedi 20 juin<br>10 h – 17 h</div><div>Où<br>Cour de l’école<br>3 rue des Écoles</div><div>Entrée<br>Libre<br>Tickets jeux 1 €</div></div></div></body></html>`;
 
 const sse = (res, text) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); for (const part of text.match(/[\s\S]{1,200}/g) || ['']) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: part } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
 const call = (res, name, args) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c' + Math.random().toString(36).slice(2, 7), function: { name, arguments: JSON.stringify(args) } }] } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
@@ -37,12 +39,12 @@ const srv = http.createServer((req, res) => {
     if (/You name conversations|maintain a short memory/.test(sys)) return sse(res, /memory/.test(sys) ? '[]' : 'Test');
     if (/boulangerie/i.test(first) && /site/i.test(first)) {
       seen.tools = tools;
-      if (tools.length === 0) return call(res, 'design_guide', { kind: 'business' });
+      if (tools.length === 0) return call(res, 'design_guide', { kind: 'bakery website' });
       if (tools.length === 1) return call(res, 'create_artifact', { type: 'html', title: 'Boulangerie Dupain', content: BAD });
-      if (tools.length === 2) return /✗/.test(tools[1]) ? call(res, 'edit_artifact', { artifact: 'Boulangerie Dupain', edits: [{ old_text: '<div style="width:1400px" class="grid-3">', new_text: '<div class="grid-3">' }] }) : sse(res, 'Pas de problème vu.');
+      if (tools.length === 2) return /✗/.test(tools[1]) ? call(res, 'edit_artifact', { artifact: 'Boulangerie Dupain', edits: [{ old_text: '<div style="width:1400px" class="prices">', new_text: '<div class="prices" style="flex-wrap:wrap">' }] }) : sse(res, 'Pas de problème vu.');
       return sse(res, 'Le site est prêt : tout passe sur téléphone et ordinateur.');
     }
-    if (/affiche/i.test(first)) { seen.sys.push(sys); return sse(res, /Fabro Kit for documents/.test(sys) ? `Voici l’affiche.\n<artifact type="document" title="Fête de l’école">\n${FLYER}\n</artifact>` : 'NO GUIDE'); }
+    if (/affiche/i.test(first)) { seen.sys.push(sys); return sse(res, /Guide for this request: Flyer/.test(sys) ? `Voici l’affiche.\n<artifact type="document" title="Fête de l’école">\n${FLYER}\n</artifact>` : 'NO GUIDE'); }
     if (/carte interactive/i.test(first)) {
       if (!tools.length) return call(res, 'find_library', { need: 'carte interactive' });
       return sse(res, 'Bibliothèque : ' + (tools[0].match(/## ([^\n]+)/) || [])[1]);
@@ -59,14 +61,15 @@ async function until(fn, ms = 20000, what = '') { const t0 = Date.now(); while (
   const win = await app.firstWindow();
   const errs = []; win.on('pageerror', (e) => errs.push(e.message));
   await win.waitForSelector('#sb-lists', { timeout: 30000 });
-  await win.evaluate(async (u) => { await api.providers.enable(true); await api.providers.add({ kind: 'custom', name: 'Fake', baseUrl: u }); await refreshModels(); const m = allModels()[0]; if (m) await saveSettings({ selectedModel: m.ref }); }, base);
+  await win.evaluate(async (u) => { await api.providers.enable(true); await api.providers.add({ kind: 'custom', name: 'Fake', baseUrl: u }); await refreshModels(); const m = allModels().find((x) => /fake-large/.test(JSON.stringify(x))) || allModels()[0]; if (m) await saveSettings({ selectedModel: m.ref }); }, base);
   const lastMsg = () => win.evaluate(() => { const m = S.conv && S.conv.messages.at(-1); return m && { pending: !!m.pending, content: m.content, steps: (m.steps || []).map((s) => ({ name: s.name, status: s.status, view: s.view && { kind: s.view.kind, qa: s.view.qa, id: s.view.artifactId } })), artCheck: m.artCheck }; });
 
   // 1. agent: guide → page with a problem → check catches it → fix → clean
   await win.fill('#prompt', 'Crée un site pour ma boulangerie'); await win.keyboard.press('Enter');
-  const m1 = await until(async () => { const m = await lastMsg(); return m && !m.pending && m.steps.length >= 3 && m; }, 60000, 'agent finished');
+  const m1 = await until(async () => { const m = await lastMsg(); return m && !m.pending && m.steps.length >= 3 && m; }, 60000, 'agent finished').catch(async (e) => { console.log(JSON.stringify(await lastMsg()).slice(0, 1500), JSON.stringify(seen.tools).slice(0, 1500)); throw e; });
   assert.deepStrictEqual(m1.steps.map((s) => s.name), ['design_guide', 'create_artifact', 'edit_artifact'], 'tools: ' + JSON.stringify(m1.steps.map((s) => s.name)));
-  assert.match(seen.tools[0], /Complete example to follow[\s\S]*class="hero image"/, 'the guide gives a complete example of the same kind');
+  assert.match(seen.tools[0], /# Guide: Restaurant \/ local business website[\s\S]*Self-check/, 'the guide teaches a method for this kind of piece');
+  assert.ok(!/data-theme|Fabro Kit|<!doctype/i.test(seen.tools[0]), 'no kit, no page to copy');
   assert.match(seen.tools[1], /✗ At 390px wide the page is \d+px: it scrolls sideways on phones/, 'the check finds the page too wide on phones');
   assert.strictEqual(m1.steps[1].view.qa.ok, false); assert.strictEqual(m1.steps[2].view.qa.ok, true, 'clean after the fix');
   assert.match(seen.tools[2] || '', /no visible problem/);
@@ -78,7 +81,8 @@ async function until(fn, ms = 20000, what = '') { const t0 = Date.now(); while (
   await win.click('[data-action=new-chat]');
   await win.fill('#prompt', 'Fais-moi une affiche pour la fête de l’école'); await win.keyboard.press('Enter');
   const m2 = await until(async () => { const m = await lastMsg(); return m && !m.pending && m; }, 40000, 'poster answer');
-  assert.ok(/Fabro Kit for documents/.test(seen.sys.at(-1)) && /Making a flyer/.test(seen.sys.at(-1)), 'documents guide in the chat system prompt');
+  if (!/Guide for this request: Flyer/.test(seen.sys.at(-1))) console.log('SYS:', String(seen.sys.at(-1)).slice(-2500));
+  assert.ok(/Guide for this request: Flyer \/ poster/.test(seen.sys.at(-1)) && /type="document"/.test(seen.sys.at(-1)) && !/Fabro Kit/.test(seen.sys.at(-1)), 'flyer guide in the chat system prompt');
   assert.ok(m2.artCheck && m2.artCheck.status === 'ok', 'the poster was checked: ' + JSON.stringify(m2.artCheck));
   const doc = await win.evaluate(async () => (await api.artifacts.list()).find((a) => a.type === 'document'));
   assert.ok(doc, 'saved as a document artifact');
@@ -107,9 +111,20 @@ async function until(fn, ms = 20000, what = '') { const t0 = Date.now(); while (
   await win.click(`.art-tile[data-id="${doc.id}"]`);
   await win.waitForSelector('.viewer iframe.art-frame');
   const f = await (await win.$('.viewer iframe.art-frame')).contentFrame();
-  await f.waitForSelector('.page.poster', { timeout: 10000 });
+  await f.waitForSelector('.sheet', { timeout: 10000 });
+  assert.ok(!(await f.$('#fabro-kit')), 'no kit in a new document');
+  assert.ok(await f.$('#fabro-base'), 'print plumbing only');
   await wait(600); await win.screenshot({ path: path.join(shots, '04-document-viewer.png') });
-  step('document artifact opens as an A4 sheet');
+  step('document artifact opens as an A4 sheet, plain (no kit)');
+
+  // 6. an artifact saved before v0.2 (Fabro Kit classes, no "plain" flag) still renders with the kit
+  await win.evaluate(() => api.artifacts.save({ id: 'art-old1', type: 'html', title: 'Ancienne page', versions: [{ content: '<!doctype html><html><body data-theme="forest"><header class="hero center"><div class="container"><h1>Ancienne page</h1><a class="btn">Bouton</a></div></header></body></html>', at: Date.now() - 30 * 86400000, by: 'ai', baked: true }] }));
+  await win.evaluate(() => openArtifact('art-old1'));
+  await until(async () => { const fr = await (await win.$('.viewer iframe.art-frame')).contentFrame(); return fr && (await fr.$('#fabro-kit')) && (await fr.$('.btn')); }, 15000, 'old kit page');
+  const oldBtn = await (await (await win.$('.viewer iframe.art-frame')).contentFrame()).$eval('.btn', (b) => getComputedStyle(b).backgroundColor);
+  assert.notStrictEqual(oldBtn, 'rgba(0, 0, 0, 0)', 'old kit button still styled');
+  await wait(500); await win.screenshot({ path: path.join(shots, '05-old-kit-artifact.png') });
+  step('old kit artifact still renders with the kit');
 
   assert.deepStrictEqual(errs, [], 'no page errors');
   await app.close(); srv.close();
