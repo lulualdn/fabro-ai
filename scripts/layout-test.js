@@ -21,7 +21,7 @@ fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ autoUpda
   const html = `<header class="cover"><h1>Rapport annuel</h1><p>UFStudios · 2026</p></header><div class="page-break"></div>
     <h2>Chiffres</h2><table><tr><th>Mois</th><th>Ventes</th></tr>${Array.from({ length: 12 }, (_, i) => `<tr><td>${i + 1}</td><td>${(i + 3) * 1000} €</td></tr>`).join('')}</table>
     <div class="wide">${'X'.repeat(400)}</div>`;
-  const r1 = await run('create_pdf', { title: 'Rapport annuel', html, css: '.cover{height:250mm;background:#12161d;color:#fff;padding:30mm}.wide{width:400mm;overflow:hidden;white-space:nowrap}', folder: docs });
+  const r1 = await run('create_pdf', { title: 'Rapport annuel', html, css: '.page-break{break-after:page}.cover{height:250mm;background:#12161d;color:#fff;padding:30mm}.wide{width:400mm;overflow:hidden;white-space:nowrap}', folder: docs });
   console.log(r1.content);
   assert.ok(r1._img && r1._img.startsWith('data:image/jpeg'), 'a picture of the pages');
   assert.match(r1.content, /2 page\(s\)/);
