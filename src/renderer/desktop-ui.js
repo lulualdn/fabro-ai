@@ -30,7 +30,7 @@ function shortcutTab() {
     ${hk.enabled && S.info.platform === 'win32' ? row(t('hotkeyCopilot'), toggle('hotkey.copilotKey', hk.copilotKey), t('hotkeyCopilotHint')) : ''}
     <div class="st-sec">${esc(t('background'))}</div>
     ${row(t('closeToTray'), toggle('closeToTray', S.settings.closeToTray), t('closeToTrayHint'))}
-    ${row(t('openAtLogin'), toggleBtn('login-toggle', !!S.loginItem), t('openAtLoginHint'))}
+    ${row(t('openAtLogin'), toggleBtn('login-toggle', !!S.loginItem, `aria-label="${esc(t('openAtLogin'))}"`), t('openAtLoginHint'))}
     ${row(t('quitApp'), `<button class="btn sm" data-action="quit-app">${icon('power', 14)} ${esc(t('quitApp'))}</button>`, t('quitAppHint'))}`;
 }
 

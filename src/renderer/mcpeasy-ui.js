@@ -38,7 +38,7 @@
         ${m.status === 'error' ? `<button class="icon-btn sm" data-action="mcp-retry" data-id="${E(m.id)}" title="${E(t('errRetry'))}">${ic('refresh', 16)}</button>` : ''}
         ${m.tools.length ? `<button class="icon-btn sm ${open ? 'on' : ''}" data-action="mc-expand" data-id="${E(m.id)}" aria-expanded="${open}" title="${E(t('mc_tools'))}">${ic('sliders', 16)}</button>` : ''}
         <button class="icon-btn sm" data-action="mcp-remove" data-id="${E(m.id)}" title="${E(t('delete'))}">${ic('trash', 16)}</button>
-        ${toggleBtn('mcp-toggle', m.status !== 'off', `data-id="${E(m.id)}"`)}
+        ${toggleBtn('mcp-toggle', m.status !== 'off', `data-id="${E(m.id)}" aria-label="${E(m.name || m.id)}"`)}
       </div>
       ${m.status === 'error' && (m.log || []).length ? `<details class="mc-log"><summary>${E(t('mc_details'))}</summary><pre>${E(m.log.join('\n'))}</pre></details>` : ''}
       ${open ? `<ul class="mc-tools">${m.tools.map((x) => plainTool(x).replace('__ID__', E(m.id))).join('')}</ul>` : ''}

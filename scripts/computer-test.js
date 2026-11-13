@@ -233,8 +233,8 @@ const srv = http.createServer((req, res) => {
   await win.screenshot({ path: path.join(out, '6-chat.png') });
 
   // 15. Settings › Agent › Computer Use, with its test
-  await win.keyboard.press('Control+,');
-  await win.click('.st-tab[data-tab=agent]');
+  await win.evaluate(() => openSettings('agent'));
+  await win.waitForSelector('[data-action=cu-test]');
   await win.click('[data-action=cu-test]');
   await win.waitForFunction(() => /Écran \d+×\d+/.test(document.body.innerText), null, { timeout: 60000 });
   await win.evaluate(() => [...document.querySelectorAll('.st-sec')].find((x) => /Computer Use/.test(x.textContent)).scrollIntoView());

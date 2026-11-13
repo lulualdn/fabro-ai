@@ -34,7 +34,7 @@ async function afterProviderChange(view) {
 function providersTab() {
   const P = S.prov;
   if (!P) return `<div class="muted">${esc(t('loading'))}</div>`;
-  const master = freeCard(P) + row(t('provEnable'), toggleBtn('prov-enable', P.enabled), t('provEnableHint'));
+  const master = freeCard(P) + row(t('provEnable'), toggleBtn('prov-enable', P.enabled, `aria-label="${esc(t('provEnable'))}"`), t('provEnableHint'));
   if (!P.enabled) {
     return `${master}
       <div class="prov-empty">
@@ -54,7 +54,7 @@ function freeCard(P) {
       <span class="fc-ic">${icon('cloud', 22)}</span>
       <div class="oc-text"><b>${esc(t('free_title'))}</b><small>${esc(t(S.specs && S.specs.lowPower ? 'free_hintLow' : 'free_hint'))}</small>
         ${f.on && f.models.length ? `<small class="muted">${esc(f.models.slice(0, 4).map((m) => m.name).join(' · '))}</small>` : ''}</div>
-      ${toggleBtn('free-toggle', !!f.on)}
+      ${toggleBtn('free-toggle', !!f.on, `aria-label="${esc(t('free_title'))}"`)}
     </div>`;
 }
 function oneClickCards() {
@@ -90,7 +90,7 @@ function providersBody(P, byKind, oneClick, master) {
       <button class="icon-btn sm" data-action="prov-refresh" data-id="${esc(p.id)}" title="${esc(t('provRefresh'))}">${icon('refresh', 16)}</button>
       <button class="icon-btn sm" data-action="prov-edit" data-id="${esc(p.id)}" title="${esc(t('provEdit'))}">${icon('key', 16)}</button>
       <button class="icon-btn sm" data-action="prov-remove" data-id="${esc(p.id)}" title="${esc(t('delete'))}">${icon('trash', 16)}</button>
-      ${toggleBtn('prov-toggle', p.enabled, `data-id="${esc(p.id)}"`)}
+      ${toggleBtn('prov-toggle', p.enabled, `data-id="${esc(p.id)}" aria-label="${esc(p.name || p.id)}"`)}
     </div>${editing ? provForm({ kind: p.kind, id: p.id, baseUrl: p.baseUrl, name: p.name }) : ''}`;
   }).join('');
 

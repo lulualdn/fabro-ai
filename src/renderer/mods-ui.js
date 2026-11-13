@@ -283,7 +283,7 @@ fabro.override('settingsBody', (orig) => function (tab) {
         ${m.error ? `<small class="err">${icon('warning', 12)} ${esc(t('mods_err', { e: m.error }))}</small>` : ''}</div>
       ${m.enabled && m.setup ? `<button class="btn sm" data-action="mod-call" data-id="${esc(m.id)}" data-m="sync" title="${esc(t('mods_sync'))}">${icon('refresh', 14)}</button><button class="btn sm" data-action="mod-relogin" data-id="${esc(m.id)}">${esc(t('mods_reconnect'))}</button>` : ''}
       ${m.enabled ? `<button class="icon-btn sm" data-action="mod-uninstall" data-id="${esc(m.id)}" data-n="${esc(m.name)}" title="${esc(t('mods_uninstall'))}">${icon('trash', 16)}</button>` : ''}
-      ${m.enabled ? toggleBtn('mod-toggle', true, `data-id="${esc(m.id)}"`) : `<button class="btn sm primary" data-action="mod-install" data-id="${esc(m.id)}" data-n="${esc(m.name)}" data-b="${m.builtin ? 1 : 0}" data-setup="${m.setup ? 1 : 0}">${icon('download', 14)} ${esc(t('mods_install'))}</button>`}
+      ${m.enabled ? toggleBtn('mod-toggle', true, `data-id="${esc(m.id)}" aria-label="${esc(m.name || m.id)}"`) : `<button class="btn sm primary" data-action="mod-install" data-id="${esc(m.id)}" data-n="${esc(m.name)}" data-b="${m.builtin ? 1 : 0}" data-setup="${m.setup ? 1 : 0}">${icon('download', 14)} ${esc(t('mods_install'))}</button>`}
     </div>`;
   return `<p class="muted small st-intro">${esc(t('mods_intro'))}</p>
     <div class="st-sec">${esc(t('tab_mods'))}<span class="grow"></span>

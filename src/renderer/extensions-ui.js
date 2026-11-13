@@ -132,7 +132,7 @@ function skillsHtml() {
       <div class="m-text"><b>${esc(x.name)} <span class="src-badge">${esc(t('src_skill_' + x.source))}</span></b><small>${esc(x.description)}</small></div>
       <button class="icon-btn sm" data-action="skill-export" data-name="${esc(x.name)}" title="${esc(t('si_export'))}">${icon('share', 15)}</button>
       ${x.source === 'fabro' ? `<button class="icon-btn sm" data-action="skill-remove" data-name="${esc(x.name)}" title="${esc(t('delete'))}">${icon('trash', 15)}</button>` : ''}
-      ${toggleBtn('skill-toggle', x.enabled, `data-name="${esc(x.name)}"`)}</div>`).join('') : `<div class="empty-note">${esc(t('skillsEmpty'))}</div>`}</div>`;
+      ${toggleBtn('skill-toggle', x.enabled, `data-name="${esc(x.name)}" aria-label="${esc(x.name)}"`)}</div>`).join('') : `<div class="empty-note">${esc(t('skillsEmpty'))}</div>`}</div>`;
 }
 function agentTab() { return agentCoreHtml() + agentToolsHtml() + computerSection() + mcpHtml() + skillsHtml(); }
 

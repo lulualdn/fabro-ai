@@ -129,7 +129,12 @@ function fitPlan(planFn, model, opts, specs, bud, { explicit = {}, lim = limits(
     o = { ...o, ctx }; pl = planFn(model, o, sp); steps.push(`context ${ctx}`);
   }
   const fits = !over(pl);
-  const refused = !fits && !lim.allowSwap;
+  // Refuse only what would really swap. A plan that merely eats into the comfort headroom (a small model on an
+  // 8 GB machine with a browser open) still loads, at the smallest context found above.
+  const slack = Math.max(0, ((bud.headroom && bud.headroom.ramGB) || 0) - 0.5);
+  const swaps = specs.unified ? pl.vramGB > Math.min((specs.ramGB || 8) * 0.72, bud.vramGB + slack) + 0.05
+    : pl.ramGB > bud.ramGB + slack + 0.05 || (pl.vramGB > bud.vramGB + 0.05 && pl.mode !== 'cpu');
+  const refused = !fits && !lim.allowSwap && swaps;
   return { plan: pl, opts: o, steps, fits, refused, budget: bud };
 }
 

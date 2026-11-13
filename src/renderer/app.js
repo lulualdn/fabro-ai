@@ -547,7 +547,7 @@ const ERR_ACTIONS = {
   PROVIDER_AUTH: ['providers'], PROVIDER_RATE: ['retry'], PROVIDER_MODEL: ['models'], PROVIDER_HTTP: ['retry', 'copy'], PROVIDER_DOWN: ['retry', 'providers'], PROVIDER_OFF: ['providers'], GITHUB: ['retry', 'copy'],
   NO_BUILD: ['retry', 'cpu', 'copy'], NO_BINARY: ['retry', 'cpu', 'copy'], BROKEN_BUILD: ['cpu', 'retry', 'copy'], DOWNLOAD: ['retry', 'copy'],
   OUT_OF_MEMORY: ['models', 'cpu'], MODEL_FILE: ['models'], START_FAILED: ['retry', 'cpu', 'copy'], TIMEOUT: ['retry', 'models', 'copy'],
-  ENGINE_DOWN: ['retry', 'copy'], NO_MODEL: ['models'], UNKNOWN: ['retry', 'copy'],
+  ENGINE_DOWN: ['retry', 'copy'], NO_MODEL: ['models'], NO_ROOM: ['models', 'retry'], UNKNOWN: ['retry', 'copy'],
 };
 function errorCard(err, where = 'msg') {
   const code = I18N.en['err_' + err.code + '_t'] ? err.code : 'UNKNOWN';
