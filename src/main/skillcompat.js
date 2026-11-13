@@ -80,7 +80,7 @@ function note(text, allowedTools) {
   const lines = ['---', '[Fabro compatibility note] This skill was written for Claude. In Fabro, use these tools where it names Claude\'s:'];
   for (const m of a.mapped) lines.push(`- ${m.name} → ${m.to}${m.note ? ` (${m.note})` : ''}`);
   for (const u of a.unmapped) lines.push(`- ${u.name} → not available in Fabro (${u.note}); do the closest thing you can or tell the user`);
-  lines.push('Claude's sandbox paths in the text were replaced by the real folders. Do not assume tools or files that are not in your tool list.');
+  lines.push('The Claude sandbox paths (in the text above) were replaced by the real folders. Do not assume tools or files that are not in your tool list.');
   return lines.join('\n');
 }
 
