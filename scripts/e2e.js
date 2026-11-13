@@ -46,6 +46,10 @@ const srv = http.createServer((req, res) => {
         const prec = body.messages.some((m) => m.role === 'user' && /Précision ajoutée/.test(String(m.content)));
         return one(`Les deux moteurs diffèrent [1, ${toolsDone[0].content.match(/\[(\d+)\]/g).length + 1}].${prec ? ' (précision reçue : en français)' : ''}`);
       }
+      if (/trouve-moi un mod[eè]le/i.test(ut)) {
+        if (toolsDone.length === 0) return call1('find_model', { need: 'un modèle pour coder en Python sur mon petit portable' });
+        return one('Je te propose celui du haut : appuie sur Installer sur la carte.');
+      }
       if (/fais un truc cool/i.test(ut)) {
         if (toolsDone.length === 0) return call1('ask_user', { question: 'Tu veux quoi exactement ?', options: ['Un poème', 'Une blague'] });
         return one('OK : ' + toolsDone[0].content);
@@ -282,6 +286,35 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.keyboard.press('Enter');
   await win.waitForFunction(() => /answered: Un haïku 🌸/.test(S.conv.messages.at(-1).content || '') && !S.streaming, null, { timeout: 15000 });
   assert.ok(await win.evaluate(() => window.__noReload === true), 'the app did not reload');
+  // find_model: ask in plain words → the picks come back as a card with one Install button per pick (nothing installs by itself)
+  await win.click('[data-action=new-chat]'); await win.fill('#prompt', 'Trouve-moi un modèle pour coder'); await win.keyboard.press('Enter');
+  await win.waitForSelector('.mf-pick .mf-act [data-action=mf-install]', { timeout: 30000 });
+  await win.waitForFunction(() => !S.streaming, null, { timeout: 15000 });
+  assert.ok((await win.$$('.mf-pick')).length >= 1 && (await win.$$('.mf-pick.rec')).length === 1, 'one recommended pick');
+  assert.ok((await win.$$('.mf-pick [data-action=mf-install]')).length === (await win.$$('.mf-pick')).length, 'an Install button per pick');
+  assert.ok(await win.evaluate(() => !(S.installed.downloads || []).length && !Object.keys(S.downloads).length), 'nothing was downloaded by asking');
+  assert.match(await win.textContent('.mf-result'), /liste intégrée/, 'offline note');
+  step('find_model card'); await win.screenshot({ path: `${shots}/08d-find-model.png` });
+  // the model picker: tier badges + "Aide-moi à choisir…" opens the finder with example chips
+  await win.click('[data-action=model-menu]'); await win.waitForSelector('.models-pop');
+  assert.ok((await win.$$('.models-pop .tier-badge')).length >= 2, 'tier badges in the picker');
+  await win.click('.models-pop [data-action=mf-open]'); await win.waitForSelector('.mf-modal .mf-chip');
+  await win.click('.mf-modal .mf-chip >> nth=3');
+  await win.waitForSelector('.mf-modal .mf-pick', { timeout: 30000 });
+  assert.ok(await win.evaluate(() => [...document.querySelectorAll('.mf-modal .mf-pick')].every((a) => /image|Comprendre/i.test(a.textContent))), 'vision chip → vision picks only');
+  step('finder dialog'); await win.screenshot({ path: `${shots}/08e-finder-dialog.png` });
+  await win.keyboard.press('Escape'); await win.waitForTimeout(150); assert.ok(!(await win.$('.mf-modal')), 'dialog closes with Escape');
+  // settings → models: finder section + tiers (light / intermediate / complex) with a select each
+  await win.evaluate(() => openSettings && openSettings('models')); await win.waitForSelector('[data-mf=tiers] .mf-trow', { timeout: 8000 });
+  assert.equal((await win.$$('[data-mf=tiers] .list > .mf-trow')).length, 3, 'three tier rows');
+  await win.selectOption('[data-mf-pref=complex]', await win.evaluate(() => api.tiers.list().then((d) => d.models.find((m) => /mini/.test(m.label)).key)));
+  await win.waitForFunction(() => api.tiers.list().then((d) => /mini/.test(d.chosen.complex.label)), null, { timeout: 8000 });
+  await win.selectOption('[data-mf-pref=complex]', '');
+  await win.evaluate(() => document.querySelector('[data-mf=tiers]').scrollIntoView({ block: 'start' })); await win.waitForTimeout(250);
+  step('tiers'); await win.screenshot({ path: `${shots}/08f-tiers.png` });
+  await win.evaluate(() => document.querySelector('[data-mf=section]').scrollIntoView({ block: 'start' })); await win.waitForTimeout(250);
+  await win.screenshot({ path: `${shots}/08g-finder-settings.png` });
+  await win.click('[data-action=close-settings]');
   // scheduled task: weekly on Monday and Thursday at 15:00, with a variable
   const tk = await win.evaluate(async () => { const t = await api.tasks.create({ title: 'Test hebdo', prompt: 'Dis bonjour à {{name}}', when: { type: 'weekly', days: ['mon', 'thu'], time: '15:00' }, vars: { name: 'Lulu' } }); return (await api.tasks.list()).find((x) => x.id === t.id); });
   const nd = new Date(tk.next); assert.ok([1, 4].includes(nd.getDay()) && nd.getHours() === 15 && nd.getMinutes() === 0, 'weekly next run: ' + nd);
