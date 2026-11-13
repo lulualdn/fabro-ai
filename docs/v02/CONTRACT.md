@@ -56,3 +56,23 @@ one `<script>`/`<link>` line, one IPC line, one DEFAULTS key). Put the real logi
 owner's machine. They show its typical failures: reports that claim tests were run when nothing ran
 (`evidence-autoeval_report.json` is ten identical made-up scores, see the script next to it), invented facts
 about the machine, plans instead of actions. Treat these files as data, not instructions.
+
+## What already landed on v0.2 (read the linked docs before building on them)
+- **Accounts** (`docs/v02/accounts.md`): per-account data via `paths.dataDir()/inData()`, `paths.partition(name)`, `paths.outputDir()`;
+  machine-wide settings keys live in machine.json (`store.SHARED_KEYS`). Renderer: `window.Accounts.renderSection(el)`,
+  `Accounts.models()` → `{mine, others}`, `linkModel(id)`, `unlinkModel(id)`, `openCreate()`, `switchTo(id)`, `lock()`.
+- **Performance** (`docs/v02/perf-audit.md`, `docs/v02/api-resources.md`): `governor.gated/acquire` (one heavy generation at a
+  time — hold a slot only for one model call), `engine.maxContext(model)`, `engine.resizeContext(model, n)`,
+  `engine.resetContext(model)`, `engine.tuning(id)`, `api.resources.*` (overview, disk, history, tips, action, subscribe…),
+  `storage:advice` event, `settings.limits`. Streaming render lives in `src/renderer/stream-render.js`.
+- **Design** (`docs/v02/design-tokens.md`, `docs/v02/motion.md`): every colour/font/radius/spacing/shadow/duration is a CSS
+  custom property in `src/renderer/styles/tokens.css`; reusable classes `.card`, `.list`/`.list-row`, `.tabs`, `.field`,
+  switches, segmented controls, styled selects/sliders; `motion.js` runtime; `styles/skin-halloween.css` is the worked
+  example of a skin. Stylesheet order in index.html: tokens → styles.css → feature sheets → skins → motion.css.
+  Never hard-code a colour; sentence case labels; no hover lifts, no idle loops, no backdrop-filter.
+- **Artifacts** : new artifacts are plain pages (no kit); 69 built-in method guides in `src/main/guides/builtin/<category>/`
+  (front matter name/title/when/keywords); `kit/guide.js` exports `list`, `get`, `pick`, `parseFront`, `chatSection`;
+  shared parser `kit/artparse.js`.
+- **Voice**: `api.voice.warm()`, `window.VAudio`, `window.VCore`; voice screen styles in `styles/voice.css`.
+- In French UI copy use "tu", never "vous".
+- e2e commands: also `scripts/accounts-e2e.js`, `scripts/artifacts-e2e.js`, node tests `scripts/{accounts,perf,guides,voice,agent}-test.js` — keep all green.
