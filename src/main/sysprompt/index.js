@@ -132,6 +132,9 @@ function codeSection(c) {
     ins ? `# Project instructions (${ins.file}) — follow them\n${ins.text}` : ''].filter(Boolean).join('\n\n');
 }
 
+const lastByConv = new Map(); // convId → the last prompt built (developer screen)
+const lastFor = (convId) => lastByConv.get(convId) || null;
+
 function session({ msgs, messages, params = {}, meta = {}, parent = false, be = {}, acc = {}, codeCtx = null, getTools, isAgent }) {
   const st = settings();
   // Local servers behind a provider (Ollama, LM Studio, a custom OpenAI-compatible URL) don't tell their context
@@ -201,6 +204,7 @@ function session({ msgs, messages, params = {}, meta = {}, parent = false, be = 
       const sys = msgs.find((m) => m.role === 'system');
       if (sys) sys.content = out.text; else msgs.unshift({ role: 'system', content: out.text });
       last = { reason, situation: describe(s), ...out, text: undefined };
+      if (meta.convId && !parent) { lastByConv.delete(meta.convId); lastByConv.set(meta.convId, { ...last, at: Date.now(), text: out.text }); if (lastByConv.size > 30) lastByConv.delete(lastByConv.keys().next().value); }
       sig = sp.signature(s);
       return out;
     },
@@ -249,7 +253,7 @@ function session({ msgs, messages, params = {}, meta = {}, parent = false, be = 
   return sp;
 }
 
-module.exports = { situation, build, explain, describe, budgetFor, session, runtimeSection, codeSection };
+module.exports = { situation, build, explain, describe, budgetFor, session, runtimeSection, codeSection, lastFor };
 
 // The notebook and guides tools exist wherever the chat runtime runs (app, tests, headless harness).
 try { notebook().registerTool(); guides().registerTools(); } catch (e) { console.error('sysprompt tools', e.message); }

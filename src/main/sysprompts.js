@@ -211,6 +211,8 @@ function preview({ body, context } = {}) {
 function init(ipcMain, _emit, { dialog, getWindow } = {}) {
   if (!ipcMain) return;
   ipcMain.handle('sysprompts:list', () => list());
+  // developer view: the last smart prompt built for a conversation (sections, reasons, tokens, text)
+  ipcMain.handle('sysprompt:explain', (_e, convId) => require('./sysprompt').lastFor(convId));
   ipcMain.handle('sysprompts:get', (_e, id) => get(id));
   ipcMain.handle('sysprompts:save', (_e, p) => save(p));
   ipcMain.handle('sysprompts:delete', (_e, id) => remove(id));
