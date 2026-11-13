@@ -551,7 +551,7 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.evaluate((p) => api.mcp.add({ name: 'echo', command: 'node', args: [p] }), path.join(__dirname, 'fixtures', 'mcp-echo.js'));
   await win.keyboard.press('Control+,');
   await win.click('.st-tab[data-tab=agent]');
-  await win.waitForSelector('.mcp-st.st-ready', { timeout: 10000 });
+  await win.waitForSelector('.mc-st.st-ready', { timeout: 10000 });
   step('agent settings'); await win.screenshot({ path: `${shots}/32-agent-settings.png` });
   await win.evaluate(() => document.querySelector('[data-input="search.engine"]').scrollIntoView({ block: 'start' }));
   await win.waitForTimeout(200);

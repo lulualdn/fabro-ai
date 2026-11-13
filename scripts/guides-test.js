@@ -23,8 +23,9 @@ for (const [cat, f] of files) {
   assert.ok(!names.has(p.meta.name), 'unique name ' + p.meta.name); names.add(p.meta.name);
   assert.ok(p.meta.keywords.split(',').length >= 6, `${p.meta.name}: at least 6 keywords`);
   const words = p.body.split(/\s+/).filter(Boolean).length;
-  assert.ok(words >= 250 && words <= 450, `${p.meta.name}: ${words} words (250–450)`);
-  assert.ok(/self-check/i.test(p.body) && /avoid/i.test(p.body), `${p.meta.name}: has "Avoid" and "Self-check"`);
+  const how = cat === 'agent'; // agent know-how guides are short notes, not design methods
+  assert.ok(words >= (how ? 60 : 250) && words <= 450, `${p.meta.name}: ${words} words`);
+  if (!how) assert.ok(/self-check/i.test(p.body) && /avoid/i.test(p.body), `${p.meta.name}: has "Avoid" and "Self-check"`);
   assert.ok(!/<!doctype|<body[\s][^>]*>|data-theme=|Fabro Kit/i.test(p.body), `${p.meta.name}: no full page to paste, no kit`);
   for (const ref of p.body.match(/\b(technique|documents|web|slides|svg)\/[a-z0-9-]+/g) || []) assert.ok(fs.existsSync(path.join(g.ROOT, ref + '.md')), `${p.meta.name}: links to an existing guide (${ref})`);
   perCat[cat] = (perCat[cat] || 0) + 1;

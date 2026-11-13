@@ -54,7 +54,7 @@ async function until(fn, ms = 20000, what = 'condition') { const t0 = Date.now()
   await win.waitForSelector('#sb-lists', { timeout: 30000 });
 
   // connect the fake model as the default
-  await win.evaluate(async (u) => { await api.providers.enable(true); await api.providers.add({ kind: 'custom', name: 'Fake', baseUrl: u }); await refreshModels(); const m = allModels()[0]; if (m) await saveSettings({ selectedModel: m.ref }); }, base);
+  await win.evaluate(async (u) => { await api.providers.enable(true); await api.providers.add({ kind: 'custom', name: 'Fake', baseUrl: u }); await refreshModels(); const m = allModels().find((x) => x.provider === 'Fake'); if (m) await saveSettings({ selectedModel: m.ref }); }, base);
 
   // 1. Agents app is in the sidebar (enabled by default)
   await until(() => win.$('.app-item[data-id=agents]'), 15000, 'agents app in sidebar');
