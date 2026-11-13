@@ -49,7 +49,11 @@
   // piece of the column is then translated back to where it was and released with a spring. Where each piece
   // "was" is derived from the previous column box and how the piece is anchored (left, right or centred), so
   // nothing has to be measured before the change — callers don't need to know this exists.
-  const FLIP = ['.tb-left', '.tb-right', '.thread', '.welcome', '.dock > .composer', '.dock > .disclaimer', '.view > .page', '.locked', '.prj-view', '.cx-start', '.cx-welcome', '.session-panel.open'];
+  // Scroll containers are moved as a whole (never the long content inside them): a moving element is painted
+  // entirely, and a 40-message thread painted at once costs hundreds of ms on a slow CPU. Their content is
+  // centred, so they travel like centred pieces.
+  const FLIP = [['.tb-left'], ['.tb-right'], ['.view > .scroller', 'center'], ['.welcome'], ['.dock > .composer'], ['.dock > .disclaimer'],
+    ['.view > .page', 'center'], ['.view > .prj-view', 'center'], ['.locked'], ['.cx-start'], ['.cx-welcome'], ['.session-panel.open']];
   const LAYOUT_CLASSES = ['sb-collapsed', 'with-viewer', 'wide-viewer', 'drawer-open'];
   const glides = new Map(); // selector → { anim, dx }
   let lastMain = null, armed = false;
@@ -73,7 +77,7 @@
   }
   function flipMain(before, now) {
     const app = document.getElementById('app'); if (!app) return;
-    for (const sel of FLIP) {
+    for (const [sel, anchor] of FLIP) {
       const els = app.querySelectorAll(sel);
       els.forEach((el, i) => {
         const key = sel + '#' + i;
@@ -81,7 +85,7 @@
         if (!r.width) return;
         const lg = r.left - now.left, rg = now.right - r.right;
         let dx;
-        if (Math.abs(lg - rg) < 6) dx = (before.left + before.right) / 2 - (now.left + now.right) / 2; // centred
+        if (anchor === 'center' || Math.abs(lg - rg) < 6) dx = (before.left + before.right) / 2 - (now.left + now.right) / 2; // centred
         else if (lg <= rg) dx = before.left - now.left;                                                 // left-anchored
         else dx = before.right - now.right;                                                             // right-anchored
         const [ox] = currentOffset(key);
