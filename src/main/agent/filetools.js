@@ -123,8 +123,8 @@ function scrubText(doc, pageIndex, find) {
 }
 const hexRgb = (h, rgb) => { const m = String(h || '').replace('#', '').match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i); return m ? rgb(parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255) : null; };
 agent.register({
-  name: 'pdf_edit', category: 'files', risk: 'write', core: true, keywords: ['pdf', 'edit', 'merge', 'rotate'],
-  description: 'Change an existing PDF and keep its layout. Operations (in order): replace_text {find, text, page?, color?, background?} (covers the old words and writes the new ones at the same place and size), add_text {page, x, y, text, size?, color?, font? helvetica|times|courier|bold}, cover {page, x, y, w, h, color?}, add_image {page, x, y, w, h, image (png/jpg path)}, delete_pages {pages}, rotate {pages, degrees}, merge {paths} (append other PDFs). Coordinates in PDF points from the bottom-left (see pdf_find_text). Saves a new file (or `output`) and shows the changed pages: check them.',
+  name: 'pdf_edit', category: 'files', risk: 'write', core: true, keywords: ['pdf', 'edit', 'merge', 'rotate', 'form', 'formulaire', 'champ', 'field', 'remplir'],
+  description: 'Change an existing PDF and keep its layout. Operations (in order): replace_text {find, text, page?, color?, background?} (covers the old words and writes the new ones at the same place and size), add_text {page, x, y, text, size?, color?, font? helvetica|times|courier|bold}, cover {page, x, y, w, h, color?}, add_image {page, x, y, w, h, image (png/jpg path)}, delete_pages {pages}, rotate {pages, degrees}, merge {paths} (append other PDFs), add_field {page, x, y, w?, h?, name, type? text|checkbox|dropdown, options?, value?, multiline?} (a fillable form field), fill_fields {values: {name: value}, flatten?}, list_fields {}. For anything these do not cover (compress, OCR, sign, convert…), write and run a script with run_python (pypdf, pymupdf, reportlab can be installed with pip there). Coordinates in PDF points from the bottom-left (see pdf_find_text). Saves a new file (or `output`) and shows the changed pages: check them.',
   parameters: {
     type: 'object',
     properties: { path: { type: 'string' }, output: { type: 'string' }, ops: { type: 'array', items: { type: 'object' } } },
@@ -168,6 +168,28 @@ agent.register({
         for (const n of o.pages || []) { const p = pg(+n); p.setRotation(degrees(((p.getRotation().angle || 0) + (+o.degrees || 90)) % 360)); } log.push('rotated');
       } else if (o.op === 'merge') {
         for (const m of o.paths || []) { const mp = files.resolvePath(m, ctx); await files.access(mp, ctx, false); const other = await PDFDocument.load(fs.readFileSync(mp), { ignoreEncryption: true }); const pages = await doc.copyPages(other, other.getPageIndices()); pages.forEach((p) => doc.addPage(p)); } log.push(`merged ${(o.paths || []).length} file(s)`);
+      } else if (o.op === 'add_field') {
+        // a real form field (AcroForm): the reader can type in it, tick it or pick a value
+        const form = doc.getForm(); const p = pg(o.page); const name = String(o.name || `field_${i + 1}`).slice(0, 80);
+        const box = { x: +o.x, y: +o.y, width: +o.w || (o.type === 'checkbox' ? 14 : 180), height: +o.h || (o.type === 'checkbox' ? 14 : 20), borderWidth: o.border === false ? 0 : 1, borderColor: rgb(0.55, 0.55, 0.55), backgroundColor: hexRgb(o.background, rgb) || rgb(1, 1, 1) };
+        if (o.type === 'checkbox') { const cb = form.createCheckBox(name); cb.addToPage(p, box); if (o.value === true || o.value === 'true') cb.check(); }
+        else if (o.type === 'dropdown' || o.type === 'choice') { const dd = form.createDropdown(name); dd.addOptions((o.options || []).map(String)); if (o.value != null) dd.select(String(o.value)); dd.addToPage(p, box); }
+        else { const tf = form.createTextField(name); if (o.multiline) tf.enableMultiline(); if (o.max) tf.setMaxLength(+o.max); if (o.value != null) tf.setText(String(o.value)); tf.addToPage(p, box); if (o.size) tf.setFontSize(+o.size); }
+        log.push(`field "${name}" (${o.type || 'text'}) added on page ${o.page || 1}`);
+      } else if (o.op === 'fill_fields') {
+        const form = doc.getForm(); const done = [];
+        for (const [k, v] of Object.entries(o.values || {})) {
+          const fld = form.getFieldMaybe(k); if (!fld) return { error: `op ${i + 1}: no field "${k}". Fields: ${form.getFields().map((x) => x.getName()).join(', ') || 'none'}` };
+          const kind = fld.constructor.name;
+          if (kind === 'PDFCheckBox') { if (v === true || v === 'true' || v === 'on') fld.check(); else fld.uncheck(); }
+          else if (kind === 'PDFDropdown' || kind === 'PDFOptionList' || kind === 'PDFRadioGroup') fld.select(String(v));
+          else if (fld.setText) fld.setText(String(v));
+          done.push(k);
+        }
+        if (o.flatten) form.flatten();
+        log.push(`filled ${done.join(', ')}${o.flatten ? ' (flattened)' : ''}`);
+      } else if (o.op === 'list_fields') {
+        log.push(`fields: ${doc.getForm().getFields().map((x) => `${x.getName()} (${x.constructor.name.replace('PDF', '')})`).join(', ') || 'none'}`);
       } else return { error: `op ${i + 1}: unknown operation “${o.op}”` };
     }
     const outFile = a.output ? files.resolvePath(a.output, ctx) : unique(path.dirname(f), path.basename(f, '.pdf') + ' (modifié).pdf');
