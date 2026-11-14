@@ -168,5 +168,9 @@ h1,h2,h3{font-family:var(--font-display);font-weight:500;margin:0 0 var(--sp-2)}
   let queued = false;
   new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; mount(); }); }).observe(document.documentElement, { childList: true, subtree: true });
 
-  window.IUI = { html, types: () => Object.keys(R) };
+  // more display types live in intelligent-ui-more.js: add(type, render(d, key), { action(state, i, j, key) }, [aliases])
+  function add(type, fn, acts, aliases) { R[type] = fn; Object.assign(ACT, acts || {}); for (const a of aliases || []) ALIAS[a] = type; }
+  // a block inside another one (grid): registers its spec under its own key and returns its markup
+  function child(key, d) { if (!d || typeof d !== 'object') return ''; SPEC.set(key, d); try { return typeOf(d) ? render(key) : ''; } catch { return ''; } }
+  window.IUI = { html, types: () => Object.keys(R), add, child, redraw, state: (key) => ST.get(key), spec: (key) => SPEC.get(key), h: { e, inl, arr, num, st, act, head } };
 })();

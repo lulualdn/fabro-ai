@@ -134,6 +134,7 @@ function codeSection(c) {
   return [CODE_LEAD(c.root),
     Object.values(cmd).some((v) => v && v !== 'unknown') ? `Project commands (${cmd.kind}): ${['test', 'lint', 'build', 'run'].filter((k) => cmd[k]).map((k) => `${k}: \`${cmd[k]}\``).join(' · ')}` : '',
     c.branch ? `Git branch: ${c.branch}. Commit only when the user asks (git_commit).` : 'Not a git repository.',
+    require('./build').BUILD,
     ins ? `# Project instructions (${ins.file}) — follow them\n${ins.text}` : ''].filter(Boolean).join('\n\n');
 }
 

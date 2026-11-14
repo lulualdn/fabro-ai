@@ -436,7 +436,10 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     if (!bare) sp.apply('start');
     const applyAgentPrompt = () => sp.apply('agent_switch');
     // governor: one heavy local generation at a time, fair queue (user > sub-agents > background jobs)
-    const complete = require('./governor').gated(be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI, { local: be.kind === 'local' || ['ollama', 'lmstudio'].includes(be.provider && be.provider.kind), priority: parent ? 'sub' : (meta.unattended || /^bg-/.test(reqId)) ? 'bg' : 'user', label: meta.modelLabel || '', signal: ctrl.signal, onWait: (w) => out({ type: 'status', status: w ? 'queued' : 'generating' }) });
+    const rawComplete = be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI;
+    // external providers: wait and try again (15 s, 30 s, or what the provider asks) before giving up
+    const retried = be.kind === 'local' ? rawComplete : require('./retry').wrap(rawComplete, { onRetry: (r) => out(r ? { type: 'status', status: 'retrying', retry: r } : { type: 'status', status: 'generating' }) });
+    const complete = require('./governor').gated(retried, { local: be.kind === 'local' || ['ollama', 'lmstudio'].includes(be.provider && be.provider.kind), priority: parent ? 'sub' : (meta.unattended || /^bg-/.test(reqId)) ? 'bg' : 'user', label: meta.modelLabel || '', signal: ctrl.signal, onWait: (w) => out({ type: 'status', status: w ? 'queued' : 'generating' }) });
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
     const src = { n: 0 };

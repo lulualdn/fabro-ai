@@ -544,6 +544,7 @@ function assistantBody(m) {
   let html = (tl ? '' : renderThinking(m) + renderSteps(m)) + renderPrecisions(m);
   // Fabro looked at the artifact and sent the model back to fix what was broken
   if (m.pending && m.artCheck && m.artCheck.status === 'fixing') html += `<div class="art-checkline">${spinner(16)}<span>${esc(t('artFixingN', { n: m.artCheck.count || 1 }))}</span></div>`;
+  if (m.pending && m.status === 'retrying' && m.retry) html += `<div class="art-checkline">${spinner(16)}<span>${esc(t(m.retry.code === 'PROVIDER_RATE' ? 'rt_rate' : 'rt_err', m.retry))}</span></div>`;
   if (m.content || tl) { MD_CITES = sourceMap(m); try { html += (tl ? Timeline.body(m) : hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content, m.id)}</div>`) + (m.content ? citedSources(m) : ''); } finally { MD_CITES = null; } }
   else if (m.pending && !m.reasoning && !(m.steps || []).length) {
     const st = m.status === 'loading' ? t('loadingModel') : m.status === 'queued' ? t('perf_queued') : m.status === 'compressing' ? t('ctx_compressing') : '';
@@ -1044,7 +1045,7 @@ function onChatEvent(ev) {
   if (!S.streaming || ev.reqId !== S.streaming.reqId) return;
   const m = S.streaming.msg;
   switch (ev.type) {
-    case 'status': m.status = ev.status; scheduleStreamRender(); break;
+    case 'status': m.status = ev.status; m.retry = ev.retry || null; scheduleStreamRender(); break;
     case 'reasoning': if (!m.thinkStart) m.thinkStart = Date.now(); if (window.Timeline) Timeline.onThink(m, ev.text); m.reasoning += ev.text; scheduleStreamRender(); break;
     case 'token': if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now(); m.content += ev.text; scheduleStreamRender(); break;
     case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running', parent: ev.parent, t0: Date.now() }); if (window.Timeline) Timeline.onStep(m, m.steps[m.steps.length - 1]); scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab === 'steps') renderViewer(); break;

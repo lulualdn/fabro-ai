@@ -113,7 +113,9 @@ async function httpErr(res, p) {
   let msg = `HTTP ${res.status}`;
   try { const j = JSON.parse(body); msg = (j.error && (j.error.message || j.error)) || j.message || msg; } catch {}
   const code = res.status === 401 || res.status === 403 ? 'PROVIDER_AUTH' : res.status === 429 ? 'PROVIDER_RATE' : res.status === 404 ? 'PROVIDER_MODEL' : 'PROVIDER_HTTP';
-  return new ProviderError(code, `${p.name}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`, body.slice(0, 1500));
+  const err = new ProviderError(code, `${p.name}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`, body.slice(0, 1500));
+  err.status = res.status; err.retryAfter = Number(res.headers && res.headers.get('retry-after')) || 0;
+  return err;
 }
 function netErr(e, p) {
   if (e.name === 'AbortError' || e.name === 'TimeoutError') return new ProviderError('PROVIDER_DOWN', `${p.name}: timeout`, String(e.message));

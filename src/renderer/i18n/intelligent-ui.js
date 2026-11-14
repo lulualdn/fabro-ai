@@ -7,3 +7,8 @@ Object.assign(I18N.es, { iui_set: 'Vistas en las respuestas', iui_setHint: 'Fabr
   iui_moves: '{n} jugadas', iui_won: 'Terminado en {n} jugadas', iui_up: 'Subir', iui_down: 'Bajar', iui_check: 'Comprobar', iui_right: 'Orden correcto.', iui_wrong: 'Todavía no. Las líneas rojas están mal colocadas.' });
 Object.assign(I18N.de, { iui_set: 'Anzeigen in Antworten', iui_setHint: 'Fabro kann mit Fortschrittsbalken, einer Mindmap, einem Quiz oder einem kleinen Spiel statt nur Text antworten.', iui_wait: 'Anzeige wird vorbereitet…', iui_score: '{n} von {t}', iui_again: 'Neu starten', iui_front: 'Frage', iui_back: 'Antwort', iui_prev: 'Zurück', iui_next: 'Weiter',
   iui_moves: '{n} Züge', iui_won: 'Geschafft in {n} Zügen', iui_up: 'Nach oben', iui_down: 'Nach unten', iui_check: 'Prüfen', iui_right: 'Richtige Reihenfolge.', iui_wrong: 'Noch nicht. Die roten Zeilen stehen falsch.' });
+
+Object.assign(I18N.en, { iui_pros: 'For', iui_cons: 'Against' });
+Object.assign(I18N.fr, { iui_pros: 'Pour', iui_cons: 'Contre' });
+Object.assign(I18N.es, { iui_pros: 'A favor', iui_cons: 'En contra' });
+Object.assign(I18N.de, { iui_pros: 'Dafür', iui_cons: 'Dagegen' });

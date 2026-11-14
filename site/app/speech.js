@@ -61,11 +61,14 @@
   }
 
   // ── ears: Whisper on the device ──
+  // Phones: the processor only (WebGPU on a phone runs out of memory and the page reloads), and no large model.
+  const PHONE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform || ''));
+  const TRY = 'fa-ears-try';
   const MODELS = [
     { id: 'onnx-community/whisper-base', name: 'Whisper Base', size: '≈ 80 MB', phone: true },
     { id: 'onnx-community/whisper-small', name: 'Whisper Small', size: '≈ 250 MB', phone: true },
     { id: 'onnx-community/whisper-large-v3-turbo', name: 'Whisper Large v3 Turbo', size: '≈ 600 MB', gpu: true },
-  ];
+  ].filter((m) => !(PHONE && m.gpu));
   let worker = null, wn = 0; const waits = new Map(); let onProgress = null;
   function w() {
     if (worker) return worker;
@@ -82,8 +85,19 @@
   const call = (msg, transfer) => new Promise((resolve, reject) => { const id = 'w' + (++wn); waits.set(id, { resolve, reject }); w().postMessage({ ...msg, id }, transfer || []); });
   // WebGPU only when the device really has an adapter (many phones expose navigator.gpu without one)
   let dev = null;
-  async function device() { if (dev) return dev; try { dev = navigator.gpu && (await navigator.gpu.requestAdapter()) ? 'webgpu' : 'wasm'; } catch { dev = 'wasm'; } return dev; }
-  async function loadEars(model, progress) { onProgress = progress; try { await call({ t: 'load', model, device: await device() }); } finally { onProgress = null; } return true; }
+  async function device() { if (dev) return dev; if (PHONE) return (dev = 'wasm'); try { dev = navigator.gpu && (await navigator.gpu.requestAdapter()) ? 'webgpu' : 'wasm'; } catch { dev = 'wasm'; } return dev; }
+  // frees the memory of the speech model (before a chat model is loaded on a phone)
+  function release() { if (!worker) return; try { worker.terminate(); } catch {} worker = null; for (const [, x] of waits) x.reject(new Error('released')); waits.clear(); }
+  // A load that killed the page last time is not tried again: the mark is still there after the reload.
+  const mark = (v) => { try { v ? localStorage.setItem(TRY, v) : localStorage.removeItem(TRY); } catch {} };
+  const crashed = (model) => { try { return localStorage.getItem(TRY) === model; } catch { return false; } };
+  async function loadEars(model, progress) {
+    if (crashed(model)) { mark(''); throw Object.assign(new Error('TOO_HEAVY'), { code: 'TOO_HEAVY' }); }
+    if (PHONE && window.FAHeavy) await window.FAHeavy.freeFor('ears');
+    onProgress = progress; mark(model);
+    try { await call({ t: 'load', model, device: await device() }); } finally { onProgress = null; mark(''); }
+    return true;
+  }
   // WAV bytes (16 kHz mono 16-bit, as made by the mic) → text
   async function hear(wavBytes, { model, lang } = {}) {
     const dv = new DataView(wavBytes.buffer, wavBytes.byteOffset, wavBytes.byteLength);
@@ -109,5 +123,5 @@
     return 'micHelpChrome';
   }
 
-  window.FASpeech = { speak, bestVoice, listVoices, stop: () => { try { speechSynthesis.cancel(); } catch {} }, MODELS, loadEars, hear, device, micState, micHelpKey, LOCALE };
+  window.FASpeech = { speak, bestVoice, listVoices, stop: () => { try { speechSynthesis.cancel(); } catch {} }, MODELS, loadEars, hear, release, PHONE, device, micState, micHelpKey, LOCALE };
 })();

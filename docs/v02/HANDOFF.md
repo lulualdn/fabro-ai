@@ -200,3 +200,14 @@ Reste, dans l'ordre :
 - Pas fait : plantage des modèles locaux / voix sur téléphone (cause inconnue, il faut le message d'erreur ou le modèle
   de téléphone), paramètres simplifiés sur téléphone, déconnexions côté PC (non étudié), limites des chats créés hors ligne.
 - Vérifié : gestes simulés dans une fenêtre 390 px, `anywhere-full-e2e` vert. Pas vérifié sur un vrai iPhone/Android.
+
+## 0.1.64 — nouvel essai fournisseurs, Intelligent UI 2, mémoire téléphone
+- `src/main/retry.js` : toute erreur d'un fournisseur externe (429, 5xx, réseau) est retentée 2 fois (15 s puis 30 s, ou le délai demandé :
+  `Retry-After`, « retry in 12s », `retryDelay`), sauf 400/401/403/404/413/422. Statut `retrying` → ligne « Nouvel essai dans N s » (app.js, `rt_rate`/`rt_err`).
+- `src/renderer/intelligent-ui-more.js` : chart (bar/line/pie), table triable, guide, tabs, faq, calc (curseurs + formules, parseur maison),
+  board, callout, proscons, schedule, blanks, grid (plusieurs affichages). Extension par `IUI.add(type, render, actions, alias)`.
+- `src/main/sysprompt/build.js` : méthode de construction + règles d'interface, ajoutée à la section Code.
+- Téléphone (`site/app`) : Whisper sur processeur uniquement, pas de gros modèle, un seul modèle en mémoire à la fois (`FAHeavy.freeFor`),
+  Qwen3 1.7B masqué sur iPhone / ≤ 4 Go, contexte 2048/4096, et un chargement qui a tué la page n'est pas retenté (`fa-local-try`, `fa-ears-try`).
+  Seul, le téléphone ne fait que discuter : pas de mode agent, pas de documents (le modèle renvoie vers le PC), hors ligne = mémoire seule.
+- Non vérifié : tout ce qui est sur un vrai téléphone, et la qualité des interfaces produites par un vrai modèle.

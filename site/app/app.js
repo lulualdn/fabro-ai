@@ -310,6 +310,16 @@
   ];
   const WEBLLM = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/+esm';
   let engine = null;
+  // Phones have little memory for a page: one model at a time, the small one only on iPhone / low-memory
+  // Android, a short context, and a load that killed the page is never tried twice in a row.
+  const PHONE_DEV = !!(window.FASpeech && FASpeech.PHONE);
+  const LOW_MEM = PHONE_DEV && (/iPhone|iPad|iPod|Mac/.test(navigator.userAgent) || (navigator.deviceMemory || 4) <= 4);
+  const localAllowed = (m) => !(LOW_MEM && m.id !== 'qwen3-0.6b');
+  const TRY_KEY = 'fa-local-try';
+  const tryMark = (v) => { try { v ? localStorage.setItem(TRY_KEY, v) : localStorage.removeItem(TRY_KEY); } catch {} };
+  const tryCrashed = (id) => { try { return localStorage.getItem(TRY_KEY) === id; } catch { return false; } };
+  async function unloadLocal() { const e = engine; engine = null; try { if (e) await e.unload(); } catch {} if (S.local.status === 'ready' || S.local.status === 'loading') S.local = { status: 'idle', progress: 0, text: '' }; }
+  window.FAHeavy = { freeFor: async (what) => { if (what === 'ears') await unloadLocal(); else if (window.FASpeech && FASpeech.release) FASpeech.release(); } };
   const localInfo = () => LOCAL_MODELS.find((m) => m.id === (S.settings.localModel || {}).id);
   async function webgpu() {
     if (!navigator.gpu) return null;
@@ -319,13 +329,20 @@
     const gpu = await webgpu();
     if (!gpu) { S.local = { status: 'unsupported', progress: 0, text: t('noWebgpu') }; renderSheet(); return false; }
     const mid = gpu.f16 ? model.f16 : model.f32;
+    const heavy = (key) => { S.local = { status: download ? 'error' : 'none', progress: 0, text: t(key) }; renderSheet(); renderHeader(); if (!download) toast(t(key), 'err'); return false; };
+    if (!localAllowed(model)) return heavy('localTooBig');
+    if (tryCrashed(model.id)) { tryMark(''); if (!download) { S.settings.localModel = null; if (S.settings.model === 'phone') S.settings.model = null; await saveSettings(); } return heavy('localCrashed'); }
+    if (PHONE_DEV) await window.FAHeavy.freeFor('llm');
     S.local = { status: 'loading', progress: 0, text: '' }; renderSheet(); renderHeader();
+    tryMark(model.id);
     try {
       const webllm = await import(WEBLLM);
-      engine = await webllm.CreateMLCEngine(mid, { initProgressCallback: (p) => { S.local.progress = p.progress || 0; S.local.text = p.text || ''; renderSheet(); } });
+      engine = await webllm.CreateMLCEngine(mid, { initProgressCallback: (p) => { S.local.progress = p.progress || 0; S.local.text = p.text || ''; renderSheet(); } }, PHONE_DEV ? { context_window_size: LOW_MEM ? 2048 : 4096 } : undefined);
       S.settings.localModel = { id: model.id, mid }; await saveSettings();
       S.local = { status: 'ready', progress: 1, text: '' };
+      tryMark('');
     } catch (e) {
+      tryMark('');
       engine = null;
       S.local = { status: download ? 'error' : 'none', progress: 0, text: String(e && e.message || e).slice(0, 200) };
     }
@@ -351,11 +368,11 @@
     const paint = () => { if (S.cur === c.id) { cancelAnimationFrame(paintT); paintT = requestAnimationFrame(() => { paintMessage(asst); scrollChat(); }); } if (S.voice && S.voice.convId === c.id) S.voice.feed(asst.content || ''); };
     try {
       const out = await FAAgent.run({
-        history: A.pathOf({ ...c, leafId: node.id }), model: cid, agent: !!c.agent, lang, engine: how === 'phone' ? engine : null, signal: ctl.signal,
+        history: A.pathOf({ ...c, leafId: node.id }), model: cid, agent: false, lang, engine: how === 'phone' ? engine : null, signal: ctl.signal,
         onEvent: (ev) => {
           if (ev.type === 'token') asst.content = (asst.content + ev.text).replace(/【(\d+)†[^】]*】/g, '[$1]'); // gpt-oss citations → [n]
           else if (ev.type === 'reasoning') asst.reasoning = (asst.reasoning || '') + ev.text;
-          else if (ev.type === 'tool_round') { if (asst.content && !/\n\n$/.test(asst.content)) asst.content += '\n\n'; if (!c.agent && S.settings.autoAgent !== false && asst.steps.length > 1) c.agent = true; }
+          else if (ev.type === 'tool_round') { if (asst.content && !/\n\n$/.test(asst.content)) asst.content += '\n\n'; }
           else if (ev.type === 'tool_start') asst.steps.push({ id: ev.id, name: ev.name, status: 'running', args: ev.args });
           else if (ev.type === 'tool_end') { const st = asst.steps.find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : 'done'; st.view = ev.view; if (ev.error) st.error = ev.error; } }
           paint();
@@ -1012,7 +1029,7 @@
         <textarea id="prompt" rows="1" placeholder="${esc(ph)}" aria-label="${esc(t('placeholder'))}">${esc(kept)}</textarea>
         <div class="c-row">
           <label class="icon-btn c-plus ${vision ? '' : 'dim'}" aria-label="${esc(t('addPhoto'))}">${ic('plus', 18)}<input type="file" accept="image/*" multiple hidden id="photo-in"></label>
-          <button type="button" class="chip ${c && c.agent || (!c && S.settings.agent) ? 'on' : ''}" data-act="agent">${ic('agent', 16)} ${esc(t('agent'))}</button>
+${['direct', 'relay'].includes(S.conn.state) ? `<button type="button" class="chip ${c && c.agent || (!c && S.settings.agent) ? 'on' : ''}" data-act="agent">${ic('agent', 16)} ${esc(t('agent'))}</button>` : ''}
           <span class="grow"></span>
           <button type="button" class="model-pill" data-act="model">${esc(modelLabel())} <span class="chev">⌄</span></button>
           <button type="button" class="c-talk" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave', 19)}</button>
@@ -1068,7 +1085,7 @@
         : loc.status === 'unsupported' ? `<p class="err small">${esc(t('noWebgpu'))}</p>`
         : lm ? `<div class="set-row"><span>${esc(lm.name)} <small class="muted">${esc(lm.size)}</small></span><button class="btn sm" data-act="local-rm">${ic('trash', 15)} ${esc(t('remove'))}</button></div>
                <div class="set-row"><span>${esc(t('localFallback'))}</span><button class="switch ${S.settings.localFallback ? 'on' : ''}" data-act="local-fallback" role="switch" aria-checked="${!!S.settings.localFallback}"><i></i></button></div>`
-        : LOCAL_MODELS.map((m) => `<button class="opt" data-act="local-get" data-id="${m.id}"><span class="opt-ic">${ic('phone', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc(m.size)} · ${esc(t('saveFile'))}</small></span></button>`).join('')}
+        : LOCAL_MODELS.filter(localAllowed).map((m) => `<button class="opt" data-act="local-get" data-id="${m.id}"><span class="opt-ic">${ic('phone', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc(m.size)} · ${esc(t('saveFile'))}</small></span></button>`).join('')}
       ${loc.status === 'error' ? `<p class="err small">${esc(loc.text)}</p>` : ''}
       ${S.link ? `<h3>${esc(t('awayTitle'))}</h3><p class="muted small">${esc(t('awayHint'))}</p>
       <div class="seg3">${['cloud', 'phone', 'wait'].map((v) => `<button class="${(S.settings.away || 'cloud') === v ? 'on' : ''}" data-act="away" data-v="${v}">${ic(v === 'cloud' ? 'cloud' : v === 'phone' ? 'phone' : 'pc', 16)}<span>${esc(t('away_' + v))}</span></button>`).join('')}</div>` : ''}
@@ -1161,7 +1178,7 @@
     'ears-get': async (el) => {
       const id = el.dataset.id; S.ears = { loading: true, p: 0 }; renderSheet(); if (S.voice) paintVoice();
       try { await FASpeech.loadEars(id, (p) => { S.ears.p = p; if (S.sheet === 'settings') { const b = $('.sheet .progress i'); if (b) b.style.width = Math.round(p * 100) + '%'; } }); S.settings.ears = { id }; await saveSettings(); S.ears = null; toast(t('earsReady')); if (S.voice) { closeVoice(); openVoice(); } }
-      catch (e) { S.ears = { err: String(e.message || e).slice(0, 200) }; }
+      catch (e) { S.ears = { err: e && e.code === 'TOO_HEAVY' ? t('earsCrashed') : String(e.message || e).slice(0, 200) }; }
       renderSheet();
     },
     'ears-rm': async () => { S.settings.ears = null; await saveSettings(); try { for (const k of await caches.keys()) if (/transformers/i.test(k)) await caches.delete(k); } catch {} renderSheet(); },
