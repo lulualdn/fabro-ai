@@ -58,7 +58,9 @@ console.log('headroom & budgets');
 const lim = governor.DEFAULT_LIMITS;
 {
   const hr = governor.headroom(MACHINES.laptop8.specs, lim);
-  assert.strictEqual(hr.ramGB, 2.5); ok('8 GB: 2.5 GB RAM kept free');
+  assert.strictEqual(hr.ramGB, 1.48); assert.strictEqual(governor.headroom({ ramGB: 32 }, lim).ramGB, 2.92); ok('RAM kept free follows the machine: 1.5 GB on 8 GB, 2.9 GB on 32 GB');
+  const lin = governor.budget({ ...MACHINES.desk3060.specs, platform: 'linux' }, { lim, live: { availRamGB: 6 } }), win = governor.budget({ ...MACHINES.desk3060.specs, platform: 'win32' }, { lim, live: { availRamGB: 6 } });
+  assert.ok(win.ramGB > lin.ramGB + 1, `${win.ramGB} vs ${lin.ramGB}`); ok(`Windows: part of what other apps hold counts as reachable (${win.ramGB} GB vs ${lin.ramGB} GB)`);
   const b = governor.budget(MACHINES.desk3060.specs, { lim, live: { availRamGB: 9, gpu: { usedGB: 1.6, totalGB: 12 } } });
   assert.ok(b.vramGB < 12 - 1.6 && b.vramGB > 8, 'vram budget ' + b.vramGB); ok(`RTX 3060 with 1.6 GB used by the desktop: ${b.vramGB} GB usable (not 0.92 × 12 = 11)`);
   assert.ok(b.why.some((w) => /video memory/.test(w))); ok('explains other apps\' VRAM use');
@@ -76,21 +78,27 @@ console.log('plan fitting');
   assert.strictEqual(f.plan.mode, 'gpu'); assert.ok(f.fits); ok('E4B on RTX 3060: all layers on the GPU');
   // 12 GB model on the 3060 with a browser using 3 GB: split, not overflow into shared memory
   f = governor.fitPlan(memory.plan, model(12, 'gpt-oss 20B'), { ctx: 8192, gpuLayers: -1, kvType: 'f16' }, MACHINES.desk3060.specs, bud('desk3060', { availRamGB: 10, gpu: { usedGB: 3, totalGB: 12 } }), { lim });
-  assert.ok(f.plan.vramGB <= f.budget.vramGB + 0.05, `vram ${f.plan.vramGB} <= ${f.budget.vramGB}`); ok(`20B on 3060 with 3 GB used elsewhere: ${f.plan.mode} (${f.plan.vramGB} GB VRAM ≤ budget)`);
+  assert.ok(f.plan.vramGB <= f.budget.vramGB + 0.05, `vram ${f.plan.vramGB} <= ${f.budget.vramGB}`); assert.ok(!f.refused); ok(`20B on 3060 with 3 GB used elsewhere: ${f.plan.mode} (${f.plan.vramGB} GB VRAM ≤ budget)`);
+  // the same with only 5 GB of RAM free: experts do not fit in RAM → whole layers on the GPU instead, never refused
+  f = governor.fitPlan(memory.plan, model(12, 'gpt-oss 20B'), { ctx: 8192, gpuLayers: -1, kvType: 'f16' }, MACHINES.desk3060.specs, bud('desk3060', { availRamGB: 5, gpu: { usedGB: 1.5, totalGB: 12 } }), { lim });
+  assert.ok(!f.refused && f.plan.ctx >= 4096, JSON.stringify(f.steps)); assert.ok(f.plan.vramGB <= f.budget.vramGB + 0.05); ok(`20B on 3060 with 5 GB of RAM free: ${f.plan.mode}, ${f.plan.ramGB} GB RAM, ${f.fits ? 'fits' : f.tight ? 'tight' : 'slow'} (${f.steps.join(', ') || 'as is'})`);
   // 5 GB model on the 8 GB laptop with 4 GB free: context shrinks or refused, never swap
   f = governor.fitPlan(memory.plan, model(5), { ctx: 8192, gpuLayers: -1, kvType: 'f16' }, { ...MACHINES.laptop8.specs }, bud('laptop8', { availRamGB: 4 }), { lim });
-  assert.ok(f.refused || f.plan.ramGB <= f.budget.ramGB + 0.05); ok(`5 GB model, 8 GB laptop, 4 GB free: ${f.refused ? 'refused (would swap)' : 'fits after ' + f.steps.join(', ')}`);
+  assert.ok(!f.refused && f.plan.ctx >= 4096 && (f.fits || f.tight || f.slow)); ok(`5 GB model, 8 GB laptop, 4 GB free: ${f.fits ? 'fits' : f.tight ? 'tight' : 'slow'} after ${f.steps.join(', ')}`);
   // a 2 GB model on the same laptop: fits
   f = governor.fitPlan(memory.plan, model(2, 'Qwen 3B'), { ctx: 8192, gpuLayers: -1, kvType: 'f16' }, MACHINES.laptop8.specs, bud('laptop8', { availRamGB: 5.5 }), { lim });
   assert.ok(f.fits && f.plan.mode === 'cpu'); ok('2 GB model on the laptop: CPU, fits');
-  // explicit ctx is never changed, but a hopeless plan is refused
+  // explicit ctx is never changed; more than the free memory = slow mode, not a refusal
   f = governor.fitPlan(memory.plan, model(7), { ctx: 32768, gpuLayers: -1, kvType: 'f16' }, MACHINES.laptop8.specs, bud('laptop8', { availRamGB: 4 }), { lim, explicit: { ctx: true } });
-  assert.strictEqual(f.plan.ctx, 32768); assert.ok(f.refused); ok('explicit context kept; plan refused instead of swapping');
-  f = governor.fitPlan(memory.plan, model(7), { ctx: 32768, gpuLayers: -1, kvType: 'f16' }, MACHINES.laptop8.specs, bud('laptop8', { availRamGB: 4 }), { lim: { ...lim, allowSwap: true }, explicit: { ctx: true } });
+  assert.strictEqual(f.plan.ctx, 32768); assert.ok(!f.refused && f.slow); ok('explicit context kept; bigger than the free memory: slow mode (read from the disk)');
+  // far more than the whole memory: refused (the engine falls back to a smaller model)
+  f = governor.fitPlan(memory.plan, model(30), { ctx: 8192, gpuLayers: -1, kvType: 'f16' }, MACHINES.laptop8.specs, bud('laptop8', { availRamGB: 4 }), { lim });
+  assert.ok(f.refused); ok('30 GB model on an 8 GB laptop: refused');
+  f = governor.fitPlan(memory.plan, model(30), { ctx: 8192, gpuLayers: -1, kvType: 'f16' }, MACHINES.laptop8.specs, bud('laptop8', { availRamGB: 4 }), { lim: { ...lim, allowSwap: true } });
   assert.ok(!f.refused); ok('allowSwap lets it through');
   // Apple 8 GB: unified budget
   f = governor.fitPlan(memory.plan, model(5), { ctx: 8192, gpuLayers: -1, kvType: 'f16' }, MACHINES.m1.specs, bud('m1', { availRamGB: 5 }), { lim });
-  assert.ok(f.refused || f.plan.vramGB <= f.budget.vramGB + 0.05); ok(`5 GB model on an 8 GB Mac: ${f.refused ? 'refused' : f.plan.mode + ' ctx ' + f.plan.ctx}`);
+  assert.ok(!f.refused); ok(`5 GB model on an 8 GB Mac: ${f.plan.mode} ctx ${f.plan.ctx}, ${f.fits ? 'fits' : f.tight ? 'tight' : 'slow'}`);
 }
 
 console.log('autotune planning');

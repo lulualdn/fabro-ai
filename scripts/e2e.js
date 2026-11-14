@@ -541,13 +541,13 @@ function fakeGguf(file, { arch = 'llama', layers = 32, heads = 32, headsKv = 8, 
   await win.waitForSelector('.prj-chat', { timeout: 8000 });
   assert.strictEqual(await win.$$eval('.prj-chat', (x) => x.length), 1, 'conversation listed in the project');
 
-  // ── Code mode: paused for rework — its entry explains it and leads back to the chat ──
+  // ── Code mode: no maintenance screen any more — the entry opens Code (or its install screen) ──
   await win.click('[data-action=mode][data-mode=code]');
-  await win.waitForSelector('.view .locked [data-action=home]', { timeout: 8000 });
-  assert.match(await win.textContent('.view .locked h2'), /maintenance/i);
-  assert.ok(await win.$('.nav-item[data-mode=code] .maint-badge'), 'Code shows a maintenance badge');
-  step('code maintenance'); await win.screenshot({ path: `${shots}/28-code-maintenance.png` });
-  await win.click('.view .locked [data-action=home]');
+  await win.waitForFunction(() => S.mode === 'code', null, { timeout: 8000 });
+  assert.ok(!(await win.$('.nav-item[data-mode=code] .maint-badge')), 'no maintenance badge on Code');
+  assert.ok(!/maintenance/i.test(await win.textContent('#view')), 'no maintenance screen');
+  step('code open'); await win.screenshot({ path: `${shots}/28-code-open.png` });
+  await win.evaluate(() => newChat());
   await win.waitForTimeout(300);
 
   // MCP: a local stdio server, its tools become agent tools

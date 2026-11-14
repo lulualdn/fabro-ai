@@ -40,13 +40,14 @@ function limits() {
 const num = (v) => (v === 'auto' || v === '' || v == null || isNaN(+v) ? null : +v);
 
 // ───────────────────────────── headroom & budgets (pure) ─────────────────────────────
-// RAM kept free: 2.5 GB on an 8 GB laptop, ~3.4 GB on 16 GB, ~5.3 GB on 32 GB, 6 GB max.
+// RAM kept free for the system. It follows the machine: about 1.5 GB on 8 GB, 2 GB on 16 GB, 2.9 GB on 32 GB, 4 GB
+// at most. The live budget (below) then follows what other apps really use, second by second.
 // VRAM kept free on a discrete card: the desktop compositor, browsers and Fabro's own window live there.
 function headroom(specs, lim = limits()) {
   const ram = specs.ramGB || 8;
-  const autoRam = Math.min(6, Math.max(2.5, 1.5 + ram * 0.12));
+  const autoRam = Math.min(4, Math.max(1.2, 1 + ram * 0.06));
   const vramTotal = gpuTotalGB(specs);
-  const autoVram = specs.unified ? 0 : vramTotal ? Math.min(2, Math.max(0.8, 0.6 + vramTotal * 0.06)) : 0;
+  const autoVram = specs.unified ? 0 : vramTotal ? Math.min(1.5, Math.max(0.6, 0.4 + vramTotal * 0.05)) : 0;
   return { ramGB: +(num(lim.ramHeadroomGB) ?? autoRam).toFixed(2), vramGB: +(num(lim.vramHeadroomGB) ?? autoVram).toFixed(2) };
 }
 function gpuTotalGB(specs) {
@@ -67,7 +68,11 @@ function budget(specs, { live = {}, fabro = { ramGB: 0, vramGB: 0 }, lim = limit
   const staticRam = Math.max(0, ram - hr.ramGB - 1.0); // ~1 GB for Fabro's own window and main process
   let ramGB = staticRam;
   if (live.availRamGB != null) {
-    const liveRam = live.availRamGB + (fabro.ramGB || 0) - hr.ramGB;
+    // Windows reports little free memory by habit and gives it back under demand (it trims and compresses idle
+    // apps): a third of what the others hold counts as reachable there.
+    const others = Math.max(0, ram - live.availRamGB - (fabro.ramGB || 0));
+    const reach = (specs.platform || process.platform) === 'win32' ? others * 0.33 : 0;
+    const liveRam = live.availRamGB + reach + (fabro.ramGB || 0) - hr.ramGB;
     if (liveRam < ramGB) { ramGB = Math.max(0, liveRam); why.push(`other apps use ${(ram - live.availRamGB - (fabro.ramGB || 0)).toFixed(1)} GB of RAM`); }
   }
   let vramGB = 0;
@@ -106,9 +111,15 @@ function threadsFor(topo, { gpuFull = false, mode = 'balanced', lim = limits() }
 }
 
 // ───────────────────────────── plan fitting (pure, given memory.plan) ─────────────────────────────
-// Shrinks a load plan until it fits the budget: fewer GPU layers (memory.plan does that from the budget),
-// then a smaller context, then refuses. `explicit` = keys the user set by hand (never changed, but a plan that
-// can't fit at all is still refused unless allowSwap).
+// Makes a load plan as fast as the machine allows, and never gives up while the model can run at all:
+//   1. KV cache in q8_0 when that keeps every layer on the GPU (the big speed step)
+//   2. a model with experts in RAM that does not fit there: layers split between GPU and RAM instead
+//   3. KV cache in q8_0, then a smaller context (never under MIN_CTX: the system prompt has to fit)
+//   4. still over: "tight" (only eats into the comfort margin) or "slow" (part of the model is read from the
+//      disk on demand; nothing is written there, so there is nothing to give back afterwards)
+//   5. hopeless (far more than the whole memory): refused, the engine then falls back to a smaller model.
+// `explicit` = keys the user set by hand (never changed).
+const MIN_CTX = 4096;
 function fitPlan(planFn, model, opts, specs, bud, { explicit = {}, lim = limits() } = {}) {
   const sp = { ...specs, gpuBudgetGB: bud.vramGB, ramBudgetGB: bud.ramGB };
   const steps = [];
@@ -118,24 +129,39 @@ function fitPlan(planFn, model, opts, specs, bud, { explicit = {}, lim = limits(
     if (specs.unified) return p.vramGB > bud.vramGB + 0.05;
     return p.ramGB > bud.ramGB + 0.05 || (p.vramGB > bud.vramGB + 0.05 && p.mode !== 'cpu');
   };
-  // 1) KV cache in q8_0 instead of a split / a smaller context (only when flash attention can be used)
-  if (over(pl) && !explicit.kvType && opts.kvOk && (o.kvType || 'f16') === 'f16') {
+  const kvFree = () => !explicit.kvType && opts.kvOk && (o.kvType || 'f16') === 'f16';
+  // 1) speed first: every layer on the GPU thanks to a lighter KV cache (also after the context was enlarged)
+  if (!specs.unified && pl.mode === 'split' && kvFree() && !explicit.gpuLayers) {
+    const p2 = planFn(model, { ...o, kvType: 'q8_0' }, sp);
+    if (p2.mode === 'gpu' && !over(p2)) { o.kvType = 'q8_0'; pl = p2; steps.push('KV cache q8_0 to keep every layer on the GPU'); }
+  }
+  // 2) experts in RAM that do not fit there: put as many whole layers as possible on the GPU instead
+  if (over(pl) && pl.mode === 'moe' && !explicit.cpuMoe) {
+    const p2 = planFn(model, { ...o, cpuMoe: 'off' }, sp);
+    if (!over(p2) || p2.ramGB < pl.ramGB - 0.2) { o.cpuMoe = 'off'; pl = p2; steps.push('layers split between GPU and RAM'); }
+  }
+  // 3) KV cache in q8_0 instead of a split / a smaller context (only when flash attention can be used)
+  if (over(pl) && kvFree()) {
     const p2 = planFn(model, { ...o, kvType: 'q8_0' }, sp);
     if (!over(p2) || p2.mode === 'gpu' && pl.mode !== 'gpu') { o.kvType = 'q8_0'; pl = p2; steps.push('KV cache q8_0 to fit'); }
   }
-  // 2) smaller context, down to 2048
-  while (over(pl) && !explicit.ctx && pl.ctx > 2048) {
-    const ctx = Math.max(2048, Math.floor(pl.ctx / 2 / 256) * 256);
+  //    smaller context, down to MIN_CTX
+  while (over(pl) && !explicit.ctx && pl.ctx > MIN_CTX) {
+    const ctx = Math.max(MIN_CTX, Math.floor(pl.ctx / 2 / 256) * 256);
     o = { ...o, ctx }; pl = planFn(model, o, sp); steps.push(`context ${ctx}`);
   }
   const fits = !over(pl);
-  // Refuse only what would really swap. A plan that merely eats into the comfort headroom (a small model on an
-  // 8 GB machine with a browser open) still loads, at the smallest context found above.
+  // 4) what is left over
+  const need = specs.unified ? pl.vramGB : pl.ramGB;
+  const have = specs.unified ? Math.min((specs.ramGB || 8) * 0.72, bud.vramGB) : bud.ramGB;
   const slack = Math.max(0, ((bud.headroom && bud.headroom.ramGB) || 0) - 0.5);
-  const swaps = specs.unified ? pl.vramGB > Math.min((specs.ramGB || 8) * 0.72, bud.vramGB + slack) + 0.05
-    : pl.ramGB > bud.ramGB + slack + 0.05 || (pl.vramGB > bud.vramGB + 0.05 && pl.mode !== 'cpu');
-  const refused = !fits && !lim.allowSwap && swaps;
-  return { plan: pl, opts: o, steps, fits, refused, budget: bud };
+  const tight = !fits && need <= have + slack + 0.05;
+  const slow = !fits && !tight;
+  // 5) more than one and a half times the whole memory: every word would wait for the disk
+  const hopeless = slow && need > (specs.ramGB || 8) * 1.5;
+  const refused = hopeless && !lim.allowSwap;
+  if (slow && !refused) steps.push('bigger than the free memory: part of it is read from the disk (slow)');
+  return { plan: pl, opts: o, steps, fits, tight, slow: slow && !refused, refused, budget: bud };
 }
 
 // ───────────────────────────── generation queue ─────────────────────────────
@@ -277,7 +303,7 @@ function init({ engine, powerMonitor } = {}) {
 }
 
 module.exports = {
-  DEFAULT_LIMITS, limits, headroom, budget, gpuTotalGB, threadsFor, fitPlan,
+  DEFAULT_LIMITS, limits, headroom, budget, gpuTotalGB, threadsFor, fitPlan, MIN_CTX,
   acquire, gated, queueState, isIdle, touch,
   energyMode, processPriority, env,
   live, currentBudget, fabroUse, startWatcher, stopWatcher, checkPressure, init,

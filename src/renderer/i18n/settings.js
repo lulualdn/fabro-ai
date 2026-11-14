@@ -1,6 +1,7 @@
 // Settings (five sections), Resources screen, My Fabro. English and French; es / de fall back to English.
 Object.assign(I18N.en, {
-  err_NO_ROOM_t: 'Not enough free memory', err_NO_ROOM_b: 'This model would slow the whole computer down. Close a few apps or pick a smaller model. Settings → Resources lets you load it anyway.',
+  err_NO_ROOM_t: 'This model is too big for this computer', err_NO_ROOM_b: 'Even read from the disk, it would be unusable. Pick a smaller model.',
+  eng_fallback: '{from} is too big for this computer: {to} answers instead.', eng_slow: '{model} is bigger than the free memory: part of it is read from the disk, so it answers slowly.',
   st_sec_account: 'My account', st_sec_models: 'My models', st_sec_fabro: 'My Fabro', st_sec_resources: 'Resources', st_sec_advanced: 'Advanced',
   st_sub_connectors: 'Connectors', st_sub_skills: 'Skills & tools', st_sub_agent: 'Agent', st_sub_engine: 'Engine', st_sub_voice: 'Voice',
   st_sub_shortcuts: 'Shortcuts', st_sub_localapi: 'Local API', st_sub_mods: 'Mods', st_sub_tasks: 'Tasks', st_sub_updates: 'Updates',
@@ -82,7 +83,8 @@ Object.assign(I18N.en, {
   mf2_forgetConfirm: 'Forget everything Fabro remembers about you in this account? Conversations are kept.', mf2_forgotten_done: 'Fabro forgot everything.',
 });
 Object.assign(I18N.fr, {
-  err_NO_ROOM_t: 'Pas assez de mémoire libre', err_NO_ROOM_b: 'Ce modèle ralentirait tout l’ordinateur. Ferme quelques applis ou prends un modèle plus petit. Réglages → Ressources permet de le charger quand même.',
+  err_NO_ROOM_t: 'Ce modèle est trop gros pour cet ordinateur', err_NO_ROOM_b: 'Même lu depuis le disque, il serait inutilisable. Prends un modèle plus petit.',
+  eng_fallback: '{from} est trop gros pour cet ordinateur : {to} répond à sa place.', eng_slow: '{model} dépasse la mémoire libre : une partie est lue depuis le disque, il répond lentement.',
   st_sec_account: 'Mon compte', st_sec_models: 'Mes modèles', st_sec_fabro: 'Mon Fabro', st_sec_resources: 'Ressources', st_sec_advanced: 'Avancé',
   st_sub_connectors: 'Connecteurs', st_sub_skills: 'Skills et outils', st_sub_agent: 'Agent', st_sub_engine: 'Moteur', st_sub_voice: 'Voix',
   st_sub_shortcuts: 'Raccourcis', st_sub_localapi: 'API locale', st_sub_mods: 'Mods', st_sub_tasks: 'Tâches', st_sub_updates: 'Mises à jour',

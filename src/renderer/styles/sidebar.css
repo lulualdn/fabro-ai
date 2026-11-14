@@ -1,0 +1,50 @@
+/* Sidebar, second design. A flat column on the page (no floating card), a named "new chat" row, a quiet search
+   line, section names in the display serif, a coral mark on the current item instead of a grey pill, and a serif
+   monogram for the person. Tokens only; what moves is transform / opacity. The phone drawer and the CLI layout
+   keep their own look (they need a surface of their own). */
+@media (min-width: 761px) {
+  :root:not([data-layout]) .sidebar { background: transparent; border: 0; border-radius: 0; border-right: 1px solid var(--border); padding-right: var(--gap); }
+}
+
+.sb-head { height: 48px; }
+.brand .bw { font-size: 18px; }
+
+/* new chat: the one named action */
+.sb-new { display: flex; align-items: center; gap: var(--sp-2); height: var(--ctl); margin: var(--sp-0) var(--sp-2) var(--sp-1); padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong); border-radius: var(--r-md); color: var(--text); font-size: var(--fs-ui); font-weight: var(--fw-medium); text-align: left; flex: none;
+  transition: background-color var(--dur-press) linear, transform var(--dur-press) var(--ease-out, ease-out); }
+.sb-new:hover { background: var(--hover); }
+.sb-new:active { background: var(--pressed); transform: scale(.985); }
+.sb-new svg { color: var(--accent); flex: none; }
+.sb-new .label { flex: 1; }
+.sb-collapsed .sb-new .label { display: none; }
+
+/* search: a line, not a box */
+.sidebar .sb-search { margin: 0 var(--sp-2) var(--sp-2); padding: 0 var(--sp-3); height: var(--ctl-sm, 32px); background: none; border: 0; border-radius: 0; border-bottom: 1px solid var(--border); color: var(--muted); }
+.sidebar .sb-search:hover { background: none; border-bottom-color: var(--border-strong); }
+.sidebar .sb-search:focus-within { background: none; border-color: transparent; border-bottom-color: var(--accent); color: var(--text); }
+.sidebar .sb-search input { font-size: var(--fs-sm); }
+
+/* destinations and conversations: tighter rows, no pill; the current one carries a coral mark */
+.sidebar .nav-item, .sidebar .recent { height: 32px; border-radius: var(--r-sm, 8px); }
+.sidebar .nav-item { gap: var(--sp-2h, 10px); font-size: var(--fs-ui); }
+.sidebar .nav-item.active, .sidebar .recent.active { background: none; color: var(--text); font-weight: var(--fw-medium); }
+.sidebar .nav-item.active:hover, .sidebar .recent.active:hover { background: var(--hover); }
+.sidebar .nav-item::before, .sidebar .recent::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 2px; background: var(--accent);
+  opacity: 0; transform: scaleY(.4); transition: opacity var(--dur-1) linear, transform var(--dur-2) var(--ease-spring); }
+.sidebar .nav-item.active::before, .sidebar .recent.active::before { opacity: 1; transform: none; }
+.sidebar .nav-item.active svg { color: var(--accent); }
+.sidebar .app-item.active .app-ic { background: var(--accent); color: var(--accent-ink); }
+
+/* section names: the display serif, like a table of contents */
+.sidebar .sb-section { padding: var(--sp-3) var(--sp-2) var(--sp-1) var(--sp-3); }
+.sidebar .sb-section span { font: italic 400 var(--fs-sm)/1.2 var(--font-display); letter-spacing: 0; color: var(--muted); }
+.sidebar .recents-wrap { border-top: 0; margin-top: 0; }
+.sidebar .sb-apps { border-top: 1px solid var(--border); margin: var(--sp-1) var(--sp-2) 0; padding: 0 0 var(--sp-1); }
+.sidebar .recents-wrap { border-top: 1px solid var(--border); margin: var(--sp-1) var(--sp-2) 0; }
+.sidebar .recents { padding: 0 0 var(--sp-3); }
+
+/* the person: a serif monogram on clay, no black disc */
+.sidebar .sb-user { margin: 0 var(--sp-2) var(--sp-2); padding: var(--sp-2); border-top: 1px solid var(--border); border-radius: 0 0 var(--r-md) var(--r-md); gap: var(--sp-2h, 10px); }
+.sidebar .avatar { width: 30px; height: 30px; border-radius: var(--r-sm, 8px); background: var(--active); color: var(--text); font: 500 16px/1 var(--font-display); }
+.sidebar .av-dot { right: -3px; bottom: -3px; border-color: var(--bg); }

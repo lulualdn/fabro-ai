@@ -12,6 +12,7 @@ const system = require('./system');
 const { downloadFile } = require('./download');
 const store = require('./store');
 const memory = require('./memory');
+const monitor = require('./monitor');
 const governor = require('./governor');
 const autotune = require('./autotune');
 
@@ -407,12 +408,17 @@ async function launch(meta, model, o, key, pl, tuned, safe = false) {
 async function stopInstance(inst) {
   instances.delete(inst.key);
   const p = inst.proc;
+  // The next plan reads the card's live memory: taken too early, it still shows this model's memory as "used by
+  // other apps" and the next model is pushed to the processor. Wait for the release (NVIDIA only, 2.5 s at most).
+  const vram = (inst.plan && inst.plan.vramGB) || 0;
+  const before = vram > 0.3 && p && p.exitCode === null ? await monitor.gpuUsed().catch(() => null) : null;
   if (p && p.exitCode === null) {
     await new Promise((resolve) => {
       const t = setTimeout(() => { try { p.kill('SIGKILL'); } catch {} resolve(); }, 3000);
       p.once('exit', () => { clearTimeout(t); resolve(); });
       try { p.kill(); } catch { resolve(); }
     });
+    if (before != null) await monitor.waitFreed(before, vram).catch(() => {});
   }
   publish();
 }
@@ -434,6 +440,7 @@ async function makeRoom(pl, keepKey, bud) {
   while (over()) {
     const victims = others().filter((i) => i.busy === 0).sort((a, b) => (a.opts.preload === 'always') - (b.opts.preload === 'always') || a.lastUsed - b.lastUsed);
     if (victims.length) { await stopInstance(victims[0]); continue; }
+    if (!others().length) break; // nothing else of ours is loaded: the plan was accepted as tight or slow
     if (Date.now() - t0 > 10 * 60000) break; // a stuck answer: give up waiting
     await sleep(500); // everything else is busy answering: wait for it rather than overload the machine
   }
@@ -459,7 +466,12 @@ async function ensure(model, overrides = {}) {
     let tuned = await planLaunch(meta, model, o, key, specs);
     if (tuned.refused) {
       const pl0 = tuned.plan;
-      const e = new EngineError('NO_ROOM', 'Not enough free memory to load this model without slowing the whole computer down',
+      const alt = o.role || o._bench || o._noFallback ? null : await smallerModel(model, cpuOnly ? { ...specs, accel: 'cpu', gpuBudgetGB: 0, unified: false } : specs, key).catch(() => null);
+      if (alt) {
+        note({ kind: 'fallback', from: model.name, to: alt.name });
+        return ensure(alt, { ...overrides, _noFallback: true });
+      }
+      const e = new EngineError('NO_ROOM', 'This model is far too big for this computer\'s memory',
         `needs ~${(specs.unified ? pl0.vramGB : pl0.ramGB + pl0.vramGB).toFixed(1)} GB, ${governorBudgetText(pl0, specs)} (headroom kept for the system). Try a smaller model or a smaller context.`);
       fail(e); throw e;
     }
@@ -470,6 +482,7 @@ async function ensure(model, overrides = {}) {
     try {
       const inst = await launch0(o, pl);
       if (!meta.verified) { meta.verified = true; await writeMeta(meta); }
+      if (tuned.slow && !o.role && !o._bench) note({ kind: 'slow', model: model.name });
       return inst;
     } catch (e1) {
       if (['MODEL_FILE', 'ARCH'].includes(e1.code)) { fail(e1); throw e1; }
@@ -508,6 +521,23 @@ async function ensure(model, overrides = {}) {
   try { inst = await promise; } finally { starting.delete(key); }
   if (!o.role && !o._bench) setTimeout(() => require('./storage').check(model).catch(() => {}), 1500); // slow disk? (once per model)
   return inst;
+}
+// A short notice for the window (shown once): a smaller model was loaded instead, or this one runs from the disk.
+function note(n) { set({ notice: { ...n, at: Date.now() } }); }
+// The biggest installed chat model, smaller than `model`, that this computer runs without reading from the disk.
+async function smallerModel(model, sp, key) {
+  const size = (m) => m.sizeBytes || 0;
+  const list = (await require('./models').listLocal()).filter((m) => m.id !== model.id && fs.existsSync(m.path) && size(m) > 0 && size(m) < (size(model) || Infinity)
+    && !/embed|rerank|bge-|nomic|whisper|tts|kokoro/i.test(`${m.name} ${m.file || ''} ${m.kind || ''} ${m.role || ''}`)).sort((a, b) => size(b) - size(a));
+  if (!list.length) return null;
+  const bud = await governor.currentBudget(sp, { exceptKey: key });
+  let ok = null;
+  for (const m of list) {
+    const f = governor.fitPlan(memory.plan, m, { ...optionsFor(m), kvOk: true }, sp, bud, { explicit: explicitFor(m) });
+    if (f.fits || f.tight) return m;
+    if (!ok && !f.refused) ok = m;
+  }
+  return ok;
 }
 function governorBudgetText(pl, specs) { return specs.unified ? `${pl.budgetGB} GB usable` : `${pl.ramBudgetGB} GB RAM / ${pl.budgetGB} GB video memory usable`; }
 function fail(e) { set({ status: 'error', error: e.message, errorCode: e.code || 'UNKNOWN', errorDetail: e.detail || '', loaded: loadedList() }); }

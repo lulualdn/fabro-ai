@@ -20,7 +20,8 @@
 .st-tune.now { color: var(--ok); }
 
 /* ── Advanced: sub-tabs ── */
-.st-subtabs { display: flex; gap: var(--sp-1); overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--sp-2)) var(--sp-3); padding: 0 var(--sp-2) var(--sp-2); border-bottom: 1px solid var(--border); }
+/* every tab stays reachable with a mouse: they wrap onto a second line instead of scrolling out of sight */
+.st-subtabs { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin: 0 calc(-1 * var(--sp-2)) var(--sp-3); padding: 0 var(--sp-2) var(--sp-2); border-bottom: 1px solid var(--border); }
 .st-subtabs::-webkit-scrollbar { display: none; }
 .st-subtabs > button { flex: none; display: inline-flex; align-items: center; gap: var(--sp-1h); height: var(--ctl-sm); padding: 0 var(--sp-3); border-radius: var(--r-pill); color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
 .st-subtabs > button:hover { background: var(--hover); color: var(--text); }

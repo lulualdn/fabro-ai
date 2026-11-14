@@ -215,10 +215,19 @@ function renderRecents() {
   const pinned = list.filter((c) => c.pinned), rest = list.filter((c) => !c.pinned);
   el.innerHTML = `
     ${pinned.length ? `<div class="sb-section"><span>${esc(t('pinned'))}</span></div>${pinned.map(recentItem).join('')}` : ''}
-    ${rest.length ? `<div class="sb-section"><span>${esc(S.mode === 'code' && S.cx.root ? t('cx_sessions') : t('chats'))}</span></div>${rest.map(recentItem).join('')}` : ''}
+    ${S.mode === 'code' && S.cx.root ? (rest.length ? `<div class="sb-section"><span>${esc(t('cx_sessions'))}</span></div>${rest.map(recentItem).join('')}` : '')
+      : sbByDay(rest).map((g) => `<div class="sb-section"><span>${esc(t(g.key))}</span></div>${g.list.map(recentItem).join('')}`).join('')}
     ${q && !list.length ? `<div class="sb-empty">${esc(t('noResults'))}</div>` : ''}`;
 }
 
+// Conversations by day: today, yesterday, the last 7 days, older (empty groups are skipped).
+function sbByDay(list) {
+  const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+  const t0 = d0.getTime(), DAY = 864e5;
+  const groups = [{ key: 'sb_today', list: [] }, { key: 'sb_yesterday', list: [] }, { key: 'sb_week', list: [] }, { key: 'sb_older', list: [] }];
+  for (const c of list) { const u = c.updatedAt || 0; groups[u >= t0 ? 0 : u >= t0 - DAY ? 1 : u >= t0 - 7 * DAY ? 2 : 3].list.push(c); }
+  return groups.filter((g) => g.list.length);
+}
 // Code mode with a file open on a narrow window: the app sidebar steps aside (like an IDE).
 const sbAuto = () => S.mode === 'code' && !!S.viewer && S.viewer.type === 'codefile' && innerWidth < 1500;
 // Phone-sized window (Fabro Anywhere on a phone, or a very narrow window): the sidebar is a drawer, closed
@@ -247,10 +256,10 @@ function renderSidebar() {
       <button class="brand" data-action="home" title="Fabro">${logo(23)}<span class="label bw">Fabro</span></button>
       <span class="grow"></span>
       <button class="icon-btn sm hide-c" data-action="hist-back" ${S.histIdx > 0 ? '' : 'disabled'} title="${esc(t('back'))}">${icon('back', 17)}</button>
-      <button class="icon-btn sm" data-action="new-chat" title="${esc(t('newChat'))}">${icon('edit', 18) || icon('plus', 18)}</button>
       <button class="icon-btn sm" data-action="toggle-sidebar" title="${esc(t(collapsed ? 'expandSidebar' : 'collapseSidebar'))}">${icon('panel')}</button>
     </div>
-    <label class="sb-search hide-c">${icon('search', 16)}<input id="sb-q" type="search" placeholder="${esc(t('searchChats'))}" value="${esc(S.sbQuery)}" aria-label="${esc(t('searchChats'))}"><kbd>Ctrl K</kbd></label>
+    <button class="sb-new" data-action="new-chat" title="${esc(t('newChat'))}">${icon('edit', 17) || icon('plus', 17)}<span class="label">${esc(t('newChat'))}</span></button>
+    <label class="sb-search hide-c">${icon('search', 15)}<input id="sb-q" type="search" placeholder="${esc(t('searchChats'))}" value="${esc(S.sbQuery)}" aria-label="${esc(t('searchChats'))}"></label>
     <nav class="sb-nav hide-c">
       ${navItem('code', 'code', t('mode_code'), true)}
       ${PAGES.filter((p) => p.id !== 'custom').map((p) => navItem(p.id, p.icon, t('nav_' + p.id), p.locked)).join('')}
@@ -357,7 +366,9 @@ function vt(fn, opts) {
   const t = document.startViewTransition(fn);
   // A skipped transition (window hidden, tray) rejects these promises: that is not an error.
   t.ready.catch(() => {}); t.updateCallbackDone.catch(() => {});
-  t.finished.catch(() => {}).finally(() => { delete document.documentElement.dataset.vt; });
+  // A transition that never ends leaves the page deaf to clicks: cut it short.
+  const guard = setTimeout(() => { try { t.skipTransition(); } catch { /* already over */ } }, 1200);
+  t.finished.catch(() => {}).finally(() => { clearTimeout(guard); delete document.documentElement.dataset.vt; });
   return t;
 }
 
@@ -455,7 +466,7 @@ function renderProgress(d) {
 }
 
 // Fabro Code is paused while it is reworked (too unstable): its entry stays, with an explanation.
-const CODE_MAINTENANCE = true;
+const CODE_MAINTENANCE = false;
 function renderMaintenance() {
   return `<div class="locked">
     <div class="lk-ico">${icon('wrench', 30)}</div>
@@ -1087,7 +1098,14 @@ const actions = {
   'settings': (el) => { closePopover(); openSettings(el.dataset.tab || 'general'); },
   'settings-tab': (el) => { openSettings(el.dataset.tab); },
   'close-settings': () => closeSettings(), // defined in settings-ui.js (loaded after this file)
-  'overlay-bg': (el, e) => { if (e.target === el) closeSettings(); },
+  // The sidebar stays visible behind the settings: a click on it closes them and goes through (one click, not two).
+  'overlay-bg': (el, e) => {
+    if (e.target !== el) return;
+    closeSettings();
+    const under = document.elementsFromPoint(e.clientX, e.clientY).find((n) => n !== el && !el.contains(n));
+    const hit = under && under.closest('#sidebar [data-action]');
+    if (hit) hit.click();
+  },
   'send': (el) => { el.classList.remove('launch'); void el.offsetWidth; el.classList.add('launch'); sendPrompt(); },
   'stop': () => { if (S.streaming) api.chat.abort(S.streaming.reqId); },
   'inject': () => { injectPrecision(); },

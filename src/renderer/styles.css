@@ -157,7 +157,9 @@ kbd { font-family: var(--font-ui); font-size: var(--fs-2xs); color: var(--muted)
 .greet { display: flex; align-items: flex-start; justify-content: center; gap: var(--sp-3); margin: 0 0 var(--sp-2); font: 400 var(--fs-display)/1.12 var(--font-display); letter-spacing: -.018em; color: var(--text); text-wrap: balance; text-align: left; }
 /* the propeller hangs on the first line's x-height, whatever the greeting's length */
 .greet .logo { width: 1.02em; height: 1.02em; margin-top: .03em; }
-.greet span { max-width: 18em; }
+/* one line as long as it fits in the window; only a really long greeting wraps */
+.greet { align-self: center; width: max-content; max-width: min(72rem, 100vw - 22rem); }
+.greet span { max-width: none; }
 .suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
 .sugg { height: var(--ctl); padding: 0 var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-pill); font-size: var(--fs-sm); color: var(--text-2); background: transparent;
   transition: background-color var(--dur-press) linear, color var(--dur-press) linear, border-color var(--dur-press) linear, transform var(--dur-2) var(--ease-bounce); }
@@ -1492,7 +1494,7 @@ body.drop-on .drop-veil { opacity: 1; }
   .tb-title { font-size: 15px; }
   /* chat */
   .welcome { width: calc(100% - 32px); padding: 2vh 0 4vh; gap: 16px; }
-  .greet { font-size: 30px; flex-wrap: wrap; text-align: center; }
+  .greet { font-size: 30px; flex-wrap: wrap; text-align: center; width: auto; max-width: 100%; }
   .suggestions { gap: 6px; } .suggestions > * { font-size: 14px; }
   .dock { padding: 0 8px calc(8px + var(--safe-b, 0px)); }
   .composer { border-radius: 22px; padding: 8px 8px 6px 12px; }

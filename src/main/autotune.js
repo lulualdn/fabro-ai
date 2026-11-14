@@ -160,7 +160,7 @@ function tune(model, o, ctx) {
     tokPerSec: bench ? bench.tokPerSec : null, measured: !!bench,
     text: `${plan.mode === 'cpu' ? 'CPU only' : `${layers} layers on GPU`}, ${threads || 'default'} threads${bench && bench.tokPerSec ? `, ${bench.tokPerSec} tok/s` : ''}`,
   };
-  return { opts, plan, pairs, why, summary, refused: fit.refused, fits: fit.fits };
+  return { opts, plan, pairs, why, summary, refused: fit.refused, fits: fit.fits, slow: !!fit.slow, tight: !!fit.tight };
 }
 function materialize(pairs, port, caps) {
   const p = pairs.map(([f, ...v]) => [f, ...v.map((x) => (x === '{port}' ? String(port) : x))]);

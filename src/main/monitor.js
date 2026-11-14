@@ -74,4 +74,20 @@ function gpuLive() {
   return gpuC.p;
 }
 
-module.exports = { sample, gpuLive, rssOf, cpuLoad };
+// Memory used on the first NVIDIA card right now (no cache), or null.
+async function gpuUsed() { if (!smi) return null; const g = await gpus(); return g[0] && g[0].usedGB != null ? g[0].usedGB : null; }
+// After a model was stopped: wait until the card shows most of its memory back (or 2.5 s), then refresh the cache.
+async function waitFreed(beforeGB, freedGB) {
+  if (!smi || beforeGB == null) return;
+  const t0 = Date.now();
+  let g = [];
+  for (;;) {
+    g = await gpus();
+    const used = g[0] && g[0].usedGB;
+    if (used == null || used <= beforeGB - freedGB * 0.6 || Date.now() - t0 > 2500) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  gpuC = { at: 0, v: null, p: null };
+}
+
+module.exports = { sample, gpuLive, gpuUsed, waitFreed, rssOf, cpuLoad };

@@ -115,7 +115,8 @@
     root.dataset.vt = 'skin';
     const vt = document.startViewTransition(fn);
     vt.ready.catch(() => {}); vt.updateCallbackDone.catch(() => {});
-    vt.finished.catch(() => {}).finally(() => { if (root.dataset.vt === 'skin') delete root.dataset.vt; });
+    const guard = setTimeout(() => { try { vt.skipTransition(); } catch { /* already over */ } }, 1200); // never leave the page deaf to clicks
+    vt.finished.catch(() => {}).finally(() => { clearTimeout(guard); if (root.dataset.vt === 'skin') delete root.dataset.vt; });
   }
 
   // ───────── choosing, importing, exporting (main window) ─────────
