@@ -188,3 +188,15 @@ Reste, dans l'ordre :
   traverse sur Windows/macOS réels, plusieurs écrans (écran principal seulement), la surveillance avec un vrai modèle
   vision, Wayland (capture et `forward` non garantis).
 - Bloc agent : sur fenêtre taille téléphone (Anywhere) le panneau de session ne s'ouvre plus tout seul.
+
+### Téléphone / Anywhere (0.1.63)
+- `src/renderer/phone.js` + `styles/phone.css` (interface PC en taille téléphone) : glisser depuis le bord gauche ouvre le
+  menu, glisser à gauche le ferme ; tirer vers le haut au dernier message remplit un anneau puis lance un nouveau chat ;
+  bulle « Pas connecté au PC » (mode local) qui ouvre l'appairage ou relance la connexion ; Intelligent UI en une colonne.
+- `site/app/theme.js` : clavier iPhone : la hauteur suit `visualViewport`, la page ne glisse plus (`html.kb-open`).
+- Mise à jour du PC depuis le téléphone : `updater:install` n'est plus refusé (`remote-ui.js`) ; le téléphone affiche
+  « Ton PC met Fabro à jour » (`full.js`, message `updating`) et attend 5 min au lieu de passer en local.
+- Reconnexion : nouveaux essais toutes les 2 à 15 s (au lieu de 4 à 60 s).
+- Pas fait : plantage des modèles locaux / voix sur téléphone (cause inconnue, il faut le message d'erreur ou le modèle
+  de téléphone), paramètres simplifiés sur téléphone, déconnexions côté PC (non étudié), limites des chats créés hors ligne.
+- Vérifié : gestes simulés dans une fenêtre 390 px, `anywhere-full-e2e` vert. Pas vérifié sur un vrai iPhone/Android.

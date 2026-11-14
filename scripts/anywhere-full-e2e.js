@@ -126,11 +126,7 @@ const listen = (s) => new Promise((r) => s.listen(0, '127.0.0.1', () => r(s.addr
   await wait(400); await phone.screenshot({ path: path.join(shots, '03-full-drawer.png') });
   assert.ok(await F.$eval('#sb-lists', (e) => /Capitale/.test(e.textContent)), 'the chat is listed in the drawer');
   step('sidebar opens as a drawer');
-  await F.click('.app-item[data-id=agents]');
-  await F.waitForSelector('.ag-wrap', { timeout: 10000 });
-  await wait(300); await phone.screenshot({ path: path.join(shots, '04-full-agents.png') });
-  await noScroll('agents app');
-  step('Agents app opens on the phone');
+  await F.evaluate(() => { S.drawer = false; renderSidebar(); renderTopbar(); }); // (the Agents app that this step opened is gone)
   await F.evaluate(() => openSettings('general'));
   await F.waitForSelector('.overlay.shown .st-panel', { timeout: 10000 });
   await wait(300); await phone.screenshot({ path: path.join(shots, '05-full-settings.png') });
