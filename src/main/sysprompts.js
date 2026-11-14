@@ -177,7 +177,10 @@ async function save(p = {}) {
   if (body.length > MAX_BODY) throw new Error(`Too long (max ${MAX_BODY} characters).`);
   const name = String(p.name || '').trim().slice(0, 80) || 'Untitled';
   let id = safeId(p.id);
-  if (!id) id = `${slug(name)}-${Date.now().toString(36).slice(-4)}`;
+  if (!id) { // two prompts saved in the same millisecond must not share a file
+    const b = `${slug(name)}-${Date.now().toString(36).slice(-4)}`; id = b;
+    for (let n = 2; require('fs').existsSync(path.join(dir(), id + EXT)); n++) id = `${b}-${n}`;
+  }
   await fsp.mkdir(dir(), { recursive: true });
   const f = path.join(dir(), id + EXT);
   await fsp.writeFile(f + '.tmp', serialize({ name, description: p.description, body })); await fsp.rename(f + '.tmp', f);

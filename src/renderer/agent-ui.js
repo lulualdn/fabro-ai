@@ -135,10 +135,12 @@ function isDeliverable(st) {
   if (['create_artifact', 'edit_artifact'].includes(st.name) && v.kind === 'artifact') return true;
   return st.name === 'generate_image' && !!v.image;
 }
-function stepOutputs(steps) { return steps.filter(isDeliverable).map((st) => stepDetail(st, true)).join(''); }
+const tlLate = (st) => !!window.Timeline && Timeline.isLate(st); // an artifact changed later: its card is at the end of the message
+function stepOutputs(steps) { return steps.filter(isDeliverable).filter((st) => !tlLate(st)).map((st) => stepDetail(st, true)).join(''); }
 function stepDetail(st, force) {
   const v = st.view || {};
   if (STEP_NO_OUT && !force && isDeliverable(st)) return '';
+  if (!force && tlLate(st)) return '';
   if (v.kind === 'modelpicks' && window.ModelFinder) return ModelFinder.cardsHtml(v, { inChat: true }); // find_model: cards with an Install button
   if (st.name === 'run_command') {
     const out = st.live != null ? st.live : v.out || '';
@@ -225,7 +227,7 @@ function onAgentEvent(ev, m) {
       break;
     case 'deps_needed': if (st) st.deps = { dep: ev.dep }; break;
     case 'tool_progress': if (st) { if (ev.pct != null) st.pct = ev.pct; else st.live = ((st.live || '') + ev.text).slice(-20000); } break;
-    case 'retract': m.content = (m.content || '').replace(ev.text, ''); break;
+    case 'retract': if (window.Timeline) Timeline.onRetract(m, ev.text); m.content = (m.content || '').replace(ev.text, ''); break;
     case 'plan': if (!ev.sub) { m.plan = ev.steps; S.sp = S.sp || {}; renderSessionPanel(); } break;
     case 'sub_token': { const p = (m.steps || []).find((x) => x.id === ev.parent); if (p) p.subText = ((p.subText || '') + ev.text).slice(-2000); break; }
   }

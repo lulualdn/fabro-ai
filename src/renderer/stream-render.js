@@ -64,13 +64,16 @@ function streamPatch(el, m) {
   if (!m.content || (typeof hasArtifacts === 'function' && hasArtifacts(m))) { SR.delete(m.id); return false; }
   let st = SR.get(m.id);
   if (!st || st.el !== el) { st = { el, outer: null, mdEl: null, stableLen: 0, chunks: 0, stableNodes: 0, tailNodes: 0, content: '' }; SR.set(m.id, st); }
-  const content = m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content;
+  // thoughts and steps sit inside the text (timeline.js): only the last run of text is still growing
+  const base = window.Timeline && Timeline.has(m) ? Timeline.base(m) : 0;
+  if (st.base !== base) { st.base = base; st.stableLen = 0; st.chunks = 0; st.stableNodes = 0; st.tailNodes = 0; st.content = ''; st.mdEl = null; st.outer = null; }
+  const content = base ? m.content.slice(base) : m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content;
   if (content.length < st.content.length || content.slice(0, st.stableLen) !== st.content.slice(0, st.stableLen)) { // retracted / rewritten: start over
     st.stableLen = 0; st.chunks = 0; st.stableNodes = 0; st.tailNodes = 0; if (st.mdEl) st.mdEl.textContent = '';
   }
   st.content = content;
   // 1) everything around the text, with the text replaced by a slot
-  const outer = assistantBody({ ...m, content: SR_SLOT, voice: false });
+  const outer = assistantBody({ ...m, content: m.content.slice(0, base) + SR_SLOT, voice: false });
   if (outer !== st.outer || !st.mdEl || !st.mdEl.isConnected) {
     const keep = st.mdEl ? [...st.mdEl.childNodes] : [];
     el.innerHTML = outer;

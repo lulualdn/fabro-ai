@@ -1,0 +1,14 @@
+/* Thoughts and steps drawn where they happened in the answer (timeline.js). Tokens only. */
+.tl-block { display: flex; flex-direction: column; gap: var(--sp-1h); margin: var(--sp-2) 0 var(--sp-3); }
+.tl-block:empty { display: none; }
+.tl-block > .think, .tl-block > .steps, .tl-block > .steps-sum, .tl-block > .steps-outs { margin: 0; }
+.tl-block > .think { border: 0; background: none; }
+.tl-block > .think > summary { padding-left: 0; color: var(--text-2); }
+.tl-late { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+/* Artifact card inside a chat message: one compact row (small picture, title, kind). The whole card opens it. */
+.msg .art-card { gap: var(--sp-3); margin: var(--sp-2) 0; padding: var(--sp-1h) var(--sp-4) var(--sp-1h) var(--sp-1h); border-radius: var(--r); max-width: 440px; }
+.msg .art-card .art-thumb { width: 84px; border-radius: var(--r-sm); }
+.msg .art-card .art-thumb.is-code .at-file { width: 34px; height: 40px; border-radius: var(--r-xs); }
+.msg .art-card .ac-open { display: none; }
+.msg .step-detail > .art-card:first-child { margin-top: var(--sp-1); }

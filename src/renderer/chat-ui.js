@@ -72,9 +72,9 @@ function stepsSummary(list) {
   const txt = parts.join(', ');
   return txt ? txt[0].toUpperCase() + txt.slice(1) : '';
 }
-function renderSteps(m) {
+function renderSteps(m, only) { // only: the steps of one place in the answer (timeline.js)
   if (!m.steps || !m.steps.length) return '';
-  const top = m.steps.filter((st) => !st.parent);
+  const top = (only || m.steps).filter((st) => !st.parent);
   const counted = top.filter((st) => kindOf(st.name) !== 'skip');
   const fold = counted.length >= 2;
   const outs = fold && !m.pending && typeof stepOutputs === 'function' ? stepOutputs(top) : '';

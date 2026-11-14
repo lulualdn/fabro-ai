@@ -32,7 +32,7 @@ const llm = http.createServer((req, res) => {
     const body = JSON.parse(b || '{}');
     const sys = String((body.messages && body.messages[0] && body.messages[0].content) || '');
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    const lastU = [...(body.messages || [])].reverse().find((m) => m.role === 'user'); const ut = String(lastU && (typeof lastU.content === 'string' ? lastU.content : (lastU.content || []).map((c) => c.text || '').join(' ')) || '');
+    const lastU = [...(body.messages || [])].reverse().find((m) => m.role === 'user'); const ut = String(lastU && (typeof lastU.content === 'string' ? lastU.content : (lastU.content || []).map((c) => c.text || '').join(' ')) || '').replace(/<system_update>[\s\S]*?<\/system_update>\s*/g, '');
     const words = /You name conversations/.test(sys) ? ['Capitale de la France'] : /fiche/i.test(ut) ? ['Voici la fiche.\n\n<artifact type="markdown" title="Fiche Paris">\n# Paris\n\n- Capitale de la France\n- 2,1 millions d’habitants\n</artifact>'] : /maintain a short memory/.test(sys) ? ['[]'] : ANSWER.split(/(?<= )/);
     let i = 0;
     const tick = () => { if (i < words.length) { res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: words[i++] } }] })}\n\n`); setTimeout(tick, 40); } else res.end('data: [DONE]\n\n'); };

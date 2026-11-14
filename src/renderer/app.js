@@ -539,10 +539,11 @@ function injectPrecision() {
   return true;
 }
 function assistantBody(m) {
-  let html = renderThinking(m) + renderSteps(m) + renderPrecisions(m);
+  const tl = !!window.Timeline && Timeline.has(m); // thoughts and steps drawn where they happened (timeline.js)
+  let html = (tl ? '' : renderThinking(m) + renderSteps(m)) + renderPrecisions(m);
   // Fabro looked at the artifact and sent the model back to fix what was broken
   if (m.pending && m.artCheck && m.artCheck.status === 'fixing') html += `<div class="art-checkline">${spinner(16)}<span>${esc(t('artFixingN', { n: m.artCheck.count || 1 }))}</span></div>`;
-  if (m.content) { MD_CITES = sourceMap(m); try { html += (hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content, m.id)}</div>`) + citedSources(m); } finally { MD_CITES = null; } }
+  if (m.content || tl) { MD_CITES = sourceMap(m); try { html += (tl ? Timeline.body(m) : hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content, m.id)}</div>`) + (m.content ? citedSources(m) : ''); } finally { MD_CITES = null; } }
   else if (m.pending && !m.reasoning && !(m.steps || []).length) {
     const st = m.status === 'loading' ? t('loadingModel') : m.status === 'queued' ? t('perf_queued') : m.status === 'compressing' ? t('ctx_compressing') : '';
     html += `<div class="typing">${spinner(34)}${st ? `<em>${esc(st)}</em>` : ''}</div>`;
@@ -1043,9 +1044,9 @@ function onChatEvent(ev) {
   const m = S.streaming.msg;
   switch (ev.type) {
     case 'status': m.status = ev.status; scheduleStreamRender(); break;
-    case 'reasoning': if (!m.thinkStart) m.thinkStart = Date.now(); m.reasoning += ev.text; scheduleStreamRender(); break;
+    case 'reasoning': if (!m.thinkStart) m.thinkStart = Date.now(); if (window.Timeline) Timeline.onThink(m, ev.text); m.reasoning += ev.text; scheduleStreamRender(); break;
     case 'token': if (m.reasoning && !m.thinkEnd) m.thinkEnd = Date.now(); m.content += ev.text; scheduleStreamRender(); break;
-    case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running', parent: ev.parent, t0: Date.now() }); scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab === 'steps') renderViewer(); break;
+    case 'tool_start': (m.steps ||= []).push({ id: ev.id, name: ev.name, args: ev.args || {}, status: 'running', parent: ev.parent, t0: Date.now() }); if (window.Timeline) Timeline.onStep(m, m.steps[m.steps.length - 1]); scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab === 'steps') renderViewer(); break;
     case 'tool_end': { const st = (m.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; st.error = ev.error; st.perm = null; st.deps = null; if (st.view && st.view.out == null && st.live) st.view.out = st.live; delete st.live; delete st.subText; } scheduleStreamRender(); renderSessionPanel(); if (S.viewer && S.viewer.type === 'agent' && S.viewer.tab !== 'browser') renderViewer(); break; }
     case 'agent_switch': case 'tools_info': case 'permission': case 'deps_needed': case 'tool_progress': case 'retract': case 'plan': case 'sub_token': onAgentEvent(ev, m); break;
     case 'checkpoint': m.checkpoint = { id: ev.id, files: ev.files }; cxRefreshSoon(); break;
