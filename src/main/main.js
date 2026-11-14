@@ -17,7 +17,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/models'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const computer = require('./computer');
@@ -415,7 +415,7 @@ app.whenReady().then(async () => {
   accounts.setEmitter((ch, d) => send(ch, d));
   store.init();
   tasks.init(send);
-  require('./notebook').init(ipcMain); require('./guides').init(ipcMain); require('./sysprompts').init(ipcMain, send, { dialog, getWindow: () => win }); // smart prompt: AI notebook, guides, personal prompts
+  require('./wakeups').init(ipcMain, send); require('./notebook').init(ipcMain); require('./guides').init(ipcMain); require('./sysprompts').init(ipcMain, send, { dialog, getWindow: () => win }); // smart prompt: AI notebook, guides, personal prompts
   crash.init(() => win);
   searxng.configure({ deps: process.env.FABRO_DEPS || path.join(app.getPath('userData'), 'deps'), python: async (prog) => { await python.install((p) => prog(p * 0.3)); return python.pyPath(); } });
   // 0.1.9: SearXNG becomes the default search engine (DuckDuckGo stays the fallback).
@@ -469,5 +469,5 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => { if (!isMac || !accounts.isOpen()) app.quit(); });
 app.on('activate', () => { if (win) desktop.showMain(); else if (accounts.isOpen()) createWindow(); });
-app.on('before-quit', () => { computer.shutdown();  engine.stop(); searxng.stop(); voice.stop(); runtime.stop(); });
+app.on('before-quit', () => { require('./wakeups').stopAll(); computer.shutdown();  engine.stop(); searxng.stop(); voice.stop(); runtime.stop(); });
 app.on('will-quit', () => { engine.stop(); mcp.stopAll(); db.close(); });

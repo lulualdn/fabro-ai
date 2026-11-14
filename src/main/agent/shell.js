@@ -52,4 +52,4 @@ agent.register({
   },
 });
 
-module.exports = { DANGER };
+module.exports = { DANGER, SECRET_ENV, shellFor };

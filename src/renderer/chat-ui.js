@@ -189,6 +189,7 @@ function composerExtras() {
   if (st && st.id !== 'default') chips.push(`<button class="c-chip" data-action="style-menu" title="${esc(t('responseStyle'))}">${icon('brush', 14)}<span>${esc(st.name)}</span></button>`);
   if (typeof SysPrompts !== 'undefined') { const c = SysPrompts.chip(); if (c) chips.push(c); }
   if (typeof ChatBar !== 'undefined') { const c = ChatBar.chip(); if (c) chips.push(c); }
+  if (typeof Wakeups !== 'undefined') { const c = Wakeups.chip(); if (c) chips.push(c); }
   if (S.conv && S.conv.ephemeral || S.ephemeralNext) chips.push(`<span class="c-chip ghost">${icon('eyeOff', 14)}<span>${esc(t('ephemeral'))}</span></span>`);
   return `<button class="think-btn ${r === 'off' ? 'off' : r === 'auto' ? '' : 'on'}" data-action="reasoning-menu" title="${esc(t('reasoning'))}: ${esc(t('reason_' + r))}">${icon('brain', 16)}<span>${esc(r === 'auto' ? t('reasoningShort') : t('reason_' + r))}</span></button>${chips.join('')}`;
 }

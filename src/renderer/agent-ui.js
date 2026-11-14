@@ -73,6 +73,7 @@ function stepLabel(st) {
     case 'generate_speech': return `🔊 ${a.title || String(a.text || '').slice(0, 50)}`;
     case 'browser_download_images': return `⬇ ${a.selector || 'images'}`;
     case 'import_files': return `📥 ${a.why || ''}`;
+    case 'wake_me_when': return typeof Wakeups !== 'undefined' ? Wakeups.label(st) : st.name;
     case 'wait': return `⏳ ${a.seconds || 1} s${a.reason ? ' · ' + a.reason : ''}`;
     case 'browser_back': return k('back');
     case 'browser_script': return k('script');

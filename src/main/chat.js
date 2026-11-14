@@ -553,6 +553,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           catch (e) { if (ctrl.signal.aborted) throw e; pre.set(c.id, { content: `Error: ${e.message}` }); out({ type: 'tool_end', id: c.id, name: c.name, error: e.message, code: e.code }); }
         }));
       }
+      let endTurn = false; // a tool (wake_me_when) asked for the loop to really stop
       for (const c of r.toolCalls) {
         if (pre.has(c.id)) { msgs.push({ role: 'tool', tool_call_id: c.id, content: pre.get(c.id).content }); continue; }
         let args = {}, badArgs = null; try { args = JSON.parse(c.args || '{}'); if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('arguments must be a JSON object'); } catch (e) { args = {}; badArgs = e.message; }
@@ -590,11 +591,13 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           turnTools.push({ name: c.name, ok: false }); lastError = { name: c.name, error: e.message };
         }
         msgs.push({ role: 'tool', tool_call_id: c.id, content: sp.toolResult(c.name, result.content, !turnTools.length || turnTools[turnTools.length - 1].ok) });
+        if (result.endTurn && !parent) endTurn = true;
         if (result.image) {
           if (params.vision) msgs.push({ role: 'user', content: [{ type: 'text', text: `(Image returned by ${c.name})` }, { type: 'image_url', image_url: { url: result.image } }] });
           else msgs[msgs.length - 1].content += '\n(An image was produced but this model cannot see images.)';
         }
       }
+      if (endTurn) { out({ type: 'tool_round' }); break; }
       if (agentMode) toolSchemas = buildTools();
       sp.refresh({ turnTools, nudges, steps });
       out({ type: 'tool_round' });

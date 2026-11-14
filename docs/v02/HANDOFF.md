@@ -103,7 +103,17 @@ dans l'environnement Linux de test (délai du faux serveur) : à revérifier.
   grandir-ou-compresser prise pendant la compression, par paliers, via `engine.maxContext/resizeContext`,
   retour à la normale sous pression mémoire).
 
-### Vague 3 (pas commencée)
+### Vague 3 (en cours)
+Fait (branche `v0.2`, après la 0.1.58, pas encore publié) :
+- Message en file : bulle semi-transparente + « Envoyer maintenant » (`chatbar-ui.js`).
+- « Tout autoriser » par conversation, avec avertissement ; supprimer / payer / envoyer / publier et les commandes
+  dangereuses demandent toujours (`ctx.allowAll` dans `agent/index.js`). L'intensité de réflexion existait déjà.
+- Installations proposées par l'IA : `agent/installs.js` + carte oui / annuler (`install-card.js`), `scripts/installs-test.js`.
+- Scripts de réveil : outil `wake_me_when` (`agent/wakeup.js`, `wakeups.js`, `wakeups-ui.js`). La boucle s'arrête
+  (`endTurn` dans `chat.js`), la sortie du script relance le chat. Les scripts s'arrêtent à la fermeture de l'app.
+  Pas testé avec un vrai modèle : seulement le gestionnaire et le rappel dans l'interface.
+
+Reste :
 - Outils agents en plus + l'IA peut proposer d'installer un MCP, un skill ou un system prompt, avec une seule
   confirmation oui / annuler.
 - Scripts de réveil : l'IA lance un script qui la rappelle avec un résultat (ex. fin d'un déploiement GitHub),
