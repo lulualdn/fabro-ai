@@ -1,0 +1,8 @@
+{
+  "id": "overlay",
+  "name": "Fabro Overlay",
+  "version": "1.0.0",
+  "author": "UFStudios",
+  "description": "Fabro can put widgets on your desktop and show things over the whole screen. Some can look at the screen and talk with the model in the background. Close everything with the Fabro mark, top right.",
+  "main": "main.js"
+}

@@ -174,3 +174,17 @@ Reste, dans l'ordre :
 - Remplace `cxWelcome`, `renderCodeView`, `cxSide` de `code-ui.js` et enveloppe `renderView`, `cxRenderTree`.
 - Lulu a demandé une release à chaque grosse mise à jour (Intelligent UI = 0.1.60, shell Code = 0.1.61).
 - Pas vérifié : le premier message avec un vrai modèle, le rendu dans Anywhere sur un vrai téléphone.
+
+### Vague 6 — Fabro Overlay (mod intégré, désactivé par défaut)
+- `src/mods/overlay/` : `main.js` (fenêtre transparente au-dessus de tout, outils `overlay_show` / `overlay_remove` /
+  `overlay_list`, surveillance d'écran), `overlay.html` + `page.js` (dessin), `preload.js`.
+- Widgets arrondis posés sur le bureau (enregistrés, de retour au démarrage, déplaçables) ; éléments plein écran (non
+  enregistrés). La souris traverse la fenêtre sauf sur un élément interactif et sur l'hélice Fabro (haut droite, à
+  moitié transparente) qui ferme l'overlay.
+- Le contenu de l'IA tourne dans un cadre isolé (scripts seuls). `fabro.ask()` pose une question au modèle ;
+  `watch_every` + `watch_prompt` : capture d'écran envoyée au modèle à ce rythme (20 s minimum), réponse dans `fabro.onAI`.
+  Un point de couleur dans l'en-tête signale un widget qui regarde l'écran. `overlay_show` demande l'accord (risk write).
+- Vérifié sous Linux/xvfb : outils, fenêtre, clic dans un widget, fermeture, sauvegarde. Pas vérifié : la souris qui
+  traverse sur Windows/macOS réels, plusieurs écrans (écran principal seulement), la surveillance avec un vrai modèle
+  vision, Wayland (capture et `forward` non garantis).
+- Bloc agent : sur fenêtre taille téléphone (Anywhere) le panneau de session ne s'ouvre plus tout seul.

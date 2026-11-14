@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; media-src data: https:; frame-src about: data:">
+<style>
+  :root { --bg:#f6f4ef; --panel:#efece5; --elev:#fffdf9; --border:#e2ded4; --text:#211f1b; --muted:#77736a; --accent:#bf5b30; --logo:#bf5b30; --r:16px; --font: system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font: 13px/1.4 var(--font); color: var(--text); user-select: none; }
+  #full, #widgets { position: fixed; inset: 0; pointer-events: none; }
+  .full { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; pointer-events: none; }
+  .full[data-int] { pointer-events: auto; }
+  .w { position: absolute; display: flex; flex-direction: column; border-radius: var(--r); background: var(--panel); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.22); overflow: hidden; pointer-events: none; }
+  .w[data-int] { pointer-events: auto; }
+  .w.bare { background: transparent; border: 0; box-shadow: none; }
+  .w-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; font-weight: 600; cursor: grab; }
+  .w.bare .w-head, .w:not([data-int]) .w-x { display: none; }
+  .w-head span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .w-eye { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .w-x { all: unset; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; color: var(--muted); cursor: pointer; }
+  .w-x:hover { background: var(--border); color: var(--text); }
+  .w iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: transparent; }
+  .w.drag iframe { pointer-events: none; }
+  #close { all: unset; position: fixed; top: 14px; right: 14px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; opacity: .45; cursor: pointer; pointer-events: auto; transition: opacity .15s, background .15s; }
+  #close:hover { opacity: 1; background: var(--elev); box-shadow: 0 2px 10px rgba(0,0,0,.2); }
+  #close[hidden] { display: none; }
+</style></head>
+<body><div id="full"></div><div id="widgets"></div>
+<button id="close" data-int hidden aria-label="Close the overlay" title="Fabro Overlay"><svg width="26" height="26" viewBox="0 0 100 100"><path id="mark" fill="var(--logo)" fill-rule="evenodd" d=""/></svg></button>
+<script src="page.js"></script></body></html>
