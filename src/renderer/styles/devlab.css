@@ -1,0 +1,13 @@
+/* Developer lab (Settings › Advanced): set-ups side by side. Tokens only. */
+.dl-q { width: 100%; height: auto; padding: var(--sp-2) var(--sp-3); resize: vertical; }
+.dl-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); margin: var(--sp-3) 0; }
+.dl-col, .dl-report { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); }
+.dl-col-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: var(--ctl-xs); }
+.dl-col-head b { font-family: var(--font-display); font-weight: var(--fw-medium); }
+.dl-col select.input { width: 100%; }
+.dl-sys { width: 100%; height: auto; padding: var(--sp-2); resize: vertical; font-size: var(--fs-xs); }
+.dl-out { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-sm); line-height: 1.5; max-height: 320px; overflow: auto; padding: var(--sp-2); border-radius: var(--r-xs); background: var(--elev); }
+.dl-out.err { color: var(--err); }
+.dl-meta { color: var(--muted); font-size: var(--fs-xs); }
+.dl-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.dl-report { margin-top: var(--sp-3); }

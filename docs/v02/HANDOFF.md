@@ -112,6 +112,12 @@ Fait (branche `v0.2`, après la 0.1.58, pas encore publié) :
 - Scripts de réveil : outil `wake_me_when` (`agent/wakeup.js`, `wakeups.js`, `wakeups-ui.js`). La boucle s'arrête
   (`endTurn` dans `chat.js`), la sortie du script relance le chat. Les scripts s'arrêtent à la fermeture de l'app.
   Pas testé avec un vrai modèle : seulement le gestionnaire et le rappel dans l'interface.
+- Labo développeur (Réglages › Avancé › Développeur, mode développeur allumé) : même question à 2–4 réglages
+  (modèle + prompt système), puis compte rendu écrit par le modèle courant, avec un prompt proposé
+  (`devlab.js`, `devlab-ui.js`). Pas testé avec un vrai modèle.
+- Moteur local : prompt système et liste d'outils figés par conversation (`sysprompt/freeze.js`), ce qui change pour
+  une demande part en note `<system_update>` sur le dernier message utilisateur. Les appels en arrière-plan
+  (`chat.quick`) n'envoient plus d'outils ni le prompt adaptatif (`params.bare`). Gain à mesurer sur une vraie machine.
 
 Reste :
 - Outils agents en plus + l'IA peut proposer d'installer un MCP, un skill ou un system prompt, avec une seule
@@ -121,8 +127,6 @@ Reste :
 - Mode « tout autoriser » avec avertissement ; réglage de l'intensité de réflexion dans la barre de chat.
 - Message envoyé pendant une génération : bulle semi-transparente avec « envoyer maintenant » (interrompt), sinon
   remis au modèle au prochain moment opportun (`inject()` existe déjà dans chat.js).
-- Labo développeur : tester des system prompts, comparer des modèles rapidement, une IA qui en entraîne d'autres
-  et rend un compte rendu (`sysprompt.explain` est prêt).
 - Intégration rapide Claude Code / Codex ; import de `.skill` par double-clic.
 - Traductions es/de, passage du français au « tu » partout (l'accueil dit encore « vous »).
 - Trois lenteurs repérées : la fenêtre attend la détection matérielle avant de s'afficher (`main.js`),

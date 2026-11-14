@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   notebook: { list: i('notebook:list'), add: i('notebook:add'), update: i('notebook:update'), delete: i('notebook:delete'), clear: i('notebook:clear') },
   guides: { list: i('guides:list'), get: i('guides:get'), save: i('guides:save'), delete: i('guides:delete') },
   wakeups: { list: i('wakeups:list'), cancel: i('wakeups:cancel') },
+  devlab: { one: i('devlab:one'), judge: i('devlab:judge') },
   sysprompts: { list: i('sysprompts:list'), get: i('sysprompts:get'), save: i('sysprompts:save'), delete: i('sysprompts:delete'), starter: i('sysprompts:starter'), variables: i('sysprompts:variables'), preview: i('sysprompts:preview'), import: i('sysprompts:import'), importText: i('sysprompts:importText'), export: i('sysprompts:export'), explain: i('sysprompt:explain') },
   memory: { list: i('memory:list'), add: i('memory:add'), update: i('memory:update'), delete: i('memory:delete'), clear: i('memory:clear') },
   artifacts: { list: i('artifacts:list'), get: i('artifacts:get'), save: i('artifacts:save'), delete: i('artifacts:delete'), thumb: i('artifacts:thumb'), check: i('artifacts:check'), import: i('artifacts:import'), exportOffice: i('artifacts:exportOffice'), applyEdits: i('artifacts:applyEdits'), describe: i('artifacts:describe'), saveImage: i('artifacts:saveImage') },
