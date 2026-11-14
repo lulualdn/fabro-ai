@@ -314,7 +314,8 @@ function stSubBody(sub) {
         ${row(t('temperature'), range('temperature', 0, 2, 0.05, g.temperature), t('temperatureHint'))}
         ${row('Top P', range('topP', 0.05, 1, 0.05, g.topP))}
         ${row(t('maxTokens'), `<input class="input sm" type="number" min="0" max="131072" value="${g.maxTokens}" data-input="gen.maxTokens" data-type="int" aria-label="${esc(t('maxTokens'))}">`, t('maxTokensHint'))}
-        ${row(t('st_autoTitle'), toggle('autoTitle', st.autoTitle !== false), t('st_autoTitleHint'))}`;
+        ${row(t('st_autoTitle'), toggle('autoTitle', st.autoTitle !== false), t('st_autoTitleHint'))}
+        ${row(t('iui_set'), toggle('intelligentUi', st.intelligentUi !== false), t('iui_setHint'))}`;
     }
     case 'voice': {
       const pref = st.voiceModel || 'same';

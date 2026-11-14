@@ -97,7 +97,9 @@ function spUsed(d) {
   return `<div class="sp-sec"><div class="sp-h">${esc(t('sp_used'))}</div>${rows.join('')}</div>`;
 }
 
-function spVisible() { return S.mode === 'chat' && S.conv && S.conv.agent && S.spOpen !== false && !S.settingsTab; }
+// on a phone-sized window (Fabro Anywhere) the panel never opens on its own: it would cover the chat
+const spIsOpen = () => (compact() ? S.spOpen === true : S.spOpen !== false);
+function spVisible() { return S.mode === 'chat' && S.conv && S.conv.agent && spIsOpen() && !S.settingsTab; }
 let spT = null;
 function renderSessionPanel() {
   clearTimeout(spT);
@@ -120,7 +122,7 @@ function renderSessionPanel() {
 
 Object.assign(actions, {
   'sp-close': () => { S.spOpen = false; renderSessionPanel(); renderTopbar(); },
-  'sp-toggle': () => { S.spOpen = S.spOpen === false; renderSessionPanel(); renderTopbar(); },
+  'sp-toggle': () => { S.spOpen = !spIsOpen(); renderSessionPanel(); renderTopbar(); },
   'sp-unfold': () => { S.spUnfold = true; renderSessionPanel(); },
   'open-workspace-browser': () => openWorkspace('browser'),
 });

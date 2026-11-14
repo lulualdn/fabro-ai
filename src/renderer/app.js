@@ -321,7 +321,7 @@ function renderTopbar() {
     </div>
     <div class="tb-right">
       ${S.updater.state === 'ready' ? `<button class="chip accent upd-chip" data-action="upd-open">${icon('download', 14)} ${esc(t('restartToUpdate'))}</button>` : ''}
-      ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="icon-btn ${S.spOpen !== false ? 'on' : ''}" data-action="sp-toggle" title="${esc(t('sp_title'))}">${icon('plan', 18)}</button>` : ''}
+      ${S.mode === 'chat' && S.conv && S.conv.agent ? `<button class="icon-btn ${(compact() ? S.spOpen === true : S.spOpen !== false) ? 'on' : ''}" data-action="sp-toggle" title="${esc(t('sp_title'))}">${icon('plan', 18)}</button>` : ''}
       ${compact() && S.mode === 'chat' && S.conv ? `<button class="icon-btn" data-action="new-chat" title="${esc(t('newChat'))}" aria-label="${esc(t('newChat'))}">${icon('edit', 19)}</button>` : ''}
     </div>`;
   if (typeof renderSessionPanel === 'function') renderSessionPanel();

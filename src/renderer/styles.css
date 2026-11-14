@@ -1054,7 +1054,7 @@ details.py summary, details.diff summary { cursor: pointer; font-size: 12px; col
 @container main (min-width: 860px) and (max-width: 1420px) { .main.with-sp .scroller, .main.with-sp .dock { padding-right: 314px; } }
 .with-viewer .main.with-sp .scroller, .with-viewer .main.with-sp .dock { padding-right: 0; }
 .with-viewer .session-panel { display: none; }
-@media (max-width: 760px) { .session-panel { width: calc(100% - 28px); } }
+@media (max-width: 760px) { .session-panel { width: calc(100% - 28px); max-height: 46%; } }
 .topbar .icon-btn.on { color: var(--accent); }
 
 /* Sub-agents */

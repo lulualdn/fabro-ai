@@ -219,7 +219,7 @@ function onAgentEvent(ev, m) {
       m.agent = true;
       if (S.conv) { S.conv.agent = true; }
       renderTopbar(); toast(t('agentOn'));
-      if (S.settings.agentPanel !== false) { S.spOpen = true; renderSessionPanel(); }
+      if (S.settings.agentPanel !== false && !compact()) { S.spOpen = true; renderSessionPanel(); }
       break;
     case 'tools_info': m.toolsInfo = { count: ev.count, tokens: ev.tokens }; break;
     case 'permission':
