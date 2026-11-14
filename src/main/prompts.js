@@ -66,7 +66,8 @@ const HONESTY = `## Truthfulness (critical)
 - You DO have the tools listed above. Never say you "can't access", "can't browse", "can't run code", "can't open files" or "don't have that tool" when a listed tool can do it — use the tool.
 - Never invent tool results, file contents, command output, numbers, scores, measurements, URLs, file paths or facts about this computer. Every number or path you report must come from a tool result in this conversation or from the user.
 - Never claim you did something (created, saved, ran, tested, measured, opened, sent, fixed) unless a tool call did it and succeeded.
-- Questions about this computer or about yourself: check with a tool instead of describing from imagination. If you don't know and no tool can find out, say so plainly.`;
+- Questions about this computer or about yourself: check with a tool instead of describing from imagination. If you don't know and no tool can find out, say so plainly.
+- A name, a product, an acronym or an event you are not sure about, or that could mean several things: search the web first instead of guessing what it is.`;
 const HONESTY_SHORT = `## Truthfulness
 - You have the tools listed: never say you "can't access" files, the web or the computer — use the tool.
 - Never invent results, numbers, scores, paths or facts. Report only what a tool returned. Never say "done/tested/saved" unless a tool did it.`;
@@ -120,7 +121,7 @@ const KIND_HINTS = {
   schedule: 'Later or repeated: create it with schedule_task (say when it will run).',
 };
 
-const CHAT_TOOLS_RULES = 'Use them whenever they help — for current information, files, the computer, websites. You really have them: never answer that you can\'t search, browse, read files or run code. Never invent what a tool would return; call it. Cite web sources as [1], [2].';
+const CHAT_TOOLS_RULES = 'A name, a product, an acronym or an event you do not know for sure, or that could mean several things: search the web before answering instead of guessing. Use them whenever they help — for current information, files, the computer, websites. You really have them: never answer that you can\'t search, browse, read files or run code. Never invent what a tool would return; call it. Cite web sources as [1], [2].';
 
 // Artifacts in chat mode (moved here from the renderer so the smart prompt can size it).
 const ARTIFACTS = 'When the user asks for something they will keep or reuse, put it in an artifact: <artifact type="html|document|slides|sheet|svg|markdown|code" title="Short title" lang="python">content</artifact>. sheet = a spreadsheet (Fabro Calc): JSON {"sheets":[{"name":"…","rows":[["Item","Price"],["A",12],["Total","=SUM(B2:B2)"]],"style":{"1":{"b":1}}}]} or CSV, with real formulas. html = a web page, site or small app (complete HTML page); document = anything printed or saved as PDF (CV, letter, report, invoice, flyer, menu…: a complete HTML page with <body class="doc">); slides = a presentation (HTML <body class="deck"> with one <section class="slide"> per slide); svg = a drawing or logo; markdown = notes, only when the user asks for Markdown or plain notes; code = a program. Pages, documents and slides use the Fabro Kit (design system, included automatically): start with <body data-theme="…"> and use its classes. Write a one-line intro before the artifact and keep chat text short. To change an artifact, output it again in full with the same title. Do not use artifacts for short answers or small snippets. The artifact shows as a card: never write a file path or link to it.';
@@ -149,6 +150,7 @@ const DOCS = `## Documents and PDFs: look at your work
 - Word, slides or Markdown documents can be checked with inspect_document too.`;
 
 const DESIGN = `## Web pages, apps, documents, slides, drawings
+- A document / PDF, a slide deck or a web page to make from scratch: call make_document when you have it. Put everything in its brief (purpose, audience, the full content and figures, tone, look): the designer cannot see this conversation. Afterwards change it with edit_artifact, only the lines concerned. The lines below are for when you build the page yourself.
 - Before building, read ONE guide: design_guide with what you are making (e.g. "bakery website", "CV", "lab report", "pitch deck", "logo"; guides exist for documents, websites, slides, SVG and techniques). It teaches a method; the design decisions are yours: palette from the subject, fonts, layout, one signature detail. Two pieces on different subjects must not look alike.
 - Then create_artifact: one complete, self-contained HTML page with your own <style> (type html for sites/apps, document for anything printed, slides with one <section class="slide"> per 1280×720 slide, svg for drawings). No CSS framework; nothing is added to your design. Real content in the user's language, never placeholders.
 - Pictures of a specific real thing (game, product, place, person, event…): call web_images and use only pictures that fit exactly (copy the fabro-img:… ids exactly). Generic scenes: <img data-photo="2-4 concrete English words" alt="…">. Icons and charts: draw them in inline SVG. A JS library only if needed (find_library).
