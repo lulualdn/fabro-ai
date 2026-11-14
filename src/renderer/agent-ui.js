@@ -99,6 +99,7 @@ function questionCard(st) {
 function permCard(st, m) {
   const p = st.perm;
   if (p.kind === 'question') return questionCard(st);
+  if (p.kind === 'install' && typeof InstallCard !== 'undefined') return InstallCard.html(st);
   const danger = p.risk === 'danger';
   const title = p.reason === 'folder' ? t('perm_folder') : p.reason === 'computer_use' ? t('perm_computer') : danger ? t('perm_danger') : t('perm_' + (catOf(p.tool) || 'mcp'));
   return `<div class="perm-card ${danger ? 'danger' : ''}">

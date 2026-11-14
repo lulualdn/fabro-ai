@@ -22,7 +22,7 @@ jobs:
       - name: Agent runtime (permissions, files, terminal, fallback)
         run: node scripts/agent-test.js
       - name: v0.2 offline suites (guides, accounts, perf, voice, system prompt, skills, MCP, models, themes, My Fabro, context)
-        run: for t in guides accounts perf voice sysprompt skills mcpeasy models themes myfabro context; do node scripts/$t-test.js || exit 1; done
+        run: for t in guides accounts perf voice sysprompt skills mcpeasy installs models themes myfabro context; do node scripts/$t-test.js || exit 1; done
       - name: Website builds (all pages, all languages)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
