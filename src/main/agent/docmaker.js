@@ -13,17 +13,24 @@ const RULES = {
     'A4 pages. Nothing important is cut between two pages: a framed box, a table row, a figure and its caption stay in one piece (break-inside: avoid); a title is never the last line of a page (break-after: avoid).',
     'Start with a real first page: title, one-line subtitle, date or author. Then the content, with a clear hierarchy (one h1, h2 per part, short paragraphs).',
     'One accent colour and neutral greys. No random green or blue boxes: a box is for one key idea, with light background and enough padding.',
-    'Use numbers, a small table or a simple diagram (inline SVG) where the content has data. Icons as inline SVG, one style.',
+    'Use numbers, a small table or a simple diagram (inline SVG) where the content has data. Icons as inline SVG, one style.',    'Page layout: @page { size: A4; margin: 18mm 16mm } ; body text 10.5–11.5pt, line-height 1.5, lines of 60–80 characters; titles in a display font, 2–3 sizes only. Each big part starts on a new page (break-before: page) only when the document is long (6+ pages).',
+    'Pages must look full and balanced: no page with only two lines, no huge empty zone at the bottom. If a part is short, keep it with the next one.',
+    'Pictures: full column width or floated at 40 %, with rounded corners 6px max, a caption under each (what it shows · source). Never stretch a picture; object-fit: cover with a fixed height.',
+    'Icons: inline SVG, 24×24 viewBox, stroke 1.75, stroke-linecap round, currentColor; one per key point at most, same size everywhere.',
   ],
   slides: [
     'Each slide is <section class="slide"> at 1280×720. One idea per slide, a short title, at most 5 short lines. Nothing overflows the slide.',
     'A title slide first, a closing slide last. Vary the layouts (title + picture, two columns, one big number, quote).',
     'Large type (titles 44px+, text 24px+). One accent colour. Pictures or inline SVG diagrams on most slides.',
+    'Keep 64px of empty margin around every slide. Align everything on the same left edge. A picture fills half a slide or the whole slide, never a small stamp in a corner.',
+    'Numbers get their own slide: the figure very large (120px+), one line under it saying what it means.',
   ],
   web: [
     'One complete HTML page with its own <style>. Responsive (phone and desktop), real navigation if there are sections, no placeholder text.',
     'A clear first screen: what it is, one action. Consistent spacing scale, one accent colour, readable contrast.',
     'Interactions work (buttons, menus, forms answer). No external build step; libraries only from a CDN when needed.',
+    'Sections follow one rhythm (same vertical padding, max-width 1100–1200px, text columns 65ch at most). A real hero picture or illustration, then pictures in at least two other sections; icons as inline SVG in one style.',
+    'Check the page at 390px wide: nothing overflows sideways, the menu is usable, text is at least 16px.',
   ],
 };
 
