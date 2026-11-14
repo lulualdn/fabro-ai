@@ -146,6 +146,7 @@ const SECTIONS = [
   { id: 'code', prio: 0, when: (s) => (s.codeText ? 'code session' : ''), full: (s) => s.codeText, short: (s) => clip(s.codeText, 2400) },
   { id: 'safety', prio: 0, when: (s) => (s.mode === 'agent' ? 'agent safety' : ''), full: () => P.SAFETY, short: () => P.SAFETY_SHORT, smallShort: true },
   { id: 'iui', prio: 4, when: (s) => (!s.sub && !s.voice && !s.unattended && IUI.on() ? 'displays in the answer' : ''), full: () => IUI.FULL, short: () => IUI.SHORT, smallShort: true },
+  { id: 'doubt', prio: 2, when: (s) => (!s.voice ? 'reading results and self-check' : ''), full: () => require('./doubt').FULL, short: () => require('./doubt').SHORT, smallShort: true },
   { id: 'style', prio: 4, when: (s) => (s.mode === 'agent' && !s.voice ? 'answer style' : ''), full: () => P.STYLE, short: null },
   { id: 'artifacts', prio: (s) => (s.kinds.has('build') || s.kinds.has('writing') ? 1 : 3), when: (s) => (s.mode === 'chat' && s.structured && !s.voice ? 'chat artifacts' : ''),
     full: () => P.ARTIFACTS, short: () => P.ARTIFACTS_SHORT, smallShort: (s) => !s.kinds.has('build') },

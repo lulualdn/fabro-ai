@@ -98,6 +98,8 @@
   }
   // marked hook → HTML of the block, or null to show it as ordinary code
   function html(key, text) {
+    // free form: the block holds markup (HTML / SVG / <style>), drawn by intelligent-ui-free.js
+    if (/^\s*</.test(text) && R.ui) { SPEC.set(key, { type: 'ui', html: text }); return render(key); }
     let d = null; try { d = JSON.parse(text); } catch {}
     if (!d || typeof d !== 'object' || !typeOf(d)) {
       // still being written: a quiet line instead of raw JSON scrolling by

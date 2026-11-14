@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('api', {
     removeFile: i('projects:removeFile'), search: i('projects:search'), ragStatus: i('projects:ragStatus'), reindex: i('projects:reindex'),
     pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
   },
+  iui: { photo: i('iui:photo'), img: i('iui:img') }, // Intelligent UI pictures
   code: {
     open: i('code:open'), create: i('code:create'), info: i('code:info'), close: i('code:close'), recent: i('code:recent'), tree: i('code:tree'), status: i('code:status'),
     read: i('code:read'), write: i('code:write'), diff: i('code:diff'), changes: i('code:changes'), revert: i('code:revert'),

@@ -66,7 +66,7 @@ const srv = http.createServer((req, res) => {
       ['run_command', { command: process.platform === 'win32' ? 'Get-ChildItem -Name' : 'ls', cwd: work, shell: 'auto' }],
     ];
     if (done < plan.length) call(...plan[done]);
-    else res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Terminé.' } }] })}\n\n`);
+    else res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: /second look/.test(String(body.messages[body.messages.length - 1].content)) ? '[[OK]]' : 'Terminé.' } }] })}\n\n`); // the second look finds nothing
     res.end('data: [DONE]\n\n');
   });
 });
@@ -102,7 +102,7 @@ function run(payload, answers) {
   assert.strictEqual(cmd.view.code, 0); assert.match(cmd.view.out, /resume\.md/);
   assert.ok(ev.some((e) => e.type === 'tool_progress'), 'command output streamed');
   assert.deepStrictEqual(store.getSettings().agent.folders, [work], 'folder remembered (always)');
-  assert.strictEqual(ev.filter((e) => e.type === 'token').map((e) => e.text).join(''), 'Terminé.');
+  assert.strictEqual(ev.filter((e) => e.type === 'retract').reduce((txt, e) => txt.replace(e.text, ''), ev.filter((e) => e.type === 'token').map((e) => e.text).join('')), 'Terminé.', 'second look that finds nothing leaves the answer as it was');
 
   // Refusal: the action does not run and the model is told.
   fs.rmSync(path.join(work, 'resume.md'));

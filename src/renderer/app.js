@@ -544,6 +544,7 @@ function assistantBody(m) {
   let html = (tl ? '' : renderThinking(m) + renderSteps(m)) + renderPrecisions(m);
   // Fabro looked at the artifact and sent the model back to fix what was broken
   if (m.pending && m.artCheck && m.artCheck.status === 'fixing') html += `<div class="art-checkline">${spinner(16)}<span>${esc(t('artFixingN', { n: m.artCheck.count || 1 }))}</span></div>`;
+  if (m.pending && m.status === 'checking') html += `<div class="art-checkline">${spinner(16)}<span>${esc(t('rt_check'))}</span></div>`;
   if (m.pending && m.status === 'retrying' && m.retry) html += `<div class="art-checkline">${spinner(16)}<span>${esc(t(m.retry.code === 'PROVIDER_RATE' ? 'rt_rate' : 'rt_err', m.retry))}</span></div>`;
   if (m.content || tl) { MD_CITES = sourceMap(m); try { html += (tl ? Timeline.body(m) : hasArtifacts(m) ? renderWithArtifacts(m) : `<div class="md">${md(m.voice && typeof vStripTags === 'function' ? vStripTags(m.content) : m.content, m.id)}</div>`) + (m.content ? citedSources(m) : ''); } finally { MD_CITES = null; } }
   else if (m.pending && !m.reasoning && !(m.steps || []).length) {

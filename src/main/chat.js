@@ -519,6 +519,11 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       finishRound(r);
       if (ctxConv) out({ type: 'context', convId: ctxConv, used: (acc.usage.has && acc.usage.prompt) || context.estimate(msgs, toolSchemas, null), ctx: context.ctxOf(be), covered: prepared.covered || 0 });
       if (!r.toolCalls.length) {
+        if (acc.doubtOpen) { // answer to the second look: "OK" disappears, a correction stays under the answer
+          acc.doubtOpen = false;
+          if (require('./agent/doubt').clean(r.content)) out({ type: 'retract', text: '\n\n' + r.content });
+          break;
+        }
         // The user added a precision while this answer was streaming: one more round so the model can address it.
         if (!parent && !ctrl.signal.aborted && (injected.get(reqId) || []).length && (acc.precisionRounds = (acc.precisionRounds || 0) + 1) <= 3) {
           if (r.content) msgs.push({ role: 'assistant', content: r.content });
@@ -544,7 +549,14 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         }
         const nudge = nudges < 3 && !bare && !ctrl.signal.aborted && !(acc.noTools && !acc.fallback) && steps < maxSteps()
           ? sp.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText, qaBad }) : null;
-        if (!nudge) break;
+        if (!nudge) {
+          // second look: the model hunts for a mistake in its own work, and says so when it finds one
+          const dq = !parent ? require('./agent/doubt').ask({ acc, text: r.content, turnTools, agentMode, bare, aborted: ctrl.signal.aborted, steps, max: maxSteps(), unattended: meta.unattended }) : null;
+          if (!dq) break;
+          msgs.push({ role: 'assistant', content: r.content }); msgs.push({ role: 'user', content: dq });
+          acc.doubtOpen = true; out({ type: 'status', status: 'checking' }); out({ type: 'token', text: '\n\n' });
+          continue;
+        }
         nudges++;
         if (r.content) { msgs.push({ role: 'assistant', content: r.content }); out({ type: 'retract', text: r.content }); }
         msgs.push({ role: 'user', content: nudge });

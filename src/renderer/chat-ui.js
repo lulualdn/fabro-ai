@@ -208,6 +208,7 @@ function openPlusMenu(anchor) {
       <button class="pm-item" data-action="tool-toggle" data-key="images">${icon('image', 16)}<span class="pm-text"><b>${esc(t('img_tool'))}</b><small>${esc(t('img_toolHint'))}</small></span>${tg(ct.images !== false)}</button>
       <button class="pm-item" data-action="tool-toggle" data-key="fetch">${icon('link', 16)}<span class="pm-text"><b>${esc(t('fetchTool'))}</b><small>${esc(t('fetchHint'))}</small></span>${tg(ct.fetch !== false)}</button>
       ${typeof ChatBar !== 'undefined' ? ChatBar.plusItem() : ''}
+      ${window.IUI && IUI.plusItem ? IUI.plusItem(tg) : ''}
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="style-menu">${icon('brush', 16)}<span class="pm-text"><b>${esc(t('responseStyle'))}</b><small>${esc(activeStyle().name)}</small></span>${icon('right', 14)}</button>
       ${!S.conv || !S.conv.messages.length ? `<button class="pm-item" data-action="ephemeral-toggle">${icon('eyeOff', 16)}<span class="pm-text"><b>${esc(t('ephemeral'))}</b><small>${esc(t('ephemeralHint'))}</small></span>${tg(!!S.ephemeralNext)}</button>` : ''}

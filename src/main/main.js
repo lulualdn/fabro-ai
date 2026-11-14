@@ -362,6 +362,9 @@ function registerIpc() {
     if (r.canceled || !r.filePaths[0]) return null;
     const i = await code.info(r.filePaths[0]); code.watch(i.root); return i;
   });
+  // Intelligent UI: a photo for <img data-photo="…">, and pictures saved by web_images (fabro-img:<id>)
+  h('iui:photo', async (q) => { try { const r = await require('./kit').searchPhotos(String(q || '').slice(0, 120), 4); return r[0] || null; } catch { return null; } });
+  h('iui:img', (ref) => { const m = /^fabro-img:[a-f0-9]{8,40}$/.exec(String(ref || '')); return m ? require('./kit').resolveImgs(m[0]) : null; });
   h('code:create', async (o) => { const i = await code.info(require('./code-new').create(o)); code.watch(i.root); return i; });
   h('code:info', async (root) => { const i = await code.info(root); code.watch(root); return i; });
   h('code:close', () => { code.watch(null); return true; });

@@ -211,3 +211,11 @@ Reste, dans l'ordre :
   Qwen3 1.7B masqué sur iPhone / ≤ 4 Go, contexte 2048/4096, et un chargement qui a tué la page n'est pas retenté (`fa-local-try`, `fa-ears-try`).
   Seul, le téléphone ne fait que discuter : pas de mode agent, pas de documents (le modèle renvoie vers le PC), hors ligne = mémoire seule.
 - Non vérifié : tout ce qui est sur un vrai téléphone, et la qualité des interfaces produites par un vrai modèle.
+- Intelligent UI libre (`src/renderer/intelligent-ui-free.js`) : un bloc ```fabro-ui qui contient du balisage (HTML/SVG/`<style>`) est dessiné
+  dans la conversation même (shadow root sur le bloc, pas d'iframe, pas de cadre), nettoyé par DOMPurify (pas de script, pas d'URL externe en CSS,
+  pas de `position: fixed`). Comportements déclaratifs : `data-select="g:n"` ↔ `data-item="g:n"`, `data-hover`, `pane`, `data-step`, `data-toggle`,
+  `data-reveal`. Type JSON `figure` : dessin + points numérotés, étiquettes avec traits, une carte par point. Images : `fabro-img:` et
+  `data-photo` via IPC `iui:img` / `iui:photo`. Interrupteur rapide dans le menu + du composeur (`iui-toggle`), en plus de Réglages › Moteur.
+- Second regard (`src/main/agent/doubt.js`) : après un tour d'agent qui a agi, Fabro demande au modèle de chercher son erreur ; « [[OK]] » est
+  retiré, une correction reste sous la réponse. Une fois par message, `settings.selfCheck === false` le coupe. Section de prompt `doubt`
+  (`sysprompt/doubt.js`) : comment lire chaque résultat et se corriger (« Correction : … »).

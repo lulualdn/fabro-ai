@@ -95,7 +95,7 @@
 
 /* second set: chart, table, guide, tabs, faq, calc, board, callout, proscons, schedule, blanks, grid */
 .iui-chart { width: 100%; height: auto; display: block; }
-.iui-chart text { font-size: 11px; fill: var(--muted); font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.iui-chart text { font-size: 13px; fill: var(--muted); font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
 .iui-grid { stroke: var(--border); stroke-width: 1; }
 .iui-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--text-2); }
 .iui-legend span, .iui-pie li { display: flex; align-items: center; gap: var(--sp-2); }
@@ -164,3 +164,9 @@
 .iui-grid-box { display: grid; grid-template-columns: repeat(var(--iui-cols, 2), minmax(0, 1fr)); gap: var(--sp-3); align-items: start; }
 .iui-cell > .iui { margin: 0; height: 100%; box-sizing: border-box; background: var(--elev); border: 0; }
 @media (max-width: 760px) { .iui-grid-box, .iui-cmp2 { grid-template-columns: 1fr; } .iui-cell { grid-column: auto !important; } .iui-pie svg { width: 120px; height: 120px; } }
+
+/* free form and figure: part of the conversation, no box around */
+.iui.iui-ui, .iui.iui-figure { border: 0; background: none; padding: 0; display: block; }
+.iui table.iui-table { display: table; width: 100%; margin: 0; border: 0; }
+.iui table.iui-table th, .iui table.iui-table td { border: 0; border-top: 1px solid var(--border); }
+.iui table.iui-table th { border-top: 0; }
