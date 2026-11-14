@@ -230,7 +230,7 @@ function sbByDay(list) {
   return groups.filter((g) => g.list.length);
 }
 // Code mode with a file open on a narrow window: the app sidebar steps aside (like an IDE).
-const sbAuto = () => S.mode === 'code' && !!S.viewer && S.viewer.type === 'codefile' && innerWidth < 1500;
+const sbAuto = () => S.mode === 'code' && (!!S.cx.root || (!!S.viewer && S.viewer.type === 'codefile' && innerWidth < 1500)); // Code shell: the app sidebar steps aside while a project is open
 // Phone-sized window (Fabro Anywhere on a phone, or a very narrow window): the sidebar is a drawer, closed
 // by default and independent from the desktop's collapsed setting.
 const compactMq = matchMedia('(max-width: 760px)');

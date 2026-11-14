@@ -47,7 +47,7 @@ contextBridge.exposeInMainWorld('api', {
     pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
   },
   code: {
-    open: i('code:open'), info: i('code:info'), close: i('code:close'), recent: i('code:recent'), tree: i('code:tree'), status: i('code:status'),
+    open: i('code:open'), create: i('code:create'), info: i('code:info'), close: i('code:close'), recent: i('code:recent'), tree: i('code:tree'), status: i('code:status'),
     read: i('code:read'), write: i('code:write'), diff: i('code:diff'), changes: i('code:changes'), revert: i('code:revert'),
     git: i('code:git'), branches: i('code:branches'), log: i('code:log'), run: i('code:run'), kill: i('code:kill'), project: i('code:project'), preview: i('code:preview'),
   },

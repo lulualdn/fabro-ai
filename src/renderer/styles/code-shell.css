@@ -1,0 +1,55 @@
+/* Fabro Code shell: the workbench look of Code mode. Tokens only. */
+.cs-home { margin: auto; width: 100%; max-width: 720px; padding: var(--sp-7) var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-4); }
+.cs-home h1 { margin: 0; font-family: var(--font-display); font-weight: var(--fw-medium); font-size: var(--fs-display); line-height: var(--lh-tight); }
+.cs-new { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--elev); box-shadow: var(--shadow-sm); }
+.cs-new:focus-within { border-color: var(--accent); }
+.cs-what { width: 100%; border: 0; outline: 0; resize: none; background: none; color: var(--text); font: var(--fs-body)/var(--lh-ui) var(--font-ui); padding: var(--sp-1) var(--sp-2); }
+.cs-new-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+.cs-kinds { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cs-kinds .chip-btn { padding: var(--sp-1) var(--sp-3); font-size: var(--fs-sm); }
+.cs-alt { display: flex; align-items: center; gap: var(--sp-4); }
+.cs-where { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
+.cs-h { font-size: var(--fs-xs); font-weight: var(--fw-strong); color: var(--muted); margin-bottom: var(--sp-2); }
+.cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--sp-2); }
+.cs-proj { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); cursor: pointer; color: var(--text-2); min-width: 0; }
+.cs-proj:hover { background: var(--hover); border-color: var(--border-strong); color: var(--text); }
+.cs-proj:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cs-proj b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); }
+.cs-proj em { font: var(--fs-2xs) var(--font-mono); font-style: normal; color: var(--muted); }
+.cs-home .cxw-model { margin: 0; }
+
+/* project open */
+.code-open #topbar .tb-title { display: none; }
+.cx.cs { position: relative; }
+.cx.cs .cx-side { width: 264px; padding: 0; background: var(--panel); }
+.cs-tabs { display: flex; gap: var(--sp-1); padding: var(--sp-2); border-bottom: 1px solid var(--border); }
+.cs-tab { all: unset; display: inline-flex; align-items: center; gap: var(--sp-1); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--muted); cursor: pointer; }
+.cs-tab:hover { color: var(--text); background: var(--hover); }
+.cs-tab.on { color: var(--text); background: var(--active); }
+.cs-tab:focus-visible { outline: 2px solid var(--focus); }
+.cs-tab em, .cs-pill em { font: var(--fs-2xs) var(--font-mono); font-style: normal; padding: 0 var(--sp-1); border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-text, var(--accent)); }
+.cx.cs .cx-tree { padding: var(--sp-2); }
+.cx.cs .cx-changes { border-top: 0; max-height: none; flex: 1; padding: var(--sp-2); }
+.cs-sessions { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-2); }
+.cs-sessions .btn { align-self: flex-start; margin-bottom: var(--sp-1); }
+.cs-sessions p { margin: var(--sp-2); font-size: var(--fs-sm); }
+.cs-bar { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--ctl); padding: var(--sp-1) var(--sp-3); border-bottom: 1px solid var(--border); }
+.cs-pill { all: unset; display: inline-flex; align-items: center; gap: var(--sp-1h, var(--sp-1)); max-width: 40%; padding: var(--sp-1) var(--sp-2); border-radius: var(--r-sm); font: var(--fs-sm) var(--font-mono); color: var(--text); cursor: pointer; }
+.cs-pill b, .cs-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); }
+.cs-pill.dim { color: var(--muted); }
+.cs-pill:hover { background: var(--hover); color: var(--text); }
+.cs-pill:focus-visible { outline: 2px solid var(--focus); }
+.cs-menu, .cs-scrim { display: none; }
+
+/* phone-sized window: the side panel is a drawer, the bar keeps the essentials */
+@media (max-width: 760px) {
+  .cs-menu { display: inline-flex; }
+  .cx.cs .cx-side { position: absolute; z-index: 5; inset: 0 auto 0 0; width: min(86%, 320px); border-right: 1px solid var(--border); transform: translateX(-102%); transition: transform var(--dur-2) var(--ease-out); }
+  .cx.cs.side-open .cx-side { transform: none; box-shadow: var(--shadow-lg); }
+  .cx.cs.side-open .cs-scrim { display: block; position: absolute; z-index: 4; inset: 0; border: 0; background: var(--scrim); }
+  .cs-pill.dim span { display: none; }
+  .cs-home { padding: var(--sp-5) var(--sp-4); }
+  .cs-home h1 { font-size: var(--fs-h1); }
+  .cs-new-row .btn { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) { .cx.cs .cx-side { transition: none; } }

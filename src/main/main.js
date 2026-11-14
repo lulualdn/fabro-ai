@@ -362,6 +362,7 @@ function registerIpc() {
     if (r.canceled || !r.filePaths[0]) return null;
     const i = await code.info(r.filePaths[0]); code.watch(i.root); return i;
   });
+  h('code:create', async (o) => { const i = await code.info(require('./code-new').create(o)); code.watch(i.root); return i; });
   h('code:info', async (root) => { const i = await code.info(root); code.watch(root); return i; });
   h('code:close', () => { code.watch(null); return true; });
   h('code:recent', () => code.recent());
