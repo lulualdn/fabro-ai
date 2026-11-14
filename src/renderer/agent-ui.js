@@ -64,6 +64,7 @@ function stepLabel(st) {
     case 'create_pdf': return `PDF · ${a.title || ''}`;
     case 'design_guide': return `${t('ag_k_guide')} · ${a.kind || ''}`;
     case 'create_artifact': return `${t('artType_' + (a.type || 'html'))} · ${a.title || ''}`;
+    case 'make_document': return `${t(run ? 'dm_run' : 'dm_done')} · ${a.title || ''}`;
     case 'check_artifact': return `👁 ${a.artifact || ''}`;
     case 'find_library': return `📦 ${a.need || ''}`;
     case 'find_images': return `🖼 ${a.query || ''}`;
@@ -132,7 +133,7 @@ function isDeliverable(st) {
   if (v.kind === 'modelpicks') return true; // the picks card stays visible (find_model)
   if ((st.name === 'write_file' || st.name === 'edit_file') && v.path && S.conv && S.conv.code) return true;
   if (['create_document', 'create_pdf', 'edit_artifact', 'generate_speech'].includes(st.name) && v.path) return true;
-  if (['create_artifact', 'edit_artifact'].includes(st.name) && v.kind === 'artifact') return true;
+  if (['create_artifact', 'edit_artifact', 'make_document'].includes(st.name) && v.kind === 'artifact') return true;
   return st.name === 'generate_image' && !!v.image;
 }
 const tlLate = (st) => !!window.Timeline && Timeline.isLate(st); // an artifact changed later: its card is at the end of the message
