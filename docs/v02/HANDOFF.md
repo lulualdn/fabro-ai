@@ -164,3 +164,13 @@ Reste, dans l'ordre :
 - Vidéo de présentation (nouveautés + anciennes fonctions, thème sobre, fin « Download the beta today »).
 - Release : bump de version, `[release]` dans le message de commit, puis déploiement manuel du site
   (`fabro.ufstudios.eu/app` n'est pas déployé par les pushs).
+
+### Fabro Code, nouveau shell (0.1.61)
+- `src/renderer/code-shell.js` + `styles/code-shell.css` + `i18n/code-shell.js`, `src/main/code-new.js` (IPC `code:create`).
+- Sans projet : « Qu'est-ce qu'on construit ? » : on décrit, le dossier est créé dans Documents › Fabro Code
+  (`settings.code.projectsDir` pour changer), ouvert, et la description part en premier message.
+- Projet ouvert : la barre latérale de l'app s'efface (hook `sbAuto` dans `app.js`) ; barre projet / branche / aperçu /
+  terminal / nouvelle session ; panneau à onglets Fichiers / Modifs / Sessions ; tiroir sous 760 px.
+- Remplace `cxWelcome`, `renderCodeView`, `cxSide` de `code-ui.js` et enveloppe `renderView`, `cxRenderTree`.
+- Lulu a demandé une release à chaque grosse mise à jour (Intelligent UI = 0.1.60, shell Code = 0.1.61).
+- Pas vérifié : le premier message avec un vrai modèle, le rendu dans Anywhere sur un vrai téléphone.
