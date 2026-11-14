@@ -75,8 +75,15 @@ agent.register({
   parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
   summarize: (a) => a.name,
   async run(a) {
-    const s = active().find((x) => x.name.toLowerCase() === String(a.name).toLowerCase());
-    if (!s) throw new Error(`No skill named ${a.name}`);
+    // small models write "talk deck" for "talk-deck", or ask for a design guide as if it were a skill
+    const norm = (n) => String(n || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+    const want = norm(a.name);
+    const s = active().find((x) => x.name.toLowerCase() === String(a.name).toLowerCase()) || active().find((x) => norm(x.name) === want || norm(path.basename(x.dir)) === want);
+    if (!s) {
+      try { const g = require('../kit/guide'); const hit = g.kindsList().find((n) => norm(n.split('/').pop()) === want || norm(n) === want); if (hit) return { content: `"${a.name}" is a design guide, not a skill. Here it is.\n\n${g.guide(hit)}`, view: { kind: 'skill', name: hit } }; } catch {}
+      const have = active().map((x) => x.name);
+      return { content: `No skill named "${a.name}". ${have.length ? `Installed skills: ${have.slice(0, 30).join(', ')}.` : 'No skill is installed.'} For design guides (pages, documents, slides) call design_guide instead.`, isError: true };
+    }
     const { body: raw } = parseFront(fs.readFileSync(s.file, 'utf8'));
     const compat = require('../skillcompat');
     const resolve = (n) => { const o = list().find((x) => x.name === n || path.basename(x.dir) === n); return o && o.dir; };

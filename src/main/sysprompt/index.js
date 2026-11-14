@@ -101,7 +101,8 @@ function build(s) {
   let text = kept.map((c) => c.text.trim()).join('\n\n');
   if (s.projectText) text += `\n\n${s.projectText}`; // the project's own instructions + files: user data, sized by rag
   return {
-    text, tokens: signals.estTok(text), budget: s.budget, projectTokens: s.projectText ? signals.estTok(s.projectText) : 0,
+    text, parts: [...kept.map((c) => ({ id: c.id, text: c.text.trim() })), ...(s.projectText ? [{ id: 'project', text: s.projectText }] : [])],
+    tokens: signals.estTok(text), budget: s.budget, projectTokens: s.projectText ? signals.estTok(s.projectText) : 0,
     sections: cands.map((c) => ({ id: c.id, included: c.form !== 'dropped' && !!c.text, form: c.form === 'dropped' ? null : c.text ? c.form : null, tokens: c.form === 'dropped' ? 0 : c.tok || 0, prio: c.prio, why: c.text || c.form === 'dropped' ? c.why : `${c.why} (empty)` })),
   };
 }
@@ -136,6 +137,7 @@ function codeSection(c) {
     ins ? `# Project instructions (${ins.file}) — follow them\n${ins.text}` : ''].filter(Boolean).join('\n\n');
 }
 
+const freeze = require('./freeze');
 const lastByConv = new Map(); // convId → the last prompt built (developer screen)
 const lastFor = (convId) => lastByConv.get(convId) || null;
 
@@ -154,6 +156,7 @@ function session({ msgs, messages, params = {}, meta = {}, parent = false, be = 
   let projectText = ''; let codeText = ''; let skillsText = '';
   const rt = { failures: 0, refused: false, nudged: false, steps: 0, pressure: 0, lean: false };
   let last = null; let sig = ''; let personal = null; let lastGuard = null;
+  const canFreeze = !model.cloud && !parent && !!meta.convId; let lateCur = null; let lateOrig = null;
   const lean = () => { try { const e = require('../engine').getStatus(); if (e && e.energy === 'eco') return true; } catch {} return !!(acc.timings && acc.timings.predicted_per_second && acc.timings.predicted_per_second < 3); };
 
   const sp = {
@@ -204,10 +207,18 @@ function session({ msgs, messages, params = {}, meta = {}, parent = false, be = 
         const proj = s.projectText && !/\{\{\s*project\s*\}\}/.test(personal.body) ? `\n\n${s.projectText}` : '';
         out = { text: `${r.text}${runtime ? `\n\n${runtime}` : ''}${proj}`, sections: [{ id: 'personal', included: true, form: 'full', why: `personal prompt "${personal.name}"`, tokens: signals.estTok(r.text) }, { id: 'runtime', included: !!runtime, form: 'full', why: 'needed for tools', tokens: signals.estTok(runtime) }], budget: s.budget, unknown: r.unknown };
         out.tokens = signals.estTok(out.text);
+        out.parts = [{ id: 'personal', text: r.text }, { id: 'runtime', text: runtime }, { id: 'project', text: proj.trim() }].filter((x) => x.text);
       } else out = build(s);
+      // local engines: same structure as the last turn of this chat → keep the system message, send the changes late
+      const fr = canFreeze && out.parts ? freeze.system(meta.convId, [s.mode, s.voice, s.unattended, s.fallback, s.model.name, personal ? personal.id : '', s.toolNames.join(',')].join('|'), out.parts, out.text) : { text: out.text, late: '' };
       const sys = msgs.find((m) => m.role === 'system');
-      if (sys) sys.content = out.text; else msgs.unshift({ role: 'system', content: out.text });
-      last = { reason, situation: describe(s), ...out, text: undefined };
+      if (sys) sys.content = fr.text; else msgs.unshift({ role: 'system', content: fr.text });
+      if (canFreeze) {
+        let i = lateCur ? msgs.indexOf(lateCur) : -1;
+        if (i < 0) { for (let k = msgs.length - 1; k >= 0; k--) if (msgs[k].role === 'user') { i = k; break; } lateOrig = i >= 0 ? msgs[i] : null; }
+        if (i >= 0 && lateOrig) { lateCur = freeze.withNote(lateOrig, fr.late); msgs[i] = lateCur; }
+      }
+      last = { reason, situation: describe(s), ...out, parts: undefined, frozen: fr.text !== out.text, lateTokens: fr.late ? signals.estTok(fr.late) : 0, text: undefined };
       if (meta.convId && !parent) { lastByConv.delete(meta.convId); lastByConv.set(meta.convId, { ...last, at: Date.now(), text: out.text }); if (lastByConv.size > 30) lastByConv.delete(lastByConv.keys().next().value); }
       sig = sp.signature(s);
       return out;

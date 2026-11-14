@@ -16,18 +16,19 @@ function schema(t) { return { type: 'function', function: { name: t.name, descri
 const estTokens = (schemas) => Math.round(JSON.stringify(schemas).length / 3.6);
 
 // Pick the tools worth sending: core tools always, others when the conversation is about them.
-function select({ agentMode, text = '', used = [], sub = false, code = false }) {
+function select({ agentMode, text = '', used = [], sub = false, code = false, keep = [] }) {
   const s = store.getSettings().agent || {};
   if (s.enabled === false) return [];
   const disabled = new Set(s.disabledTools || []);
   if (sub || s.subagents === false) disabled.add('run_subagent');
   const q = String(text).toLowerCase();
   const usedCats = new Set(used.map((n) => (registry.get(n) || {}).category).filter(Boolean));
+  const kept = new Set(keep);
   const picked = all().filter((t) => {
     if (disabled.has(t.name) || CHAT_TOOL_NAMES.has(t.name)) return false;
     if (t.codeOnly && !code) return false;
     if (code && (t.codeOnly || t.category === 'git')) return true;
-    if (t.core) return true;
+    if (t.core || kept.has(t.name)) return true; // kept: already offered in this chat (stable prompt for local engines)
     if (usedCats.has(t.category)) return true;
     if (agentMode && t.categoryCore) return true;
     if (t.keywords && t.keywords.some((k) => q.includes(k))) return true;

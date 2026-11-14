@@ -11,6 +11,7 @@ const agent = require('./agent');
 const skills = require('./agent/skills');
 const code = require('./code');
 const sysprompt = require('./sysprompt'); // the adaptive system prompt (built and patched there)
+const freeze = require('./sysprompt/freeze'); // local engines: stable system message and tool list per chat
 const context = require('./context'); // v0.2: summaries at the right moments, <digest> tags, growing window
 const digest = require('./context/digest');
 require('./agent/context-tools'); // context_list / context_read / context_pin
@@ -105,6 +106,8 @@ const REASONING_KINDS = ['openai', 'xai', 'openrouter', 'groq', 'deepseek', 'cus
 
 // One streamed completion. Returns { content, toolCalls }.
 async function completeOpenAI(be, messages, params, signal, acc, tools) {
+  // llama.cpp answers 400 "All non-assistant messages must contain 'content'" to a message without it.
+  for (const m of messages) if (m.content == null && !(m.role === 'assistant' && m.tool_calls)) m.content = '';
   const body = { model: be.model, messages, stream: true, stream_options: { include_usage: true } };
   const cloudOpenAI = be.kind === 'provider' && be.provider.kind === 'openai';
   if (!cloudOpenAI) { if (params.temperature != null) body.temperature = params.temperature; if (params.topP != null) body.top_p = params.topP; }
@@ -412,7 +415,10 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     if (codeCtx) agentMode = true;
     const buildTools = () => {
       const chatT = tools.schemas(params.tools || []);
-      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: recentText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx }).map(agent.schema);
+      // local engines: a tool offered once in this chat stays offered, so their prompt cache is not thrown away
+      const sticky = ctxConv && be.kind === 'local' ? [ctxConv, agentMode ? 'agent' : 'chat'] : null;
+      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: recentText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx, keep: sticky ? freeze.keep(...sticky) : [] }).map(agent.schema);
+      if (sticky && agentT.length) freeze.remember(...sticky, agentT.map((x) => x.function.name));
       const ctxT = prepared && (prepared.compressed || rawMessages.length > 24) && params.agent !== false ? ['context_list', 'context_read', 'context_pin'].map((n) => agent.get(n)).filter(Boolean).map(agent.schema) : [];
       return [...chatT, ...agentT, ...ctxT.filter((x) => !agentT.some((y) => y.function.name === x.function.name))];
     };
@@ -422,10 +428,12 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     // System prompt: built by ./sysprompt from the situation (mode, model, request, tools, signals…) and
     // rebuilt there when the situation changes. Projects add their instructions + files (and project_search).
     const sp = sysprompt.session({ msgs, messages, params, meta, parent: !!parent, be, acc, codeCtx, getTools: () => toolSchemas, isAgent: () => agentMode });
-    const prep = await sp.prepare(userText);
+    // background helpers (titles, memory, summaries) keep their own short system message: no tools, no smart prompt
+    const bare = !!params.bare;
+    const prep = bare ? {} : await sp.prepare(userText);
     if (prep.extraTools) { params = { ...params, tools: [...new Set([...(params.tools || []), ...prep.extraTools])] }; toolSchemas = buildTools(); }
     if (sp.projectInfo) out({ type: 'project_ctx', files: sp.projectInfo.files, full: sp.projectInfo.full });
-    sp.apply('start');
+    if (!bare) sp.apply('start');
     const applyAgentPrompt = () => sp.apply('agent_switch');
     // governor: one heavy local generation at a time, fair queue (user > sub-agents > background jobs)
     const complete = require('./governor').gated(be.protocol === 'anthropic' ? completeAnthropic : completeOpenAI, { local: be.kind === 'local' || ['ollama', 'lmstudio'].includes(be.provider && be.provider.kind), priority: parent ? 'sub' : (meta.unattended || /^bg-/.test(reqId)) ? 'bg' : 'user', label: meta.modelLabel || '', signal: ctrl.signal, onWait: (w) => out({ type: 'status', status: w ? 'queued' : 'generating' }) });
@@ -529,7 +537,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           acc.artPrev = null;
           if (res) out({ type: 'artifact_check', status: 'ok', rounds: acc.artRounds || 0 });
         }
-        const nudge = nudges < 3 && !ctrl.signal.aborted && !(acc.noTools && !acc.fallback) && steps < maxSteps()
+        const nudge = nudges < 3 && !bare && !ctrl.signal.aborted && !(acc.noTools && !acc.fallback) && steps < maxSteps()
           ? sp.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText, qaBad }) : null;
         if (!nudge) break;
         nudges++;
@@ -575,6 +583,8 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
           } else if (agent.get(c.name) && params.agent !== false) {
             result = await runAgentTool(c, args);
           } else throw Object.assign(new Error(`Tool not available here: ${c.name}`), { code: 'UNKNOWN_TOOL' });
+          // A tool that answers { error } without content: the engine refuses a tool message with no content (HTTP 400).
+          if (result && result.content == null) { if (result.error) throw Object.assign(new Error(String(result.error)), { code: 'TOOL_ERROR' }); result.content = ''; }
           out({ type: 'tool_end', id: c.id, name: c.name, view: result.view, refused: result.refused });
           turnTools.push({ name: c.name, ok: !result.refused, sig: c.name + ':' + (c.args || '') }); lastError = null;
           const same = turnTools.slice(-3).filter((x) => x.sig === c.name + ':' + (c.args || '')).length;
@@ -637,7 +647,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
 function quick(model, messages, params = {}) {
   return new Promise((resolve, reject) => {
     let text = '';
-    send({ reqId: 'bg-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), model, messages, params: { temperature: 0.2, maxTokens: 400, reasoning: 'off', ...params }, meta: { modelLabel: 'Fabro · background' } }, (ev) => {
+    send({ reqId: 'bg-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), model, messages, params: { temperature: 0.2, maxTokens: 400, reasoning: 'off', agent: false, tools: [], bare: true, artifactCheck: false, ...params }, meta: { modelLabel: 'Fabro · background' } }, (ev) => {
       if (ev.type === 'token') text += ev.text;
       if (ev.type === 'done') resolve(text.trim());
       if (ev.type === 'error') reject(Object.assign(new Error(ev.message), { code: ev.code }));
