@@ -8,11 +8,12 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 const CHAT_TOOLS = {
   web_search: {
-    description: 'Search the web for current information. Use it for news, prices, recent events, facts you are unsure about, or anything after your training data. Returns numbered results; cite them as [1], [2].',
+    description: 'Search the web for current information. Use it for news, prices, recent events, facts you are unsure about, anything after your training data, and whenever a name or term is unclear or you do not know exactly what the user is talking about: search before guessing or asking. Returns numbered results; cite them as [1], [2].',
     parameters: { type: 'object', properties: {
       query: { type: 'string', description: 'Search query, in the language most likely to find good results' },
       category: { type: 'string', enum: ['general', 'news', 'science', 'it', 'images', 'videos'], description: 'Optional: news for current events, it for programming, science for papers' },
       time_range: { type: 'string', enum: ['day', 'week', 'month', 'year'], description: 'Optional: only recent results' },
+      count: { type: 'integer', description: 'How many results you want: 15 by default, up to 30. Ask for fewer for a simple fact, more for a broad subject.' },
     }, required: ['query'] },
   },
   generate_image: {
@@ -67,7 +68,7 @@ function htmlToText(html) {
 }
 
 // ───────────────────────────── search engines ─────────────────────────────
-async function duckduckgo(query) {
+async function duckduckgo(query, n = 15) {
   const r = await fetch('https://html.duckduckgo.com/html/', {
     method: 'POST', headers: { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded', 'Accept-Language': 'fr,en;q=0.8' },
     body: new URLSearchParams({ q: query, kl: '' }).toString(), signal: AbortSignal.timeout(12000),
@@ -84,20 +85,20 @@ async function duckduckgo(query) {
     if (/duckduckgo\.com\/y\.js/.test(url)) continue; // ads
     const sn = b.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/);
     out.push({ title: decode(a[2].replace(/<[^>]+>/g, '')).trim(), url, snippet: sn ? decode(sn[1].replace(/<[^>]+>/g, '')).trim() : '' });
-    if (out.length >= 8) break;
+    if (out.length >= n) break;
   }
   return out;
 }
-async function brave(query, key) {
+async function brave(query, key, n = 15) {
   if (!key) throw new Error('Brave Search needs an API key (Settings → Chat → Web search)');
-  const u = new URL('https://api.search.brave.com/res/v1/web/search'); u.searchParams.set('q', query); u.searchParams.set('count', '8');
+  const u = new URL('https://api.search.brave.com/res/v1/web/search'); u.searchParams.set('q', query); u.searchParams.set('count', String(Math.min(20, n)));
   const r = await fetch(u, { headers: { Accept: 'application/json', 'X-Subscription-Token': key }, signal: AbortSignal.timeout(12000) });
   if (!r.ok) throw new Error(`Brave HTTP ${r.status}`);
   const j = await r.json();
   return ((j.web && j.web.results) || []).map((x) => ({ title: x.title, url: x.url, snippet: decode(String(x.description || '').replace(/<[^>]+>/g, '')) }));
 }
 // Ducky (Lulu's own engine): any endpoint answering { results: [{ title, url, snippet|description }] }.
-async function ducky(query, base) {
+async function ducky(query, base, n = 15) {
   if (!base) throw new Error('Set your Ducky URL in Settings → Chat → Web search');
   const u = new URL(base.includes('{q}') ? base.replace('{q}', encodeURIComponent(query)) : base);
   if (!base.includes('{q}')) u.searchParams.set('q', query);
@@ -105,13 +106,14 @@ async function ducky(query, base) {
   if (!r.ok) throw new Error(`Ducky HTTP ${r.status}`);
   const j = await r.json();
   const list = j.results || j.web || j.items || j.data || [];
-  return list.slice(0, 8).map((x) => ({ title: x.title || x.name || x.url, url: x.url || x.link || x.href, snippet: x.snippet || x.description || x.body || '' })).filter((x) => x.url);
+  return list.slice(0, n).map((x) => ({ title: x.title || x.name || x.url, url: x.url || x.link || x.href, snippet: x.snippet || x.description || x.body || '' })).filter((x) => x.url);
 }
 
 async function webSearch(query, ctx = {}, opts = {}) {
   const s = store.getSettings().search || {};
   let engine = s.engine || 'searxng';
   let results, extra = {};
+  const n = Math.max(1, Math.min(30, Math.round(Number(opts.count)) || 15)); // the model says how many it wants
   // SearXNG (default): the private instance is installed on demand, the first time it's needed.
   if (engine === 'searxng' && !s.searxngUrl && !searxng.installed()) {
     let ok = false;
@@ -122,14 +124,14 @@ async function webSearch(query, ctx = {}, opts = {}) {
     if (!ok || !searxng.installed()) engine = 'duckduckgo';
   }
   try {
-    if (engine === 'searxng') { const r = await searxng.search(query, s, { lang: opts.lang, category: opts.category, time: opts.time, page: opts.page }); results = r.results; extra = { answers: r.answers, infobox: r.infobox, suggestions: r.suggestions, pageUrl: r.pageUrl }; }
-    else results = engine === 'brave' ? await brave(query, providers.getKey('search:brave'))
-      : engine === 'ducky' ? await ducky(query, s.duckyUrl)
-      : await duckduckgo(query);
+    if (engine === 'searxng') { const r = await searxng.search(query, s, { lang: opts.lang, category: opts.category, time: opts.time, page: opts.page, limit: n }); results = r.results; extra = { answers: r.answers, infobox: r.infobox, suggestions: r.suggestions, pageUrl: r.pageUrl }; }
+    else results = engine === 'brave' ? await brave(query, providers.getKey('search:brave'), n)
+      : engine === 'ducky' ? await ducky(query, s.duckyUrl, n)
+      : await duckduckgo(query, n);
   } catch (e) {
-    if (engine !== 'duckduckgo') { const from = engine; results = await duckduckgo(query); engine = 'duckduckgo'; extra = { fallback: { from, error: String(e.message || e).slice(0, 600) } }; } else throw e;
+    if (engine !== 'duckduckgo') { const from = engine; results = await duckduckgo(query, n); engine = 'duckduckgo'; extra = { fallback: { from, error: String(e.message || e).slice(0, 600) } }; } else throw e;
   }
-  return { engine, results, ...extra };
+  return { engine, results: (results || []).slice(0, n), ...extra };
 }
 
 async function fetchUrl(url) {
@@ -197,7 +199,7 @@ function formatResults(r, off = 0) {
 
 async function run(name, args, ctx = {}) {
   if (name === 'web_search') {
-    const r = await webSearch(String(args.query || '').slice(0, 300), ctx, { category: args.category, time: args.time_range });
+    const r = await webSearch(String(args.query || '').slice(0, 300), ctx, { category: args.category, time: args.time_range, count: args.count });
     return searchResult(r, args.query, ctx);
   }
   if (name === 'show_on_scene') return showOnScene(args, ctx);

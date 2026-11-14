@@ -12,3 +12,11 @@
 .msg .art-card .art-thumb.is-code .at-file { width: 34px; height: 40px; border-radius: var(--r-xs); }
 .msg .art-card .ac-open { display: none; }
 .msg .step-detail > .art-card:first-child { margin-top: var(--sp-1); }
+
+/* A finished web search: one line, the results behind the arrow. */
+.step-fold { display: block; }
+.step-fold > summary { display: flex; align-items: center; gap: var(--sp-2); cursor: pointer; list-style: none; }
+.step-fold > summary::-webkit-details-marker { display: none; }
+.step-fold > summary .sum-chev { color: var(--muted); transition: transform var(--dur-2) var(--ease); }
+.step-fold[open] > summary .sum-chev { transform: rotate(90deg); }
+.step-fold > .st-srcs { flex-wrap: wrap; overflow: visible; padding-top: var(--sp-1h); }

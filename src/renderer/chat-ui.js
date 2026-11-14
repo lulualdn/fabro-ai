@@ -95,7 +95,7 @@ function renderSteps(m, only) { // only: the steps of one place in the answer (t
     <div class="steps">${items}</div>
   </details>${outs ? `<div class="steps-outs">${outs}</div>` : ''}`;
 }
-const srcChips = (v) => `<div class="st-srcs">${v.sources.slice(0, 8).map((s, i) => `<a class="src" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.snippet || s.title)}"><b>${(v.offset || 0) + i + 1}</b><span>${esc(s.title)}</span><small>${esc(fav(s.url))}</small></a>`).join('')}</div>`;
+const srcChips = (v) => `<div class="st-srcs">${v.sources.slice(0, 30).map((s, i) => `<a class="src" href="${esc(s.url)}" data-action="ext-link" title="${esc(s.snippet || s.title)}"><b>${(v.offset || 0) + i + 1}</b><span>${esc(s.title)}</span><small>${esc(fav(s.url))}</small></a>`).join('')}</div>`;
 function renderChatStep(st) {
   const run = st.status === 'running';
   const ico = st.name === 'web_search' ? 'search' : 'globe';
@@ -103,6 +103,8 @@ function renderChatStep(st) {
   if (st.name === 'web_search') label = run ? t('stepSearching', { q: st.args.query || '' }) : t('stepSearched', { q: st.args.query || '', n: (st.view && st.view.sources || []).length });
   else label = run ? t('stepReading', { u: fav(st.args.url || '') }) : t('stepRead', { u: (st.view && st.view.title) || fav(st.args.url || '') });
   const srcs = st.view && st.view.sources && st.view.sources.length ? srcChips(st.view) : '';
+  // a finished search is one line; the results open with the arrow
+  if (st.name === 'web_search' && srcs && !run) return `<details class="step step-fold ${st.status}"><summary><span class="step-ico">${icon(ico, 14)}</span><span class="step-label">${esc(label)}</span>${icon('right', 12, 'sum-chev')}</summary>${srcs}</details>`;
   return `<div class="step ${st.status}">
       <span class="step-ico">${run ? spinner(14) : st.status === 'error' ? icon('warning', 14) : icon(ico, 14)}</span>
       <span class="step-label">${esc(label)}${st.error ? ` — <em>${esc(st.error)}</em>` : ''}</span>

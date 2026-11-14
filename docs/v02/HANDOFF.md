@@ -135,6 +135,25 @@ Reste :
   (`site/app/local-pc.js` ignore le drapeau `partial`).
 - Fabro Code : propositions faites au propriétaire, rien de décidé.
 
+### Demandes de Lulu du 14 novembre (après la 0.1.59)
+Fait sur `v0.2`, pas publié : Gemma 4 E4B téléchargé seul sur installation neuve (`first-model.js`) ; réflexion,
+étapes et artefacts affichés à leur place dans le message (`timeline.js`).
+Reste, dans l'ordre :
+- Documents : sous-agent spécialisé caché qui reçoit toutes les instructions, modifications ciblées (lignes à
+  changer seulement), images et icônes (web compris), guides de mise en page. L'IA doit avoir un contrôle total
+  sur le PDF (champs remplissables, etc.), pas seulement une lib, et pouvoir installer / lancer des outils pour
+  traiter les documents. Slides et sites : même exigence de qualité.
+- System prompt intelligent : ne donner que les infos utiles, pas tout l'historique (l'IA peut demander
+  l'historique complet) ; en cas de doute sur ce dont on parle, chercher sur le web.
+- Fabro Code : nouveaux projets plus simples, l'interface de l'app change en mode Code, version simplifiée
+  sur mobile. Anywhere : bloc agent / progression moins envahissant.
+- Vague 5 — Fabro Intelligent UI : une réponse n'est pas un seul message mais plusieurs affichages interactifs
+  (barres de progression, cartes mentales, mise en page d'article de journal, petits jeux…), au thème Fabro.
+- Vague 6 — Fabro AI Overlay (mod, pas installé par défaut) : l'IA crée des widgets de bureau (Windows, Linux,
+  macOS), coins arrondis, éléments plein écran placés par l'IA, interactifs ou transparents aux clics, pouvant
+  regarder l'écran et parler à l'IA en arrière-plan. Petite hélice Fabro semi-transparente en haut à droite
+  pour fermer l'overlay.
+
 ### Après la vérification finale
 - Vidéo de présentation (nouveautés + anciennes fonctions, thème sobre, fin « Download the beta today »).
 - Release : bump de version, `[release]` dans le message de commit, puis déploiement manuel du site
