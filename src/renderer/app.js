@@ -122,6 +122,7 @@ marked.use({
       const text = typeof tok === 'object' ? tok.text : tok;
       const lang = ((typeof tok === 'object' ? tok.lang : infoArg) || '').split(/\s+/)[0];
       const key = `${MD_CTX.prefix}:${MD_CTX.n++}`;
+      if (lang === 'fabro-ui' && window.IUI) { const ui = IUI.html(key, text); if (ui) return ui; } // Intelligent UI (intelligent-ui.js)
       S.code.set(key, { code: text, lang });
       const lines = text.split('\n').length;
       const long = lines > 14;

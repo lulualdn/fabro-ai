@@ -5,6 +5,7 @@
 // s is the situation (see index.js), c = { left } remaining tokens (for sections that size themselves).
 const P = require('../prompts');
 const { estTok } = require('./signals');
+const IUI = require('./iui');
 
 const LANG_NAMES = { fr: 'French', en: 'English', es: 'Spanish', de: 'German', it: 'Italian', pt: 'Portuguese', ja: 'Japanese', zh: 'Chinese', ko: 'Korean', ru: 'Russian', ar: 'Arabic', hi: 'Hindi', nl: 'Dutch', pl: 'Polish' };
 const has = (s, re) => s.toolNames.some((n) => re.test(n));
@@ -144,6 +145,7 @@ const SECTIONS = [
   { id: 'env', prio: 1, when: (s) => (s.mode === 'agent' ? 'agent environment' : ''), full: (s) => P.envSection(s, false), short: (s) => P.envSection(s, true), smallShort: true },
   { id: 'code', prio: 0, when: (s) => (s.codeText ? 'code session' : ''), full: (s) => s.codeText, short: (s) => clip(s.codeText, 2400) },
   { id: 'safety', prio: 0, when: (s) => (s.mode === 'agent' ? 'agent safety' : ''), full: () => P.SAFETY, short: () => P.SAFETY_SHORT, smallShort: true },
+  { id: 'iui', prio: 4, when: (s) => (!s.sub && !s.voice && !s.unattended && IUI.on() ? 'displays in the answer' : ''), full: () => IUI.FULL, short: () => IUI.SHORT, smallShort: true },
   { id: 'style', prio: 4, when: (s) => (s.mode === 'agent' && !s.voice ? 'answer style' : ''), full: () => P.STYLE, short: null },
   { id: 'artifacts', prio: (s) => (s.kinds.has('build') || s.kinds.has('writing') ? 1 : 3), when: (s) => (s.mode === 'chat' && s.structured && !s.voice ? 'chat artifacts' : ''),
     full: () => P.ARTIFACTS, short: () => P.ARTIFACTS_SHORT, smallShort: (s) => !s.kinds.has('build') },

@@ -149,6 +149,12 @@ Reste, dans l'ordre :
   sur mobile. Anywhere : bloc agent / progression moins envahissant.
 - Vague 5 — Fabro Intelligent UI : une réponse n'est pas un seul message mais plusieurs affichages interactifs
   (barres de progression, cartes mentales, mise en page d'article de journal, petits jeux…), au thème Fabro.
+  **Fait (première version)** : `src/renderer/intelligent-ui.js` + `styles/intelligent-ui.css` + `src/main/sysprompt/iui.js`.
+  Le modèle écrit un bloc ```` ```fabro-ui ```` avec un objet JSON ; types : progress, stats, timeline, compare, mindmap, article,
+  checklist, quiz, flashcards, memory, order, custom (HTML/CSS/JS dans un cadre isolé qui reçoit les tokens Fabro, sans réseau).
+  Hook : `code()` de marked dans `app.js`. Réglage `settings.intelligentUi` (pas encore d'interrupteur dans les Paramètres).
+  Vérifié dans l'app avec des blocs écrits à la main ; pas testé avec un vrai modèle (qualité du JSON des petits modèles inconnue).
+  Reste : interrupteur, état gardé après redémarrage, Anywhere (le rendu passe par `md()`, à vérifier), autres types.
 - Vague 6 — Fabro AI Overlay (mod, pas installé par défaut) : l'IA crée des widgets de bureau (Windows, Linux,
   macOS), coins arrondis, éléments plein écran placés par l'IA, interactifs ou transparents aux clics, pouvant
   regarder l'écran et parler à l'IA en arrière-plan. Petite hélice Fabro semi-transparente en haut à droite
