@@ -1355,7 +1355,7 @@ const refreshAfterDl = debounce(async () => {
 api.on('models:progress', (p) => {
   if (p.kind) return; // move / verify progress → models-ui.js
   S.downloads[p.id] = p;
-  if (p.status === 'done') { toast(t('downloadDone', { name: p.model?.name || '' })); delete S.downloads[p.id]; refreshAfterDl(); return; }
+  if (p.status === 'done') { toast(t('downloadDone', { name: p.model?.name || '' })); delete S.downloads[p.id]; Promise.resolve(refreshAfterDl()).then(() => window.FirstModel && FirstModel.check()); return; }
   if (p.status === 'error') { toast(`${t('downloadFailed')}: ${p.error}`, 'err'); delete S.downloads[p.id]; refreshAfterDl(); return; }
   if (p.status === 'cancelled') { delete S.downloads[p.id]; refreshAfterDl(); return; }
   // cheap in-place progress update
@@ -1385,6 +1385,7 @@ window.addEventListener('DOMContentLoaded', async function boot() {
   S.specs = await api.system.specs();
   applyLightMode();
   S.catalog = await api.models.catalog();
+  if (window.FirstModel) FirstModel.check(); // fresh install, no model: the recommended one downloads on its own
   if (!allModels().length && S.mode === 'chat' && !S.conv) renderView();
   if (needsOnboarding()) renderOnboarding();
 });
