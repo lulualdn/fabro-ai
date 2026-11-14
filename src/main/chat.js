@@ -432,7 +432,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     const gkey = meta.convId || reqId;
     if (!convGrants.has(gkey)) convGrants.set(gkey, new Set());
     const src = { n: 0 };
-    const ctxBase = { src, reqId, taskId: meta.taskId, unattended: !!meta.unattended, agentsApp: !!meta.agentsApp, emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
+    const ctxBase = { allowAll: !!meta.allowAll && !meta.unattended, src, reqId, taskId: meta.taskId, unattended: !!meta.unattended, agentsApp: !!meta.agentsApp, emit: out, convId: meta.convId, grants: convGrants.get(gkey), onAbort: (fn) => ctrl.signal.addEventListener('abort', fn), subOf: parent ? parent.callId : null };
     if (codeCtx) {
       ctxBase.projectRoot = codeCtx.root;
       ctxBase.checkpoint = parent && parent.checkpoint ? parent.checkpoint : (p, before) => { if (!(p in cpFiles)) cpFiles[p] = before; };

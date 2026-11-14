@@ -1,0 +1,14 @@
+/* Chat bar extras: queued message bubble, "allow everything". Tokens only; what moves is opacity / transform. */
+.precision:not(.used) { opacity: .72; transition: opacity var(--dur-1) linear; }
+.precision:not(.used):hover, .precision:not(.used):focus-within { opacity: 1; }
+.pr-now { display: inline-flex; align-items: center; gap: var(--sp-1); margin-top: var(--sp-1h); height: 24px; padding: 0 var(--sp-2); border-radius: var(--r-sm);
+  background: var(--accent-soft); color: var(--accent-text); font-size: var(--fs-xs); font-weight: var(--fw-medium);
+  transition: background-color var(--dur-press) linear, transform var(--dur-press) var(--ease-out); }
+.pr-now:hover { background: var(--hover); }
+.pr-now:active { transform: scale(.97); }
+
+.c-chip.cb-all { background: var(--warn-soft, var(--accent-soft)); color: var(--warn); }
+.modal.cb-warn { max-width: 440px; }
+.modal.cb-warn h2 { font-family: var(--font-display); margin: 0 0 var(--sp-3); }
+.modal.cb-warn p { margin: 0 0 var(--sp-2); line-height: 1.5; }
+.modal.cb-warn .modal-actions { margin-top: var(--sp-4); }

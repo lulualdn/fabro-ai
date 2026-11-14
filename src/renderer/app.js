@@ -526,7 +526,7 @@ function renderThinking(m) {
 
 function renderPrecisions(m) {
   if (!(m.precisions || []).length) return '';
-  return `<div class="precisions">${m.precisions.map((p) => `<div class="precision ${p.used ? 'used' : ''}"><span class="pr-l">${icon('chat', 13)} ${esc(t(p.used ? 'precisionUsed' : 'precisionQueued'))}</span><div class="md">${md(p.text, m.id + 'p', { breaks: true })}</div></div>`).join('')}</div>`;
+  return `<div class="precisions">${m.precisions.map((p, i) => `<div class="precision ${p.used ? 'used' : ''}"><span class="pr-l">${icon('chat', 13)} ${esc(t(p.used ? 'precisionUsed' : 'precisionQueued'))}</span><div class="md">${md(p.text, m.id + 'p', { breaks: true })}</div>${typeof ChatBar !== 'undefined' ? ChatBar.nowButton(m, p, i) : ''}</div>`).join('')}</div>`;
 }
 function injectPrecision() {
   const ta = $('#prompt'); const text = ta && ta.value.trim();
@@ -1011,7 +1011,7 @@ function generate(opts = {}) {
   if (first) vt(() => { renderView(); renderSidebar(); }); else { renderView(); renderSidebar(); }
   const r = S.settings.gen.reasoning || 'auto';
   const usedTools = [...new Set(S.conv.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
-  api.chat.send({ reqId, model: cm ? cm.ref : S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), userContext: typeof sysContext === 'function' ? sysContext() : undefined, sysPromptId: typeof sysPromptId === 'function' ? sysPromptId() : null, vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
+  api.chat.send({ reqId, model: cm ? cm.ref : S.settings.selectedModel, messages: buildMessages(), params: { ...S.settings.gen, reasoning: r === 'auto' ? (opts.voice || (S.voice && S.voice.on) ? 'off' : undefined) : r,voiceMode: !!(opts.voice || (S.voice && S.voice.on)), tools: [...chatTools(), ...(opts.voice || (S.voice && S.voice.on) ? ['show_on_scene'] : [])], agentMode: !!S.conv.agent || !!S.conv.code || (S.conv.messages || []).some((x) => (x.attachments || []).some((a) => a.kind === 'file' || a.kind === 'audio')), agentPrompt: agentPrompt(), userContext: typeof sysContext === 'function' ? sysContext() : undefined, sysPromptId: typeof sysPromptId === 'function' ? sysPromptId() : null, vision: !!(cm && cm.vision), usedTools, agent: (S.settings.agent || {}).enabled !== false || !!S.conv.code, artifactCheck: (S.settings.design || {}).autoCheck !== false }, meta: { allowAll: !!S.conv.allowAll, convId: S.conv.id, turnId: msg.id, code: cxMeta(), project: S.conv.project || null, modelLabel: cm ? (cm.provider ? `${cm.provider} · ${cm.label}` : cm.label) : '' } });
 }
 
 function finishStream() {

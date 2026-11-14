@@ -188,6 +188,7 @@ function composerExtras() {
   if (tools.includes('web_search') && S.mode !== 'code') chips.push(`<button class="c-chip" data-action="tool-toggle" data-key="webSearch" title="${esc(t('webSearchOff'))}">${icon('globe', 14)}<span>${esc(t('webSearch'))}</span></button>`);
   if (st && st.id !== 'default') chips.push(`<button class="c-chip" data-action="style-menu" title="${esc(t('responseStyle'))}">${icon('brush', 14)}<span>${esc(st.name)}</span></button>`);
   if (typeof SysPrompts !== 'undefined') { const c = SysPrompts.chip(); if (c) chips.push(c); }
+  if (typeof ChatBar !== 'undefined') { const c = ChatBar.chip(); if (c) chips.push(c); }
   if (S.conv && S.conv.ephemeral || S.ephemeralNext) chips.push(`<span class="c-chip ghost">${icon('eyeOff', 14)}<span>${esc(t('ephemeral'))}</span></span>`);
   return `<button class="think-btn ${r === 'off' ? 'off' : r === 'auto' ? '' : 'on'}" data-action="reasoning-menu" title="${esc(t('reasoning'))}: ${esc(t('reason_' + r))}">${icon('brain', 16)}<span>${esc(r === 'auto' ? t('reasoningShort') : t('reason_' + r))}</span></button>${chips.join('')}`;
 }
@@ -203,6 +204,7 @@ function openPlusMenu(anchor) {
       <button class="pm-item" data-action="tool-toggle" data-key="webSearch">${icon('globe', 16)}<span class="pm-text"><b>${esc(t('webSearch'))}</b><small>${esc(t('webSearchHint'))}</small></span>${tg(ct.webSearch !== false)}</button>
       <button class="pm-item" data-action="tool-toggle" data-key="images">${icon('image', 16)}<span class="pm-text"><b>${esc(t('img_tool'))}</b><small>${esc(t('img_toolHint'))}</small></span>${tg(ct.images !== false)}</button>
       <button class="pm-item" data-action="tool-toggle" data-key="fetch">${icon('link', 16)}<span class="pm-text"><b>${esc(t('fetchTool'))}</b><small>${esc(t('fetchHint'))}</small></span>${tg(ct.fetch !== false)}</button>
+      ${typeof ChatBar !== 'undefined' ? ChatBar.plusItem() : ''}
       <div class="pm-sep"></div>
       <button class="pm-item" data-action="style-menu">${icon('brush', 16)}<span class="pm-text"><b>${esc(t('responseStyle'))}</b><small>${esc(activeStyle().name)}</small></span>${icon('right', 14)}</button>
       ${!S.conv || !S.conv.messages.length ? `<button class="pm-item" data-action="ephemeral-toggle">${icon('eyeOff', 16)}<span class="pm-text"><b>${esc(t('ephemeral'))}</b><small>${esc(t('ephemeralHint'))}</small></span>${tg(!!S.ephemeralNext)}</button>` : ''}
