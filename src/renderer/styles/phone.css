@@ -1,0 +1,37 @@
+/* Phone-sized window (Fabro Anywhere): touch feedback and transitions. Tokens only. */
+.ph-pull { position: fixed; left: 50%; bottom: calc(96px + var(--safe-b, 0px)); z-index: 40; display: flex; flex-direction: column; align-items: center; gap: var(--sp-1);
+  transform: translate(-50%, calc((1 - var(--p, 0)) * 28px)) scale(calc(0.8 + var(--p, 0) * 0.2)); opacity: 0; pointer-events: none; transition: opacity var(--dur-1) var(--ease); }
+.ph-pull.on { opacity: 1; }
+.ph-pull svg { transform: rotate(-90deg); filter: drop-shadow(var(--shadow-sm)); }
+.ph-pull circle { fill: var(--elev); stroke-width: 3; }
+.ph-pull .ph-track { stroke: var(--border); }
+.ph-pull .ph-fill { fill: none; stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; }
+.ph-pull .ph-ico { position: absolute; top: 13px; color: var(--muted); display: grid; }
+.ph-pull b { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); padding: 0 var(--sp-2); border-radius: var(--r-pill); background: var(--elev); }
+.ph-pull.full .ph-ico, .ph-pull.full b { color: var(--accent-text, var(--accent)); }
+.ph-pull.full svg { transform: rotate(-90deg) scale(1.08); transition: transform var(--dur-2) var(--ease-bounce); }
+.ph-off { max-width: 46vw; }
+.ph-off span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  /* a new chat slides up from the bottom, as the pull suggests */
+  .ph-fresh #view { animation: ph-fresh var(--dur-3) var(--ease-out) both; }
+  @keyframes ph-fresh { from { opacity: 0; transform: translateY(36px); } to { opacity: 1; transform: none; } }
+  /* the whole screen, with a dead zone where the phone draws its own bar */
+  .platform-remote .dock { padding-bottom: calc(8px + var(--safe-b, 0px)); }
+  .platform-remote .icon-btn { min-width: var(--hit, 40px); min-height: var(--hit, 40px); }
+  .platform-remote .icon-btn.xs, .platform-remote .icon-btn.sm { min-width: 34px; min-height: 34px; }
+  .scroller { -webkit-overflow-scrolling: touch; }
+  /* Intelligent UI on a phone */
+  .iui { padding: var(--sp-3); border-radius: var(--r-md); margin: var(--sp-2) 0; }
+  .iui-choices, .iui-cmp, .iui-stats { grid-template-columns: 1fr; }
+  .iui-stats { grid-template-columns: 1fr 1fr; }
+  .iui-cols { columns: 1; }
+  .iui-art h3 { font-size: var(--fs-h2); }
+  .iui-mem { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+  .iui-choice, .iui-check, .iui-tile { min-height: var(--hit, 44px); }
+  .mm-n { max-width: 150px; }
+  /* settings: one column, big rows */
+  .st-content .row, .st-content .st-row { flex-wrap: wrap; row-gap: var(--sp-2); }
+}
+@media (prefers-reduced-motion: reduce) { .ph-fresh #view { animation: none; } .ph-pull, .ph-pull.full svg { transition: none; } }

@@ -686,3 +686,7 @@ body:not(.full-loading) .full-load { display: none; }
 
 /* behind the full interface: dark, never a light band if the frame ends short */
 html:has(body.full-on), body.full-on { background: #120d17; }
+
+/* keyboard open: nothing scrolls behind the interface, and no home-indicator gap above the keyboard */
+html.kb-open, html.kb-open body { position: fixed; inset: 0 0 auto 0; width: 100%; height: var(--app-h); overflow: hidden; }
+html.kb-open { --safe-b: 0px; }

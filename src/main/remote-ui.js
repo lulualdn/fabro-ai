@@ -46,7 +46,7 @@ const NOOP = new Set(['window:theme', 'window:buttons', 'window:devtools', 'brow
 const noop = (ch) => NOOP.has(ch) || ch.startsWith('quick:');
 // Channels a phone can't use: they act on the computer itself, or manage the paired phones.
 const DENY = new Set([
-  'app:quit', 'login:set', 'updater:install', 'shell:open', 'shell:reveal', 'shell:openPath', 'mods:openFolder',
+  'app:quit', 'login:set', 'shell:open', 'shell:reveal', 'shell:openPath', 'mods:openFolder',
   'skills:openFolder', 'crash:folder', 'anywhere:pairStart', 'anywhere:pairStop', 'anywhere:revoke', 'anywhere:rename',
   'anywhere:configure', 'anywhere:reply',
 ]);

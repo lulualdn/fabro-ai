@@ -13,8 +13,13 @@
     var vv = window.visualViewport ? visualViewport.height : h;
     if (vv > sh * 0.75) h = Math.max(h, sh);
   }
+  // keyboard open (iPhone does not resize the page: it slides it up). The interface takes exactly the visible
+  // part instead, so the composer sits on the keyboard and the messages stay in view.
+  var v2 = window.visualViewport; var kb = !!v2 && v2.height < h - 120;
+  if (kb) { h = Math.round(v2.height); if (window.scrollY || (v2.offsetTop > 0)) window.scrollTo(0, 0); }
+  r.classList.toggle('kb-open', kb);
   r.style.setProperty('--app-h', h + 'px');
-}; set(); addEventListener('resize', set); addEventListener('orientationchange', function () { setTimeout(set, 300); }); if (window.visualViewport) visualViewport.addEventListener('resize', set); })();
+}; set(); if (window.visualViewport) visualViewport.addEventListener('scroll', set); addEventListener('resize', set); addEventListener('orientationchange', function () { setTimeout(set, 300); }); if (window.visualViewport) visualViewport.addEventListener('resize', set); })();
 
 // The loading screen (in index.html): shown at start and while the interface loads, hidden once it's there.
 window.FASplash = {

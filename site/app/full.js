@@ -105,6 +105,10 @@
         if (!H().link) { unmount(); H().showPair(); break; } // no computer yet: "pair a computer"
         H().settings.ui = 'lite'; await H().saveSettings(); unmount(); H().render(); break;
       case 'reload': reload(); break;
+      // the bubble "not connected to the computer": pair one, or try the known one again now
+      case 'pair': if (!H().link) { unmount(); H().showPair(); } else { H().toast(H().t('connectingPc', { n: H().link.pcName || 'PC' })); H().reconnect(); } break;
+      // the computer installs an update (asked from here): wait for it instead of switching to the phone's own model
+      case 'updating': updatingAt = Date.now(); waitUpdate(); break;
     }
   });
 
@@ -177,8 +181,16 @@
   // ── connection ──
   // no status indicator: the line under the composer says when Fabro Cloud answers
   function offBar() { const bar = $('#full-offbar'); if (bar) bar.remove(); document.body.classList.remove('full-off'); }
+  let updatingAt = 0; let updT = 0;
+  const updating = () => updatingAt && Date.now() - updatingAt < 5 * 60000;
+  function waitUpdate() {
+    clearInterval(updT); if (!updating()) return;
+    const say = () => { if (!updating()) { clearInterval(updT); window.FASplash && FASplash.hide(); if (frame && mode === 'pc' && offline()) mount('local'); return; } window.FASplash && FASplash.show(H().t('pcUpdating')); };
+    say(); updT = setInterval(say, 10000);
+  }
   function swap(to) {
     clearTimeout(swapT);
+    if (to === 'local' && updating()) return;
     if (!enabled() || mode === to) return;
     // a short grace: a computer that blinks away for a second doesn't reload the interface twice
     swapT = setTimeout(() => { if (mode !== to) mount(to); }, to === 'local' ? 4000 : 300);
@@ -206,6 +218,7 @@
     },
     async connected(hello) {
       info = hello;
+      if (updatingAt) { updatingAt = 0; clearInterval(updT); wasOff = true; window.FASplash && FASplash.hide(); }
       if (!enabled()) return;
       await H().rpc('ui.sub', { on: true }).catch(() => {});
       if (mode === 'local') await FALocal.flush((ch, args) => H().rpc('ui.call', { ch, args }, 60000));

@@ -116,7 +116,7 @@
     clearTimeout(retryT);
     if (document.hidden) return;
     // a message waiting to go: keep trying often, so it leaves soon after the computer is back
-    const ms = Math.min([4000, 8000, 15000, 30000, 60000][Math.min(retryN++, 4)], S.outbox && S.outbox.length ? 6000 : Infinity);
+    const ms = Math.min([2000, 4000, 8000, 12000, 15000][Math.min(retryN++, 4)], S.outbox && S.outbox.length ? 6000 : Infinity);
     retryT = setTimeout(() => connect(), ms);
   }
   function dropped() {
@@ -1359,6 +1359,7 @@
   })();
   // what the full interface (full.js) uses from this app
   window.FAHost = {
+    reconnect: () => { retryN = 0; connect(true); },
     rpc: (m, p, ms) => rpc(m, p, ms), get conn() { return S.conn; }, get settings() { return S.settings; }, saveSettings,
     t: (k, v) => t(k, v), esc, ic, toast, saveBlob, render: () => render(), kv, micHelp: (e) => micHelp(e),
     get lang() { return lang; }, get link() { return S.link; }, get session() { return !!session; },
