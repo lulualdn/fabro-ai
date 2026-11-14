@@ -33,7 +33,7 @@ const srv = http.createServer((req, res) => {
   let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
     const body = JSON.parse(b || '{}');
     const sys = String((body.messages[0] || {}).content || '');
-    const users = body.messages.filter((m) => m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : (m.content || []).map((c) => c.text || '').join(' ')));
+    const users = body.messages.filter((m) => m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : (m.content || []).map((c) => c.text || '').join(' ')).replace(/<system_update>[\s\S]*?<\/system_update>\s*/g, '')); // the user's own words, without Fabro's note
     const first = users.filter((u) => !/^\[Fabro/.test(u)).pop() || '';
     const tools = body.messages.filter((m) => m.role === 'tool').map((m) => String(m.content || ''));
     if (/You name conversations|maintain a short memory|keep a small, honest memory/.test(sys)) return sse(res, /memory/.test(sys) ? '[]' : 'Test');

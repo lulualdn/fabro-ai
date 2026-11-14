@@ -2,7 +2,7 @@
 // it read the whole conversation again before the first word (seconds on a long chat, every turn).
 // So, per conversation:
 //   - the system message is frozen while the structure is the same (mode, tools, model…). What changed since (hints
-//     for this request, date, memory ranking…) travels as a short note on the latest user message, where only the
+//     for this request, date, memory ranking…) travels as a short note in front of the latest user message, where only the
 //     last turn has to be read again;
 //   - the tools offered to the model only grow: a tool picked from the words of an earlier message stays offered.
 // Cloud models are not concerned: chat.js / sysprompt only call this for local engines.
@@ -24,11 +24,12 @@ function system(convId, key, parts, text) {
 }
 
 const NOTE = (late) => `<system_update>\nFrom the system, not from the user. The sections below replace the ones with the same title in the system prompt.\n\n${late}\n</system_update>`;
-// A copy of the message with the note at the end (the stored message is never changed).
+// A copy of the message with the note before the user's words, so their request stays the last thing the model
+// reads (the stored message is never changed).
 function withNote(m, late) {
   if (!late) return m;
-  if (Array.isArray(m.content)) return { ...m, content: [...m.content, { type: 'text', text: NOTE(late) }] };
-  return { ...m, content: `${m.content || ''}\n\n${NOTE(late)}` };
+  if (Array.isArray(m.content)) return { ...m, content: [{ type: 'text', text: NOTE(late) }, ...m.content] };
+  return { ...m, content: `${NOTE(late)}\n\n${m.content || ''}` };
 }
 
 // Tool names to keep offering in this conversation and mode.

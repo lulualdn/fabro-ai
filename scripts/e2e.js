@@ -28,7 +28,7 @@ const srv = http.createServer((req, res) => {
       const body = JSON.parse(b);
       const sys = String((body.messages[0] || {}).content || '');
       const lastUser = [...body.messages].reverse().find((m) => m.role === 'user');
-      const ut = String(lastUser && (typeof lastUser.content === 'string' ? lastUser.content : '') || '');
+      const ut = String(lastUser && (typeof lastUser.content === 'string' ? lastUser.content : '') || '').replace(/<system_update>[\s\S]*?<\/system_update>\s*/g, ''); // the user's own words, without Fabro's note
       const one = (text) => { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`); res.end('data: [DONE]\n\n'); };
       if (/You name conversations/.test(sys)) return one('Test de Fabro');
       if (/keep a small, honest memory|maintain a short memory/.test(sys)) return one(JSON.stringify({ entries: [{ kind: 'project', title: 'Infos sur Fabro', content: 'Cherche des infos sur Fabro, en profondeur.', evidence: 'Je cherche des infos sur Fabro' }], profile: [] }));
