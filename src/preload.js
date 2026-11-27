@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('api', {
   ui: { switch: i('ui:switch') },
   cli: { install: i('cli:install'), status: i('cli:status') },
   knowledge: { list: i('knowledge:list'), get: i('knowledge:get'), save: i('knowledge:save'), delete: i('knowledge:delete') },
+  maps: { places: i('maps:places'), save: i('maps:save'), remove: i('maps:remove'), search: i('maps:search'), reverse: i('maps:reverse'), locate: i('maps:locate') },
   arena: { run: i('arena:run'), result: i('arena:result'), cancel: i('arena:cancel') },
   workshop: { detect: i('workshop:detect'), state: i('workshop:state') },
   share: { create: i('share:create'), remove: i('share:remove'), list: i('share:list') },

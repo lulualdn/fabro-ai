@@ -34,6 +34,8 @@ window.V1Settings = (function () {
       + row(t('askBefore'), t('askBeforeSub'), seg('ask', v.ask === 'never' ? 'never' : 'risky', [['risky', t('risky')], ['never', t('never')]]))
       + row(t('lang'), '', seg('language', s.language && s.language !== 'auto' ? s.language : 'auto', [['auto', 'Auto'], ['fr', 'FR'], ['en', 'EN']]))
       + row(t('bigSet'), t('bigSetSub'), `<select class="in" data-set="bigModel" style="max-width:240px"><option value="">${t('none')}</option>${V1.allModels().map((m) => `<option value="${V1.esc(V1.refKey(m.ref))}" ${V1.refKey(m.ref) === V1.refKey(v.bigModel) ? 'selected' : ''}>${V1.esc(m.label)}${m.sub ? ' · ' + V1.esc(m.sub) : ''}</option>`).join('')}</select>`)
+      + row(t('places'), t('placesSub'), `<button class="btn" data-act="set:places">${t('see')}</button>`)
+      + row(t('posPerm'), t('posPermSub'), seg('posPerm', (((s.agent || {}).permissions || {}).my_location) || 'ask', [['ask', t('posAsk')], ['always', t('posAlways')], ['never', t('posNever')]]))
       + row(t('memory'), t('memorySub', { n: S.memories.length }), `<button class="btn" data-act="set:memory">${t('see')}</button>`)
       + (S.settings.mods && S.settings.mods.safe || S.modsOff ? row(t('mods'), t('modsSafe'), `<button class="btn pri" data-act="set:modsback">${t('modsBack')}</button>`) : row(t('mods'), t('modsSub', { n: modsOn }), ''))
       + (st.mods || []).filter((m) => !m.builtin).map((m) => row(V1.esc(m.name) + (m.version ? ` <span class="mono" style="color:var(--t3)">${V1.esc(m.version)}</span>` : ''), V1.esc(m.description || '') + (m.v1 ? '' : ` · ${t('modsOldOnly')}`) + (m.permissions && m.permissions.length ? ` · ${t('modsCan')} ${V1.esc(m.permissions.join(', '))}` : ''), tog('mod:' + m.id, m.enabled))).join('')
@@ -156,6 +158,7 @@ window.V1Settings = (function () {
     if (a === 'seg') {
       const k = el.dataset.key, val = el.dataset.v;
       if (k === 'search') { if (val === 'ddg') return saveSearch({ engine: 'duckduckgo', sxMode: '' }); if (val === 'sx') return saveSearch({ engine: 'searxng', searxngUrl: '', sxMode: '' }); return saveSearch({ engine: 'searxng', sxMode: 'url' }); }
+      if (k === 'posPerm') { const ag = S.settings.agent || {}; await V1.saveSettings({ agent: { ...ag, permissions: { ...(ag.permissions || {}), my_location: val } } }); return render(); }
       if (k === 'safe') { const se = S.settings.search || {}; return saveSearch({ searxng: { ...(se.searxng || {}), safe: +val } }); }
       if (k === 'theme') { await V1.saveSettings({ theme: val }); V1.applyTheme(); }
       else if (k === 'language') { await V1.saveSettings({ language: val }); location.reload(); return; }
@@ -175,6 +178,7 @@ window.V1Settings = (function () {
       try { st.arena = await api.arena.run(); if (st.arena && st.arena.busy) V1.toast(V1.t('arenaBusy')); } catch (e) { V1.toast(String(e.message || e), 'err'); }
       st.arenaLive = null; return render();
     }
+    if (a === 'places') return window.V1Maps && V1Maps.openFull(null);
     if (a === 'sxeng') { const se = S.settings.search || {}; const c = se.searxng || {}; const n = el.dataset.n; const cur = !(n in (c.engines || {})) || c.engines[n]; return saveSearch({ searxng: { ...c, engines: { ...(c.engines || {}), [n]: !cur } } }); }
     if (a === 'sxreset') { const se = S.settings.search || {}; return saveSearch({ searxng: { ...(se.searxng || {}), engines: {} } }); }
     if (a === 'sxinstall') { st.sxBusy = true; render(); try { await api.deps.install('searxng'); } catch (e) { V1.toast(String(e.message || e), 'err'); } st.sxBusy = false; st.sx = null; return render(); }

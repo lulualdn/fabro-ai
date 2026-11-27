@@ -16,7 +16,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/core-tools'); require('./agent/reader'); require('./agent/vision'); require('./agent/diag'); require('./agent/knowledge'); require('./agent/mod-tools'); require('./workshop').registerTool(); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/core-tools'); require('./agent/reader'); require('./agent/vision'); require('./agent/diag'); require('./agent/knowledge'); require('./agent/mod-tools'); require('./workshop').registerTool(); require('./maps').registerTools(); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const computer = require('./computer');
@@ -128,8 +128,8 @@ function createWindow() {
   win.webContents.on('render-process-gone', (_e, d) => { if (d && d.reason !== 'clean-exit') store.setSettings({ mods: { safe: true } }).catch(() => {}); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   // Microphone for dictation / voice mode (the app's own page only); nothing else.
-  win.webContents.session.setPermissionRequestHandler((wc, perm, cb, details) => cb(wc === win.webContents && (perm === 'media' && (!details.mediaTypes || details.mediaTypes.every((t) => t === 'audio')) || perm === 'clipboard-sanitized-write')));
-  win.webContents.session.setPermissionCheckHandler((wc, perm) => perm === 'media' || perm === 'clipboard-sanitized-write');
+  win.webContents.session.setPermissionRequestHandler((wc, perm, cb, details) => cb(wc === win.webContents && (perm === 'media' && (!details.mediaTypes || details.mediaTypes.every((t) => t === 'audio')) || perm === 'clipboard-sanitized-write' || (perm === 'geolocation' && require('./maps').geoPermission()))));
+  win.webContents.session.setPermissionCheckHandler((wc, perm) => perm === 'media' || perm === 'clipboard-sanitized-write' || (perm === 'geolocation' && require('./maps').geoPermission()));
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); shell.openExternal(url); } });
 }
 
@@ -146,6 +146,7 @@ function registerIpc() {
   require('./mcpb').register(h);
   require('./cli-bridge').register(h);
   require('./arena').register(h, (ch, d) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(ch, d); });
+  require('./maps').register(h);
   h('workshop:detect', () => require('./workshop').detect(true)); h('workshop:state', (root) => require('./workshop').state(String(root || '')));
   h('app:info', () => ({
     version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, e2e: !!process.env.FABRO_E2E,
