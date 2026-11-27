@@ -149,21 +149,32 @@
   };
 
   // ───────────────────────────── the loop ─────────────────────────────
-  function system({ agent, lang, date, tools, local }) {
+  function system({ agent, lang, date, tools, local, pc }) {
     const L = { en: 'English', fr: 'French', es: 'Spanish', de: 'German' }[lang] || 'the user’s language';
     return [
       `You are Fabro, a helpful assistant, answering on the user's phone (Fabro Anywhere). Today is ${date}. Answer in ${L} unless the user writes in another language. Use Markdown.`,
       tools.length ? `You have tools (${tools.join(', ')}). Use them when they make the answer better or up to date — search before stating recent facts, cite sources as [1], [2] matching the search results.` : '',
       agent ? 'Agent mode: for a multi-step task, first call update_plan, then carry out the steps one by one with your tools, update the plan as you go, and finish with a clear summary of what you did and found. Do not ask for permission for each step.' : '',
-      'You cannot create documents, files, slides or web pages here. When the user asks for one, say in one sentence that it needs the computer (connect this phone to Fabro on the PC), then give the content as plain text if that helps.',
+      pc ? `Your tools run on the user's computer (${pc}): files, terminal, documents and the rest are really there. Files you write stay on that computer.` : 'You cannot create documents or files here: that needs the user\'s computer (connect it in Fabro Anywhere). Give the content as plain text if that helps.',
       tools.includes('web_search') ? '' : 'There is no internet right now: answer from memory, and say when a fact may be out of date.',
-      'Tools of the computer (files, terminal, computer control) are not available while the computer is away; say so if the task needs them.',
+      pc ? '' : 'Tools of the computer (files, terminal, computer control) are not available while the computer is away; say so if the task needs them.',
       local ? 'Be concise.' : '',
     ].filter(Boolean).join('\n\n');
   }
 
   // OpenAI-compatible streaming call with tools, over the pool: the chosen model first ("auto": best first),
   // a busy or exhausted one is skipped at once (and rested for as long as it says), the next one takes over.
+  // The user's own API key (OpenAI-compatible endpoint, called straight from the browser).
+  async function keyTurn(prov, messages, tools, signal, onDelta) {
+    const body = { model: prov.model, messages, stream: true };
+    if (tools.length) { body.tools = tools.map(schemaOf); body.tool_choice = 'auto'; }
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + prov.key };
+    if (/anthropic\.com/.test(prov.base)) { headers['x-api-key'] = prov.key; headers['anthropic-version'] = '2023-06-01'; headers['anthropic-dangerous-direct-browser-access'] = 'true'; }
+    if (/openrouter\.ai/.test(prov.base)) { headers['HTTP-Referer'] = location.origin; headers['X-Title'] = 'Fabro Anywhere'; }
+    const r = await fetch(prov.base.replace(/\/+$/, '') + '/chat/completions', { method: 'POST', headers, body: JSON.stringify(body), signal });
+    if (!r.ok) { let j = null; try { j = await r.json(); } catch {} const e = j && (j.error && (j.error.message || j.error) || j.message); throw new Error(`${prov.name}: ${e || 'HTTP ' + r.status}`); }
+    return readStream(r, onDelta, prov.model);
+  }
   async function cloudTurn(model, messages, tools, signal, onDelta, needVision) {
     const fits = (m) => (!tools.length || m.tools) && (!needVision || m.vision);
     const chosen = POOL.find((m) => m.id === model);
@@ -175,7 +186,7 @@
         if (coolOf(m) > Date.now()) continue;
         const [pv] = m.id.split('/'); const api = m.id.slice(pv.length + 1); const p = P[pv];
         const body = { model: api, messages: needVision && !m.vision ? stripImages(messages) : messages, stream: true, temperature: 0.6 };
-        if (tools.length) { body.tools = tools.map((n) => TOOLS[n]); body.tool_choice = 'auto'; }
+        if (tools.length) { body.tools = tools.map(schemaOf); body.tool_choice = 'auto'; }
         let r;
         try { r = await fetch(p.chat || p.base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }); }
         catch (e) { if (signal.aborted) throw e; lastErr = e.message; cool.set(m.id, Date.now() + 20000); continue; }
@@ -196,6 +207,9 @@
       }
     }
     if (!res) throw new Error(/429|quota|limit|busy/i.test(String(lastErr)) || !lastErr ? (window.FAHost ? window.FAHost.t('cloudBusy') : 'Fabro Cloud is busy') : String(lastErr));
+    return readStream(res, onDelta, used.name);
+  }
+  async function readStream(res, onDelta, modelName) {
     const rd = res.body.getReader(); const dec = new TextDecoder(); let buf = '', content = ''; const calls = [];
     for (;;) {
       const { done, value } = await rd.read(); if (done) break;
@@ -210,7 +224,7 @@
         for (const tc of d.tool_calls || []) { const k = tc.index ?? calls.length; const c = (calls[k] ||= { id: '', name: '', args: '' }); if (tc.id) c.id = tc.id; if (tc.function) { if (tc.function.name) c.name += tc.function.name; if (tc.function.arguments) c.args += tc.function.arguments; } }
       }
     }
-    return { content, calls: calls.filter((c) => c && c.name).map((c, k) => ({ ...c, id: c.id || 'call_' + Date.now().toString(36) + k })), model: used.name };
+    return { content, calls: calls.filter((c) => c && c.name).map((c, k) => ({ ...c, id: c.id || 'call_' + Date.now().toString(36) + k })), model: modelName };
   }
   const stripImages = (msgs) => msgs.map((m) => Array.isArray(m.content) ? { ...m, content: m.content.filter((x) => x.type === 'text').map((x) => x.text).join('\n') } : m);
   // The phone's own model (WebLLM): tools described in the prompt, called as <tool_call>{json}</tool_call>.
@@ -236,14 +250,20 @@
   // history (the conversation's path) → reply, with tool rounds. onEvent mirrors the computer's run events.
   // history: the conversation path (phone app), or messages: OpenAI-format messages already built (the computer's
   // interface, its own system prompt included). allTools: every tool while only the prompt says agent or not.
-  async function run({ history, messages, model, agent, allTools, lang, engine, signal, onEvent }) {
+  // ext: the computer's tools { name: 'PC', schemas: [...], call(name, args, id) → { content, view } }; prov: the user's API key
+  let EXT = null;
+  const schemaOf = (n) => (EXT && EXT.map[n]) || TOOLS[n];
+  async function run({ history, messages, model, agent, allTools, lang, engine, signal, onEvent, ext, prov }) {
+    EXT = ext && ext.schemas && ext.schemas.length ? { ...ext, map: Object.fromEntries(ext.schemas.map((x) => [x.function.name, x])) } : null;
     const local = !!engine;
     const online = navigator.onLine !== false;
     let tools = agent || allTools ? AGENT_TOOLS : CHAT_TOOLS;
     if (!online) tools = tools.filter((n) => OFFLINE_TOOLS.includes(n));
     if (local && !agent) tools = tools.filter((n) => n !== 'fetch_url'); // keep small models focused
-    if (!local) { const m = POOL.find((x) => x.id === model); if (m && m.tools === false) tools = []; }
-    const loop = (m, tl, nv) => loopImpl(m, tl, nv, { model, agent, allTools, engine, signal, onEvent });
+    if (!local && !prov) { const m = POOL.find((x) => x.id === model); if (m && m.tools === false) tools = []; }
+    if (EXT && online) tools = [...new Set([...Object.keys(EXT.map), ...tools.filter((n) => !['fetch_url', 'run_python', 'run_javascript'].includes(n))])]; // the computer's tools first; its web tools read pages fully
+    const pc = EXT ? EXT.name : '';
+    const loop = (m, tl, nv) => loopImpl(m, tl, nv, { model, agent, allTools, engine, signal, onEvent, prov });
     let needVision = false;
     if (messages) {
       const sys = system({ agent, lang, date: new Date().toLocaleDateString(lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), tools, local });
@@ -253,7 +273,7 @@
       if (local) for (const m of out) if (Array.isArray(m.content)) m.content = m.content.filter((x) => x.type === 'text').map((x) => x.text).join('\n');
       return loop(out, tools, needVision);
     }
-    const msgs = [{ role: 'system', content: system({ agent, lang, date: new Date().toLocaleDateString(lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), tools, local }) }];
+    const msgs = [{ role: 'system', content: system({ agent, lang, date: new Date().toLocaleDateString(lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), tools, local, pc }) }];
     for (const n of history) {
       if (n.pending || (!(n.content || '').trim() && !(n.attachments || []).length)) continue;
       const imgs = (n.attachments || []).filter((a) => a.kind === 'image' && a.data);
@@ -262,11 +282,12 @@
     }
     return loop(msgs, tools, needVision);
   }
-  async function loopImpl(msgs, tools, needVision, { model, agent, allTools, engine, signal, onEvent }) {
+  async function loopImpl(msgs, tools, needVision, { model, agent, allTools, engine, signal, onEvent, prov }) {
     const local = !!engine;
-    const maxRounds = agent || allTools ? 14 : 5; let used = model;
+    const maxRounds = EXT ? 30 : agent || allTools ? 14 : 5; let used = model;
     for (let round = 0; round < maxRounds; round++) {
-      const turn = local ? await localTurn(engine, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }))
+      const turn = prov ? await keyTurn(prov, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }))
+        : local ? await localTurn(engine, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }))
         : await cloudTurn(model, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }), needVision);
       used = turn.model;
       if (!turn.calls.length || signal.aborted) return { model: used };
@@ -277,8 +298,10 @@
         onEvent({ type: 'tool_start', id: c.id, name: c.name, args });
         let out;
         try {
-          if (!tools.includes(c.name) || !RUN[c.name]) throw new Error('tool not available here');
-          out = await RUN[c.name](args);
+          if (!tools.includes(c.name)) throw new Error('tool not available here');
+          if (EXT && EXT.map[c.name]) { const r = await EXT.call(c.name, args, c.id); out = { result: r.content, view: r.view }; }
+          else if (RUN[c.name]) out = await RUN[c.name](args);
+          else throw new Error('tool not available here');
           onEvent({ type: 'tool_end', id: c.id, view: out.view });
         } catch (e) { out = { result: 'Error: ' + (e && e.message || e) }; onEvent({ type: 'tool_end', id: c.id, error: String(e && e.message || e) }); }
         msgs.push({ role: 'tool', tool_call_id: c.id, name: c.name, content: String(out.result || '') });

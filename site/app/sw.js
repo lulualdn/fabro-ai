@@ -1,8 +1,8 @@
-// Fabro Anywhere service worker: works offline (app shell + the phone model's code), shows notifications
-// sent by the computer (Web Push), and opens the right conversation when one is tapped.
+// Fabro Anywhere service worker: works offline (app shell), shows notifications sent by the computer (Web Push),
+// and opens the right conversation when one is tapped.
 const VERSION = '__VERSION__';
-const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'steps.js', 'i18n.js', 'core.js', 'theme.js', 'scan-worker.js', 'full.js', 'full.html', 'zoom.js', 'manifest.webmanifest',
-  'langdetect.js', 'voice-local.js', 'voice-tts-worker.js', 'voice-stt-worker.js', 'speech.js', 'agent.js', 'fx.js', 'local-pc.js', 'ui-bundle.json', 'stt-worker.js', 'py-worker.js', 'vendor/marked.umd.js', 'vendor/purify.min.js', 'icons/icon.svg', 'icons/mark.svg', 'icons/icon-192.png', 'icons/badge.png'];
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'core.js', 'agent.js', 'theme.js', 'scan-worker.js', 'py-worker.js', 'manifest.webmanifest', 'vendor/marked.umd.js', 'vendor/purify.min.js',
+  'icons/icon.svg', 'icons/mark.svg', 'icons/icon-192.png', 'icons/badge.png', '../fonts/hanken-grotesk-latin-400-normal.woff2', '../fonts/hanken-grotesk-latin-500-normal.woff2'];
 const SHELL_CACHE = 'fa-shell-' + VERSION, RUNTIME = 'fa-runtime';
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -16,7 +16,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request; if (req.method !== 'GET') return;
   const url = new URL(req.url);
   // the app itself: cache first, refreshed in the background
-  if (url.origin === location.origin && url.pathname.startsWith('/app/')) {
+  if (url.origin === location.origin && (url.pathname.startsWith('/app/') || url.pathname.startsWith('/fonts/'))) {
     e.respondWith((async () => {
       const cache = await caches.open(SHELL_CACHE);
       const hit = await cache.match(req, { ignoreSearch: true });
@@ -25,7 +25,7 @@ self.addEventListener('fetch', (e) => {
     })());
     return;
   }
-  // code from jsDelivr (WebLLM, transformers.js, Pyodide): kept for offline use; model weights are cached by the libraries
+  // code from jsDelivr (Pyodide): kept for offline use
   if (url.hostname === 'cdn.jsdelivr.net') {
     e.respondWith((async () => {
       const cache = await caches.open(RUNTIME);

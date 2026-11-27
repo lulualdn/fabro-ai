@@ -11,7 +11,6 @@ const db = require('./db');
 const chat = require('./chat');
 const webpush = require('./webpush');
 const A = require('../anywhere/core.js');
-const remoteUi = require('./remote-ui');
 
 const SITE = 'https://fabro.ufstudios.eu';
 const APP_URL = `${SITE}/app/`;
@@ -128,7 +127,7 @@ async function revoke(id) {
   const d = load().devices.find((x) => x.id === id);
   if (d) data.revoked = [{ id, k: d.k, at: Date.now() }, ...data.revoked.filter((r) => r.id !== id)].slice(0, 50);
   data.devices = data.devices.filter((x) => x.id !== id); save();
-  live.delete(id); remoteUi.drop(id); emitStatus();
+  live.delete(id); dropTools(id); emitStatus();
   if (!data.devices.length && !data.revoked.length) setTimeout(() => { if (!data.devices.length && !pairing) stop(); }, 2000);
   return true;
 }
@@ -308,7 +307,7 @@ async function handle(deviceId, method, p = {}) {
       if (p.name && p.name !== dev.name && !dev.renamed) { /* keep the PC-side name */ }
       const voice = require('./voice').status();
       const ctx = await askRenderer('context').catch(() => null);
-      return { ui: 1, pcName: pcName(), models: await modelList(), model: (ctx && ctx.model) || store.getSettings().selectedModel, voice: { ready: !!(voice.runtime && voice.whisperReady), voice: voice.voice }, vapid: load().vapid.publicKey, ice: iceServers(), deviceName: dev.name, version: app.getVersion() };
+      return { api: 2, pcName: pcName(), models: await modelList(), model: (ctx && ctx.model) || store.getSettings().selectedModel, voice: { ready: !!(voice.runtime && voice.whisperReady), voice: voice.voice }, vapid: load().vapid.publicKey, ice: iceServers(), deviceName: dev.name, version: app.getVersion() };
     }
     case 'state': live.set(deviceId, { ...(live.get(deviceId) || {}), visible: !!p.visible, at: Date.now() }); return true;
     case 'sync': return sync(p);
@@ -346,16 +345,59 @@ async function handle(deviceId, method, p = {}) {
     case 'push.sub': { dev.push = p.sub && p.sub.endpoint && p.sub.keys ? { endpoint: String(p.sub.endpoint), keys: { p256dh: String(p.sub.keys.p256dh), auth: String(p.sub.keys.auth) } } : null; save(); emitStatus(); return true; }
     case 'unpair': setTimeout(() => revoke(deviceId), 300); return true;
     case 'push.test': return notify(deviceId, { title: pcName(), body: p.body || 'Fabro Anywhere ✓', tag: 'test' });
-    default:
-      if (method.startsWith('ui.')) { const r = await remoteUi.handle(deviceId, method, p); if (r !== undefined) return r; }
-      throw new Error('unknown method ' + method);
+    case 'tools.list': return toolList(p);
+    case 'tool.call': return toolCall(deviceId, p);
+    case 'tool.answer': { const a = toolAsks.get(String(p.id || '')); if (!a || a.deviceId !== deviceId) return false; toolAsks.delete(String(p.id)); a.resolve(p.value); return true; }
+    case 'tool.abort': { const c = toolCalls.get(String(p.callId || '')); if (c && c.deviceId === deviceId) c.ctl.abort(); return true; }
+    default: throw new Error('unknown method ' + method);
   }
+}
+
+// ───────────────────────────── tools for the phone ─────────────────────────────
+// Fabro Anywhere runs the model elsewhere (Fabro Cloud, the phone's own API keys) and the tools here, on this
+// computer: the phone lists them, then asks for one call at a time. Same permissions as on the computer: what
+// would ask here asks on the phone (the question goes to the phone that made the call).
+const toolAsks = new Map();   // askId → { deviceId, resolve }
+const toolCalls = new Map();  // callId → { deviceId, ctl }
+const toolGrants = new Map(); // convId → Set (grants given in this conversation)
+function dropTools(deviceId) {
+  for (const [id, a] of toolAsks) if (a.deviceId === deviceId) { toolAsks.delete(id); a.resolve('deny'); }
+  for (const [id, c] of toolCalls) if (c.deviceId === deviceId) { toolCalls.delete(id); c.ctl.abort(); }
+}
+const PC_WEB = ['web_search', 'fetch_url'];
+function toolList(p = {}) {
+  const agent = require('./agent'); const tools = require('./tools');
+  const picked = agent.select({ agentMode: true, text: String(p.text || '').slice(0, 4000), used: Array.isArray(p.used) ? p.used.map(String) : [] })
+    .filter((t) => t.name !== 'run_subagent' && t.name !== 'ask_user'); // no nested runs from the phone; the phone asks itself
+  return { tools: [...tools.schemas(PC_WEB), ...picked.map(agent.schema)] };
+}
+async function toolCall(deviceId, p = {}) {
+  const agent = require('./agent'); const tools = require('./tools');
+  const name = String(p.name || ''); const args = p.args && typeof p.args === 'object' ? p.args : {};
+  const callId = String(p.callId || crypto.randomUUID()); const convId = p.convId ? String(p.convId) : null;
+  const ctl = new AbortController(); toolCalls.set(callId, { deviceId, ctl });
+  if (convId && !toolGrants.has(convId)) toolGrants.set(convId, new Set());
+  const ctx = {
+    callId, convId, origin: 'phone', src: { n: 0 }, signal: ctl.signal, grants: convId ? toolGrants.get(convId) : new Set(),
+    onAbort: (fn) => ctl.signal.addEventListener('abort', fn),
+    emit: (ev) => { if (ev && ev.type === 'tool_progress') sendTo(deviceId, { t: 'ev', k: 'tool.progress', callId, pct: ev.pct, text: ev.text }); },
+    needDeps: async () => false, // installs happen on the computer, never from the phone
+    ask: (req) => new Promise((resolve) => {
+      const id = 'a' + crypto.randomBytes(6).toString('hex');
+      toolAsks.set(id, { deviceId, resolve });
+      sendTo(deviceId, { t: 'ev', k: 'tool.ask', callId, convId, ask: { id, tool: req.tool, risk: req.risk, summary: String(req.summary || '').slice(0, 600), reason: req.reason || '' } });
+      setTimeout(() => { if (toolAsks.delete(id)) resolve('deny'); }, 10 * 60000);
+    }),
+  };
+  try {
+    const r = PC_WEB.includes(name) ? await tools.run(name, args, ctx) : await agent.execute({ name, args }, ctx);
+    return { content: String((r && r.content) || '').slice(0, 60000), view: trimView(r && r.view), refused: !!(r && r.refused) };
+  } finally { toolCalls.delete(callId); }
 }
 
 // ───────────────────────────── init ─────────────────────────────
 function init({ emit, ask }) {
   toRenderer = emit; askRenderer = ask;
-  remoteUi.init({ send: (id, msg) => sendTo(id, msg) });
   const fromPeer = (ch, fn) => ipcMain.handle(ch, (e, ...a) => { if (!peer || e.sender !== peer.webContents) throw new Error('forbidden'); return fn(...a); });
   fromPeer('aw:boot', () => bootInfo());
   fromPeer('aw:paired', (dev) => onPaired(dev));
@@ -363,7 +405,7 @@ function init({ emit, ask }) {
   fromPeer('aw:state', ({ deviceId, state }) => {
     const d = load().devices.find((x) => x.id === deviceId); if (!d) return false;
     live.set(deviceId, { ...(live.get(deviceId) || {}), state, at: Date.now() });
-    if (state !== 'off') { d.lastSeen = Date.now(); save(); } else remoteUi.drop(deviceId);
+    if (state !== 'off') { d.lastSeen = Date.now(); save(); } else dropTools(deviceId);
     emitStatus(); return true;
   });
   fromPeer('aw:msg', async ({ deviceId, msg }) => {

@@ -1,4 +1,4 @@
-# Website (site/): static pages built by site/build.js — no dependencies to install.
+# Website (site/): static pages built by site/build.js. The vote function (site/netlify/functions) uses Netlify Blobs.
 [build]
   base = "site"
   command = "node build.js"
@@ -6,3 +6,6 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"

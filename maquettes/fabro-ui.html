@@ -261,7 +261,9 @@ body:not(.showslots) .slot-mark::before{display:none}
 /* ===== Fabro Code ===== */
 .code{flex:1;display:flex;flex-direction:column;min-width:0}
 .code .wrap{flex:1;overflow:auto;padding:24px}
-.mascots{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:1040px}
+.mascots{display:grid;grid-template-columns:1fr;gap:12px;max-width:1040px}
+.masc{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"h h" "p p" "stage term" "states term";column-gap:16px}
+.masc h4{grid-area:h}.masc p{grid-area:p}.masc .stage{grid-area:stage}.masc .states{grid-area:states}.masc .term{grid-area:term;margin-top:0}
 .masc{border-radius:var(--r-card);background:var(--surf);border:1px solid var(--line);padding:16px}
 .masc h4{font-weight:500;font-size:14px}
 .masc p{font-size:13px;color:var(--t3);margin-bottom:12px}
@@ -357,7 +359,7 @@ body:not(.showslots) .slot-mark::before{display:none}
           <figure><div class="img" id="photoWrap"><canvas id="photo" width="960" height="540" data-tint></canvas></div><figcaption>Image tirée du test Le Cycliste <cite>3</cite></figcaption></figure>
           <h3>Ce qu’il faut savoir</h3>
           <p>Le poids compte plus que prévu : au-delà de 35 kg, les testeurs le portent mal dans un escalier <cite>2</cite>. Je vérifie maintenant les prix réels, ils ont bougé depuis septembre<span class="caret"></span></p>
-          <div class="meta"><button>Copier</button><button>Refaire</button><button>Demander au gros modèle</button><span class="dest">local · RTX 3060</span></div>
+          <div class="meta"><button>Copier</button><button>Refaire</button><button>Demander au gros modèle</button></div>
         </div></div>
       </div>
     </div>
@@ -516,7 +518,7 @@ const composerHTML=`<div class="composer glass">
     <button class="ib" title="Voix"><svg class="i"><use href="#i-mic"/></svg></button>
     <button class="ib send" disabled title="Envoyer"><svg class="i"><use href="#i-up"/></svg></button>
   </div>
-  <div class="hint"><span>Entrée pour envoyer · Maj Entrée pour une ligne</span><span style="margin-left:auto" class="dest">Gemma 4 E4B · local</span></div>
+  <div class="hint"><span>Entrée pour envoyer · Maj Entrée pour une ligne</span><span style="margin-left:auto" class="dest">Gemma 4 E4B</span></div>
 </div>`;
 $$('[data-composer]').forEach(h=>{h.outerHTML=composerHTML});
 $$('.voicewave i').forEach((i,n)=>i.style.animationDelay=(n*47%900)+'ms');
@@ -755,7 +757,7 @@ function termDog(frame,st){const rows=frame.trim().split('\n');let out='';
     out+=line+'\n'}
   return out+`\n  <span style="color:#e0a24a">fabro code</span> <span style="color:#777">~/projets/budget-app</span>\n  <span style="color:#999">${st}</span>`}
 const dogState={a:'repos',b:'réflexion',c:'écrit du code'};
-$('#mascots').innerHTML=Object.entries(DOGS).map(([k,d])=>`<div class="masc"><h4>${d.name}</h4><p>${d.desc}</p>
+$('#mascots').innerHTML=Object.entries(DOGS).filter(([k])=>k==="a").map(([k,d])=>`<div class="masc"><h4>${d.name}</h4><p>${d.desc}</p>
   <div class="stage"><canvas id="dog-${k}" width="${16*7}" height="${19*7}"></canvas></div>
   <div class="states" data-k="${k}">${STATES.map(s=>`<button class="${s===dogState[k]?'on':''}">${s}</button>`).join('')}</div>
   <div class="term" id="term-${k}"></div></div>`).join('');

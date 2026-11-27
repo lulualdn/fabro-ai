@@ -1,0 +1,8 @@
+{
+  "name": "fabro-site",
+  "private": true,
+  "description": "Fabro website. The pages build with no dependency (node build.js); @netlify/blobs is only for the vote function.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

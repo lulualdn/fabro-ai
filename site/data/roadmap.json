@@ -1,0 +1,14 @@
+[
+  { "id": "ui", "status": "now", "en": "New interface: one screen, one field, glass and reflections", "fr": "Nouvelle interface : un écran, un champ, verre et reflets" },
+  { "id": "anywhere", "status": "now", "en": "Fabro Anywhere: Fabro Cloud, your API keys, tools on your PC", "fr": "Fabro Anywhere : Fabro Cloud, tes clés API, outils sur ton PC" },
+  { "id": "updater", "status": "next", "en": "New installer and one-bar updates, checked before they run", "fr": "Nouvel installateur et mises à jour en une barre, vérifiées avant lancement" },
+  { "id": "tasks", "status": "next", "en": "Long tasks that resume after a restart and check their own result", "fr": "Tâches longues qui reprennent après un redémarrage et vérifient leur résultat" },
+  { "id": "memory", "status": "next", "en": "Semantic memory and search in past conversations", "fr": "Mémoire sémantique et recherche dans les anciennes discussions" },
+  { "id": "reader", "status": "next", "en": "A real page reader (JavaScript, PDF, pagination) and a research tool that reads 5 to 8 pages", "fr": "Un vrai lecteur de pages (JavaScript, PDF, pagination) et une recherche qui lit 5 à 8 pages" },
+  { "id": "mtp", "status": "next", "en": "Faster models: speculative decoding (MTP, n-gram) chosen per machine", "fr": "Modèles plus rapides : décodage spéculatif (MTP, n-gram) choisi selon la machine" },
+  { "id": "knowledge", "status": "later", "en": "Fabro Knowledge: guides the AI writes and reads level by level", "fr": "Fabro Knowledge : des guides que l’IA écrit et lit niveau par niveau" },
+  { "id": "code", "status": "later", "en": "Fabro Code in the terminal, with its dog, and a Linux workshop per project", "fr": "Fabro Code dans le terminal, avec son chien, et un atelier Linux par projet" },
+  { "id": "cu", "status": "later", "en": "Computer use in the background, on a screen of its own", "fr": "Computer use en arrière-plan, sur un écran à lui" },
+  { "id": "mods", "status": "later", "en": "A stable mod API with examples: cards above the chat, chat themes, flashcards", "fr": "Une API de mods stable avec exemples : cartes au-dessus du chat, thèmes du chat, flashcards" },
+  { "id": "engines", "status": "later", "en": "Engine arena and very large models from the SSD (experimental)", "fr": "Arène des moteurs et très gros modèles depuis le SSD (expérimental)" }
+]
