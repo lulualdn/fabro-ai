@@ -308,6 +308,7 @@ function privacy() {
   ${T('priv_goes_h', 'h2')}${T('priv_goes', 'ul')}
   ${T('priv_any_h', 'h2')}${T('priv_any', 'ul')}
   ${T('priv_keys_h', 'h2')}${T('priv_keys', 'p')}
+  ${T('priv_maps_h', 'h2')}${T('priv_maps', 'p')}
   ${T('priv_crash_h', 'h2')}${T('priv_crash', 'p')}
   ${T('priv_site_h', 'h2')}${T('priv_site', 'p')}
   ${T('priv_contact', 'p', 'class="more"')}
@@ -372,13 +373,14 @@ function buildApp(rel) {
   const walk = (d, r = '') => { for (const e of fs.readdirSync(path.join(d, r), { withFileTypes: true })) { const x = path.join(r, e.name); if (e.isDirectory()) walk(d, x); else copy(path.join(d, x), path.join(out, x)); } };
   walk(src);
   copy(path.join(ROOT, 'src', 'anywhere', 'core.js'), path.join(out, 'core.js'));
+  copy(path.join(ROOT, 'src', 'shared', 'maps-view.js'), path.join(out, 'maps-view.js')); // maps, shared with the desktop app
   // where "Fabro Code" sends people: the latest release's installers
   const r = rel.find((x) => !x.prerelease && x.assets.length);
   const pick = (re) => { const a = r && r.assets.find((x) => re.test(x.name)); return a ? a.url : `https://github.com/${REPO}/releases/latest`; };
   fs.writeFileSync(path.join(out, 'downloads.json'), JSON.stringify({ version: r ? r.tag.replace(/^v/, '') : '', win: pick(/^Fabro-Installer\.exe$|Setup.*\.exe$/i), mac: pick(/arm64.*\.dmg$|\.dmg$/i), linux: pick(/\.AppImage$/i) }));
   // the service worker's cache name follows the app's content, so phones pick up new versions
   const h = require('crypto').createHash('sha256');
-  for (const f of ['index.html', 'app.js', 'app.css', 'agent.js', 'core.js', 'theme.js', 'scan-worker.js']) h.update(fs.readFileSync(path.join(out, f)));
+  for (const f of ['index.html', 'app.js', 'app.css', 'agent.js', 'core.js', 'theme.js', 'scan-worker.js', 'profiles.js', 'maps-agent.js', 'maps-view.js', 'maps.js']) h.update(fs.readFileSync(path.join(out, f)));
   const sw = path.join(out, 'sw.js'); fs.writeFileSync(sw, fs.readFileSync(sw, 'utf8').replace('__VERSION__', h.digest('hex').slice(0, 12)));
 }
 

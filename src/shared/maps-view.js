@@ -64,6 +64,9 @@ window.FabroMapsView = function (host) {
       map.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': ACC, 'line-width': 4.5 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
     };
     if (map.isStyleLoaded()) addRoute(); else map.once('load', addRoute);
+    // light/dark follows the app; the route is drawn again on the new style. Credits start folded (the "i").
+    themed.add({ map, addRoute, container });
+    map.once('load', () => { const a = container.querySelector('.maplibregl-ctrl-attrib'); if (a) a.classList.remove('maplibregl-compact-show'); });
     (v.places || []).forEach((p, i) => marker(ml, map, p, i));
     (opts.saved || []).forEach((p) => marker(ml, map, p, 0, { saved: true }));
     fit(map, v, opts.full);
@@ -72,6 +75,12 @@ window.FabroMapsView = function (host) {
     try { new ResizeObserver(() => map.resize()).observe(container); } catch {}
     return { ml, map };
   }
+
+  const themed = new Set(); let lastDark = dark();
+  new MutationObserver(() => {
+    if (dark() === lastDark) return; lastDark = dark();
+    for (const x of [...themed]) { if (!x.container.isConnected && !live.size) { themed.delete(x); continue; } try { x.map.setStyle(styleUrl()); x.map.once('style.load', x.addRoute); } catch { themed.delete(x); } }
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   // maps survive re-renders: kept by step id and moved into the new placeholder
   const live = new Map();
@@ -85,13 +94,13 @@ window.FabroMapsView = function (host) {
       const rec = { el, map: null }; live.set(id, rec);
       makeMap(el, v).then(({ map }) => { rec.map = map; }).catch(() => { el.innerHTML = `<div class="mc-err">${esc(t('loadErr'))}</div>`; });
     }
-    if (live.size > 24) for (const [k, r] of [...live.entries()]) { if (live.size <= 24) break; if (!r.el.isConnected) { try { r.map && r.map.remove(); } catch {} live.delete(k); } }
+    if (live.size > 24) for (const [k, r] of [...live.entries()]) { if (live.size <= 24) break; if (!r.el.isConnected) { try { r.map && r.map.remove(); } catch {} for (const x of themed) if (x.map === r.map) themed.delete(x); live.delete(k); } }
   }
   new MutationObserver(() => { if (document.querySelector('[data-map-slot]')) requestAnimationFrame(mount); }).observe(document.body, { childList: true, subtree: true });
 
   // full screen: its own layer above the app
   let full = null;
-  function close() { if (!full) return; try { full.map.remove(); } catch {} full.root.remove(); full = null; }
+  function close() { if (!full) return; for (const x of themed) if (x.map === full.map) themed.delete(x); try { full.map.remove(); } catch {} full.root.remove(); full = null; }
   async function openFull(v) {
     close();
     const saved = await host.places.list().catch(() => []);

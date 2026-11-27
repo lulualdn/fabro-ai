@@ -74,7 +74,8 @@
     run_javascript: fn('run_javascript', 'Run JavaScript (sandboxed, no network, no page access) for a quick calculation or text processing. Return or console.log the result.', { code: { type: 'string' } }, ['code']),
     update_plan: fn('update_plan', 'Agent only: write or update your step-by-step plan for a multi-step task.', { steps: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, status: { type: 'string', enum: ['pending', 'in_progress', 'done'] } }, required: ['title'] } } }, ['steps']),
   };
-  const CHAT_TOOLS = ['web_search', 'fetch_url', 'generate_image', 'weather', 'get_datetime'];
+  if (window.FAMapTools) Object.assign(TOOLS, FAMapTools.schemas); // maps (maps-agent.js)
+  const CHAT_TOOLS = ['web_search', 'fetch_url', 'generate_image', 'weather', 'get_datetime', ...(window.FAMapTools ? FAMapTools.NAMES : [])];
   const AGENT_TOOLS = Object.keys(TOOLS);
   const OFFLINE_TOOLS = ['get_datetime', 'run_javascript', 'run_python'];
 
@@ -152,6 +153,7 @@
     web_search: webSearch, fetch_url: fetchUrl, generate_image: genImage, weather, run_javascript: runJs, run_python: runPy,
     get_datetime: async () => ({ result: JSON.stringify({ now: new Date().toString(), iso: new Date().toISOString(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone }) }),
     update_plan: async ({ steps }) => ({ result: 'Plan saved.', view: { steps } }),
+    ...(window.FAMapTools ? FAMapTools.run : {}),
   };
 
   // ───────────────────────────── the loop ─────────────────────────────
@@ -282,6 +284,7 @@
   const schemaOf = (n) => (EXT && EXT.map[n]) || TOOLS[n];
   async function run({ history, messages, model, agent, allTools, lang, engine, signal, onEvent, ext, prov }) {
     EXT = ext && ext.schemas && ext.schemas.length ? { ...ext, map: Object.fromEntries(ext.schemas.map((x) => [x.function.name, x])) } : null;
+    if (EXT) delete EXT.map.my_location; // the position is the phone's, not the computer's
     const local = !!engine;
     const online = navigator.onLine !== false;
     let tools = agent || allTools ? AGENT_TOOLS : CHAT_TOOLS;

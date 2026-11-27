@@ -16,6 +16,7 @@
   // ───────────────────────────── text ─────────────────────────────
   const I18N = {
     fr: {
+      places: 'Mes lieux', placesSub: 'Maison, travail, favoris : Fabro s’en sert pour les itinéraires.', see: 'Voir',
       cloudLong: 'Cette conversation est trop longue pour Fabro Cloud en ce moment. Commence-en une nouvelle, ou utilise ta propre clé.', profile: 'Profil', me: 'Moi', pfLocked: 'Protégé par mot de passe', pfOpen: 'Sans mot de passe', pfPwSet: 'Ajouter un mot de passe', pfPwChange: 'Changer le mot de passe', pfAdd: 'Ajouter ou changer', pfChange: 'Changer de profil', pfSub: '{n} sur 4 profils sur cet appareil.', pfDelT: 'Supprimer ce profil', pfDelLead: 'Ses conversations, ses clés et le lien avec ton ordinateur sont effacés de cet appareil.', pfPwLead: 'Avec un mot de passe, les conversations et les clés de ce profil sont chiffrées sur cet appareil. Laisse vide pour l’enlever.', pfPwOld: 'Mot de passe actuel', pfPwNew: 'Nouveau mot de passe', pfWrong: 'Mot de passe incorrect.', saved: 'Enregistré',
       newChat: 'Nouvelle demande', search: 'Chercher', code: 'Fabro Code', settings: 'Réglages', today: 'Aujourd’hui', before: 'Avant', noChats: 'Rien pour l’instant',
       homeH: 'Qu’est-ce qu’on fait ?', homeSub: 'Demande n’importe quoi. Fabro cherche, lit et agit pour toi.',
@@ -44,6 +45,7 @@
       later: 'Envoyé après la réponse en cours', empty: 'Le modèle n’a rien répondu. Réessaie ou change de modèle.', noNet: 'Pas de réseau', install: 'Installer l’app', installSub: 'Ajoute Fabro à ton écran d’accueil.',
     },
     en: {
+      places: 'My places', placesSub: 'Home, work, favourites: Fabro uses them for routes.', see: 'See',
       cloudLong: 'This conversation is too long for Fabro Cloud right now. Start a new one, or use your own key.', profile: 'Profile', me: 'Me', pfLocked: 'Password protected', pfOpen: 'No password', pfPwSet: 'Add a password', pfPwChange: 'Change password', pfAdd: 'Add or switch', pfChange: 'Switch profile', pfSub: '{n} of 4 profiles on this device.', pfDelT: 'Delete this profile', pfDelLead: 'Its chats, keys and the link to your computer are erased from this device.', pfPwLead: 'With a password, this profile’s chats and keys are encrypted on this device. Leave empty to remove it.', pfPwOld: 'Current password', pfPwNew: 'New password', pfWrong: 'Wrong password.', saved: 'Saved',
       newChat: 'New request', search: 'Search', code: 'Fabro Code', settings: 'Settings', today: 'Today', before: 'Earlier', noChats: 'Nothing yet',
       homeH: 'What are we doing?', homeSub: 'Ask anything. Fabro searches, reads and acts for you.',
@@ -486,8 +488,8 @@
     return h.replace(/<a href=/g, '<a target="_blank" rel="noopener" href=');
   }
   const STEP = {
-    fr: { web_search: 'Cherche sur le web', fetch_url: 'Lit une page', read_page: 'Lit une page', generate_image: 'Crée une image', weather: 'Regarde la météo', get_datetime: 'Regarde l’heure', run_python: 'Calcule', run_javascript: 'Calcule', update_plan: 'Fait un plan', read_file: 'Lit un fichier', write_file: 'Écrit un fichier', edit_file: 'Modifie un fichier', run_command: 'Lance une commande', list_files: 'Parcourt des fichiers' },
-    en: { web_search: 'Searches the web', fetch_url: 'Reads a page', read_page: 'Reads a page', generate_image: 'Makes an image', weather: 'Checks the weather', get_datetime: 'Checks the time', run_python: 'Computes', run_javascript: 'Computes', update_plan: 'Makes a plan', read_file: 'Reads a file', write_file: 'Writes a file', edit_file: 'Edits a file', run_command: 'Runs a command', list_files: 'Browses files' },
+    fr: { web_search: 'Cherche sur le web', fetch_url: 'Lit une page', read_page: 'Lit une page', generate_image: 'Crée une image', weather: 'Regarde la météo', get_datetime: 'Regarde l’heure', run_python: 'Calcule', run_javascript: 'Calcule', update_plan: 'Fait un plan', read_file: 'Lit un fichier', write_file: 'Écrit un fichier', edit_file: 'Modifie un fichier', run_command: 'Lance une commande', list_files: 'Parcourt des fichiers', map_search: 'Cherche un lieu', map_show: 'Affiche une carte', map_route: 'Calcule un itinéraire', places_saved: 'Consulte tes lieux', my_location: 'Regarde ta position' },
+    en: { web_search: 'Searches the web', fetch_url: 'Reads a page', read_page: 'Reads a page', generate_image: 'Makes an image', weather: 'Checks the weather', get_datetime: 'Checks the time', run_python: 'Computes', run_javascript: 'Computes', update_plan: 'Makes a plan', read_file: 'Reads a file', write_file: 'Writes a file', edit_file: 'Edits a file', run_command: 'Runs a command', list_files: 'Browses files', map_search: 'Looks up a place', map_show: 'Shows a map', map_route: 'Plans a route', places_saved: 'Checks your places', my_location: 'Checks your position' },
   };
   const stepName = (s) => (STEP[lang] || STEP.en)[s.name] || s.name.replace(/^mcp__/, '').replace(/_/g, ' ');
   const stepArg = (s) => { const a = s.args || {}; return a.query || a.url || a.path || a.command || a.city || a.prompt || ''; };
@@ -506,7 +508,7 @@
     const body = n.content ? md(n.content, src) : '';
     const caret = n.pending ? '<span class="caret"></span>' : '';
     const wait = n.pending && n.wait ? `<div class="wait">${esc(t('cloudWait', { s: n.wait }))}</div>` : '';
-    return `${stepsHtml(n)}${wait}<div class="md">${body}${caret && !body ? caret : ''}</div>
+    return `${stepsHtml(n)}${window.FAMaps ? FAMaps.cards(n) : ''}${wait}<div class="md">${body}${caret && !body ? caret : ''}</div>
       ${imgs.map((u) => `<div class="gen"><img src="${esc(u)}" alt="" data-tint></div>`).join('')}
       ${n.error ? `<div class="err">${esc(n.error)}</div>${n.origin === 'phone-cloud' ? `<div class="err-acts"><button class="btn" data-act="retry" data-id="${esc(n.id)}">${ic('redo')}${t('retry')}</button>${S.models.length ? `<button class="btn" data-act="use-pc" data-id="${esc(n.id)}">${ic('pc')}${t('usePc')}</button>` : ''}<button class="btn ghost" data-act="add-key">${ic('key')}${t('useKey')}</button></div>` : ''}` : ''}
       ${!n.pending && src.length ? `<div class="sources">${src.slice(0, 6).map((s, i) => `<a href="${esc(s.url)}" target="_blank" rel="noopener"><cite>${i + 1}</cite><span>${esc(host(s.url))}</span></a>`).join('')}</div>` : ''}
@@ -665,6 +667,7 @@
     return `${head(t('model'))}
       <h3>${t('cloud')} · ${t('cloudSub')}</h3>
       ${cloud.map((x) => `<button class="opt ${k === 'cloud:' + x.id ? 'on' : ''}" data-act="pick" data-m="cloud:${esc(x.id)}">${ic('cloud')}<span class="grow">${x.id === 'auto' ? t('auto') + `<small>${t('autoSub')}</small>` : esc(x.name)}</span>${ckIf(k === 'cloud:' + x.id)}</button>`).join('')}
+      <div class="row2"><div>${t('places')}<small>${t('placesSub')}</small></div><button class="btn" data-act="places">${t('see')}</button></div>
       <h3>${t('keys')}</h3>
       ${S.keys.map((x) => `<button class="opt ${k === 'key:' + x.id ? 'on' : ''}" data-act="pick" data-m="key:${esc(x.id)}">${ic('key')}<span class="grow">${esc(x.model)}<small>${esc(x.name)}</small></span>${ckIf(k === 'key:' + x.id)}</button>`).join('')}
       <button class="opt" data-act="add-key">${ic('plus')}<span class="grow">${t('addKey')}<small>${t('keysSub')}</small></span></button>
@@ -759,6 +762,7 @@
     if (a === 'del-key') { S.keys = S.keys.filter((k) => k.id !== el.dataset.id); await kv.set('keys', S.keys); if (!keyOf(S.settings.model) && String(S.settings.model).startsWith('key:')) { S.settings.model = 'cloud:auto'; await saveSettings(); } renderSheet(); renderTop(); return; }
     if (a === 'forget') { if (confirm(t('forgetQ'))) { await forget(false); S.sheet = null; renderSheet(); } return; }
     if (a === 'notify') { if (S.settings.notify) await disablePush(); else await ensurePush(true); return renderSheet(); }
+    if (a === 'places') { S.sheet = null; renderSheet(); return window.FAMaps && FAMaps.openFull(null); }
     if (a === 'pf-pw') { S.sheet = { kind: 'pf', mode: 'pw' }; return renderSheet(); }
     if (a === 'pf-del') { S.sheet = { kind: 'pf', mode: 'del' }; return renderSheet(); }
     if (a === 'pf-switch') { if (el.dataset.id) return FAProfiles.switchTo(el.dataset.id); return FAProfiles.lock(); }
@@ -884,6 +888,18 @@
     if (S.link) connect();
     FAAgent.refreshModels().catch(() => {});
     window.__fa = { S, send, rpc, pairWith, renderAll }; // tests
-    window.FAHost = { t }; // agent.js reads its texts ("Fabro Cloud is busy") from here
+    // agent.js reads its texts ("Fabro Cloud is busy") from here; maps.js / maps-agent.js the saved places of this profile
+    const placesList = async () => (await kv.get('places').catch(() => null)) || [];
+    window.FAHost = { t, lang: () => lang, curConv, toast,
+      places: {
+        list: placesList,
+        async save(p) {
+          const name = String(p.name || '').trim().slice(0, 60); if (!name || !isFinite(p.lat)) throw new Error('A place needs a name.');
+          const l = await placesList(); const i = l.findIndex((x) => x.name.toLowerCase() === name.toLowerCase());
+          const x = { id: i >= 0 ? l[i].id : Math.random().toString(36).slice(2, 10), name, lat: +p.lat, lon: +p.lon, note: String(p.note || '').slice(0, 300), tag: p.tag || '', label: String(p.label || '').slice(0, 200), at: Date.now() };
+          if (i >= 0) l[i] = x; else l.push(x); await kv.set('places', l.slice(-200)); return x;
+        },
+        async remove(idOrName) { const l = await placesList(); const k = String(idOrName).toLowerCase(); const n = l.filter((x) => x.id !== idOrName && x.name.toLowerCase() !== k); await kv.set('places', n); return l.length - n.length; },
+      } };
   })();
 })();
