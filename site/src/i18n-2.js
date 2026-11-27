@@ -42,6 +42,7 @@
     priv_keys_h: 'API keys in Fabro Anywhere', priv_keys: 'Keys you add in Fabro Anywhere are stored in your browser only. Requests go straight from your browser to that provider; they don’t go through us.',
     legal_fonts: 'Fonts: Hanken Grotesk and JetBrains Mono (SIL Open Font License 1.1). Design method: <a href="https://github.com/heydamir/unslop">unslop</a> by Damir Sokolovsky (CC BY 4.0).',
     shot_alt_chat: 'Fabro running a long task, with its steps and sources', shot_alt_phone: 'Fabro Anywhere on a phone',
+    share_title: 'Shared from Fabro', sh_conv: 'Shared conversation', sh_art: 'Shared artifact', sh_dl: 'Download', sh_full: 'Full screen', sh_steps: 'steps', sh_missing: 'This link doesn’t exist or was removed.', sh_made: 'Made with Fabro, a local AI app.',
   });
   Object.assign(I.fr, {
     nav_any: 'Anywhere', nav_docs: 'Docs', nav_help: 'Aide', nav_labs: 'Labs', nav_dev: 'Dev',
@@ -84,5 +85,6 @@
     priv_keys_h: 'Clés API dans Fabro Anywhere', priv_keys: 'Les clés ajoutées dans Fabro Anywhere restent dans ton navigateur. Les requêtes vont directement de ton navigateur au fournisseur ; elles ne passent pas par nous.',
     legal_fonts: 'Polices : Hanken Grotesk et JetBrains Mono (SIL Open Font License 1.1). Méthode de design : <a href="https://github.com/heydamir/unslop">unslop</a> de Damir Sokolovsky (CC BY 4.0).',
     shot_alt_chat: 'Fabro pendant une longue tâche, avec ses étapes et ses sources', shot_alt_phone: 'Fabro Anywhere sur un téléphone',
+    share_title: 'Partagé depuis Fabro', sh_conv: 'Conversation partagée', sh_art: 'Artefact partagé', sh_dl: 'Télécharger', sh_full: 'Plein écran', sh_steps: 'étapes', sh_missing: 'Ce lien n’existe pas ou a été retiré.', sh_made: 'Fait avec Fabro, une app d’IA locale.',
   });
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -38,6 +38,8 @@
       notify: 'Notifications', notifySub: 'Quand une réponse arrive et que l’app est fermée.', about: 'À propos', site: 'Le site de Fabro',
       offline: 'Hors ligne', timeout: 'Pas de réponse', revoked: 'Ce PC a retiré l’accès.', cloudBusy: 'Fabro Cloud est saturé. Réessaie dans une minute.', photo: 'Photo',
       deleteQ: 'Supprimer cette conversation ?', rename: 'Renommer', del: 'Supprimer', micDenied: 'Micro refusé', sttFail: 'Je n’ai pas compris',
+      retry: 'Recommencer', edit: 'Modifier', fork: 'Nouvelle conversation à partir d’ici', forked: 'Conversation créée', prev: 'Version précédente', next: 'Version suivante', cancel2: 'Annuler', resend: 'Renvoyer',
+      cloudWait: 'Fabro Cloud est chargé. Nouvel essai dans {s} s.', usePc: 'Répondre avec ton PC', useKey: 'Ajouter une clé API',
       later: 'Envoyé après la réponse en cours', empty: 'Le modèle n’a rien répondu. Réessaie ou change de modèle.', noNet: 'Pas de réseau', install: 'Installer l’app', installSub: 'Ajoute Fabro à ton écran d’accueil.',
     },
     en: {
@@ -63,6 +65,8 @@
       notify: 'Notifications', notifySub: 'When an answer arrives and the app is closed.', about: 'About', site: 'Fabro website',
       offline: 'Offline', timeout: 'No answer', revoked: 'This PC removed access.', cloudBusy: 'Fabro Cloud is busy. Try again in a minute.', photo: 'Photo',
       deleteQ: 'Delete this conversation?', rename: 'Rename', del: 'Delete', micDenied: 'Microphone denied', sttFail: 'I didn’t catch that',
+      retry: 'Retry', edit: 'Edit', fork: 'New conversation from here', forked: 'Conversation created', prev: 'Previous version', next: 'Next version', cancel2: 'Cancel', resend: 'Send again',
+      cloudWait: 'Fabro Cloud is busy. Trying again in {s} s.', usePc: 'Answer with your PC', useKey: 'Add an API key',
       later: 'Sent after the current answer', empty: 'The model gave no answer. Try again or pick another model.', noNet: 'No network', install: 'Install the app', installSub: 'Add Fabro to your home screen.',
     },
   };
@@ -77,7 +81,7 @@
     img: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20 16l-5-5-8 8"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>',
     chev: '<path d="M9 6l6 6-6 6"/>', down: '<path d="M6 9l6 6 6-6"/>', check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', pc: '<rect x="3.5" y="4.5" width="17" height="11" rx="2"/><path d="M9 19.5h6M12 15.5v4"/>',
     key: '<circle cx="8" cy="14" r="4"/><path d="M11 11l8-8M16 6l2 2M14 8l2 2"/>', cloud: '<path d="M7 18a4.5 4.5 0 01-.6-9 6 6 0 0111.5 1.5A3.8 3.8 0 0117 18z"/>',
-    dl: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>', search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>',
+    dl: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>', search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>', redo: '<path d="M4 12a8 8 0 0113.7-5.6L20 9M20 4v5h-5M20 12a8 8 0 01-13.7 5.6L4 15M4 20v-5h5"/>', pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/>', fork: '<circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 003 3h6a3 3 0 003-3V7M12 12v5"/>', left: '<path d="M15 6l-6 6 6 6"/>', right: '<path d="M9 6l6 6-6 6"/>',
   };
   const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
   let MARK = '';
@@ -253,12 +257,12 @@
     await saveConv(c); renderAll(); scrollChat(true);
     return dispatch(c, node);
   }
-  async function dispatch(c, node) {
+  async function dispatch(c, node, regenerate = false) {
     const m = S.settings.model;
     if (!isPcModel(m)) return runHere(c, node);
     if (!session) { S.outbox.push({ convId: c.id, nodeId: node.id }); await kv.set('outbox', S.outbox); renderCards(); connect(); return; }
     try {
-      const res = await rpc('run', { conv: strip(c), nodeId: node.id, model: m, agent: true });
+      const res = await rpc('run', { conv: strip(c), nodeId: node.id, model: m, agent: true, regenerate });
       c.dirty = false;
       if (res.already) return syncNow();
       const asst = { id: res.nodeId, role: 'assistant', content: '', steps: [], model: res.model, pending: true, createdAt: now(), parentId: node.id };
@@ -301,7 +305,8 @@
         history: A.pathOf({ ...c, leafId: node.id }), model: cloudId, agent: true, lang, signal: ctl.signal, ext,
         prov: key ? { name: key.name, base: key.base, key: key.key, model: key.model } : null,
         onEvent: (ev) => {
-          if (ev.type === 'token') asst.content = (asst.content + ev.text).replace(/【(\d+)†[^】]*】/g, '[$1]');
+          if (ev.type === 'wait') { asst.wait = ev.text || ''; }
+          else if (ev.type === 'token') { asst.wait = ''; asst.content = (asst.content + ev.text).replace(/【(\d+)†[^】]*】/g, '[$1]'); }
           else if (ev.type === 'reasoning') asst.reasoning = (asst.reasoning || '') + ev.text;
           else if (ev.type === 'tool_round') { if (asst.content && !/\n\n$/.test(asst.content)) asst.content += '\n\n'; }
           else if (ev.type === 'tool_start') asst.steps.push({ id: ev.id, name: ev.name, status: 'running', args: ev.args });
@@ -312,7 +317,7 @@
       if (!key && out && out.model) asst.model = out.model;
     } catch (e) { if (e && e.name !== 'AbortError') asst.error = String(e && e.message || e); }
     S.localRun = null;
-    asst.content = asst.content.trim(); asst.pending = false; asst.updatedAt = now(); c.updatedAt = now(); c.dirty = true;
+    delete asst.wait; asst.content = asst.content.trim(); asst.pending = false; asst.updatedAt = now(); c.updatedAt = now(); c.dirty = true;
     if (!asst.content && !asst.error && !ctl.signal.aborted && !asst.steps.some((x) => x.view && x.view.image)) asst.error = t('empty');
     await saveConv(c); renderMain(); renderComposer(); renderSide(); sendLater(c.id);
     if (document.hidden) localNotify(c.title || 'Fabro', (asst.error ? asst.error : asst.content).replace(/[#*_`>]/g, '').slice(0, 140), c.id);
@@ -495,15 +500,24 @@
     const imgs = (n.steps || []).map((s) => s.view && s.view.image).filter((x) => x && /^(data:image|https:)/.test(x));
     const body = n.content ? md(n.content, src) : '';
     const caret = n.pending ? '<span class="caret"></span>' : '';
-    return `${stepsHtml(n)}<div class="md">${body}${caret && !body ? caret : ''}</div>${caret && body ? '' : ''}
+    const wait = n.pending && n.wait ? `<div class="wait">${esc(t('cloudWait', { s: n.wait }))}</div>` : '';
+    return `${stepsHtml(n)}${wait}<div class="md">${body}${caret && !body ? caret : ''}</div>
       ${imgs.map((u) => `<div class="gen"><img src="${esc(u)}" alt="" data-tint></div>`).join('')}
-      ${n.error ? `<div class="err">${esc(n.error)}</div>` : ''}
+      ${n.error ? `<div class="err">${esc(n.error)}</div>${n.origin === 'phone-cloud' ? `<div class="err-acts"><button class="btn" data-act="retry" data-id="${esc(n.id)}">${ic('redo')}${t('retry')}</button>${S.models.length ? `<button class="btn" data-act="use-pc" data-id="${esc(n.id)}">${ic('pc')}${t('usePc')}</button>` : ''}<button class="btn ghost" data-act="add-key">${ic('key')}${t('useKey')}</button></div>` : ''}` : ''}
       ${!n.pending && src.length ? `<div class="sources">${src.slice(0, 6).map((s, i) => `<a href="${esc(s.url)}" target="_blank" rel="noopener"><cite>${i + 1}</cite><span>${esc(host(s.url))}</span></a>`).join('')}</div>` : ''}
-      ${n.pending ? '' : `<div class="meta"><button data-act="copy" data-id="${esc(n.id)}">${t('copy')}</button><span>${esc(n.model || '')}${n.toolsOn ? ' · ' + esc(t('toolsOnPc', { pc: n.toolsOn })) : ''}</span></div>`}`;
+      ${n.pending ? '' : `<div class="meta">${versions(n)}<button data-act="copy" data-id="${esc(n.id)}">${t('copy')}</button><button class="mi" data-act="retry" data-id="${esc(n.id)}" title="${t('retry')}">${ic('redo')}</button><button class="mi" data-act="fork" data-id="${esc(n.id)}" title="${t('fork')}">${ic('fork')}</button><span>${esc(n.model || '')}${n.toolsOn ? ' · ' + esc(t('toolsOnPc', { pc: n.toolsOn })) : ''}</span></div>`}`;
   }
   const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+  // other answers (or edits) of the same message: < 2/3 >
+  function siblingsOf(n) { const c = curConv(); return c ? A.nodesOf(c).filter((x) => x.parentId === n.parentId && x.role === n.role).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)) : [n]; }
+  function versions(n) {
+    const sib = siblingsOf(n); if (sib.length < 2) return '';
+    const i = sib.findIndex((x) => x.id === n.id);
+    return `<span class="ver"><button data-act="ver" data-id="${esc(n.id)}" data-d="-1" ${i <= 0 ? 'disabled' : ''} aria-label="${t('prev')}">${ic('left')}</button><span class="mono">${i + 1}/${sib.length}</span><button data-act="ver" data-id="${esc(n.id)}" data-d="1" ${i >= sib.length - 1 ? 'disabled' : ''} aria-label="${t('next')}">${ic('right')}</button></span>`;
+  }
   function msgHtml(n) {
-    if (n.role === 'user') return `<div class="msg you" data-n="${esc(n.id)}">${(n.attachments || []).some((a) => a.data) ? `<div class="imgs">${n.attachments.filter((a) => a.data).map((a) => `<img src="${esc(a.data)}" alt="" data-tint>`).join('')}</div>` : ''}${n.content ? `<div class="q">${esc(n.content)}</div>` : ''}</div>`;
+    if (n.role === 'user' && S.editing === n.id) return `<div class="msg you editing" data-n="${esc(n.id)}"><textarea class="edit-in" rows="3">${esc(n.content || '')}</textarea><div class="edit-acts"><button class="btn ghost" data-act="edit-cancel">${t('cancel2')}</button><button class="btn pri" data-act="edit-send" data-id="${esc(n.id)}">${t('resend')}</button></div></div>`;
+    if (n.role === 'user') return `<div class="msg you" data-n="${esc(n.id)}">${(n.attachments || []).some((a) => a.data) ? `<div class="imgs">${n.attachments.filter((a) => a.data).map((a) => `<img src="${esc(a.data)}" alt="" data-tint>`).join('')}</div>` : ''}${n.content ? `<div class="q">${esc(n.content)}</div>` : ''}<div class="umeta">${versions(n)}<button class="mi" data-act="edit" data-id="${esc(n.id)}" title="${t('edit')}">${ic('pen')}</button></div></div>`;
     return `<div class="msg ai${n.pending ? ' pending' : ''}" data-n="${esc(n.id)}"><div class="mk">${mark()}</div><div class="body">${aiInner(n)}</div></div>`;
   }
   function paintMessage(n) {
@@ -730,6 +744,35 @@
     if (a === 'sugg') { const ta = $('.composer textarea'); ta.value = el.textContent; ta.dispatchEvent(new Event('input')); ta.focus(); return; }
     if (a === 'ask') return answerAsk(el.dataset.id, el.dataset.v);
     if (a === 'cloud-now') return answerQueuedWithCloud();
+    if (a === 'retry' || a === 'use-pc') {
+      const c = curConv(); if (!c || busy(c)) return;
+      const n = A.nodesOf(c).find((x) => x.id === el.dataset.id); if (!n) return;
+      const user = n.role === 'user' ? n : A.nodesOf(c).find((x) => x.id === n.parentId); if (!user) return;
+      if (a === 'use-pc' && S.models.length) { S.settings.model = S.models[0].ref; await saveSettings(); renderTop(); }
+      c.leafId = user.id; await saveConv(c); renderMain(); return dispatch(c, user, true);
+    }
+    if (a === 'add-key') { S.sheet = { kind: 'key', preset: 'openai' }; return renderSheet(); }
+    if (a === 'ver') {
+      const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.id); if (!n) return;
+      const sib = siblingsOf(n); const j = sib.findIndex((x) => x.id === n.id) + Number(el.dataset.d); const to = sib[j]; if (!to) return;
+      // follow the most recent path below that version
+      let leaf = to; for (;;) { const kids = A.nodesOf(c).filter((x) => x.parentId === leaf.id).sort((a2, b2) => (b2.createdAt || 0) - (a2.createdAt || 0)); if (!kids.length) break; leaf = kids[0]; }
+      c.leafId = leaf.id; c.dirty = true; await saveConv(c); return renderMain();
+    }
+    if (a === 'edit') { S.editing = el.dataset.id; renderMain(); const ta = $('.edit-in'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
+    if (a === 'edit-cancel') { S.editing = null; return renderMain(); }
+    if (a === 'edit-send') {
+      const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.id); const v = ($('.edit-in') || {}).value || '';
+      S.editing = null; if (!n || !v.trim() || busy(c)) return renderMain();
+      const node = { id: A.uid(), role: 'user', content: v.trim(), attachments: n.attachments || [], createdAt: now(), updatedAt: now(), parentId: n.parentId || null };
+      c.nodes = [...A.nodesOf(c), node]; c.leafId = node.id; c.updatedAt = now(); c.dirty = true; await saveConv(c); renderMain(); scrollChat(true);
+      return dispatch(c, node);
+    }
+    if (a === 'fork') {
+      const c = curConv(); if (!c) return; const upTo = A.pathOf({ ...c, leafId: el.dataset.id });
+      const f = { id: uid(), title: (c.title || '') + ' ↳', createdAt: now(), updatedAt: now(), nodes: upTo.map((x) => ({ ...x, pending: false })), leafId: el.dataset.id, agent: true, origin: 'phone', dirty: true };
+      await saveConv(f); toast(t('forked')); return openConv(f.id);
+    }
     if (a === 'steps') { const id = el.dataset.id; S.open.has(id) ? S.open.delete(id) : S.open.add(id); const box = el.parentElement; box.classList.toggle('open'); el.setAttribute('aria-expanded', box.classList.contains('open')); return; }
     if (a === 'copy') { const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.id); if (n) { await navigator.clipboard.writeText(n.content || '').catch(() => {}); el.textContent = t('copied'); setTimeout(() => { el.textContent = t('copy'); }, 1200); } return; }
   });
@@ -804,5 +847,6 @@
     if (S.link) connect();
     FAAgent.refreshModels().catch(() => {});
     window.__fa = { S, send, rpc, pairWith, renderAll }; // tests
+    window.FAHost = { t }; // agent.js reads its texts ("Fabro Cloud is busy") from here
   })();
 })();

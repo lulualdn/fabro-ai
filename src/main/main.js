@@ -93,15 +93,19 @@ app.on('open-file', (e, f) => { e.preventDefault(); openSkill(f); }); // macOS
 
 function overlayColors(dark) {
   if (store.getSettings().devMode) return { color: dark ? '#3a2a12' : '#f6d48a', symbolColor: dark ? '#f6d48a' : '#3a2a12', height: 28 };
-  return { color: dark ? '#12161d' : '#f6f5f1', symbolColor: dark ? '#c9cfd6' : '#3b3934', height: 44 };
+  return { color: dark ? '#141312' : '#f6f3ef', symbolColor: dark ? '#b3aba2' : '#5c554e', height: 44 };
 }
 
+// The v1 interface (src/renderer/v1) by default; the previous one stays reachable (Settings → Advanced) for what
+// isn't rebuilt yet. ui:switch swaps them and reloads the window.
+let uiHash = '';
+function uiFile() { return path.join(__dirname, '..', 'renderer', ...(store.getSettings().ui === 'legacy' ? ['index.html'] : ['v1', 'index.html'])); }
 function createWindow() {
   const dark = nativeTheme.shouldUseDarkColors;
   win = new BrowserWindow({
     width: 1280, height: 820, minWidth: 760, minHeight: 520, show: false,
     title: 'Fabro',
-    backgroundColor: dark ? '#12161d' : '#f6f5f1',
+    backgroundColor: dark ? '#141312' : '#f6f3ef',
     titleBarStyle: 'hidden',
     ...(isMac ? { trafficLightPosition: { x: 24, y: 25 } } : { titleBarOverlay: overlayColors(dark) }),
     webPreferences: {
@@ -111,7 +115,7 @@ function createWindow() {
     },
   });
   desktop.attachMain(win);
-  win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  win.loadFile(uiFile());
   // Developer mode: F12 / Ctrl+Shift+I devtools, Ctrl+R reload.
   win.webContents.on('before-input-event', (e, input) => {
     if (!store.getSettings().devMode || input.type !== 'keyDown') return;
@@ -130,6 +134,12 @@ function createWindow() {
 function registerIpc() {
   const h = (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a));
 
+  h('ui:switch', async (to, page) => {
+    await store.setSettings({ ui: to === 'legacy' ? 'legacy' : 'v1' }); uiHash = String(page || '');
+    if (win && !win.isDestroyed()) win.loadFile(uiFile(), uiHash ? { hash: uiHash } : undefined);
+    return true;
+  });
+  require('./share').register(h);
   h('app:info', () => ({
     version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, e2e: !!process.env.FABRO_E2E,
     locale: app.getLocale(), systemLanguages: app.getPreferredSystemLanguages(),

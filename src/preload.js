@@ -71,6 +71,8 @@ contextBridge.exposeInMainWorld('api', {
   modes: { install: i('modes:install') },
   shell: { open: i('shell:open'), reveal: i('shell:reveal'), openPath: i('shell:openPath') },
   files: { ingest: i('files:ingest'), preview: i('files:preview'), pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } } },
+  ui: { switch: i('ui:switch') },
+  share: { create: i('share:create'), remove: i('share:remove'), list: i('share:list') },
   anywhere: { status: i('anywhere:status'), pairStart: i('anywhere:pairStart'), pairStop: i('anywhere:pairStop'), revoke: i('anywhere:revoke'), rename: i('anywhere:rename'), configure: i('anywhere:configure'), reply: i('anywhere:reply') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
   mods: {

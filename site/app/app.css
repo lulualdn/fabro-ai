@@ -236,3 +236,21 @@ a.cite{text-decoration:none}
   .dl{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* message actions, versions, edit */
+.meta .mi,.umeta .mi{width:26px;height:26px;border-radius:7px;display:inline-grid;place-items:center;color:var(--t3)}
+.meta .mi:hover,.umeta .mi:hover{background:var(--line);color:var(--t1)}
+.meta svg.i,.umeta svg.i{width:15px;height:15px}
+.umeta{display:flex;gap:2px;align-items:center;opacity:0;transition:opacity .15s;color:var(--t3);font-size:12.5px}
+.msg.you:hover .umeta,.msg.you:focus-within .umeta{opacity:1}
+@media (hover:none){.umeta{opacity:1}}
+.ver{display:inline-flex;align-items:center;gap:2px;color:var(--t3)}
+.ver button{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:var(--t3)}
+.ver button:hover:not([disabled]){background:var(--line);color:var(--t1)}
+.ver button[disabled]{opacity:.35;cursor:default}
+.ver svg.i{width:14px;height:14px}
+.msg.you.editing{align-items:stretch}
+.edit-in{width:100%;border-radius:14px;border:1px solid var(--line2);background:var(--surf);padding:10px 12px;font-size:15px;color:var(--t1);resize:vertical;outline:0}
+.edit-acts{display:flex;gap:8px;justify-content:flex-end}
+.wait{font-size:13.5px;color:var(--t3);margin:2px 0 8px}
+.err-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}

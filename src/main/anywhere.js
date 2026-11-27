@@ -219,7 +219,7 @@ async function run(deviceId, p) {
   const nodes = A.nodesOf(c0);
   const user = nodes.find((n) => n.id === p.nodeId && n.role === 'user');
   if (!user) throw new Error('Message not found');
-  if (nodes.some((n) => n.parentId === user.id && n.role === 'assistant' && !n.error)) return { already: true }; // answered meanwhile
+  if (!p.regenerate && nodes.some((n) => n.parentId === user.id && n.role === 'assistant' && !n.error)) return { already: true }; // answered meanwhile (a retry asks for another answer)
   const ctx = await context();
   const list = await modelList();
   const ref = p.model || ctx.model;

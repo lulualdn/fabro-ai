@@ -344,8 +344,9 @@ fn main() {
 
     let mut wb = WindowBuilder::new()
         .with_title("Fabro")
-        .with_inner_size(LogicalSize::new(760.0, 500.0))
-        .with_min_inner_size(LogicalSize::new(760.0, 500.0))
+        // update mode: a small window with one progress bar
+        .with_inner_size(if autostart { LogicalSize::new(440.0, 112.0) } else { LogicalSize::new(760.0, 500.0) })
+        .with_min_inner_size(if autostart { LogicalSize::new(440.0, 112.0) } else { LogicalSize::new(760.0, 500.0) })
         .with_resizable(false)
         .with_decorations(false)
         .with_visible(false);
@@ -403,7 +404,7 @@ fn main() {
             Event::UserEvent(ev) => match ev {
                 UserEvent::Js(v) if v["type"] == "init" => {
                     window.set_visible(true);
-                    let init = json!({ "type": "init", "lang": ui_lang(), "installed": installed,
+                    let init = json!({ "type": "init", "lang": ui_lang(), "installed": installed, "update": autostart,
                         "defaultDir": default_dir().to_string_lossy() });
                     let _ = webview.evaluate_script(&format!("window.__fabro({init})"));
                 }
@@ -415,7 +416,7 @@ fn main() {
                         Some("done") => {
                             busy = false;
                             if let Some(p) = v["exe"].as_str() { exe = Some(PathBuf::from(p)); }
-                            if launch_after { let p = proxy.clone(); std::thread::spawn(move || { std::thread::sleep(Duration::from_millis(1900)); let _ = p.send_event(UserEvent::Launch); }); }
+                            if launch_after { let p = proxy.clone(); let wait = if autostart { 300 } else { 1900 }; std::thread::spawn(move || { std::thread::sleep(Duration::from_millis(wait)); let _ = p.send_event(UserEvent::Launch); }); }
                         }
                         Some("error") => busy = false,
                         _ => {}

@@ -23,6 +23,12 @@
     { id: 'llm7/nemotron-3-nano:30b', name: 'Nemotron 3 Nano', tools: true },
     { id: 'ovh/Meta-Llama-3_3-70B-Instruct', name: 'Llama 3.3 70B', tools: true },
     { id: 'ovh/Qwen3.6-27B', name: 'Qwen3.6 27B', tools: true },
+    { id: 'ovh/DeepSeek-V4.1-Flash-1017', name: 'DeepSeek V4.1 Flash', tools: true },
+    { id: 'ovh/qwen3.6-35b-a3b', name: 'Qwen3.6 35B A3B', tools: true },
+    { id: 'ovh/Qwen3.8-27B', name: 'Qwen3.8 27B', tools: true },
+    { id: 'ovh/gemma-4-26b-a4b', name: 'Gemma 4 26B', tools: true, vision: true },
+    { id: 'ovh/nemotron3-nano-30b', name: 'Nemotron 3 Nano (OVH)', tools: true },
+    { id: 'ovh/qwen3-vl-30b-a3b', name: 'Qwen3 VL 30B', tools: true, vision: true },
     { id: 'ovh/Mistral-Small-3.2-24B-Instruct-2506', name: 'Mistral Small 3.2', tools: true, vision: true },
     { id: 'ovh/Qwen2.5-VL-72B-Instruct', name: 'Qwen2.5 VL 72B', tools: false, vision: true },
     { id: 'llm7/codestral-latest', name: 'Codestral', tools: true },
@@ -180,8 +186,9 @@
     const chosen = POOL.find((m) => m.id === model);
     let order = [...(chosen && fits(chosen) ? [chosen] : []), ...POOL.filter((m) => m !== chosen && fits(m))];
     if (!order.length) order = POOL.filter((m) => !tools.length || m.tools);
-    let res = null, used = null, lastErr = '';
-    for (let round = 0; round < 3 && !res; round++) {
+    // every model resting: wait (up to 90 s in all, saying so) rather than fail at once
+    let res = null, used = null, lastErr = ''; const deadline = Date.now() + 90000;
+    for (let round = 0; round < 12 && !res; round++) {
       for (const m of order) {
         if (coolOf(m) > Date.now()) continue;
         const [pv] = m.id.split('/'); const api = m.id.slice(pv.length + 1); const p = P[pv];
@@ -200,10 +207,12 @@
         if (r.status !== 429 && r.status < 500 && r.status !== 404) break;
       }
       if (!res) {
-        // everything is resting: wait for the first one to be back (20 s at most), then go round again
         const next = Math.min(...order.map(coolOf)) - Date.now();
-        if (next > 20000 || round === 2) break;
-        await new Promise((ok, ko) => { const tm = setTimeout(ok, Math.max(500, next)); signal.addEventListener('abort', () => { clearTimeout(tm); ko(Object.assign(new Error('aborted'), { name: 'AbortError' })); }, { once: true }); });
+        if (Date.now() + Math.max(0, next) > deadline) break;
+        const ms = Math.min(15000, Math.max(800, next));
+        onDelta('wait', String(Math.ceil(Math.max(next, ms) / 1000)));
+        await new Promise((ok, ko) => { const tm = setTimeout(ok, ms); signal.addEventListener('abort', () => { clearTimeout(tm); ko(Object.assign(new Error('aborted'), { name: 'AbortError' })); }, { once: true }); });
+        onDelta('wait', '');
       }
     }
     if (!res) throw new Error(/429|quota|limit|busy/i.test(String(lastErr)) || !lastErr ? (window.FAHost ? window.FAHost.t('cloudBusy') : 'Fabro Cloud is busy') : String(lastErr));

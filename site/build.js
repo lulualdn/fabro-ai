@@ -358,6 +358,13 @@ function legal() {
 </article></div>` });
 }
 
+function sharePage() {
+  return layout({ page: 'share', file: 'share', section: '', desc: EN.sh_made, scripts: '<script src="app/vendor/marked.umd.js"></script><script src="app/vendor/purify.min.js"></script><script src="share.js" defer></script>', body: `
+<template id="mark-tpl">${markSvg}</template>
+<div class="wrap narrow"><div id="share" class="share"><p class="hint">…</p></div>
+<p class="sh-made">${T('sh_made')} <a href="index.html#download">${T('nav_download')}</a></p></div>` }).replace('<meta name="description"', '<meta name="robots" content="noindex"><meta name="description"').replace(/href="(?!https?:|#|\/)([^"]+)"/g, 'href="/$1"').replace(/src="(?!https?:|data:|\/)([^"]+)"/g, 'src="/$1"');
+}
+
 // ───────── Fabro Anywhere (site/app → dist/app) ─────────
 function buildApp(rel) {
   const src = path.join(__dirname, 'app'), out = path.join(OUT, 'app');
@@ -379,7 +386,7 @@ function buildApp(rel) {
 (async () => {
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(path.join(OUT, 'img'), { recursive: true });
-  for (const f of ['site.css', 'site.js', 'i18n.js', 'i18n-2.js', 'md.js']) fs.copyFileSync(path.join(SRC, f), path.join(OUT, f));
+  for (const f of ['site.css', 'site.js', 'i18n.js', 'i18n-2.js', 'md.js', 'share.js']) fs.copyFileSync(path.join(SRC, f), path.join(OUT, f));
   fs.cpSync(path.join(__dirname, 'img'), path.join(OUT, 'img'), { recursive: true });
   fs.cpSync(path.join(__dirname, 'fonts'), path.join(OUT, 'fonts'), { recursive: true });
   fs.writeFileSync(path.join(OUT, 'img', 'mark.svg'), fs.readFileSync(path.join(ROOT, 'build/fabro-mark.svg')));
@@ -388,16 +395,16 @@ function buildApp(rel) {
   const docPages = DOCS.map((slug) => ({ slug, b: bilingual(path.join(CONTENT, 'docs', slug)) }));
   const pages = {
     index: home(), anywhere: anywhere(), docs: docsIndex(docPages), help: help(), labs: labs(), dev: dev(),
-    'can-i-run': canIRun(cat), privacy: privacy(), changelog: changelog(rel), legal: legal(),
+    'can-i-run': canIRun(cat), privacy: privacy(), changelog: changelog(rel), legal: legal(), share: sharePage(),
   };
   for (const p of docPages) pages['docs-' + p.slug] = docPage(p, docPages);
   for (const [f, html] of Object.entries(pages)) fs.writeFileSync(path.join(OUT, f + '.html'), html);
   fs.writeFileSync(path.join(OUT, '404.html'), pages.index.replace('<main id="main">', '<main id="main"><p class="notfound">404</p>'));
   fs.writeFileSync(path.join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
-  fs.writeFileSync(path.join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Object.keys(pages).map((f) => `<url><loc>${SITE_URL}/${f === 'index' ? '' : f + '.html'}</loc></url>`).join('')}</urlset>\n`);
+  fs.writeFileSync(path.join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Object.keys(pages).filter((f) => f !== 'share').map((f) => `<url><loc>${SITE_URL}/${f === 'index' ? '' : f + '.html'}</loc></url>`).join('')}</urlset>\n`);
   // old pages (v0.x) → where their content lives now
-  fs.writeFileSync(path.join(OUT, '_redirects'), ['/chat.html /#practice 301', '/agent.html /#practice 301', '/voice.html / 301', '/code.html /docs-code.html 301', '/modding.html /docs-mods.html 301'].join('\n') + '\n');
-  fs.writeFileSync(path.join(OUT, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: SAMEORIGIN\n  Referrer-Policy: strict-origin-when-cross-origin\n/img/*\n  Cache-Control: public, max-age=604800\n/fonts/*\n  Cache-Control: public, max-age=31536000, immutable\n/app/sw.js\n  Cache-Control: no-cache\n  Service-Worker-Allowed: /app/\n/app/manifest.webmanifest\n  Content-Type: application/manifest+json\n`);
+  fs.writeFileSync(path.join(OUT, '_redirects'), ['/s/* /share.html 200', '/chat.html /#practice 301', '/agent.html /#practice 301', '/voice.html / 301', '/code.html /docs-code.html 301', '/modding.html /docs-mods.html 301'].join('\n') + '\n');
+  fs.writeFileSync(path.join(OUT, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: SAMEORIGIN\n  Referrer-Policy: strict-origin-when-cross-origin\n/img/*\n  Cache-Control: public, max-age=604800\n/fonts/*\n  Cache-Control: public, max-age=31536000, immutable\n/s/*\n  X-Robots-Tag: noindex\n/app/sw.js\n  Cache-Control: no-cache\n  Service-Worker-Allowed: /app/\n/app/manifest.webmanifest\n  Content-Type: application/manifest+json\n`);
   buildApp(rel);
   console.log(`site: ${Object.keys(pages).length} pages, ${rel.length} releases, ${cat.length} models → ${path.relative(ROOT, OUT)}`);
 })().catch((e) => { console.error(e); process.exit(1); });

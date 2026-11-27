@@ -113,6 +113,19 @@ select.input { appearance: none; font-family: var(--sans); cursor: pointer; }
 .spinner { width: 92px; height: 92px; filter: drop-shadow(0 10px 30px rgba(255, 94, 66, .4)); }
 .spinner .spin { transform-origin: 50px 50px; animation: spin .42s linear infinite; }
 .spinner.slow .spin { animation-duration: .9s; }
+/* update mode (--update): one bar, nothing else */
+body.upd .bar, body.upd .foot { display: none; }
+body.upd .stage { inset: 0; }
+#s-upd { padding: 0 28px; flex-direction: row; gap: 16px; text-align: left; }
+#s-upd .mark { width: 28px; height: 28px; flex: none; }
+#s-upd .col { flex: 1; min-width: 0; }
+#s-upd .track { margin-top: 0; max-width: none; height: 6px; }
+#s-upd .fill { box-shadow: none; background: var(--accent); }
+#s-upd .fill::after { display: none; }
+#s-upd .meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12.5px; color: var(--text-3, #8a8279); }
+#s-upd .fail { display: none; align-items: center; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+#s-upd.err .track, #s-upd.err .meta { display: none; }
+#s-upd.err .fail { display: flex; }
 .track { width: 100%; max-width: 440px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.06); overflow: hidden; margin-top: 26px; position: relative; }
 .fill { position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 18px rgba(255, 94, 66, .6); transition: width .3s var(--ease); }
 .fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); background-size: 50% 100%; background-repeat: no-repeat; animation: sheen 1.4s linear infinite; }
@@ -223,6 +236,16 @@ select.input { appearance: none; font-family: var(--sans); cursor: pointer; }
     <h1 id="done-title"></h1>
     <p class="sub" data-t="doneSub"></p>
     <div class="actions"><button class="btn primary lg" id="liftoff" data-t="liftoff"></button><button class="link" data-cmd="close" data-t="closeBtn"></button></div>
+  </section>
+
+  <!-- Update mode: one bar. Fabro relaunches by itself; on failure, a short message and Retry. -->
+  <section class="step" id="s-upd">
+    <svg class="mark" viewBox="0 0 100 100"><path fill="#ff5e42" fill-rule="evenodd" d="{{MARK}}"/></svg>
+    <div class="col">
+      <div class="track" id="utrack"><div class="fill" id="ufill"></div></div>
+      <div class="meta"><span id="ul"></span><span id="ur"></span></div>
+      <div class="fail"><span id="ufail"></span><button class="btn primary" id="uretry"></button></div>
+    </div>
   </section>
 
   <!-- 5 · Error -->
@@ -385,26 +408,43 @@ function confetti() {
 function next() { if (S.installed) start(); else { go('s-model'); renderModels(); } }
 function start() {
   if (S.busy || !S.release) return;
-  S.busy = true; S.lastErr = null; go('s-run'); setPhase(0); $('#fill').style.width = '0%';
+  S.busy = true; S.lastErr = null; if (S.upd) updMode(); else go('s-run'); setPhase(0); $('#fill').style.width = '0%';
   send('install', { dir: $('#dir').value.trim() || S.dir, desktop: $('#desk').checked, providers: $('#prov').checked, launch: $('#launch').checked, lang: S.lang, firstModel: S.installed ? null : firstModel() });
 }
 
+const UPD = {
+  en: { updating: 'Updating Fabro', relaunch: 'Restarting…', fail: 'Update failed. Your current version is unchanged.' },
+  fr: { updating: 'Mise à jour de Fabro', relaunch: 'Relance…', fail: 'Échec de la mise à jour. Ta version actuelle n’a pas bougé.' },
+  es: { updating: 'Actualizando Fabro', relaunch: 'Reiniciando…', fail: 'La actualización falló. Tu versión actual no cambió.' },
+  de: { updating: 'Fabro wird aktualisiert', relaunch: 'Neustart…', fail: 'Update fehlgeschlagen. Deine Version ist unverändert.' },
+};
+const ut = (k) => (UPD[S.lang] || UPD.en)[k];
+function updMode() {
+  document.body.classList.add('upd'); go('s-upd');
+  $('#ul').textContent = ut('updating'); $('#ur').textContent = ''; $('#ufill').style.width = '0%';
+  $('#s-upd').classList.remove('err'); $('#ufail').textContent = ut('fail'); $('#uretry').textContent = t('retry');
+  $('#utrack').classList.add('indet');
+}
 // Rust → page
 window.__fabro = (m) => {
   if (m.type === 'init') {
     S.lang = I[m.lang] ? m.lang : 'en'; $('#lang').value = S.lang;
     S.installed = m.installed; S.dir = (m.installed && m.installed.location) || m.defaultDir; $('#dir').value = S.dir;
     $('#dir').disabled = $('#browse').disabled = !!m.installed;
-    paint(); send('fetch'); if (!m.installed) send('detect');
+    S.upd = !!m.update && !!m.installed;
+    paint(); if (S.upd) updMode(); send('fetch'); if (!m.installed) send('detect');
   } else if (m.type === 'release') { S.release = m; paint(); if (m.autostart) start(); }
   else if (m.type === 'dir') { $('#dir').value = m.dir; }
   else if (m.type === 'hw') { S.hw = m.hw; renderModels(); }
   else if (m.type === 'progress') {
     const p = m.total ? m.done / m.total : 0; $('#fill').style.width = (p * 100).toFixed(1) + '%';
+    if (S.upd) { $('#utrack').classList.toggle('indet', !m.total); $('#ufill').style.width = (p * 100).toFixed(1) + '%'; $('#ur').textContent = m.total ? Math.round(p * 100) + ' %' : ''; }
     $('#pl').textContent = m.total ? `${fmt(m.done)} / ${fmt(m.total)}` : fmt(m.done);
     $('#pr').textContent = m.speed ? `${t('speed', { s: fmt(m.speed) })}${m.total && m.speed ? ' · ' + t('left', { t: dur((m.total - m.done) / m.speed) }) : ''}` : '';
   } else if (m.type === 'phase') setPhase(m.i);
-  else if (m.type === 'done') { S.busy = false; confetti(); go('s-done'); $('#liftoff').focus(); }
+  else if (m.type === 'done' && S.upd) { S.busy = false; $('#utrack').classList.remove('indet'); $('#ufill').style.width = '100%'; $('#ul').textContent = ut('relaunch'); $('#ur').textContent = ''; }
+  else if (m.type === 'done') { S.busy = false; go('s-done'); $('#liftoff').focus(); }
+  else if (m.type === 'error' && S.upd) { S.busy = false; $('#s-upd').classList.add('err'); }
   else if (m.type === 'error') { S.busy = false; if (S.step === 's-welcome' && !S.release) { paint(); } showErr(m); }
 };
 
@@ -422,6 +462,7 @@ $('#disk').addEventListener('change', diskHint);
 $('#to-opts').onclick = () => go('s-opts'); $('#back').onclick = () => go('s-welcome');
 $('#browse').onclick = () => send('browse', { dir: $('#dir').value });
 $('#liftoff').onclick = () => send('launch');
+$('#uretry').onclick = () => { if (!S.release) { updMode(); send('fetch'); } else start(); };
 $('#retry').onclick = () => { if (!S.release) { go('s-welcome'); send('fetch'); } else start(); };
 $('#manual').onclick = () => send('open', { url: 'https://github.com/lulualdn/fabro-ai/releases/latest' });
 document.addEventListener('keydown', (e) => {
