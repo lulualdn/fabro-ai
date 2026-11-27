@@ -83,14 +83,14 @@ async function run(id, why = 'schedule') {
   // save as a conversation the user (and the phone) can open
   try {
     const mk = () => uid() + uid().slice(0, 3);
-    let c = t.convId && await store.getConversation(t.convId).catch(() => null);
+    const db = require('./db'); let c = null; if (t.convId) { try { c = db.getConversation(t.convId); } catch {} }
     if (!c) { c = { id: mk(), title: '⏰ ' + t.title, createdAt: started, messages: [], agent: true, taskId: t.id }; t.convId = c.id; }
     const msgs = c.messages || [];
     msgs.push({ id: mk(), role: 'user', content: prompt, createdAt: started, attachments: [] });
     msgs.push({ id: mk(), role: 'assistant', content: content.trim() || (error ? '' : '…'), error: error || undefined, steps, model: 'Fabro · ' + t.title, createdAt: Date.now() });
     c.messages = msgs; c.nodes = undefined; c.leafId = undefined; c.updatedAt = Date.now();
-    await store.saveConversation(c);
-  } catch {}
+    db.saveConversation(c);
+  } catch (e) { console.error('task save', e); }
   t.lastRun = started; t.runs = [{ at: started, ms: Date.now() - started, ok: !error, error, preview: content.trim().slice(0, 400), why }, ...t.runs].slice(0, 30);
   if (t.when.type === 'once' && why === 'schedule') t.enabled = false;
   running.delete(id); save();

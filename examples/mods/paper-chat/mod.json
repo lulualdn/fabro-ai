@@ -1,0 +1,9 @@
+{
+  "id": "paper-chat",
+  "name": "Chat papier",
+  "version": "1.0.0",
+  "author": "UFStudios",
+  "description": "Redessine le chat comme une page de carnet : serif, lignes, marges.",
+  "ui": ["ui.js"],
+  "permissions": ["change how the chat looks"]
+}

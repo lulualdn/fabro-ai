@@ -28,6 +28,7 @@ window.V1_I18N = {
     planLeft: 'Le plan n’est pas fini, Fabro continue.', planMsg: 'Le plan n’est pas terminé (reste : {s}). Continue, puis vérifie le résultat avant de dire que c’est fini.',
     bigSet: 'Gros modèle', bigSetSub: 'Pour « Demander au gros modèle ». Il peut tourner ici, sur un autre PC ou en ligne.', none: 'Aucun', bigWhere: 'Réponse de {m}',
     kb: 'Bases de connaissances', kbSub: '{n} bases. Tu peux les lire, les corriger et les supprimer.', save: 'Enregistrer', builtin: 'intégrée', mcpbOk: 'Connecteur ajouté : {n}',
+    modsSafe: 'Les mods sont coupés après un plantage. Réactive-les dans Réglages.', modsBack: 'Réactiver les mods', modsOldOnly: 'ancienne interface seulement', modsCan: 'Peut :', modsMore: 'Installer ou supprimer un mod',
     later: 'Envoyé après la réponse en cours', empty: 'Le modèle n’a rien répondu.', private: 'Privée : rien n’est enregistré',
   },
   en: {
@@ -57,6 +58,7 @@ window.V1_I18N = {
     planLeft: 'The plan is not finished, Fabro goes on.', planMsg: 'The plan is not finished (left: {s}). Go on, then check the result before saying it is done.',
     bigSet: 'Big model', bigSetSub: 'For “Ask the big model”. It can run here, on another PC or online.', none: 'None', bigWhere: 'Answer from {m}',
     kb: 'Knowledge bases', kbSub: '{n} bases. You can read, fix and delete them.', save: 'Save', builtin: 'built in', mcpbOk: 'Connector added: {n}',
+    modsSafe: 'Mods are off after a crash. Turn them back on in Settings.', modsBack: 'Turn mods back on', modsOldOnly: 'previous interface only', modsCan: 'Can:', modsMore: 'Install or remove a mod',
     later: 'Sent after the current answer', empty: 'The model gave no answer.', private: 'Private: nothing is saved',
   },
 };

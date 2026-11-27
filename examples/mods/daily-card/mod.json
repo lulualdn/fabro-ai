@@ -1,0 +1,9 @@
+{
+  "id": "daily-card",
+  "name": "Carte du jour",
+  "version": "1.0.0",
+  "author": "UFStudios",
+  "description": "Une demande au-dessus du chat, une fois par jour, et la commande /idee.",
+  "ui": ["ui.js"],
+  "permissions": ["show a card above the chat"]
+}

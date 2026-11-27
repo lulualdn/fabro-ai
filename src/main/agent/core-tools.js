@@ -115,7 +115,7 @@ agent.register({
   summarize: (a) => a.id,
   async run(a) {
     const A = require('../../anywhere/core.js');
-    const c = await store.getConversation(String(a.id)); if (!c) throw new Error('No conversation with this id. Use chat_search first.');
+    let c = null; try { c = require('../db').getConversation(String(a.id)); } catch {} if (!c) throw new Error('No conversation with this id. Use chat_search first.');
     const text = A.pathOf(c).map((n) => `${n.role === 'user' ? 'User' : 'Fabro'}: ${n.content || ''}`).join('\n\n');
     const size = 12000; const parts = Math.max(1, Math.ceil(text.length / size)); const p = Math.min(parts, Math.max(1, Math.round(Number(a.part) || 1)));
     return { content: `${c.title || ''} (part ${p}/${parts})\n\n${text.slice((p - 1) * size, p * size)}`, view: { kind: 'chat_read', id: a.id, part: p, parts } };

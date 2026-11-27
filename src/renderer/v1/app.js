@@ -154,7 +154,7 @@
     api.chat.send({ reqId, model: model.ref, messages: buildMessages(),
       params: { ...gen, tools: [ct.webSearch !== false && 'web_search', ct.fetch !== false && 'fetch_url', ct.images !== false && 'generate_image'].filter(Boolean), agentMode: !!c.agent,
         agentPrompt: agentPrompt(), userContext: userContext(), vision: !!model.vision, usedTools, agent: (S.settings.agent || {}).enabled !== false, artifactCheck: (S.settings.design || {}).autoCheck !== false },
-      meta: { allowAll: v1set().ask === 'never' || !!c.allowAll, convId: c.id, turnId: msg.id, project: c.project || null, modelLabel: model.provider ? `${model.provider} · ${model.label}` : model.label } });
+      meta: { allowAll: v1set().ask === 'never' || !!c.allowAll, convId: c.id, turnId: msg.id, project: c.project || null, code: c.code ? { root: c.code.root, mode: 'edits' } : null, modelLabel: model.provider ? `${model.provider} · ${model.label}` : model.label } });
   }
   function onChatEvent(ev) {
     const st = S.streaming; if (!st || ev.reqId !== st.reqId) return;
@@ -337,12 +337,16 @@
     const el = $('.body-area'); if (!el) return;
     $('.dock').style.display = S.view === 'settings' ? 'none' : '';
     if (S.view === 'settings') { el.innerHTML = '<div class="settings"><div class="col" id="settings"></div></div>'; V1Settings.render($('#settings')); return; }
+    if (S.view === 'code' && !S.conv) { $('.dock').style.display = 'none'; return V1Code.home(el); }
     const c = S.conv;
-    if (!c || !c.messages.length) {
+    if (c && c.code && !c.messages.length) {
+      el.innerHTML = `${V1Code.bar(c)}<div class="home"><div class="slot-c"></div></div>`; $('.slot-c', el).appendChild(composer()); V1Code.start();
+    } else if (!c || !c.messages.length) {
       el.innerHTML = `<div class="home"><h1>${t('homeH')}</h1><p class="subt">${t('homeSub')}</p><div class="slot-c"></div><div class="sugg">${['s1', 's2', 's3', 's4'].map((k) => `<button data-act="sugg">${esc(t(k))}</button>`).join('')}</div></div>`;
       $('.slot-c', el).appendChild(composer());
     } else {
-      el.innerHTML = `<div class="scroll"><div class="col">${c.messages.map(msgHtml).join('')}</div></div>`;
+      el.innerHTML = `${c.code ? V1Code.bar(c) : ''}<div class="scroll"><div class="col">${c.messages.map(msgHtml).join('')}</div></div>`;
+      if (c.code) V1Code.start();
       const sc = $('.scroll', el); sc.addEventListener('scroll', () => { stick = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80; tintSoon(); }, { passive: true });
       $('.dock .slot-c2').appendChild(composer());
       Fabro._paint('message');
@@ -462,7 +466,7 @@
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn" data-act="share-art" data-id="${esc(a.id)}">${ic('share')}${t('share')}</button></div>`, 'wide');
     if (html) $('.viewer iframe').srcdoc = content;
   }
-  function openCode() { api.ui.switch('legacy', 'code'); }
+  function openCode() { S.conv = null; S.view = 'code'; renderAll(); }
 
   // ───────────────────────────── events ─────────────────────────────
   document.addEventListener('click', async (e) => {
@@ -565,6 +569,7 @@
     api.on('chat:event', onChatEvent);
     api.on('updater:status', (s) => { S.update = s; renderSide(); });
     api.on('app:command', ({ cmd }) => { if (cmd === 'new-chat') newChat(); });
+    api.on('anywhere:event', async () => { S.convs = await api.conv.list().catch(() => S.convs); renderSide(); });
     api.on('models:progress', () => { clearTimeout(V1._mp); V1._mp = setTimeout(refreshModels, 800); });
     // Fabro Anywhere asks what the interface would send (system prompt context) for a phone's run
     api.on('anywhere:ask', ({ id, name }) => { if (name === 'context') { const m = currentModel(); api.anywhere.reply(id, { system: `You are ${(S.settings.aiName || '').trim() || 'Fabro'}, a helpful assistant running on the user's own computer. Today is ${new Date().toDateString()}. Answer in the user's language.\n\n${agentPrompt()}`, userContext: userContext(), agentPrompt: agentPrompt(), tools: ['web_search', 'fetch_url'], gen: S.settings.gen || {}, model: m ? m.ref : S.settings.selectedModel, lang, agentEnabled: (S.settings.agent || {}).enabled !== false }); } else api.anywhere.reply(id, null); });

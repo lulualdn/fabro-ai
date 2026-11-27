@@ -285,3 +285,21 @@ input.in:focus,textarea.in:focus{border-color:var(--line2)}
 .edit-acts{display:flex;gap:8px;justify-content:flex-end}
 .tabs{scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
+
+/* Fabro Code */
+.code-home{max-width:760px}
+.code-hero{display:flex;gap:24px;align-items:center;margin-bottom:22px}
+.code-hero canvas{image-rendering:pixelated;flex:none}
+.code-hero .masc-state{color:var(--t3);margin-top:-14px}
+.code-acts{display:flex;gap:8px;margin-bottom:20px}
+.code-h3{font-weight:500;font-size:13px;color:var(--t3);margin:8px 0 6px}
+.code-recent{display:flex;flex-direction:column;gap:2px;margin-bottom:20px}
+.codecmd{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surf);font-size:14px;color:var(--t2);flex-wrap:wrap}
+.codecmd code{font-family:var(--mono);background:var(--surf2);color:var(--t1);padding:3px 8px;border-radius:6px}
+.codecmd .grow{flex:1}
+.code-bar{display:flex;align-items:center;gap:12px;max-width:740px;width:calc(100% - 48px);margin:0 auto 4px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surf);font-size:14px}
+.code-bar canvas{image-rendering:pixelated}
+.code-bar .grow{flex:1;min-width:0}
+.code-bar b{font-weight:500}
+.code-bar small{display:block;color:var(--t3);font-size:12.5px}
+.code-bar code{font-size:12px;color:var(--t3)}

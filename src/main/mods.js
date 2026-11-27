@@ -119,17 +119,24 @@ function rendererBundle(kind) {
   const mods = scan(); const parts = []; const css = [];
   for (const m of mods.values()) {
     if (!isEnabled(m.id)) continue;
-    for (const rel of list(kind === 'quick' ? m.quick : m.renderer)) {
+    // v1 interface: "ui" files get the stable API (window.Fabro, src/renderer/v1/fabro.js) and their own "mod" handle
+    for (const rel of list(kind === 'quick' ? m.quick : kind === 'v1' ? m.ui : m.renderer)) {
       try {
         const code = fs.readFileSync(resolveFile(m, rel), 'utf8');
-        parts.push(`try { (function (fabro) {\n${code}\n})(window.fabro.forMod(${JSON.stringify(m.id)})); } catch (e) { console.error('[mod:${m.id}]', e); }\n//# sourceURL=fabro-mod://${m.id}/${rel.replace(/^\.\.\//, '')}`);
+        const id = JSON.stringify(m.id);
+        parts.push(kind === 'v1'
+          ? `try { (function (Fabro, mod) {\n${code}\n})(window.Fabro, Object.freeze({ id: ${id}, call: (fn, ...a) => window.api.mods.call(${id}, fn, ...a) })); } catch (e) { console.error('[mod:${m.id}]', e); }\n//# sourceURL=fabro-mod://${m.id}/${rel.replace(/^\.\.\//, '')}`
+          : `try { (function (fabro) {\n${code}\n})(window.fabro.forMod(${id})); } catch (e) { console.error('[mod:${m.id}]', e); }\n//# sourceURL=fabro-mod://${m.id}/${rel.replace(/^\.\.\//, '')}`);
       } catch (e) { console.error(`[mod:${m.id}] ${rel}`, e.message); }
     }
     if (kind === 'main') for (const rel of list(m.styles)) { try { css.push(fs.readFileSync(resolveFile(m, rel), 'utf8')); } catch {} }
+    if (kind === 'v1') for (const rel of list(m.uiStyles)) { try { css.push(fs.readFileSync(resolveFile(m, rel), 'utf8')); } catch {} }
   }
   return { js: parts, css: css.join('\n') };
 }
 async function inject(wc, kind) {
+  // after a crash of the window, the next start is without mods (the user turns them back on in Settings)
+  if (kind === 'v1' && ms().safe) return { safe: true };
   const b = rendererBundle(kind);
   if (b.css) await wc.insertCSS(b.css).catch(() => {});
   for (const js of b.js) await wc.executeJavaScript(js, true).catch((e) => console.error('mod inject', e));
@@ -146,6 +153,7 @@ function view() {
   return [...mods.values()].map((m) => ({
     id: m.id, name: m.name || m.id, version: m.version || '', description: m.description || '', author: m.author || '',
     builtin: m.builtin, enabled: isEnabled(m.id), setup: !!m.setup, commands: m.commands || [], homepage: m.homepage || '',
+    v1: list(m.ui).length > 0, legacy: list(m.renderer).length > 0, permissions: Array.isArray(m.permissions) ? m.permissions.slice(0, 20) : [], main: !!m.main,
     icon: m.icon ? (() => { try { const f = resolveFile(m, m.icon); const ext = path.extname(f).slice(1).replace('svg', 'svg+xml'); return `data:image/${ext};base64,${fs.readFileSync(f).toString('base64')}`; } catch { return ''; } })()
       : (() => { try { return JSON.parse(fs.readFileSync(path.join(dataRoot(), m.id, 'icon.json'), 'utf8')).icon || ''; } catch { return ''; } })(), // the site's own icon, once seen
     error: (active.get(m.id) || {}).error || '',
@@ -197,7 +205,8 @@ function init({ win, quick }) {
   web.init(win(), (ch, d) => { const w = getWin(); emitTo(w && w.webContents, ch, d); });
   const h = (ch, fn) => ipcMain.handle(ch, (e, ...a) => fn(e, ...a));
   h('mods:list', () => view());
-  h('mods:ready', (e, kind) => inject(e.sender, kind === 'quick' ? 'quick' : 'main'));
+  h('mods:ready', (e, kind) => inject(e.sender, kind === 'quick' ? 'quick' : kind === 'v1' ? 'v1' : 'main'));
+  h('mods:safeOff', async () => { await store.setSettings({ mods: { safe: false } }); return true; });
   h('mods:enable', (_e, id, on, opts) => setEnabled(id, on, opts || {}));
   h('mods:uninstall', (_e, id) => uninstall(id));
   h('mods:call', (_e, id, method, args) => call(id, method, args));

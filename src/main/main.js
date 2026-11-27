@@ -16,7 +16,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/core-tools'); require('./agent/reader'); require('./agent/vision'); require('./agent/diag'); require('./agent/knowledge'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/core-tools'); require('./agent/reader'); require('./agent/vision'); require('./agent/diag'); require('./agent/knowledge'); require('./agent/mod-tools'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const computer = require('./computer');
@@ -124,6 +124,8 @@ function createWindow() {
     if ((input.control || input.meta) && !input.shift && k === 'r') { win.webContents.reload(); e.preventDefault(); }
   });
   win.once('ready-to-show', () => { if (!process.argv.includes('--hidden')) win.show(); });
+  // a crashed window restarts without mods (Settings shows it and can turn them back on)
+  win.webContents.on('render-process-gone', (_e, d) => { if (d && d.reason !== 'clean-exit') store.setSettings({ mods: { safe: true } }).catch(() => {}); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   // Microphone for dictation / voice mode (the app's own page only); nothing else.
   win.webContents.session.setPermissionRequestHandler((wc, perm, cb, details) => cb(wc === win.webContents && (perm === 'media' && (!details.mediaTypes || details.mediaTypes.every((t) => t === 'audio')) || perm === 'clipboard-sanitized-write')));
@@ -142,6 +144,7 @@ function registerIpc() {
   require('./share').register(h);
   require('./agent/knowledge').register(h);
   require('./mcpb').register(h);
+  require('./cli-bridge').register(h);
   h('app:info', () => ({
     version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, e2e: !!process.env.FABRO_E2E,
     locale: app.getLocale(), systemLanguages: app.getPreferredSystemLanguages(),
@@ -462,6 +465,8 @@ app.whenReady().then(async () => {
   localapi.init((st) => send('localapi:status', st)).catch(() => {});
   setTimeout(() => engine.preloadAll(async () => (await models.installed()).local).catch(() => {}), 2500);
   updater.init(send);
+  // `fabro code` in a terminal talks to this app (same engine, sessions, permissions)
+  try { const cli = require('./cli-bridge'); cli.start(); cli.ensureCommand().catch(() => {}); } catch (e) { console.error('cli bridge', e); }
   browser.init(win, send);
   computer.init({ getMain: () => win });
   mcp.init(send);

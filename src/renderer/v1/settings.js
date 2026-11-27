@@ -35,7 +35,9 @@ window.V1Settings = (function () {
       + row(t('lang'), '', seg('language', s.language && s.language !== 'auto' ? s.language : 'auto', [['auto', 'Auto'], ['fr', 'FR'], ['en', 'EN']]))
       + row(t('bigSet'), t('bigSetSub'), `<select class="in" data-set="bigModel" style="max-width:240px"><option value="">${t('none')}</option>${V1.allModels().map((m) => `<option value="${V1.esc(V1.refKey(m.ref))}" ${V1.refKey(m.ref) === V1.refKey(v.bigModel) ? 'selected' : ''}>${V1.esc(m.label)}${m.sub ? ' · ' + V1.esc(m.sub) : ''}</option>`).join('')}</select>`)
       + row(t('memory'), t('memorySub', { n: S.memories.length }), `<button class="btn" data-act="set:memory">${t('see')}</button>`)
-      + row(t('mods'), t('modsSub', { n: modsOn }), `<button class="btn" data-act="legacy" data-page="mods">${t('manage')}</button>`);
+      + (S.settings.mods && S.settings.mods.safe || S.modsOff ? row(t('mods'), t('modsSafe'), `<button class="btn pri" data-act="set:modsback">${t('modsBack')}</button>`) : row(t('mods'), t('modsSub', { n: modsOn }), ''))
+      + (st.mods || []).filter((m) => !m.builtin).map((m) => row(V1.esc(m.name) + (m.version ? ` <span class="mono" style="color:var(--t3)">${V1.esc(m.version)}</span>` : ''), V1.esc(m.description || '') + (m.v1 ? '' : ` · ${t('modsOldOnly')}`) + (m.permissions && m.permissions.length ? ` · ${t('modsCan')} ${V1.esc(m.permissions.join(', '))}` : ''), tog('mod:' + m.id, m.enabled))).join('')
+      + row('', '', `<button class="btn ghost" data-act="legacy" data-page="mods">${t('modsMore')}</button>`);
   }
 
   async function loadConnectors() {
@@ -101,8 +103,10 @@ window.V1Settings = (function () {
       else { v[k] = val; await V1.saveSettings({ v1: v }); }
       return render();
     }
+    if (a === 'modsback') { await api.mods.safeOff(); V1.S.settings.mods = { ...(V1.S.settings.mods || {}), safe: false }; location.reload(); return; }
     if (a === 'tog') {
       const k = el.dataset.key;
+      if (k.startsWith('mod:')) { const id = k.slice(4); const m = (st.mods || []).find((x) => x.id === id); await api.mods.enable(id, !(m && m.enabled)); location.reload(); return; }
       if (k === 'anywhere') { await api.anywhere.configure({ enabled: !(st.any && st.any.enabled) }); st.any = await api.anywhere.status(); return render(); }
       v[k] = !v[k]; await V1.saveSettings({ v1: v }); V1.applyTheme(); return render();
     }

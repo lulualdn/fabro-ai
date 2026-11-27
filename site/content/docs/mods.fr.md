@@ -1,150 +1,70 @@
 # Mods
 
-> L’API des mods change avec Fabro 1.0 : des points d’extension stables remplacent la surcharge des fonctions. Le guide ci-dessous décrit l’API actuelle, en anglais. Le guide de la nouvelle API arrive avec elle.
+Un mod ajoute ou change quelque chose dans Fabro : une demande au-dessus du chat, une commande, un nouveau look pour le chat, une fonction comme des flashcards. Fabro 1.0 donne aux mods des **points d’extension stables** : un mod écrit pour la version 1 de l’API continue de marcher quand l’interface change.
 
-
-A mod can change anything in Fabro: its screens, its commands, its history, and how it works inside.
-Mods run with the same rights as the app itself, so only install mods you trust.
-
-Install mods in **Settings › Mods**, either from a folder or from a `.zip`. You can also drop a folder
-into the mods folder (**Mods folder** button), which is `<userData>/mods/<id>/`.
-Built-in mods live in `src/mods/`.
-
-## The folder
+## Le dossier
 
 ```
-my-mod/
-  mod.json
-  main.js        optional: runs in the main process (Node + Electron)
-  renderer.js    optional: runs in the app window
-  quick.js       optional: runs in the quick bar
-  style.css      optional: added to the app window
-  icon.png       optional
+mon-mod/
+  mod.json      la fiche du mod
+  ui.js         dans la fenêtre de Fabro (API v1)
+  ui.css        facultatif
+  main.js       facultatif : processus principal (Node + Electron)
 ```
 
 ```json
 {
-  "id": "my-mod",
-  "name": "My mod",
+  "id": "mon-mod",
+  "name": "Mon mod",
   "version": "1.0.0",
-  "author": "You",
-  "description": "What it does, in one line.",
-  "main": "main.js",
-  "renderer": ["renderer.js"],
-  "quick": ["quick.js"],
-  "styles": ["style.css"],
-  "icon": "icon.png",
-  "commands": [{ "name": "hello", "description": "Say hello" }],
-  "setup": false
+  "description": "Ce qu’il fait, en une ligne.",
+  "ui": ["ui.js"],
+  "uiStyles": ["ui.css"],
+  "permissions": ["show a card above the chat", "send a message to the AI"]
 }
 ```
 
-* `id`: letters, digits, `.`, `_` or `-`.
-* `renderer`, `quick` and `styles` take one file or a list of files, loaded in order.
-* `commands` lists the `/commands` of the mod. The quick bar uses this list to send `/hello …` to the app.
-* `setup: true`: when the mod is installed, Fabro sends it a `setup` event once the window has reloaded.
-  The mod can use it to show a sign-in page, for example.
+`permissions` dit en clair ce que fait le mod. Fabro l’affiche avant de l’activer.
 
-Turning a mod on or off reloads the app window.
+## L’API (`Fabro`, version 1)
 
-## Main process (`main.js`)
+Dans `ui.js`, deux objets sont disponibles : `Fabro` (l’API) et `mod` (ton mod : `mod.id`, `mod.call(fonction, …)` pour appeler son `main.js`).
 
-```js
-module.exports = {
-  async activate(fabro) {
-    fabro.handle('greet', async (name) => `Hello ${name}`);  // the window calls fabro.call('greet', 'Lulu')
-    fabro.emit('ready', { at: Date.now() });                  // the window listens with fabro.on('ready', …)
-  },
-  async deactivate() {},
-};
-```
+| Point d’extension | À quoi ça sert |
+| --- | --- |
+| `Fabro.slots.add(emplacement, { id, render(el), order })` | Ajouter un élément dans un emplacement : `above-chat`, `sidebar`, `composer`, `message`, `settings`. |
+| `Fabro.ui.card({ id, title, sub, actions })` | Une carte au-dessus du chat, avec des boutons. `Fabro.ui.removeCard(id)` la retire. |
+| `Fabro.commands.add({ name, title, run(args) })` | Une commande tapée `/name` dans la saisie. Elle apparaît dans le menu `/`. |
+| `Fabro.chatView.replace({ css, message(node, html) })` | Changer l’apparence du chat (thème, mise en page). `Fabro.chatView.reset()` revient au chat de Fabro. |
+| `Fabro.chat.send(texte)`, `Fabro.chat.current()` | Envoyer un message, lire la conversation ouverte. |
+| `Fabro.on(évènement, fn)` | `ready`, `conv`, `send`, `done`, `theme`. Renvoie une fonction pour se désabonner. |
+| `Fabro.ui.toast(texte)` | Un petit message en bas. |
 
-`fabro` in the main process gives you:
+L’IA peut aussi afficher une carte au-dessus du chat avec l’outil `show_card`.
 
-| | |
-|---|---|
-| `fabro.electron` | the whole Electron module |
-| `fabro.core('engine')` | any internal Fabro module (`store`, `chat`, `engine`, `models`, `db`, `desktop`, `agent`…) |
-| `fabro.mainWindow()`, `fabro.quickWindow()` | the windows |
-| `fabro.handle(method, fn)` | a function the window can call |
-| `fabro.emit(type, data)` | an event sent to the window and to the quick bar |
-| `fabro.settings.get()` / `set(patch)` | the mod's own saved settings |
-| `fabro.readJSON(file, def)` / `writeJSON(file, value)` | files in the mod's data folder (`fabro.dataDir`) |
-| `fabro.web.*` | a website shown in the chat area, with its own saved sign-in (see below) |
-| `fabro.onCleanup(fn)` | run when the mod is turned off |
-| `fabro.log(...)` | logs, prefixed with the mod id |
+## Exemples
 
-### Websites in the chat area: `fabro.web`
+Trois mods complets sont dans le dépôt, dossier [`examples/mods`](https://github.com/lulualdn/fabro-ai/tree/main/examples/mods) :
 
-Every mod has its own browser session (`persist:mod-<id>`). The sign-in is kept between launches.
+- **daily-card** : une demande au-dessus du chat une fois par jour, et la commande `/idee`.
+- **paper-chat** : le chat redessiné comme une page de carnet.
+- **flashcards** : `/flashcards` transforme la conversation en cartes à réviser.
 
-* `ensure()`: create the view.
-* `load(url)`: open a page in the view.
-* `url()`: the address of the current page.
-* `exec(js)`: run code in the page.
-* `waitFor(js, timeout)`: wait until some page code returns true.
-* `submit({ text, selector, mode })`: press Enter in the page's message box. With `mode: 'type'`, the text is typed first. With `'prefilled'`, the page already filled the box.
-* `scrape({ url, ready, script })`: open a page in a hidden window and return what `script` returns.
-* `cookies(filter)`, `clear()`: read the session's cookies, or sign out of everything.
-* `contents()`: the page's raw Electron `webContents`.
-* `browsers()`: the user's installed browsers, `[{ id, name, kind, profiles:[{name}] }]`.
-* `importCookies({ browser, profile, domains })`: read those cookies from the browser and set them into the mod's session (Firefox, Chrome, Edge, Brave…; Chromium values are decrypted). Returns `{ set, total }`.
+## Sécurité
 
-The sign-in is kept between launches already (each mod has its own browser session). Importing is only a shortcut so the user doesn't sign in again.
+Un mod a les droits de l’app. N’installe que des mods de confiance. Fabro affiche ce qu’un mod déclare avant de l’activer, tu peux le couper à tout moment (Réglages → Général), et si la fenêtre plante, Fabro redémarre **sans mods** jusqu’à ce que tu les réactives.
 
-## App window (`renderer.js`)
+## Mods écrits pour l’ancienne interface
 
-Your code runs inside a function that receives `fabro`. It can also use every global of the UI:
-`S` (the state), `renderView`, `renderSidebar`, `openConv`, `sendPrompt`, `actions`, and the rest.
+Les mods qui surchargent des fonctions de l’ancienne interface (`renderer.js` avec `window.fabro`, ou qui remplacent `renderMessage`, `openSettings`…) **ne tournent plus dans la nouvelle interface**. Ils marchent encore dans l’interface complète (Réglages → Avancé), le temps de migrer.
 
-```js
-// a command typed in the message box: "/hello world"
-fabro.commands.register('/hello', { description: 'Say hello', run: (text) => fabro.toast('Hello ' + text) });
+| Avant | Maintenant |
+| --- | --- |
+| `renderer.js` | `ui.js`, déclaré dans `"ui"` |
+| `style.css` (`"styles"`) | `ui.css` (`"uiStyles"`) |
+| remplacer une fonction d’affichage | `Fabro.chatView.replace` ou un emplacement `Fabro.slots` |
+| `fabro.commands` / `/commande` | `Fabro.commands.add` |
+| écouter le chat | `Fabro.on('send')`, `Fabro.on('done')` |
+| `main.js` | inchangé |
 
-// replace any global function of the UI
-fabro.override('renderTopbar', (orig) => function () { orig(); document.querySelector('#topbar').style.background = 'purple'; });
-
-// a click handler for data-action="my-thing"
-fabro.actions['my-thing'] = (el) => { /* … */ };
-
-// chats from somewhere else, mixed into the history and sorted by time
-fabro.history.register({
-  list: () => [{ id: '1', title: 'From my mod', updatedAt: Date.now(), icon: 'data:image/svg+xml;…' }],
-  open: (item) => { /* … */ },
-});
-
-// a website from main.js shown in the chat area
-fabro.view.open({ title: 'My site', sidebar: 'hide' });   // 'keep' leaves the sidebar open
-fabro.call('openSite');                                    // main.js: fabro.web.ensure(); fabro.web.load(url)
-fabro.view.close();
-
-// main-process functions and events
-const r = await fabro.call('greet', 'Lulu');
-fabro.on('ready', (data) => { /* … */ });
-
-// hooks: 'loaded' (after every mod is loaded), 'web' (events from the embedded pages)
-fabro.hook('loaded', () => {});
-```
-
-Helpers: `fabro.t(key)`, `fabro.toast(text, 'err')`, `fabro.icon(name, size)`, `fabro.esc(text)`, `fabro.md(markdown)`, `fabro.api` (the IPC bridge).
-
-## Quick bar (`quick.js`)
-
-Your code receives a smaller `fabro` (`fabro.api`, `fabro.call`).
-`/commands` that a mod declares in `mod.json` work in the quick bar without any code: the main window opens and runs the command.
-
-## Built-in examples
-
-`src/mods/claude`, `src/mods/chatgpt` and `src/mods/gemini` each use the same small helper
-(`src/mods/_shared/webchat-*.js`). Each mod is about 40 lines of settings: the site's addresses, how to tell
-that you are signed in, how to start a chat from a prompt, and how to read your chat list.
-
-## Links that open Fabro
-
-These links work from a browser or from any app:
-
-* `fabro://new?q=Your%20message` opens a new chat with the message already typed in.
-  It is sent right away only if **Settings › Desktop › Send prompts from fabro:// links right away** is on.
-* `fabro://new?q=/claude%20Your%20message` runs a mod command.
-* `fabro://chat/<id>` opens one of your conversations.
-* `fabro://settings/mods` opens a settings tab.
+Le guide de l’ancienne API reste dans [MODDING.md](https://github.com/lulualdn/fabro-ai/blob/main/MODDING.md).
