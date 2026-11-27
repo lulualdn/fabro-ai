@@ -1,0 +1,12 @@
+/* Startup profile window in the v1 look (palette and font of src/renderer/v1/app.css). */
+@font-face{font-family:"Hanken Grotesk";font-weight:400;src:url(../v1/fonts/hanken-grotesk-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:500;src:url(../v1/fonts/hanken-grotesk-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Hanken Grotesk";font-weight:600;src:url(../v1/fonts/hanken-grotesk-latin-600-normal.woff2) format("woff2")}
+:root[data-theme=dark]{--bg:#141312;--elev:#1c1a19;--elev-2:#242220;--hover:#242220;--border:rgba(255,248,240,.08);--border-strong:rgba(255,248,240,.14);--text:#f1ece6;--text-2:#b3aba2;--muted:#857d75;--err:#ff7a6b}
+:root[data-theme=light]{--bg:#f6f3ef;--elev:#fff;--elev-2:#f0ece6;--hover:#f0ece6;--border:rgba(40,30,20,.09);--border-strong:rgba(40,30,20,.16);--text:#1e1b18;--text-2:#5c554e;--muted:#7d756c;--err:#b4321f}
+:root{--accent:#FF5E42;--accent-soft:rgba(255,94,66,.14);--serif:"Hanken Grotesk",system-ui,sans-serif;--r-xl:14px}
+body{font:15px/1.55 "Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+.acc-big,.acc-name,.acc-me-name{font-family:var(--serif);font-weight:600;letter-spacing:-.01em}
+.acc-card{border-radius:14px;border:1px solid var(--border);background:var(--elev);box-shadow:none}
+.acc-card:hover{border-color:var(--border-strong)}
+.acc-in,.acc-field input{border-radius:9px}

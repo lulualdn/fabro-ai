@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fabro, maquette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Maquette Fabro. Méthode de design : unslop par Damir Sokolovsky, CC BY 4.0, github.com/heydamir/unslop */
+:root{
+  --font:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --r-ctl:9px; --r-card:14px; --r-panel:18px;
+  --accent:#FF5E42;
+}
+:root[data-theme="dark"]{
+  --bg:#141312; --bg-edge:#0e0d0c; --surf:#1c1a19; --surf2:#242220; --line:rgba(255,248,240,.08);
+  --t1:#f1ece6; --t2:#b3aba2; --t3:#7d766e; --acc-t:#ff8a73; --ok:#7fc28a; --err:#ff7a6b;
+  --glass:rgba(34,31,29,.62); --glass-hi:rgba(255,250,244,.07); --rim:rgba(255,248,240,.14);
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --bg:#f6f3ef; --bg-edge:#e9e4dd; --surf:#ffffff; --surf2:#f0ece6; --line:rgba(40,30,20,.09);
+  --t1:#1e1b18; --t2:#5c554e; --t3:#8a8279; --acc-t:#c23a20; --ok:#2f7d3e; --err:#b4321f;
+  --glass:rgba(255,253,250,.6); --glass-hi:rgba(255,255,255,.7); --rim:rgba(255,255,255,.8);
+  --shadow:0 10px 30px rgba(60,40,20,.12);
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font:15px/1.55 var(--font);color:var(--t1);background:var(--bg-edge);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.mono{font-family:var(--mono);font-size:12.5px}
+svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* Barre de la maquette (hors app) */
+#demo{position:fixed;left:0;right:0;bottom:0;z-index:99;display:flex;gap:4px;padding:6px 10px;background:#000c;color:#ddd;font:12px var(--mono);overflow-x:auto;white-space:nowrap}
+#demo button{padding:4px 8px;border-radius:6px;color:#bbb}
+#demo button.on{background:#fff2;color:#fff}
+#demo .sep{width:1px;background:#fff3;margin:2px 6px}
+
+/* Fenêtre : centre plus clair que les bords */
+#app{position:absolute;inset:0 0 34px 0;display:flex;background:radial-gradient(120% 90% at 55% 45%,var(--bg) 55%,var(--bg-edge) 100%)}
+.view{display:none;flex:1;min-width:0;position:relative}
+.view.on{display:flex}
+.view:not(.on){display:none!important}
+
+/* ===== Verre : barre latérale, saisie, menus ===== */
+.glass{position:relative;background:var(--glass);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
+  box-shadow:inset 0 1px 0 var(--glass-hi),var(--shadow)}
+/* Bord : lumière blanche + teinte locale (--tl, --tr, --tb mises à jour selon le contenu proche) */
+.glass::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:
+    linear-gradient(90deg,var(--tl,transparent),transparent 35%,transparent 65%,var(--tr,transparent)),
+    linear-gradient(180deg,var(--rim),transparent 40%,transparent 80%,var(--tb,transparent));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  transition:background .6s var(--ease)}
+body.eco .glass{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--surf);box-shadow:0 0 0 1px var(--line)}
+body.eco .glass::before{display:none}
+body.flat .glass{backdrop-filter:none;background:var(--surf);box-shadow:0 0 0 1px var(--line)}
+body.flat .glass::before{display:none}
+
+/* ===== Barre latérale ===== */
+.side{width:256px;margin:10px 0 10px 10px;border-radius:var(--r-panel);display:flex;flex-direction:column;padding:12px 8px;z-index:2}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.brand svg{width:24px;height:24px}
+.brand b{font-weight:500;font-size:16px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:var(--r-ctl);color:var(--t2);text-align:left;transition:background .15s,color .15s}
+.nav button:hover{background:var(--line);color:var(--t1)}
+.nav button.on{background:var(--line);color:var(--t1)}
+.nav .k{margin-left:auto;color:var(--t3)}
+.grp{font-size:12px;color:var(--t3);padding:16px 10px 6px}
+.convs{flex:1;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.convs button{height:32px;padding:0 10px;border-radius:8px;text-align:left;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.convs button.on{background:var(--line);color:var(--t1)}
+.convs .run{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:1px;animation:pulse 1.6s infinite}
+.me{display:flex;align-items:center;gap:10px;padding:10px 8px 2px;border-top:1px solid var(--line);margin-top:8px;font-size:14px;color:var(--t2)}
+.av{width:26px;height:26px;border-radius:50%;background:var(--surf2);display:grid;place-items:center;font-size:12px;color:var(--t1)}
+.me .model{margin-left:auto;white-space:nowrap;font-family:var(--mono);font-size:11.5px;color:var(--t3)}
+
+/* ===== Zone principale ===== */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+.top{height:48px;display:flex;align-items:center;gap:8px;padding:0 20px;color:var(--t2);font-size:14px}
+.top .t{color:var(--t1)}
+.top .sp{flex:1}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;color:var(--t2);font-size:13px}
+.chip:hover{background:var(--line)}
+.scroll{flex:1;overflow:auto;scroll-behavior:smooth}
+.col{max-width:720px;margin:0 auto;padding:8px 24px 200px}
+
+/* Accueil */
+.home{display:flex;flex-direction:column;justify-content:center;align-items:stretch;flex:1;max-width:720px;width:100%;margin:0 auto;padding:0 24px 12vh}
+.home h1{font-weight:400;font-size:30px;letter-spacing:-.01em;margin-bottom:6px}
+.home p.sub{color:var(--t2);margin-bottom:28px}
+.sugg{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.sugg button{height:32px;padding:0 12px;border-radius:var(--r-ctl);border:1px solid var(--line);color:var(--t2);font-size:14px;transition:border-color .15s,color .15s}
+.sugg button:hover{color:var(--t1);border-color:var(--rim)}
+.resume{margin-top:28px;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-card);background:var(--surf);border:1px solid var(--line);font-size:14px}
+.resume .grow{flex:1;color:var(--t2)}
+.resume b{font-weight:500;color:var(--t1)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:var(--r-ctl);background:var(--surf2);color:var(--t1);font-size:14px;border:1px solid var(--line)}
+.btn.pri{background:var(--t1);color:var(--bg);border-color:transparent}
+.btn.acc{background:var(--accent);color:#1b0b06;border-color:transparent}
+.btn:hover{filter:brightness(1.08)}
+
+/* ===== Chat : pas de bulles, un fil éditorial ===== */
+.msg{padding:18px 0}
+.msg.you{display:flex;justify-content:flex-end}
+.msg.you .q{max-width:78%;background:var(--surf2);padding:10px 14px;border-radius:14px 14px 4px 14px;color:var(--t1)}
+.msg.ai{display:grid;grid-template-columns:22px 1fr;gap:14px}
+.msg.ai .mk{width:20px;height:20px;margin-top:3px}
+.msg.ai .mk svg{width:20px;height:20px}
+.msg.ai .body p{margin-bottom:12px}
+.msg.ai .body h3{font-weight:500;font-size:16px;margin:18px 0 8px}
+.msg.ai .meta{display:flex;gap:14px;color:var(--t3);font-size:12.5px;margin-top:6px}
+.msg.ai .meta button{color:var(--t3)} .msg.ai .meta button:hover{color:var(--t1)}
+cite{font-style:normal;font-family:var(--mono);font-size:11px;padding:1px 5px;border-radius:5px;background:var(--line);color:var(--t2);vertical-align:1px;cursor:pointer}
+.caret{display:inline-block;width:7px;height:16px;background:var(--accent);vertical-align:-3px;margin-left:2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+@keyframes pulse{50%{opacity:.35}}
+
+/* Étapes d'une tâche longue */
+.task{border:1px solid var(--line);border-radius:var(--r-card);background:var(--surf);margin:4px 0 16px;overflow:hidden}
+.task-h{display:flex;align-items:center;gap:10px;padding:12px 14px;font-size:14px}
+.task-h b{font-weight:500}
+.task-h .grow{flex:1}
+.task-h .pct{font-family:var(--mono);font-size:12px;color:var(--t3)}
+.bar{height:2px;background:var(--line)} .bar i{display:block;height:100%;background:var(--accent);width:58%;transition:width .6s var(--ease)}
+.steps{list-style:none;padding:6px 14px 12px;display:flex;flex-direction:column;gap:2px;font-size:14px}
+.steps li{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;min-height:30px;color:var(--t2)}
+.steps li .tm{font-family:var(--mono);font-size:11.5px;color:var(--t3)}
+.steps li.done{color:var(--t3)}
+.steps li.now{color:var(--t1)}
+.dot{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--t3);justify-self:center}
+.done .dot{background:var(--t3);border-color:var(--t3)}
+.now .dot{border-color:var(--accent);background:var(--accent);animation:pulse 1.2s infinite}
+.steps .sub{font-size:12.5px;color:var(--t3);grid-column:2/4;margin:-4px 0 4px}
+.task-f{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--t3);align-items:center}
+.task-f .grow{flex:1}
+
+/* Image dans le fil */
+figure{margin:8px 0 14px}
+figure .img{border-radius:var(--r-card);overflow:hidden;aspect-ratio:16/9;width:100%}
+figure canvas{width:100%;height:100%;display:block}
+figcaption{font-size:12.5px;color:var(--t3);margin-top:6px}
+
+/* ===== Saisie ===== */
+.dock{position:absolute;left:0;right:0;bottom:16px;display:flex;flex-direction:column;align-items:center;padding:0 24px;pointer-events:none}
+.dock>*{pointer-events:auto}
+.slots{width:100%;max-width:720px;display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+.composer{width:100%;max-width:720px;border-radius:20px;padding:10px 10px 10px 16px;display:flex;flex-direction:column;gap:6px;transition:transform .3s var(--ease)}
+.home .composer{max-width:none}
+.composer .row{display:flex;align-items:flex-end;gap:6px}
+.composer textarea{flex:1;resize:none;border:0;outline:0;background:none;color:var(--t1);font:inherit;font-size:16px;line-height:24px;padding:6px 0;height:36px;max-height:200px}
+.composer textarea::placeholder{color:var(--t3)}
+.ib{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--t2);transition:background .15s,color .15s,transform .2s var(--ease)}
+.ib:hover{background:var(--line);color:var(--t1)}
+.send{background:var(--t1);color:var(--bg)}
+.send:hover{background:var(--t1);color:var(--bg);transform:scale(1.04)}
+.send[disabled]{background:var(--line);color:var(--t3);cursor:default;transform:none}
+.composer .hint{display:flex;gap:12px;align-items:center;font-size:12.5px;color:var(--t3);height:0;overflow:hidden;opacity:0;transition:opacity .2s,height .25s var(--ease)}
+.composer.focus .hint,.composer.has .hint{height:22px;opacity:1}
+.att{display:flex;gap:6px;flex-wrap:wrap}
+.att span{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;background:var(--line);font-size:13px;color:var(--t2);animation:pop .25s var(--ease)}
+@keyframes pop{from{transform:scale(.9);opacity:0}}
+/* état : travail en cours → anneau lumineux discret qui tourne */
+.composer.busy::after{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;pointer-events:none;
+  background:conic-gradient(from var(--a),transparent 0 70%,var(--accent) 85%,transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin 2.4s linear infinite;opacity:.8}
+@property --a{syntax:"<angle>";inherits:false;initial-value:0deg}
+@keyframes spin{to{--a:360deg}}
+.composer.drop{transform:scale(1.015)}
+.composer.drop::after{content:"Lâche pour joindre";position:absolute;inset:0;border-radius:inherit;display:grid;place-items:center;background:var(--glass);border:1.5px dashed var(--t3);color:var(--t2)}
+.voicewave{display:none;flex:1;align-items:center;gap:3px;height:36px}
+.composer.voice textarea{display:none}
+.composer.voice .voicewave{display:flex}
+.voicewave i{width:3px;border-radius:2px;background:var(--t2);height:6px;animation:wave 1s var(--ease) infinite}
+@keyframes wave{50%{height:24px}}
+.slash{position:absolute;left:10px;bottom:calc(100% + 8px);width:320px;border-radius:var(--r-card);padding:6px;display:none;font-size:14px}
+.composer.cmd .slash{display:block;animation:pop .2s var(--ease)}
+.slash button{display:flex;width:100%;gap:10px;align-items:center;height:34px;padding:0 10px;border-radius:8px;color:var(--t2)}
+.slash button:first-child{background:var(--line);color:var(--t1)}
+.slash .k{margin-left:auto;color:var(--t3);font-family:var(--mono);font-size:11.5px}
+.dest{font-family:var(--mono);font-size:11.5px}
+
+/* Emplacements des mods + carte Knowledge */
+.card{border-radius:var(--r-card);background:var(--surf);border:1px solid var(--line);padding:12px 14px;display:flex;gap:12px;align-items:center;font-size:14px;animation:pop .3s var(--ease)}
+.card .grow{flex:1}
+.card .grow small{display:block;color:var(--t3);font-size:12.5px}
+.slot-mark{outline:1px dashed var(--t3);outline-offset:3px;border-radius:var(--r-card);position:relative}
+.slot-mark::before{content:attr(data-slot);position:absolute;top:-18px;left:0;font:11px var(--mono);color:var(--t3)}
+body:not(.showslots) .slot-mark{outline:0}
+body:not(.showslots) .slot-mark::before{display:none}
+
+/* ===== Réglages ===== */
+.settings{flex:1;overflow:auto}
+.settings .col{padding-bottom:80px}
+.settings h2{font-weight:400;font-size:24px;margin:24px 0 4px}
+.settings p.lead{color:var(--t2);margin-bottom:24px}
+.tabs{display:flex;gap:2px;margin-bottom:24px;border-bottom:1px solid var(--line)}
+.tabs button{height:36px;padding:0 12px;color:var(--t2);border-bottom:1.5px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--t1);border-color:var(--t1)}
+.set{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.set small{display:block;color:var(--t3);font-size:13px}
+.seg{display:inline-flex;background:var(--surf2);border-radius:var(--r-ctl);padding:2px}
+.seg button{height:28px;padding:0 10px;border-radius:7px;font-size:13px;color:var(--t2)}
+.seg button.on{background:var(--surf);color:var(--t1);box-shadow:0 1px 2px #0002}
+.tog{width:34px;height:20px;border-radius:10px;background:var(--line);position:relative;transition:background .2s}
+.tog::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:var(--t2);transition:transform .2s var(--ease),background .2s}
+.tog.on{background:var(--accent)} .tog.on::after{transform:translateX(14px);background:#fff}
+.mcps{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:12px 0 20px}
+.mcp{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surf);font-size:14px}
+.mcp .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--surf2);font:500 12px var(--mono);color:var(--t2)}
+.mcp .grow{flex:1;min-width:0}
+.mcp small{display:block;color:var(--t3);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcp .add{height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line);font-size:13px;color:var(--t2);min-width:64px}
+.mcp .add.ing{color:var(--t3)}
+.mcp .add.ok{color:var(--ok);border-color:transparent}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:var(--r-ctl);background:var(--surf2);color:var(--t3)}
+.search input{flex:1;background:none;border:0;outline:0;color:var(--t1);font:inherit}
+.drop-mcpb{margin-top:8px;border:1px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--t3);font-size:13px}
+
+/* ===== Computer use ===== */
+.stoppill{position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:50;display:none;align-items:center;gap:8px;height:30px;padding:0 6px 0 12px;border-radius:15px;
+  background:#1a1817;color:#f1ece6;font-size:13px;box-shadow:0 4px 14px #0006;opacity:.35;transition:opacity .2s}
+.stoppill.on{display:flex}
+.stoppill .rec{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.4s infinite}
+.stoppill button{height:22px;padding:0 10px;border-radius:11px;background:#fff1;font-size:12.5px}
+.stoppill button:hover{background:var(--accent);color:#1b0b06}
+.thumb{position:absolute;right:20px;bottom:150px;width:360px;border-radius:var(--r-card);overflow:hidden;z-index:5}
+.thumb .scr{aspect-ratio:16/10;background:#2b2f36;position:relative}
+.thumb canvas{width:100%;height:100%;display:block}
+.thumb .cur{position:absolute;width:14px;height:14px;transition:left .8s var(--ease),top .8s var(--ease)}
+.thumb .bar2{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:12.5px;color:var(--t2)}
+.thumb .bar2 .grow{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumb .bar2 .btn,.thumb .bar2 .chip{white-space:nowrap}
+.thumb.min .scr{display:none}
+
+/* ===== Installateur ===== */
+.inst{flex:1;display:grid;place-items:center}
+.win{width:520px;border-radius:var(--r-panel);background:var(--surf);border:1px solid var(--line);box-shadow:var(--shadow);padding:28px}
+.win .lg{width:36px;height:36px;margin-bottom:20px}
+.win h2{font-weight:400;font-size:22px;margin-bottom:6px}
+.win p{color:var(--t2);font-size:14px}
+.opts{margin:20px 0;display:flex;flex-direction:column;gap:2px}
+.opts label{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.opts label small{color:var(--t3)}
+.prog{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin:18px 0 8px}
+.prog i{display:block;height:100%;width:0;background:var(--accent);border-radius:2px;transition:width .3s linear}
+.upd{width:360px;padding:18px 20px;border-radius:var(--r-card);background:var(--surf);border:1px solid var(--line);box-shadow:var(--shadow);display:flex;gap:14px;align-items:center}
+.upd svg.l{width:22px;height:22px}
+.upd .grow{flex:1}
+.upd .prog{margin:0}
+.upd .lbl{font-size:12.5px;color:var(--t3);display:flex;justify-content:space-between;margin-top:6px}
+.fail{display:none;font-size:13px}
+.upd.err .prog,.upd.err .lbl{display:none}
+.upd.err .fail{display:flex;align-items:center;gap:10px;justify-content:space-between}
+
+/* ===== Fabro Code ===== */
+.code{flex:1;display:flex;flex-direction:column;min-width:0}
+.code .wrap{flex:1;overflow:auto;padding:24px}
+.mascots{display:grid;grid-template-columns:1fr;gap:12px;max-width:1040px}
+.masc{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"h h" "p p" "stage term" "states term";column-gap:16px}
+.masc h4{grid-area:h}.masc p{grid-area:p}.masc .stage{grid-area:stage}.masc .states{grid-area:states}.masc .term{grid-area:term;margin-top:0}
+.masc{border-radius:var(--r-card);background:var(--surf);border:1px solid var(--line);padding:16px}
+.masc h4{font-weight:500;font-size:14px}
+.masc p{font-size:13px;color:var(--t3);margin-bottom:12px}
+.stage{display:flex;align-items:flex-end;justify-content:center;height:150px;background:var(--surf2);border-radius:10px;position:relative;overflow:hidden}
+.stage canvas{image-rendering:pixelated}
+.states{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+.states button{height:26px;padding:0 8px;border-radius:7px;font-size:12px;color:var(--t2);border:1px solid var(--line)}
+.states button.on{color:var(--t1);border-color:var(--t2)}
+.term{margin-top:12px;background:#0c0c0c;color:#d6d6d6;border-radius:10px;padding:12px;font:12px/1.25 var(--mono);white-space:pre;overflow:hidden;min-height:150px}
+.codecmd{display:flex;align-items:center;gap:8px;margin:0 0 20px;max-width:1040px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surf);font-size:14px}
+.codecmd code{font-family:var(--mono);background:var(--surf2);padding:3px 8px;border-radius:6px}
+.codecmd .grow{flex:1;color:var(--t3);font-size:13px}
+.codeapp{display:grid;grid-template-columns:1fr 340px;gap:12px;max-width:1040px;margin-top:20px}
+.codeapp .pane{border-radius:var(--r-card);border:1px solid var(--line);background:var(--surf);padding:14px;font-size:14px}
+.diff{font:12.5px/1.6 var(--mono);background:var(--surf2);border-radius:8px;padding:10px;margin-top:8px;white-space:pre;overflow:auto}
+.diff .a{color:var(--ok)} .diff .d{color:var(--err)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Barre latérale (verre) -->
+  <aside class="side glass" id="side">
+    <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#FF5E42" fill-rule="evenodd" d="M54.58 3.11C53.49 2.93 53.24 3.00 52.36 3.09C51.48 3.17 50.19 3.40 49.28 3.62C48.38 3.85 47.64 4.10 46.92 4.42C46.21 4.75 45.65 5.07 44.99 5.58C44.33 6.08 43.61 6.73 42.97 7.44C42.33 8.14 41.64 9.01 41.15 9.80C40.65 10.58 40.33 11.26 39.99 12.16C39.65 13.05 39.30 14.27 39.08 15.16C38.86 16.06 38.76 16.68 38.67 17.52C38.58 18.37 38.54 19.17 38.55 20.24C38.57 21.31 38.63 22.73 38.75 23.96C38.88 25.19 39.04 26.32 39.33 27.61C39.62 28.90 39.65 29.44 40.47 31.69C41.30 33.93 43.50 39.02 44.26 41.06C45.03 43.10 44.92 43.09 45.04 43.92C45.16 44.75 45.07 45.57 44.98 46.06C44.89 46.56 44.70 46.66 44.50 46.89C44.31 47.13 44.21 47.31 43.82 47.47C43.42 47.63 42.73 47.89 42.13 47.87C41.53 47.85 40.85 47.67 40.20 47.36C39.55 47.05 38.86 46.56 38.21 45.99C37.56 45.42 36.91 44.68 36.31 43.92C35.72 43.16 35.14 42.29 34.64 41.42C34.13 40.55 34.17 40.88 33.27 38.70C32.36 36.52 30.16 30.60 29.22 28.32C28.29 26.05 28.21 25.99 27.65 25.03C27.08 24.08 26.55 23.29 25.84 22.57C25.13 21.86 24.11 21.16 23.39 20.75C22.67 20.35 22.20 20.25 21.53 20.15C20.86 20.06 20.10 20.07 19.38 20.18C18.67 20.28 17.96 20.48 17.24 20.79C16.51 21.10 15.72 21.54 15.02 22.05C14.31 22.55 13.62 23.18 13.02 23.83C12.41 24.48 11.83 25.24 11.39 25.96C10.94 26.69 10.59 27.43 10.33 28.18C10.07 28.93 9.91 29.73 9.82 30.47C9.73 31.21 9.74 31.95 9.78 32.62C9.81 33.28 9.87 33.78 10.02 34.48C10.18 35.17 10.44 36.06 10.71 36.77C10.98 37.47 11.04 37.79 11.62 38.70C12.20 39.60 13.10 41.05 14.18 42.19C15.26 43.33 16.70 44.52 18.09 45.54C19.49 46.55 21.24 47.59 22.53 48.28C23.82 48.97 24.56 49.24 25.82 49.68C27.08 50.11 28.03 50.46 30.11 50.90C32.20 51.34 36.46 51.92 38.34 52.30C40.22 52.67 40.59 52.82 41.42 53.17C42.24 53.52 42.91 54.07 43.31 54.39C43.71 54.71 43.68 54.84 43.80 55.09C43.92 55.34 44.06 55.49 44.00 55.87C43.95 56.24 43.83 56.86 43.48 57.34C43.13 57.81 42.60 58.30 41.91 58.70C41.22 59.10 40.21 59.48 39.34 59.73C38.47 59.98 37.65 60.13 36.69 60.19C35.74 60.25 34.85 60.22 33.62 60.10C32.39 59.98 31.71 59.96 29.33 59.47C26.94 58.97 21.55 57.63 19.31 57.15C17.07 56.67 17.00 56.66 15.88 56.59C14.76 56.52 13.55 56.53 12.59 56.72C11.62 56.91 10.79 57.31 10.08 57.74C9.37 58.17 8.82 58.71 8.33 59.32C7.84 59.92 7.45 60.59 7.15 61.37C6.86 62.16 6.66 63.09 6.57 64.02C6.48 64.95 6.53 66.01 6.63 66.95C6.74 67.90 6.92 68.83 7.19 69.67C7.46 70.52 7.78 71.21 8.26 72.03C8.74 72.86 9.47 73.89 10.08 74.61C10.69 75.33 11.13 75.82 11.94 76.38C12.75 76.93 13.77 77.55 14.95 77.93C16.13 78.31 17.70 78.56 19.02 78.64C20.35 78.72 21.61 78.61 22.89 78.41C24.16 78.21 25.25 77.96 26.68 77.42C28.11 76.89 29.85 76.16 31.47 75.23C33.09 74.30 35.14 72.80 36.41 71.84C37.68 70.87 37.56 70.96 39.10 69.44C40.64 67.91 44.15 64.12 45.64 62.67C47.12 61.22 47.38 61.16 48.00 60.73C48.62 60.31 48.94 60.24 49.36 60.13C49.77 60.02 50.13 60.01 50.50 60.09C50.87 60.17 51.24 60.34 51.57 60.62C51.89 60.89 52.22 61.27 52.43 61.73C52.65 62.19 52.81 62.81 52.85 63.38C52.89 63.95 52.83 64.51 52.65 65.17C52.48 65.82 52.20 66.53 51.81 67.31C51.42 68.10 51.18 68.71 50.33 69.89C49.47 71.07 48.72 72.18 46.67 74.39C44.62 76.61 39.71 81.36 38.01 83.19C36.30 85.03 36.84 84.70 36.45 85.41C36.06 86.13 35.81 86.89 35.65 87.49C35.48 88.08 35.45 88.44 35.44 88.99C35.44 89.54 35.52 90.25 35.64 90.78C35.77 91.30 35.94 91.69 36.19 92.14C36.45 92.58 36.77 93.04 37.16 93.46C37.54 93.88 37.99 94.30 38.49 94.67C38.98 95.04 39.50 95.38 40.13 95.69C40.76 96.00 41.61 96.34 42.27 96.54C42.94 96.75 43.29 96.85 44.13 96.93C44.98 97.00 46.46 97.02 47.35 96.99C48.25 96.95 48.78 96.89 49.50 96.73C50.21 96.57 50.87 96.37 51.65 96.03C52.42 95.69 53.45 95.13 54.15 94.69C54.85 94.24 55.28 93.90 55.84 93.35C56.40 92.81 56.98 92.16 57.53 91.42C58.07 90.68 58.64 89.79 59.11 88.92C59.58 88.05 60.03 87.04 60.36 86.20C60.68 85.35 60.86 84.77 61.07 83.84C61.28 82.91 61.52 81.93 61.64 80.62C61.75 79.31 61.89 77.71 61.78 75.97C61.68 74.23 61.67 72.99 61.00 70.17C60.34 67.36 58.28 61.25 57.78 59.09C57.27 56.92 57.85 57.61 57.97 57.16C58.08 56.70 58.25 56.62 58.46 56.38C58.67 56.15 58.83 55.93 59.24 55.74C59.65 55.56 60.28 55.29 60.95 55.29C61.61 55.29 62.55 55.46 63.23 55.73C63.92 56.00 64.49 56.38 65.07 56.89C65.65 57.41 66.19 58.04 66.72 58.80C67.26 59.56 67.81 60.48 68.27 61.45C68.74 62.41 68.69 62.02 69.52 64.59C70.35 67.17 72.35 74.41 73.25 76.90C74.15 79.39 74.28 78.80 74.93 79.53C75.57 80.26 76.45 80.89 77.11 81.28C77.77 81.67 78.27 81.76 78.90 81.85C79.53 81.94 80.18 81.95 80.90 81.81C81.63 81.68 82.55 81.36 83.26 81.03C83.98 80.69 84.56 80.32 85.20 79.81C85.83 79.30 86.51 78.64 87.06 77.97C87.62 77.31 88.13 76.55 88.54 75.82C88.95 75.10 89.25 74.42 89.51 73.61C89.77 72.80 90.01 72.08 90.09 70.96C90.18 69.84 90.11 67.92 90.02 66.88C89.92 65.85 89.74 65.42 89.53 64.74C89.32 64.06 89.39 63.85 88.78 62.81C88.17 61.76 86.87 59.68 85.86 58.44C84.84 57.21 83.88 56.33 82.69 55.39C81.51 54.46 79.91 53.47 78.76 52.80C77.60 52.14 76.99 51.83 75.75 51.41C74.51 50.99 73.29 50.54 71.32 50.28C69.35 50.03 65.63 50.02 63.95 49.89C62.27 49.76 61.98 49.71 61.23 49.50C60.49 49.28 59.86 48.86 59.48 48.60C59.11 48.35 59.11 48.21 58.99 47.96C58.87 47.72 58.78 47.43 58.77 47.14C58.76 46.85 58.81 46.53 58.92 46.21C59.03 45.89 59.03 45.71 59.45 45.21C59.87 44.70 60.81 43.67 61.45 43.17C62.09 42.66 62.48 42.46 63.31 42.18C64.13 41.90 65.51 41.62 66.38 41.47C67.25 41.32 67.75 41.29 68.53 41.28C69.30 41.27 68.19 41.03 71.03 41.42C73.87 41.81 82.66 43.30 85.55 43.61C88.45 43.92 87.56 43.54 88.42 43.29C89.27 43.03 90.10 42.53 90.70 42.10C91.30 41.66 91.65 41.23 92.01 40.70C92.37 40.17 92.63 39.63 92.86 38.91C93.10 38.20 93.33 37.22 93.41 36.41C93.48 35.60 93.48 34.99 93.33 34.05C93.17 33.11 92.83 31.76 92.49 30.76C92.15 29.75 91.74 28.85 91.28 28.04C90.83 27.23 90.37 26.58 89.76 25.90C89.15 25.21 88.51 24.54 87.63 23.94C86.75 23.33 85.58 22.65 84.48 22.25C83.38 21.86 82.25 21.63 81.05 21.57C79.84 21.51 78.57 21.61 77.26 21.90C75.94 22.19 74.66 22.60 73.18 23.32C71.70 24.04 69.83 25.16 68.39 26.20C66.94 27.25 65.68 28.42 64.52 29.61C63.36 30.80 62.81 31.44 61.42 33.33C60.03 35.23 57.31 39.44 56.18 40.98C55.05 42.52 55.11 42.18 54.64 42.58C54.17 42.97 53.77 43.19 53.36 43.34C52.96 43.49 52.59 43.55 52.22 43.48C51.84 43.41 51.43 43.20 51.10 42.91C50.77 42.63 50.47 42.27 50.23 41.77C50.00 41.27 49.79 40.65 49.68 39.91C49.57 39.17 49.55 38.09 49.58 37.34C49.62 36.59 49.72 36.09 49.91 35.41C50.10 34.73 50.04 34.56 50.72 33.26C51.40 31.96 52.02 30.45 53.99 27.61C55.95 24.77 60.90 18.51 62.52 16.23C64.15 13.96 63.42 14.70 63.72 13.95C64.02 13.19 64.21 12.35 64.30 11.73C64.39 11.11 64.35 10.74 64.27 10.23C64.19 9.71 64.03 9.15 63.82 8.65C63.61 8.15 63.33 7.67 63.00 7.22C62.68 6.77 62.27 6.34 61.86 5.97C61.44 5.59 61.01 5.28 60.52 4.98C60.02 4.69 59.86 4.50 58.87 4.19C57.88 3.87 55.66 3.30 54.58 3.11ZM48.08 44.42C48.39 44.29 48.51 44.17 49.21 44.32C49.92 44.47 51.27 45.17 52.29 45.31C53.31 45.45 54.72 45.13 55.35 45.16C55.99 45.20 55.90 45.36 56.10 45.52C56.30 45.69 56.37 45.64 56.56 46.16C56.75 46.68 56.86 47.77 57.21 48.64C57.57 49.51 58.44 50.73 58.72 51.36C59.00 51.99 58.93 52.10 58.89 52.42C58.85 52.75 58.86 52.78 58.50 53.29C58.14 53.81 57.21 54.75 56.71 55.51C56.20 56.27 55.84 57.32 55.49 57.85C55.14 58.37 54.89 58.49 54.60 58.65C54.30 58.81 54.32 58.89 53.72 58.79C53.12 58.70 51.98 58.22 51.00 58.09C50.02 57.96 48.52 58.08 47.86 58.00C47.19 57.91 47.25 57.78 47.02 57.58C46.79 57.38 46.69 57.35 46.45 56.79C46.22 56.23 46.00 55.07 45.62 54.22C45.24 53.38 44.44 52.29 44.17 51.72C43.91 51.14 43.99 51.11 44.04 50.79C44.09 50.47 44.10 50.36 44.47 49.81C44.85 49.26 45.80 48.28 46.28 47.50C46.76 46.71 47.05 45.62 47.35 45.10C47.65 44.59 47.76 44.55 48.08 44.42Z"/></svg><b>Fabro</b></div>
+    <div class="nav">
+      <button data-go="home"><svg class="i"><use href="#i-new"/></svg>Nouvelle demande<span class="k mono">Ctrl N</span></button>
+      <button data-go="search"><svg class="i"><use href="#i-search"/></svg>Chercher<span class="k mono">Ctrl K</span></button>
+      <button data-go="code"><svg class="i"><use href="#i-code"/></svg>Fabro Code</button>
+    </div>
+    <div class="grp">Aujourd’hui</div>
+    <div class="convs">
+      <button class="on" data-go="chat"><span class="run"></span>Comparatif vélos cargo</button>
+      <button data-go="chat">Devis rénovation cuisine</button>
+      <div class="grp" style="padding-left:10px">Cette semaine</div>
+      <button data-go="chat">Script Luau porte coulissante</button>
+      <button data-go="chat">Résumé réunion parents-profs</button>
+      <button data-go="chat">Traduire notice chaudière</button>
+      <button data-go="chat">Planning révisions bac</button>
+      <button data-go="chat">Facture EDF : écart de 34 €</button>
+    </div>
+    <div class="me">
+      <span class="av">L</span>Lulu
+      <button class="model" data-go="settings" title="Réglages">E4B · 62 tok/s</button>
+    </div>
+  </aside>
+
+  <!-- ACCUEIL -->
+  <section class="view main" id="v-home">
+    <div class="top"><span class="sp"></span><button class="chip" data-go="settings"><svg class="i"><use href="#i-gear"/></svg></button></div>
+    <div class="home">
+      <h1>Qu’est-ce qu’on fait&nbsp;?</h1>
+      <p class="sub">Demande n’importe quoi. Pour une tâche longue, Fabro continue même si tu fermes.</p>
+      <div data-composer></div>
+      <div class="sugg">
+        <button>Lis ces 3 PDF et compare les offres</button>
+        <button>Crée une app de budget</button>
+        <button>Cherche un vélo cargo à moins de 2 000 €</button>
+        <button>Range mon dossier Téléchargements</button>
+      </div>
+      <div class="resume">
+        <svg class="i"><use href="#i-clock"/></svg>
+        <span class="grow"><b>Comparatif vélos cargo</b> tourne encore · étape 4 sur 7</span>
+        <button class="btn" data-go="chat">Ouvrir</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAT -->
+  <section class="view main" id="v-chat">
+    <div class="top"><span class="t">Comparatif vélos cargo</span><span>· tâche longue</span><span class="sp"></span>
+      <button class="chip"><svg class="i"><use href="#i-share"/></svg></button><button class="chip" data-go="settings"><svg class="i"><use href="#i-gear"/></svg></button></div>
+    <div class="scroll" id="chatScroll">
+      <div class="col">
+        <div class="msg you"><div class="q">Trouve-moi le meilleur vélo cargo pour deux enfants, moins de 2 000 €, et fais-moi un tableau. Lis vraiment les tests, pas juste les titres.</div></div>
+        <div class="msg ai"><div class="mk"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#FF5E42" fill-rule="evenodd" d="M54.58 3.11C53.49 2.93 53.24 3.00 52.36 3.09C51.48 3.17 50.19 3.40 49.28 3.62C48.38 3.85 47.64 4.10 46.92 4.42C46.21 4.75 45.65 5.07 44.99 5.58C44.33 6.08 43.61 6.73 42.97 7.44C42.33 8.14 41.64 9.01 41.15 9.80C40.65 10.58 40.33 11.26 39.99 12.16C39.65 13.05 39.30 14.27 39.08 15.16C38.86 16.06 38.76 16.68 38.67 17.52C38.58 18.37 38.54 19.17 38.55 20.24C38.57 21.31 38.63 22.73 38.75 23.96C38.88 25.19 39.04 26.32 39.33 27.61C39.62 28.90 39.65 29.44 40.47 31.69C41.30 33.93 43.50 39.02 44.26 41.06C45.03 43.10 44.92 43.09 45.04 43.92C45.16 44.75 45.07 45.57 44.98 46.06C44.89 46.56 44.70 46.66 44.50 46.89C44.31 47.13 44.21 47.31 43.82 47.47C43.42 47.63 42.73 47.89 42.13 47.87C41.53 47.85 40.85 47.67 40.20 47.36C39.55 47.05 38.86 46.56 38.21 45.99C37.56 45.42 36.91 44.68 36.31 43.92C35.72 43.16 35.14 42.29 34.64 41.42C34.13 40.55 34.17 40.88 33.27 38.70C32.36 36.52 30.16 30.60 29.22 28.32C28.29 26.05 28.21 25.99 27.65 25.03C27.08 24.08 26.55 23.29 25.84 22.57C25.13 21.86 24.11 21.16 23.39 20.75C22.67 20.35 22.20 20.25 21.53 20.15C20.86 20.06 20.10 20.07 19.38 20.18C18.67 20.28 17.96 20.48 17.24 20.79C16.51 21.10 15.72 21.54 15.02 22.05C14.31 22.55 13.62 23.18 13.02 23.83C12.41 24.48 11.83 25.24 11.39 25.96C10.94 26.69 10.59 27.43 10.33 28.18C10.07 28.93 9.91 29.73 9.82 30.47C9.73 31.21 9.74 31.95 9.78 32.62C9.81 33.28 9.87 33.78 10.02 34.48C10.18 35.17 10.44 36.06 10.71 36.77C10.98 37.47 11.04 37.79 11.62 38.70C12.20 39.60 13.10 41.05 14.18 42.19C15.26 43.33 16.70 44.52 18.09 45.54C19.49 46.55 21.24 47.59 22.53 48.28C23.82 48.97 24.56 49.24 25.82 49.68C27.08 50.11 28.03 50.46 30.11 50.90C32.20 51.34 36.46 51.92 38.34 52.30C40.22 52.67 40.59 52.82 41.42 53.17C42.24 53.52 42.91 54.07 43.31 54.39C43.71 54.71 43.68 54.84 43.80 55.09C43.92 55.34 44.06 55.49 44.00 55.87C43.95 56.24 43.83 56.86 43.48 57.34C43.13 57.81 42.60 58.30 41.91 58.70C41.22 59.10 40.21 59.48 39.34 59.73C38.47 59.98 37.65 60.13 36.69 60.19C35.74 60.25 34.85 60.22 33.62 60.10C32.39 59.98 31.71 59.96 29.33 59.47C26.94 58.97 21.55 57.63 19.31 57.15C17.07 56.67 17.00 56.66 15.88 56.59C14.76 56.52 13.55 56.53 12.59 56.72C11.62 56.91 10.79 57.31 10.08 57.74C9.37 58.17 8.82 58.71 8.33 59.32C7.84 59.92 7.45 60.59 7.15 61.37C6.86 62.16 6.66 63.09 6.57 64.02C6.48 64.95 6.53 66.01 6.63 66.95C6.74 67.90 6.92 68.83 7.19 69.67C7.46 70.52 7.78 71.21 8.26 72.03C8.74 72.86 9.47 73.89 10.08 74.61C10.69 75.33 11.13 75.82 11.94 76.38C12.75 76.93 13.77 77.55 14.95 77.93C16.13 78.31 17.70 78.56 19.02 78.64C20.35 78.72 21.61 78.61 22.89 78.41C24.16 78.21 25.25 77.96 26.68 77.42C28.11 76.89 29.85 76.16 31.47 75.23C33.09 74.30 35.14 72.80 36.41 71.84C37.68 70.87 37.56 70.96 39.10 69.44C40.64 67.91 44.15 64.12 45.64 62.67C47.12 61.22 47.38 61.16 48.00 60.73C48.62 60.31 48.94 60.24 49.36 60.13C49.77 60.02 50.13 60.01 50.50 60.09C50.87 60.17 51.24 60.34 51.57 60.62C51.89 60.89 52.22 61.27 52.43 61.73C52.65 62.19 52.81 62.81 52.85 63.38C52.89 63.95 52.83 64.51 52.65 65.17C52.48 65.82 52.20 66.53 51.81 67.31C51.42 68.10 51.18 68.71 50.33 69.89C49.47 71.07 48.72 72.18 46.67 74.39C44.62 76.61 39.71 81.36 38.01 83.19C36.30 85.03 36.84 84.70 36.45 85.41C36.06 86.13 35.81 86.89 35.65 87.49C35.48 88.08 35.45 88.44 35.44 88.99C35.44 89.54 35.52 90.25 35.64 90.78C35.77 91.30 35.94 91.69 36.19 92.14C36.45 92.58 36.77 93.04 37.16 93.46C37.54 93.88 37.99 94.30 38.49 94.67C38.98 95.04 39.50 95.38 40.13 95.69C40.76 96.00 41.61 96.34 42.27 96.54C42.94 96.75 43.29 96.85 44.13 96.93C44.98 97.00 46.46 97.02 47.35 96.99C48.25 96.95 48.78 96.89 49.50 96.73C50.21 96.57 50.87 96.37 51.65 96.03C52.42 95.69 53.45 95.13 54.15 94.69C54.85 94.24 55.28 93.90 55.84 93.35C56.40 92.81 56.98 92.16 57.53 91.42C58.07 90.68 58.64 89.79 59.11 88.92C59.58 88.05 60.03 87.04 60.36 86.20C60.68 85.35 60.86 84.77 61.07 83.84C61.28 82.91 61.52 81.93 61.64 80.62C61.75 79.31 61.89 77.71 61.78 75.97C61.68 74.23 61.67 72.99 61.00 70.17C60.34 67.36 58.28 61.25 57.78 59.09C57.27 56.92 57.85 57.61 57.97 57.16C58.08 56.70 58.25 56.62 58.46 56.38C58.67 56.15 58.83 55.93 59.24 55.74C59.65 55.56 60.28 55.29 60.95 55.29C61.61 55.29 62.55 55.46 63.23 55.73C63.92 56.00 64.49 56.38 65.07 56.89C65.65 57.41 66.19 58.04 66.72 58.80C67.26 59.56 67.81 60.48 68.27 61.45C68.74 62.41 68.69 62.02 69.52 64.59C70.35 67.17 72.35 74.41 73.25 76.90C74.15 79.39 74.28 78.80 74.93 79.53C75.57 80.26 76.45 80.89 77.11 81.28C77.77 81.67 78.27 81.76 78.90 81.85C79.53 81.94 80.18 81.95 80.90 81.81C81.63 81.68 82.55 81.36 83.26 81.03C83.98 80.69 84.56 80.32 85.20 79.81C85.83 79.30 86.51 78.64 87.06 77.97C87.62 77.31 88.13 76.55 88.54 75.82C88.95 75.10 89.25 74.42 89.51 73.61C89.77 72.80 90.01 72.08 90.09 70.96C90.18 69.84 90.11 67.92 90.02 66.88C89.92 65.85 89.74 65.42 89.53 64.74C89.32 64.06 89.39 63.85 88.78 62.81C88.17 61.76 86.87 59.68 85.86 58.44C84.84 57.21 83.88 56.33 82.69 55.39C81.51 54.46 79.91 53.47 78.76 52.80C77.60 52.14 76.99 51.83 75.75 51.41C74.51 50.99 73.29 50.54 71.32 50.28C69.35 50.03 65.63 50.02 63.95 49.89C62.27 49.76 61.98 49.71 61.23 49.50C60.49 49.28 59.86 48.86 59.48 48.60C59.11 48.35 59.11 48.21 58.99 47.96C58.87 47.72 58.78 47.43 58.77 47.14C58.76 46.85 58.81 46.53 58.92 46.21C59.03 45.89 59.03 45.71 59.45 45.21C59.87 44.70 60.81 43.67 61.45 43.17C62.09 42.66 62.48 42.46 63.31 42.18C64.13 41.90 65.51 41.62 66.38 41.47C67.25 41.32 67.75 41.29 68.53 41.28C69.30 41.27 68.19 41.03 71.03 41.42C73.87 41.81 82.66 43.30 85.55 43.61C88.45 43.92 87.56 43.54 88.42 43.29C89.27 43.03 90.10 42.53 90.70 42.10C91.30 41.66 91.65 41.23 92.01 40.70C92.37 40.17 92.63 39.63 92.86 38.91C93.10 38.20 93.33 37.22 93.41 36.41C93.48 35.60 93.48 34.99 93.33 34.05C93.17 33.11 92.83 31.76 92.49 30.76C92.15 29.75 91.74 28.85 91.28 28.04C90.83 27.23 90.37 26.58 89.76 25.90C89.15 25.21 88.51 24.54 87.63 23.94C86.75 23.33 85.58 22.65 84.48 22.25C83.38 21.86 82.25 21.63 81.05 21.57C79.84 21.51 78.57 21.61 77.26 21.90C75.94 22.19 74.66 22.60 73.18 23.32C71.70 24.04 69.83 25.16 68.39 26.20C66.94 27.25 65.68 28.42 64.52 29.61C63.36 30.80 62.81 31.44 61.42 33.33C60.03 35.23 57.31 39.44 56.18 40.98C55.05 42.52 55.11 42.18 54.64 42.58C54.17 42.97 53.77 43.19 53.36 43.34C52.96 43.49 52.59 43.55 52.22 43.48C51.84 43.41 51.43 43.20 51.10 42.91C50.77 42.63 50.47 42.27 50.23 41.77C50.00 41.27 49.79 40.65 49.68 39.91C49.57 39.17 49.55 38.09 49.58 37.34C49.62 36.59 49.72 36.09 49.91 35.41C50.10 34.73 50.04 34.56 50.72 33.26C51.40 31.96 52.02 30.45 53.99 27.61C55.95 24.77 60.90 18.51 62.52 16.23C64.15 13.96 63.42 14.70 63.72 13.95C64.02 13.19 64.21 12.35 64.30 11.73C64.39 11.11 64.35 10.74 64.27 10.23C64.19 9.71 64.03 9.15 63.82 8.65C63.61 8.15 63.33 7.67 63.00 7.22C62.68 6.77 62.27 6.34 61.86 5.97C61.44 5.59 61.01 5.28 60.52 4.98C60.02 4.69 59.86 4.50 58.87 4.19C57.88 3.87 55.66 3.30 54.58 3.11ZM48.08 44.42C48.39 44.29 48.51 44.17 49.21 44.32C49.92 44.47 51.27 45.17 52.29 45.31C53.31 45.45 54.72 45.13 55.35 45.16C55.99 45.20 55.90 45.36 56.10 45.52C56.30 45.69 56.37 45.64 56.56 46.16C56.75 46.68 56.86 47.77 57.21 48.64C57.57 49.51 58.44 50.73 58.72 51.36C59.00 51.99 58.93 52.10 58.89 52.42C58.85 52.75 58.86 52.78 58.50 53.29C58.14 53.81 57.21 54.75 56.71 55.51C56.20 56.27 55.84 57.32 55.49 57.85C55.14 58.37 54.89 58.49 54.60 58.65C54.30 58.81 54.32 58.89 53.72 58.79C53.12 58.70 51.98 58.22 51.00 58.09C50.02 57.96 48.52 58.08 47.86 58.00C47.19 57.91 47.25 57.78 47.02 57.58C46.79 57.38 46.69 57.35 46.45 56.79C46.22 56.23 46.00 55.07 45.62 54.22C45.24 53.38 44.44 52.29 44.17 51.72C43.91 51.14 43.99 51.11 44.04 50.79C44.09 50.47 44.10 50.36 44.47 49.81C44.85 49.26 45.80 48.28 46.28 47.50C46.76 46.71 47.05 45.62 47.35 45.10C47.65 44.59 47.76 44.55 48.08 44.42Z"/></svg></div><div class="body">
+          <div class="task">
+            <div class="task-h"><svg class="i"><use href="#i-list"/></svg><b class="grow">Comparatif vélos cargo</b><span class="pct">4 / 7 · 6 min</span></div>
+            <div class="bar"><i id="tbar"></i></div>
+            <ul class="steps">
+              <li class="done"><span class="dot"></span>Chercher les modèles sous 2 000 €<span class="tm">0:42</span></li>
+              <li class="done"><span class="dot"></span>Lire 7 tests complets<span class="tm">2:10</span></li>
+              <span class="sub">Vélo & Territoires, Le Cycliste, ADMA, 2 PDF constructeurs, 2 forums</span>
+              <li class="done"><span class="dot"></span>Extraire prix, poids, autonomie, sièges<span class="tm">1:05</span></li>
+              <li class="now"><span class="dot"></span>Vérifier les prix chez 3 revendeurs<span class="tm">en cours</span></li>
+              <li><span class="dot"></span>Construire le tableau<span class="tm"></span></li>
+              <li><span class="dot"></span>Vérifier que chaque ligne a une source<span class="tm"></span></li>
+              <li><span class="dot"></span>Résumé et recommandation<span class="tm"></span></li>
+            </ul>
+            <div class="task-f"><svg class="i" style="width:16px;height:16px"><use href="#i-save"/></svg><span class="grow">Sauvegardé · reprend tout seul après un redémarrage</span><button class="btn">Carnet</button><button class="btn">Pause</button></div>
+          </div>
+          <p>J’ai lu les tests en entier. Trois modèles sortent du lot pour deux enfants. Le plus souvent cité est le <b style="font-weight:500">Decathlon R500E Longtail</b>, à 1 799 € <cite>1</cite> <cite>3</cite>.</p>
+          <figure><div class="img" id="photoWrap"><canvas id="photo" width="960" height="540" data-tint></canvas></div><figcaption>Image tirée du test Le Cycliste <cite>3</cite></figcaption></figure>
+          <h3>Ce qu’il faut savoir</h3>
+          <p>Le poids compte plus que prévu : au-delà de 35 kg, les testeurs le portent mal dans un escalier <cite>2</cite>. Je vérifie maintenant les prix réels, ils ont bougé depuis septembre<span class="caret"></span></p>
+          <div class="meta"><button>Copier</button><button>Refaire</button><button>Demander au gros modèle</button></div>
+        </div></div>
+      </div>
+    </div>
+    <div class="dock">
+      <div class="slots" id="slots">
+        <div class="slot-mark" data-slot="mod: au-dessus du chat">
+          <div class="card" id="kcard"><svg class="i"><use href="#i-book"/></svg>
+            <div class="grow">M’autorises-tu à créer une base de connaissances pour que je maîtrise ce genre de tâches&nbsp;?<small>C’est la deuxième fois que tu me demandes un comparatif d’achat.</small></div>
+            <button class="btn" onclick="this.closest('.card').remove()">Non</button><button class="btn pri" onclick="okK(this)">Oui, crée-la</button></div>
+        </div>
+        <div class="slot-mark" data-slot="mod: flashcards" id="modslot" style="display:none">
+          <div class="card"><svg class="i"><use href="#i-cards"/></svg><div class="grow">Révision du jour : 12 cartes<small>Mod « Flashcards » · Histoire, chapitre 3</small></div><button class="btn">Réviser</button></div>
+        </div>
+      </div>
+      <div data-composer data-busy></div>
+    </div>
+    <div class="thumb glass" id="thumb" style="display:none">
+      <div class="scr"><canvas id="aiScreen" width="600" height="375"></canvas><svg class="cur" id="aicur" viewBox="0 0 14 14" style="left:40%;top:30%"><path d="M1 1l11 5-5 1.5L5 13z" fill="#FF5E42" stroke="#fff" stroke-width="1"/></svg></div>
+      <div class="bar2"><span class="rec" style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></span><span class="grow">Remplit le devis</span><button class="chip" onclick="thumb.classList.toggle('min')">Replier</button><button class="btn">Reprendre la main</button></div>
+    </div>
+  </section>
+
+  <!-- RÉGLAGES -->
+  <section class="view main" id="v-settings">
+    <div class="top"><button class="chip" data-go="chat"><svg class="i"><use href="#i-back"/></svg>Retour</button><span class="sp"></span></div>
+    <div class="settings"><div class="col">
+      <h2>Réglages</h2>
+      <p class="lead">Le reste se règle tout seul. Le mode avancé est en bas.</p>
+      <div class="tabs" id="stabs"><button class="on" data-t="g">Général</button><button data-t="c">Connecteurs</button><button data-t="m">Modèles</button><button data-t="a">Avancé</button></div>
+      <div data-tab="g">
+        <div class="set"><div>Apparence</div><div class="seg" id="segTheme"><button data-th="light">Clair</button><button data-th="dark" class="on">Sombre</button><button data-th="auto">Auto</button></div></div>
+        <div class="set"><div>Mode éco<small>Coupe le verre, les reflets et les animations. Économise la batterie.</small></div><button class="tog" id="tEco"></button></div>
+        <div class="set"><div>Réduire les animations</div><button class="tog"></button></div>
+        <div class="set"><div>Demander avant d’agir<small>Publier, supprimer et payer sont toujours confirmés.</small></div><div class="seg"><button>Toujours</button><button class="on">Si risqué</button><button>Jamais</button></div></div>
+        <div class="set"><div>Gros modèle<small>Pour « Demander au gros modèle ».</small></div><div class="seg"><button class="on">Ce PC</button><button>PC du salon</button><button>Cloud</button></div></div>
+        <div class="set"><div>Écran pour l’IA<small>L’IA agit sur un écran invisible, avec sa propre souris.</small></div><button class="tog on"></button></div>
+        <div class="set"><div>Mémoire<small>418 souvenirs · tu peux les lire et les effacer.</small></div><button class="btn">Voir</button></div>
+        <div class="set"><div>Mods<small>2 actifs · Flashcards, Thème papier</small></div><button class="btn">Gérer</button></div>
+        <div class="set"><div>Compte, voix, raccourcis, API locale, Fabro Anywhere<small>Les autres réglages, rangés.</small></div><button class="btn">Ouvrir</button></div>
+      </div>
+      <div data-tab="c" style="display:none">
+        <div class="search"><svg class="i"><use href="#i-search"/></svg><input placeholder="Chercher un connecteur"><span class="mono">312</span></div>
+        <div class="mcps" id="mcps"></div>
+        <div class="drop-mcpb">Dépose un fichier <span class="mono">.mcpb</span> ici, ou colle une adresse de serveur MCP</div>
+      </div>
+      <div data-tab="m" style="display:none">
+        <div class="set"><div>Gemma 4 E4B<small>Choisi après mesure · llama.cpp + MTP · 62 tok/s · premier mot 0,3 s</small></div><span class="mono" style="color:var(--ok)">actif</span></div>
+        <div class="set"><div>Qwen 3.5 35B A3B<small>Gros modèle · GPU + RAM · 19 tok/s</small></div><button class="btn">Utiliser</button></div>
+        <div class="set"><div>Mesurer à nouveau<small>Dernière mesure il y a 3 jours</small></div><button class="btn">Mesurer</button></div>
+      </div>
+      <div data-tab="a" style="display:none">
+        <div class="set"><div>Moteur<small>Arène : llama.cpp, MTP, n-gram</small></div><button class="btn">Ouvrir</button></div>
+        <div class="set"><div>Outils de l’IA<small>10 toujours chargés, 47 à la demande</small></div><button class="btn">Ouvrir</button></div>
+        <div class="set"><div>Bases de connaissances<small>3 bases · Roblox Studio, Montage vidéo, Comparatifs</small></div><button class="btn">Ouvrir</button></div>
+        <div class="set"><div>Développeur, journaux, Devlab</div><button class="btn">Ouvrir</button></div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- INSTALLATEUR -->
+  <section class="view" id="v-install"><div class="inst">
+    <div class="win" id="instWin">
+      <div class="lg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#FF5E42" fill-rule="evenodd" d="M54.58 3.11C53.49 2.93 53.24 3.00 52.36 3.09C51.48 3.17 50.19 3.40 49.28 3.62C48.38 3.85 47.64 4.10 46.92 4.42C46.21 4.75 45.65 5.07 44.99 5.58C44.33 6.08 43.61 6.73 42.97 7.44C42.33 8.14 41.64 9.01 41.15 9.80C40.65 10.58 40.33 11.26 39.99 12.16C39.65 13.05 39.30 14.27 39.08 15.16C38.86 16.06 38.76 16.68 38.67 17.52C38.58 18.37 38.54 19.17 38.55 20.24C38.57 21.31 38.63 22.73 38.75 23.96C38.88 25.19 39.04 26.32 39.33 27.61C39.62 28.90 39.65 29.44 40.47 31.69C41.30 33.93 43.50 39.02 44.26 41.06C45.03 43.10 44.92 43.09 45.04 43.92C45.16 44.75 45.07 45.57 44.98 46.06C44.89 46.56 44.70 46.66 44.50 46.89C44.31 47.13 44.21 47.31 43.82 47.47C43.42 47.63 42.73 47.89 42.13 47.87C41.53 47.85 40.85 47.67 40.20 47.36C39.55 47.05 38.86 46.56 38.21 45.99C37.56 45.42 36.91 44.68 36.31 43.92C35.72 43.16 35.14 42.29 34.64 41.42C34.13 40.55 34.17 40.88 33.27 38.70C32.36 36.52 30.16 30.60 29.22 28.32C28.29 26.05 28.21 25.99 27.65 25.03C27.08 24.08 26.55 23.29 25.84 22.57C25.13 21.86 24.11 21.16 23.39 20.75C22.67 20.35 22.20 20.25 21.53 20.15C20.86 20.06 20.10 20.07 19.38 20.18C18.67 20.28 17.96 20.48 17.24 20.79C16.51 21.10 15.72 21.54 15.02 22.05C14.31 22.55 13.62 23.18 13.02 23.83C12.41 24.48 11.83 25.24 11.39 25.96C10.94 26.69 10.59 27.43 10.33 28.18C10.07 28.93 9.91 29.73 9.82 30.47C9.73 31.21 9.74 31.95 9.78 32.62C9.81 33.28 9.87 33.78 10.02 34.48C10.18 35.17 10.44 36.06 10.71 36.77C10.98 37.47 11.04 37.79 11.62 38.70C12.20 39.60 13.10 41.05 14.18 42.19C15.26 43.33 16.70 44.52 18.09 45.54C19.49 46.55 21.24 47.59 22.53 48.28C23.82 48.97 24.56 49.24 25.82 49.68C27.08 50.11 28.03 50.46 30.11 50.90C32.20 51.34 36.46 51.92 38.34 52.30C40.22 52.67 40.59 52.82 41.42 53.17C42.24 53.52 42.91 54.07 43.31 54.39C43.71 54.71 43.68 54.84 43.80 55.09C43.92 55.34 44.06 55.49 44.00 55.87C43.95 56.24 43.83 56.86 43.48 57.34C43.13 57.81 42.60 58.30 41.91 58.70C41.22 59.10 40.21 59.48 39.34 59.73C38.47 59.98 37.65 60.13 36.69 60.19C35.74 60.25 34.85 60.22 33.62 60.10C32.39 59.98 31.71 59.96 29.33 59.47C26.94 58.97 21.55 57.63 19.31 57.15C17.07 56.67 17.00 56.66 15.88 56.59C14.76 56.52 13.55 56.53 12.59 56.72C11.62 56.91 10.79 57.31 10.08 57.74C9.37 58.17 8.82 58.71 8.33 59.32C7.84 59.92 7.45 60.59 7.15 61.37C6.86 62.16 6.66 63.09 6.57 64.02C6.48 64.95 6.53 66.01 6.63 66.95C6.74 67.90 6.92 68.83 7.19 69.67C7.46 70.52 7.78 71.21 8.26 72.03C8.74 72.86 9.47 73.89 10.08 74.61C10.69 75.33 11.13 75.82 11.94 76.38C12.75 76.93 13.77 77.55 14.95 77.93C16.13 78.31 17.70 78.56 19.02 78.64C20.35 78.72 21.61 78.61 22.89 78.41C24.16 78.21 25.25 77.96 26.68 77.42C28.11 76.89 29.85 76.16 31.47 75.23C33.09 74.30 35.14 72.80 36.41 71.84C37.68 70.87 37.56 70.96 39.10 69.44C40.64 67.91 44.15 64.12 45.64 62.67C47.12 61.22 47.38 61.16 48.00 60.73C48.62 60.31 48.94 60.24 49.36 60.13C49.77 60.02 50.13 60.01 50.50 60.09C50.87 60.17 51.24 60.34 51.57 60.62C51.89 60.89 52.22 61.27 52.43 61.73C52.65 62.19 52.81 62.81 52.85 63.38C52.89 63.95 52.83 64.51 52.65 65.17C52.48 65.82 52.20 66.53 51.81 67.31C51.42 68.10 51.18 68.71 50.33 69.89C49.47 71.07 48.72 72.18 46.67 74.39C44.62 76.61 39.71 81.36 38.01 83.19C36.30 85.03 36.84 84.70 36.45 85.41C36.06 86.13 35.81 86.89 35.65 87.49C35.48 88.08 35.45 88.44 35.44 88.99C35.44 89.54 35.52 90.25 35.64 90.78C35.77 91.30 35.94 91.69 36.19 92.14C36.45 92.58 36.77 93.04 37.16 93.46C37.54 93.88 37.99 94.30 38.49 94.67C38.98 95.04 39.50 95.38 40.13 95.69C40.76 96.00 41.61 96.34 42.27 96.54C42.94 96.75 43.29 96.85 44.13 96.93C44.98 97.00 46.46 97.02 47.35 96.99C48.25 96.95 48.78 96.89 49.50 96.73C50.21 96.57 50.87 96.37 51.65 96.03C52.42 95.69 53.45 95.13 54.15 94.69C54.85 94.24 55.28 93.90 55.84 93.35C56.40 92.81 56.98 92.16 57.53 91.42C58.07 90.68 58.64 89.79 59.11 88.92C59.58 88.05 60.03 87.04 60.36 86.20C60.68 85.35 60.86 84.77 61.07 83.84C61.28 82.91 61.52 81.93 61.64 80.62C61.75 79.31 61.89 77.71 61.78 75.97C61.68 74.23 61.67 72.99 61.00 70.17C60.34 67.36 58.28 61.25 57.78 59.09C57.27 56.92 57.85 57.61 57.97 57.16C58.08 56.70 58.25 56.62 58.46 56.38C58.67 56.15 58.83 55.93 59.24 55.74C59.65 55.56 60.28 55.29 60.95 55.29C61.61 55.29 62.55 55.46 63.23 55.73C63.92 56.00 64.49 56.38 65.07 56.89C65.65 57.41 66.19 58.04 66.72 58.80C67.26 59.56 67.81 60.48 68.27 61.45C68.74 62.41 68.69 62.02 69.52 64.59C70.35 67.17 72.35 74.41 73.25 76.90C74.15 79.39 74.28 78.80 74.93 79.53C75.57 80.26 76.45 80.89 77.11 81.28C77.77 81.67 78.27 81.76 78.90 81.85C79.53 81.94 80.18 81.95 80.90 81.81C81.63 81.68 82.55 81.36 83.26 81.03C83.98 80.69 84.56 80.32 85.20 79.81C85.83 79.30 86.51 78.64 87.06 77.97C87.62 77.31 88.13 76.55 88.54 75.82C88.95 75.10 89.25 74.42 89.51 73.61C89.77 72.80 90.01 72.08 90.09 70.96C90.18 69.84 90.11 67.92 90.02 66.88C89.92 65.85 89.74 65.42 89.53 64.74C89.32 64.06 89.39 63.85 88.78 62.81C88.17 61.76 86.87 59.68 85.86 58.44C84.84 57.21 83.88 56.33 82.69 55.39C81.51 54.46 79.91 53.47 78.76 52.80C77.60 52.14 76.99 51.83 75.75 51.41C74.51 50.99 73.29 50.54 71.32 50.28C69.35 50.03 65.63 50.02 63.95 49.89C62.27 49.76 61.98 49.71 61.23 49.50C60.49 49.28 59.86 48.86 59.48 48.60C59.11 48.35 59.11 48.21 58.99 47.96C58.87 47.72 58.78 47.43 58.77 47.14C58.76 46.85 58.81 46.53 58.92 46.21C59.03 45.89 59.03 45.71 59.45 45.21C59.87 44.70 60.81 43.67 61.45 43.17C62.09 42.66 62.48 42.46 63.31 42.18C64.13 41.90 65.51 41.62 66.38 41.47C67.25 41.32 67.75 41.29 68.53 41.28C69.30 41.27 68.19 41.03 71.03 41.42C73.87 41.81 82.66 43.30 85.55 43.61C88.45 43.92 87.56 43.54 88.42 43.29C89.27 43.03 90.10 42.53 90.70 42.10C91.30 41.66 91.65 41.23 92.01 40.70C92.37 40.17 92.63 39.63 92.86 38.91C93.10 38.20 93.33 37.22 93.41 36.41C93.48 35.60 93.48 34.99 93.33 34.05C93.17 33.11 92.83 31.76 92.49 30.76C92.15 29.75 91.74 28.85 91.28 28.04C90.83 27.23 90.37 26.58 89.76 25.90C89.15 25.21 88.51 24.54 87.63 23.94C86.75 23.33 85.58 22.65 84.48 22.25C83.38 21.86 82.25 21.63 81.05 21.57C79.84 21.51 78.57 21.61 77.26 21.90C75.94 22.19 74.66 22.60 73.18 23.32C71.70 24.04 69.83 25.16 68.39 26.20C66.94 27.25 65.68 28.42 64.52 29.61C63.36 30.80 62.81 31.44 61.42 33.33C60.03 35.23 57.31 39.44 56.18 40.98C55.05 42.52 55.11 42.18 54.64 42.58C54.17 42.97 53.77 43.19 53.36 43.34C52.96 43.49 52.59 43.55 52.22 43.48C51.84 43.41 51.43 43.20 51.10 42.91C50.77 42.63 50.47 42.27 50.23 41.77C50.00 41.27 49.79 40.65 49.68 39.91C49.57 39.17 49.55 38.09 49.58 37.34C49.62 36.59 49.72 36.09 49.91 35.41C50.10 34.73 50.04 34.56 50.72 33.26C51.40 31.96 52.02 30.45 53.99 27.61C55.95 24.77 60.90 18.51 62.52 16.23C64.15 13.96 63.42 14.70 63.72 13.95C64.02 13.19 64.21 12.35 64.30 11.73C64.39 11.11 64.35 10.74 64.27 10.23C64.19 9.71 64.03 9.15 63.82 8.65C63.61 8.15 63.33 7.67 63.00 7.22C62.68 6.77 62.27 6.34 61.86 5.97C61.44 5.59 61.01 5.28 60.52 4.98C60.02 4.69 59.86 4.50 58.87 4.19C57.88 3.87 55.66 3.30 54.58 3.11ZM48.08 44.42C48.39 44.29 48.51 44.17 49.21 44.32C49.92 44.47 51.27 45.17 52.29 45.31C53.31 45.45 54.72 45.13 55.35 45.16C55.99 45.20 55.90 45.36 56.10 45.52C56.30 45.69 56.37 45.64 56.56 46.16C56.75 46.68 56.86 47.77 57.21 48.64C57.57 49.51 58.44 50.73 58.72 51.36C59.00 51.99 58.93 52.10 58.89 52.42C58.85 52.75 58.86 52.78 58.50 53.29C58.14 53.81 57.21 54.75 56.71 55.51C56.20 56.27 55.84 57.32 55.49 57.85C55.14 58.37 54.89 58.49 54.60 58.65C54.30 58.81 54.32 58.89 53.72 58.79C53.12 58.70 51.98 58.22 51.00 58.09C50.02 57.96 48.52 58.08 47.86 58.00C47.19 57.91 47.25 57.78 47.02 57.58C46.79 57.38 46.69 57.35 46.45 56.79C46.22 56.23 46.00 55.07 45.62 54.22C45.24 53.38 44.44 52.29 44.17 51.72C43.91 51.14 43.99 51.11 44.04 50.79C44.09 50.47 44.10 50.36 44.47 49.81C44.85 49.26 45.80 48.28 46.28 47.50C46.76 46.71 47.05 45.62 47.35 45.10C47.65 44.59 47.76 44.55 48.08 44.42Z"/></svg></div>
+      <h2>Installer Fabro</h2>
+      <p>Fabro choisit un modèle adapté à ce PC pendant l’installation. Rien ne sort de ta machine.</p>
+      <div class="opts">
+        <label>Dossier<small class="mono">C:\Users\Lulu\AppData\Local\Fabro</small></label>
+        <label>Modèle conseillé<small>Gemma 4 E4B · 5,1 Go · RTX 3060 détectée</small></label>
+        <label>Commande <span class="mono">fabro</span> dans le terminal<button class="tog on"></button></label>
+      </div>
+      <div class="prog"><i id="ip"></i></div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><span id="il" style="font-size:13px;color:var(--t3)">Prêt</span><button class="btn pri" onclick="runInst()">Installer</button></div>
+    </div>
+  </div></section>
+
+  <!-- MISE À JOUR -->
+  <section class="view" id="v-update"><div class="inst" style="background:transparent">
+    <div class="upd" id="upd">
+      <svg class="l" viewBox="0 0 100 100"><path fill="#FF5E42" fill-rule="evenodd" d="M54.58 3.11C53.49 2.93 53.24 3.00 52.36 3.09C51.48 3.17 50.19 3.40 49.28 3.62C48.38 3.85 47.64 4.10 46.92 4.42C46.21 4.75 45.65 5.07 44.99 5.58C44.33 6.08 43.61 6.73 42.97 7.44C42.33 8.14 41.64 9.01 41.15 9.80C40.65 10.58 40.33 11.26 39.99 12.16C39.65 13.05 39.30 14.27 39.08 15.16C38.86 16.06 38.76 16.68 38.67 17.52C38.58 18.37 38.54 19.17 38.55 20.24C38.57 21.31 38.63 22.73 38.75 23.96C38.88 25.19 39.04 26.32 39.33 27.61C39.62 28.90 39.65 29.44 40.47 31.69C41.30 33.93 43.50 39.02 44.26 41.06C45.03 43.10 44.92 43.09 45.04 43.92C45.16 44.75 45.07 45.57 44.98 46.06C44.89 46.56 44.70 46.66 44.50 46.89C44.31 47.13 44.21 47.31 43.82 47.47C43.42 47.63 42.73 47.89 42.13 47.87C41.53 47.85 40.85 47.67 40.20 47.36C39.55 47.05 38.86 46.56 38.21 45.99C37.56 45.42 36.91 44.68 36.31 43.92C35.72 43.16 35.14 42.29 34.64 41.42C34.13 40.55 34.17 40.88 33.27 38.70C32.36 36.52 30.16 30.60 29.22 28.32C28.29 26.05 28.21 25.99 27.65 25.03C27.08 24.08 26.55 23.29 25.84 22.57C25.13 21.86 24.11 21.16 23.39 20.75C22.67 20.35 22.20 20.25 21.53 20.15C20.86 20.06 20.10 20.07 19.38 20.18C18.67 20.28 17.96 20.48 17.24 20.79C16.51 21.10 15.72 21.54 15.02 22.05C14.31 22.55 13.62 23.18 13.02 23.83C12.41 24.48 11.83 25.24 11.39 25.96C10.94 26.69 10.59 27.43 10.33 28.18C10.07 28.93 9.91 29.73 9.82 30.47C9.73 31.21 9.74 31.95 9.78 32.62C9.81 33.28 9.87 33.78 10.02 34.48C10.18 35.17 10.44 36.06 10.71 36.77C10.98 37.47 11.04 37.79 11.62 38.70C12.20 39.60 13.10 41.05 14.18 42.19C15.26 43.33 16.70 44.52 18.09 45.54C19.49 46.55 21.24 47.59 22.53 48.28C23.82 48.97 24.56 49.24 25.82 49.68C27.08 50.11 28.03 50.46 30.11 50.90C32.20 51.34 36.46 51.92 38.34 52.30C40.22 52.67 40.59 52.82 41.42 53.17C42.24 53.52 42.91 54.07 43.31 54.39C43.71 54.71 43.68 54.84 43.80 55.09C43.92 55.34 44.06 55.49 44.00 55.87C43.95 56.24 43.83 56.86 43.48 57.34C43.13 57.81 42.60 58.30 41.91 58.70C41.22 59.10 40.21 59.48 39.34 59.73C38.47 59.98 37.65 60.13 36.69 60.19C35.74 60.25 34.85 60.22 33.62 60.10C32.39 59.98 31.71 59.96 29.33 59.47C26.94 58.97 21.55 57.63 19.31 57.15C17.07 56.67 17.00 56.66 15.88 56.59C14.76 56.52 13.55 56.53 12.59 56.72C11.62 56.91 10.79 57.31 10.08 57.74C9.37 58.17 8.82 58.71 8.33 59.32C7.84 59.92 7.45 60.59 7.15 61.37C6.86 62.16 6.66 63.09 6.57 64.02C6.48 64.95 6.53 66.01 6.63 66.95C6.74 67.90 6.92 68.83 7.19 69.67C7.46 70.52 7.78 71.21 8.26 72.03C8.74 72.86 9.47 73.89 10.08 74.61C10.69 75.33 11.13 75.82 11.94 76.38C12.75 76.93 13.77 77.55 14.95 77.93C16.13 78.31 17.70 78.56 19.02 78.64C20.35 78.72 21.61 78.61 22.89 78.41C24.16 78.21 25.25 77.96 26.68 77.42C28.11 76.89 29.85 76.16 31.47 75.23C33.09 74.30 35.14 72.80 36.41 71.84C37.68 70.87 37.56 70.96 39.10 69.44C40.64 67.91 44.15 64.12 45.64 62.67C47.12 61.22 47.38 61.16 48.00 60.73C48.62 60.31 48.94 60.24 49.36 60.13C49.77 60.02 50.13 60.01 50.50 60.09C50.87 60.17 51.24 60.34 51.57 60.62C51.89 60.89 52.22 61.27 52.43 61.73C52.65 62.19 52.81 62.81 52.85 63.38C52.89 63.95 52.83 64.51 52.65 65.17C52.48 65.82 52.20 66.53 51.81 67.31C51.42 68.10 51.18 68.71 50.33 69.89C49.47 71.07 48.72 72.18 46.67 74.39C44.62 76.61 39.71 81.36 38.01 83.19C36.30 85.03 36.84 84.70 36.45 85.41C36.06 86.13 35.81 86.89 35.65 87.49C35.48 88.08 35.45 88.44 35.44 88.99C35.44 89.54 35.52 90.25 35.64 90.78C35.77 91.30 35.94 91.69 36.19 92.14C36.45 92.58 36.77 93.04 37.16 93.46C37.54 93.88 37.99 94.30 38.49 94.67C38.98 95.04 39.50 95.38 40.13 95.69C40.76 96.00 41.61 96.34 42.27 96.54C42.94 96.75 43.29 96.85 44.13 96.93C44.98 97.00 46.46 97.02 47.35 96.99C48.25 96.95 48.78 96.89 49.50 96.73C50.21 96.57 50.87 96.37 51.65 96.03C52.42 95.69 53.45 95.13 54.15 94.69C54.85 94.24 55.28 93.90 55.84 93.35C56.40 92.81 56.98 92.16 57.53 91.42C58.07 90.68 58.64 89.79 59.11 88.92C59.58 88.05 60.03 87.04 60.36 86.20C60.68 85.35 60.86 84.77 61.07 83.84C61.28 82.91 61.52 81.93 61.64 80.62C61.75 79.31 61.89 77.71 61.78 75.97C61.68 74.23 61.67 72.99 61.00 70.17C60.34 67.36 58.28 61.25 57.78 59.09C57.27 56.92 57.85 57.61 57.97 57.16C58.08 56.70 58.25 56.62 58.46 56.38C58.67 56.15 58.83 55.93 59.24 55.74C59.65 55.56 60.28 55.29 60.95 55.29C61.61 55.29 62.55 55.46 63.23 55.73C63.92 56.00 64.49 56.38 65.07 56.89C65.65 57.41 66.19 58.04 66.72 58.80C67.26 59.56 67.81 60.48 68.27 61.45C68.74 62.41 68.69 62.02 69.52 64.59C70.35 67.17 72.35 74.41 73.25 76.90C74.15 79.39 74.28 78.80 74.93 79.53C75.57 80.26 76.45 80.89 77.11 81.28C77.77 81.67 78.27 81.76 78.90 81.85C79.53 81.94 80.18 81.95 80.90 81.81C81.63 81.68 82.55 81.36 83.26 81.03C83.98 80.69 84.56 80.32 85.20 79.81C85.83 79.30 86.51 78.64 87.06 77.97C87.62 77.31 88.13 76.55 88.54 75.82C88.95 75.10 89.25 74.42 89.51 73.61C89.77 72.80 90.01 72.08 90.09 70.96C90.18 69.84 90.11 67.92 90.02 66.88C89.92 65.85 89.74 65.42 89.53 64.74C89.32 64.06 89.39 63.85 88.78 62.81C88.17 61.76 86.87 59.68 85.86 58.44C84.84 57.21 83.88 56.33 82.69 55.39C81.51 54.46 79.91 53.47 78.76 52.80C77.60 52.14 76.99 51.83 75.75 51.41C74.51 50.99 73.29 50.54 71.32 50.28C69.35 50.03 65.63 50.02 63.95 49.89C62.27 49.76 61.98 49.71 61.23 49.50C60.49 49.28 59.86 48.86 59.48 48.60C59.11 48.35 59.11 48.21 58.99 47.96C58.87 47.72 58.78 47.43 58.77 47.14C58.76 46.85 58.81 46.53 58.92 46.21C59.03 45.89 59.03 45.71 59.45 45.21C59.87 44.70 60.81 43.67 61.45 43.17C62.09 42.66 62.48 42.46 63.31 42.18C64.13 41.90 65.51 41.62 66.38 41.47C67.25 41.32 67.75 41.29 68.53 41.28C69.30 41.27 68.19 41.03 71.03 41.42C73.87 41.81 82.66 43.30 85.55 43.61C88.45 43.92 87.56 43.54 88.42 43.29C89.27 43.03 90.10 42.53 90.70 42.10C91.30 41.66 91.65 41.23 92.01 40.70C92.37 40.17 92.63 39.63 92.86 38.91C93.10 38.20 93.33 37.22 93.41 36.41C93.48 35.60 93.48 34.99 93.33 34.05C93.17 33.11 92.83 31.76 92.49 30.76C92.15 29.75 91.74 28.85 91.28 28.04C90.83 27.23 90.37 26.58 89.76 25.90C89.15 25.21 88.51 24.54 87.63 23.94C86.75 23.33 85.58 22.65 84.48 22.25C83.38 21.86 82.25 21.63 81.05 21.57C79.84 21.51 78.57 21.61 77.26 21.90C75.94 22.19 74.66 22.60 73.18 23.32C71.70 24.04 69.83 25.16 68.39 26.20C66.94 27.25 65.68 28.42 64.52 29.61C63.36 30.80 62.81 31.44 61.42 33.33C60.03 35.23 57.31 39.44 56.18 40.98C55.05 42.52 55.11 42.18 54.64 42.58C54.17 42.97 53.77 43.19 53.36 43.34C52.96 43.49 52.59 43.55 52.22 43.48C51.84 43.41 51.43 43.20 51.10 42.91C50.77 42.63 50.47 42.27 50.23 41.77C50.00 41.27 49.79 40.65 49.68 39.91C49.57 39.17 49.55 38.09 49.58 37.34C49.62 36.59 49.72 36.09 49.91 35.41C50.10 34.73 50.04 34.56 50.72 33.26C51.40 31.96 52.02 30.45 53.99 27.61C55.95 24.77 60.90 18.51 62.52 16.23C64.15 13.96 63.42 14.70 63.72 13.95C64.02 13.19 64.21 12.35 64.30 11.73C64.39 11.11 64.35 10.74 64.27 10.23C64.19 9.71 64.03 9.15 63.82 8.65C63.61 8.15 63.33 7.67 63.00 7.22C62.68 6.77 62.27 6.34 61.86 5.97C61.44 5.59 61.01 5.28 60.52 4.98C60.02 4.69 59.86 4.50 58.87 4.19C57.88 3.87 55.66 3.30 54.58 3.11ZM48.08 44.42C48.39 44.29 48.51 44.17 49.21 44.32C49.92 44.47 51.27 45.17 52.29 45.31C53.31 45.45 54.72 45.13 55.35 45.16C55.99 45.20 55.90 45.36 56.10 45.52C56.30 45.69 56.37 45.64 56.56 46.16C56.75 46.68 56.86 47.77 57.21 48.64C57.57 49.51 58.44 50.73 58.72 51.36C59.00 51.99 58.93 52.10 58.89 52.42C58.85 52.75 58.86 52.78 58.50 53.29C58.14 53.81 57.21 54.75 56.71 55.51C56.20 56.27 55.84 57.32 55.49 57.85C55.14 58.37 54.89 58.49 54.60 58.65C54.30 58.81 54.32 58.89 53.72 58.79C53.12 58.70 51.98 58.22 51.00 58.09C50.02 57.96 48.52 58.08 47.86 58.00C47.19 57.91 47.25 57.78 47.02 57.58C46.79 57.38 46.69 57.35 46.45 56.79C46.22 56.23 46.00 55.07 45.62 54.22C45.24 53.38 44.44 52.29 44.17 51.72C43.91 51.14 43.99 51.11 44.04 50.79C44.09 50.47 44.10 50.36 44.47 49.81C44.85 49.26 45.80 48.28 46.28 47.50C46.76 46.71 47.05 45.62 47.35 45.10C47.65 44.59 47.76 44.55 48.08 44.42Z"/></svg>
+      <div class="grow">
+        <div class="prog"><i id="up"></i></div>
+        <div class="lbl"><span>Mise à jour</span><span id="upct" class="mono">0 %</span></div>
+        <div class="fail"><span>Échec. Ta version actuelle n’a pas bougé.</span><button class="btn" onclick="runUpd()">Réessayer</button></div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- FABRO CODE -->
+  <section class="view code" id="v-code">
+    <div class="top"><span class="t">Fabro Code</span><span>· ~/projets/budget-app</span><span class="sp"></span></div>
+    <div class="wrap">
+      <div class="codecmd"><svg class="i"><use href="#i-term"/></svg><span>Même session dans ton terminal :</span><code>fabro code</code><span class="grow">ouvre ce dossier, mêmes autorisations</span><button class="btn" onclick="this.textContent='Copié'">Copier</button></div>
+      <div class="mascots" id="mascots"></div>
+      <div class="codeapp">
+        <div class="pane"><div style="display:flex;gap:10px;align-items:center"><canvas id="mini" width="32" height="28" style="width:48px;height:42px;image-rendering:pixelated"></canvas><div><b style="font-weight:500">Ajoute l’export CSV</b><div style="color:var(--t3);font-size:13px">écrit src/export.js · 2 fichiers</div></div></div>
+          <div class="diff"><span class="d">- const rows = data.map(r =&gt; r.join(";"))</span>
+<span class="a">+ const rows = data.map(r =&gt; r.map(csvCell).join(";"))</span>
+<span class="a">+ const blob = new Blob(["\ufeff" + rows.join("\n")])</span></div>
+        </div>
+        <div class="pane"><b style="font-weight:500">Atelier Linux</b><div style="color:var(--t3);font-size:13px;margin:4px 0 10px">budget-app · 2 Go RAM · 2 cœurs</div><div class="mono" style="color:var(--t2)">npm test<br><span style="color:var(--ok)">✓ 14 tests</span><br>aperçu sur :5173</div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="stoppill" id="stop"><span class="rec"></span>L’IA utilise l’écran 2<button onclick="stopAI()">Stop</button><span class="mono" style="color:#999;padding-right:6px">Ctrl Alt Échap</span></div>
+
+<div id="demo">
+  <span style="color:#888;padding:4px">Maquette</span>
+  <button data-d="home">Accueil</button><button data-d="chat" class="on">Chat</button><button data-d="settings">Réglages</button>
+  <button data-d="install">Installateur</button><button data-d="update">Mise à jour</button><button data-d="code">Fabro Code</button>
+  <span class="sep"></span>
+  <button id="dTheme">Clair / sombre</button><button id="dCU">Computer use</button><button id="dSlots">Emplacements mods</button><button id="dMod">Mod flashcards</button>
+  <button id="dFlat">Verre on/off</button><button id="dRed">Image rouge / bleue</button>
+  <span class="sep"></span>
+  <span style="color:#888;padding:4px">Saisie :</span><button data-c="">repos</button><button data-c="focus has">texte</button><button data-c="cmd">/ commandes</button><button data-c="busy">en cours</button><button data-c="voice">voix</button><button data-c="drop">glisser</button>
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-new" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V4M8 8l4-4 4 4M5 13v6h14v-6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5h10a3 3 0 013 3V20H8a3 3 0 01-3-3z"/><path d="M5 17a3 3 0 013-3h10"/></symbol>
+  <symbol id="i-cards" viewBox="0 0 24 24"><rect x="4" y="7" width="13" height="12" rx="2"/><path d="M8 4h10a2 2 0 012 2v10"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7.5 10l2.5 2-2.5 2M12.5 14.5h4"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20.5H7z"/><path d="M14 3.5v4h4"/></symbol>
+</svg>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const root=document.documentElement;
+
+/* ---------- Saisie (même composant partout) ---------- */
+const composerHTML=`<div class="composer glass">
+  <div class="slash glass">
+    <button><svg class="i"><use href="#i-list"/></svg>Tâche longue<span class="k">/tache</span></button>
+    <button><svg class="i"><use href="#i-search"/></svg>Recherche approfondie<span class="k">/cherche</span></button>
+    <button><svg class="i"><use href="#i-code"/></svg>Fabro Code<span class="k">/code</span></button>
+    <button><svg class="i"><use href="#i-file"/></svg>Joindre un fichier<span class="k">/fichier</span></button>
+  </div>
+  <div class="att"></div>
+  <div class="row">
+    <button class="ib" title="Joindre"><svg class="i"><use href="#i-plus"/></svg></button>
+    <textarea rows="1" placeholder="Demande n’importe quoi"></textarea>
+    <div class="voicewave">${'<i></i>'.repeat(28)}</div>
+    <button class="ib" title="Voix"><svg class="i"><use href="#i-mic"/></svg></button>
+    <button class="ib send" disabled title="Envoyer"><svg class="i"><use href="#i-up"/></svg></button>
+  </div>
+  <div class="hint"><span>Entrée pour envoyer · Maj Entrée pour une ligne</span><span style="margin-left:auto" class="dest">Gemma 4 E4B</span></div>
+</div>`;
+$$('[data-composer]').forEach(h=>{h.outerHTML=composerHTML});
+$$('.voicewave i').forEach((i,n)=>i.style.animationDelay=(n*47%900)+'ms');
+$$('.composer').forEach(c=>{
+  const ta=c.querySelector('textarea'), send=c.querySelector('.send');
+  ta.addEventListener('focus',()=>c.classList.add('focus'));
+  ta.addEventListener('blur',()=>c.classList.remove('focus'));
+  ta.addEventListener('input',()=>{ta.style.height='36px';ta.style.height=Math.min(ta.scrollHeight,200)+'px';
+    c.classList.toggle('has',!!ta.value);send.disabled=!ta.value;c.classList.toggle('cmd',ta.value.startsWith('/'))});
+});
+const chatComposer=$('#v-chat .composer');
+function setComposer(cls){
+  chatComposer.className='composer glass '+cls;
+  const ta=chatComposer.querySelector('textarea'),send=chatComposer.querySelector('.send'),att=chatComposer.querySelector('.att');
+  att.innerHTML='';send.disabled=true;send.innerHTML='<svg class="i"><use href="#i-up"/></svg>';ta.value='';
+  if(cls.includes('has')){ta.value='Ajoute aussi le Tern GSD, même s’il dépasse un peu le budget';send.disabled=false;
+    att.innerHTML='<span><svg class="i" style="width:16px;height:16px"><use href="#i-file"/></svg>devis-velo.pdf</span>'}
+  if(cls.includes('cmd'))ta.value='/';
+  if(cls.includes('busy')){send.disabled=false;send.innerHTML='<svg class="i"><use href="#i-stop"/></svg>';ta.placeholder='Ajoute une consigne, Fabro la prendra en route'} else ta.placeholder='Demande n’importe quoi';
+}
+setComposer('busy');
+
+/* ---------- Navigation ---------- */
+function go(v){
+  if(v==='search')v='home';
+  $$('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+v));
+  $('#side').style.display=(v==='install'||v==='update')?'none':'';
+  $$('#demo [data-d]').forEach(b=>b.classList.toggle('on',b.dataset.d===v));
+  if(v==='install')resetInst(); if(v==='update')runUpd();
+  requestAnimationFrame(tint);
+}
+document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g)go(g.dataset.go);const d=e.target.closest('[data-d]');if(d)go(d.dataset.d)});
+$$('#demo [data-c]').forEach(b=>b.onclick=()=>{go('chat');setComposer(b.dataset.c)});
+$('#dTheme').onclick=()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';drawAll()};
+$('#dSlots').onclick=e=>{document.body.classList.toggle('showslots');e.target.classList.toggle('on')};
+$('#dMod').onclick=e=>{const s=$('#modslot');s.style.display=s.style.display?'':'none';e.target.classList.toggle('on')};
+$('#dFlat').onclick=e=>{document.body.classList.toggle('flat');e.target.classList.toggle('on')};
+$('#dCU').onclick=e=>{go('chat');const on=!$('#stop').classList.contains('on');$('#stop').classList.toggle('on',on);$('#thumb').style.display=on?'':'none';e.target.classList.toggle('on',on)};
+function stopAI(){$('#stop').classList.remove('on');$('#thumb').style.display='none';$('#dCU').classList.remove('on')}
+function okK(b){const c=b.closest('.card');c.innerHTML='<svg class="i"><use href="#i-book"/></svg><div class="grow">Base « Comparatifs d’achat » en cours<small>Je lis 4 guides et je garde les sources. Tu pourras la corriger.</small></div>'}
+/* pastille stop : plus opaque près de la souris */
+addEventListener('mousemove',e=>{const p=$('#stop');if(!p.classList.contains('on'))return;const r=p.getBoundingClientRect();
+  const d=Math.hypot(e.clientX-(r.left+r.width/2),e.clientY-(r.top+r.height/2));p.style.opacity=d>150?.35:1-.65*(d/150)});
+$('#segTheme').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('#segTheme button').forEach(x=>x.classList.toggle('on',x===b));
+  root.dataset.theme=b.dataset.th==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):b.dataset.th;drawAll()};
+$('#tEco').onclick=e=>{e.target.classList.toggle('on');document.body.classList.toggle('eco')};
+$$('.tog').forEach(t=>{if(t.id!=='tEco')t.addEventListener('click',()=>t.classList.toggle('on'))});
+$('#stabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;$$('#stabs button').forEach(x=>x.classList.toggle('on',x===b));$$('[data-tab]').forEach(t=>t.style.display=t.dataset.tab===b.dataset.t?'':'none')};
+
+/* ---------- MCP en un clic ---------- */
+const MCP=[['GH','GitHub','Issues, PR, code'],['GD','Google Drive','Docs et fichiers'],['NO','Notion','Pages et bases'],['FS','Fichiers','Un dossier de ton PC'],
+['BL','Blender','Scènes 3D'],['FI','Figma','Lire les maquettes'],['SP','Spotify','Lecture et listes'],['HA','Home Assistant','Maison connectée'],['PG','PostgreSQL','Requêtes en lecture']];
+$('#mcps').innerHTML=MCP.map(([i,n,d],k)=>`<div class="mcp"><span class="ic">${i}</span><div class="grow">${n}<small>${d}</small></div><button class="add ${k===3?'ok':''}">${k===3?'Ajouté':'Ajouter'}</button></div>`).join('');
+$('#mcps').onclick=e=>{const b=e.target.closest('.add');if(!b||b.classList.contains('ok'))return;b.className='add ing';b.textContent='…';
+  setTimeout(()=>{b.className='add ok';b.textContent='Ajouté'},1100)};
+
+/* ---------- Installateur / mise à jour ---------- */
+let it;
+function resetInst(){clearInterval(it);$('#ip').style.width='0';$('#il').textContent='Prêt'}
+function runInst(){let p=0;const L=['Copie de Fabro','Téléchargement du modèle · 5,1 Go','Mesure de ce PC','Prêt'];clearInterval(it);
+  it=setInterval(()=>{p=Math.min(100,p+1.2);$('#ip').style.width=p+'%';$('#il').textContent=L[Math.min(3,Math.floor(p/34))]+(p<100?' · '+Math.round(p)+' %':'');if(p>=100)clearInterval(it)},50)}
+let ut,fails=0;
+function runUpd(){const u=$('#upd');u.classList.remove('err');let p=0;clearInterval(ut);
+  ut=setInterval(()=>{p+=1.4;$('#up').style.width=Math.min(p,100)+'%';$('#upct').textContent=Math.round(Math.min(p,100))+' %';
+    if(fails===0&&p>62){clearInterval(ut);fails++;u.classList.add('err')}
+    if(p>=100){clearInterval(ut);$('#upct').textContent='Relance…'}},45)}
+
+/* ---------- Image « photo » générée (pas de fichier externe) ---------- */
+let red=true;
+function drawPhoto(){
+  const c=$('#photo'),x=c.getContext('2d'),W=c.width,H=c.height;
+  const sky=red?['#5a1810','#c7432a','#f08a4b']:['#0d2140','#2b6cb0','#8fc3e8'];
+  const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,sky[0]);g.addColorStop(.6,sky[1]);g.addColorStop(1,sky[2]);x.fillStyle=g;x.fillRect(0,0,W,H);
+  x.fillStyle=red?'#2a0d08':'#0a1a2e';x.beginPath();x.moveTo(0,H*.72);for(let i=0;i<=W;i+=40)x.lineTo(i,H*.72-Math.sin(i/90)*18);x.lineTo(W,H);x.lineTo(0,H);x.fill();
+  // vélo cargo stylisé
+  x.strokeStyle='#111';x.lineWidth=10;x.lineCap='round';
+  [[300,400],[680,400]].forEach(([a,b])=>{x.beginPath();x.arc(a,b,70,0,7);x.stroke()});
+  x.beginPath();x.moveTo(300,400);x.lineTo(430,300);x.lineTo(620,300);x.lineTo(680,400);x.moveTo(430,300);x.lineTo(470,400);x.lineTo(300,400);x.moveTo(620,300);x.lineTo(640,250);x.lineTo(700,240);x.stroke();
+  x.fillStyle='#222';x.fillRect(470,270,150,22);x.fillRect(420,280,20,-40);
+  c.dataset.c=red?'255,90,60':'70,150,255';
+}
+$('#dRed').onclick=()=>{red=!red;drawPhoto();tint()};
+
+/* ---------- Reflets : teinte des bords selon le contenu proche ----------
+   Dans l'app : couleur moyenne de chaque image calculée une fois (canvas 8x8), puis
+   simple calcul de distance au scroll. Pas de capture d'écran, coût GPU nul. */
+function tint(){
+  const els=$$('.glass'); const imgs=$$('[data-tint]').filter(i=>i.offsetParent);
+  els.forEach(g=>{const r=g.getBoundingClientRect();let tl='transparent',tr='transparent',tb='transparent';
+    imgs.forEach(im=>{const q=im.getBoundingClientRect(),col=im.dataset.c;
+      const vy=Math.max(0,Math.max(q.top-r.bottom,r.top-q.bottom));        // distance verticale
+      const hx=Math.max(0,q.left-r.right), near=Math.max(0,1-(Math.max(vy,hx))/220);
+      if(near<=0)return;
+      if(q.left>r.right-4)tr=`rgba(${col},${.55*near})`; else if(q.right<r.left+4)tl=`rgba(${col},${.55*near})`;
+      else {tb=`rgba(${col},${.6*near})`; if(q.top<r.top)tb=tb;}
+      if(g.classList.contains('side')) tr=`rgba(${col},${.5*near})`;
+    });
+    g.style.setProperty('--tl',tl);g.style.setProperty('--tr',tr);g.style.setProperty('--tb',tb);});
+}
+$('#chatScroll').addEventListener('scroll',()=>requestAnimationFrame(tint),{passive:true});
+addEventListener('resize',tint);
+
+/* ---------- Écran de l'IA (miniature) ---------- */
+function drawScreen(){const c=$('#aiScreen'),x=c.getContext('2d');x.fillStyle='#e9e7e3';x.fillRect(0,0,600,375);x.fillStyle='#fff';x.fillRect(60,40,480,300);
+  x.fillStyle='#333';x.font='18px sans-serif';x.fillText('Demande de devis',90,80);
+  ['Nom','Adresse','Modèle souhaité'].forEach((t,i)=>{x.fillStyle='#888';x.font='12px sans-serif';x.fillText(t,90,120+i*60);x.strokeStyle='#bbb';x.strokeRect(90,128+i*60,420,28)});
+  x.fillStyle='#333';x.font='14px sans-serif';x.fillText('Lulu A.',98,147);x.fillText('R500E Longtail|',98,267);x.fillStyle='#FF5E42';x.fillRect(90,300,120,28)}
+setInterval(()=>{const c=$('#aicur');c.style.left=(25+Math.random()*55)+'%';c.style.top=(25+Math.random()*50)+'%'},1400);
+
+/* ---------- Mascottes : golden retriever pixel ----------
+   Palette : . vide, o contour, g doré, l clair, d foncé, w blanc, k noir (œil/nez), p langue */
+const PAL={o:'#5b3414',g:'#e0a24a',l:'#f3cd85',d:'#b8762c',w:'#fff6e4',k:'#1b120c',p:'#e86a6a',c:'#FF5E42'};
+const DOGS={
+ a:{name:'A · Assis, de profil',desc:'Silhouette lisible en 16 px. Queue et oreille bougent.',f:[
+`................
+.......oo.......
+......oddo......
+.....oggggoo....
+....oggggggko...
+....ogglgggggok.
+....ogglgggggoo.
+.....oggggppo...
+......oggggo....
+.....ogggggo..o.
+....oggllgggoodo
+....oggllggggggo
+....ogggggggggo.
+....oggo..oggo..
+....oko...oko...
+................`,
+`................
+.......oo.......
+......oddo......
+.....oggggoo....
+....oggggggko...
+....ogglgggggok.
+....ogglgggggoo.
+.....oggggppo...
+......oggggo....
+.....ogggggo....
+....oggllgggo.o.
+....oggllgggoodo
+....ogggggggggo.
+....oggo..oggo..
+....oko...oko...
+................`]},
+ b:{name:'B · Tête de face',desc:'Expressif : yeux et oreilles portent les états.',f:[
+`................
+...oo......oo...
+..oddo....oddo..
+..oddgooooggdo..
+..odggggggggdo..
+...oggggggggo...
+...ogkggggkgo...
+...ogggllgggo...
+...oglllllllo...
+....olllkllo....
+....oll.ppllo...
+.....ollppo.....
+......oooo......
+................
+................
+................`,
+`................
+................
+..oo........oo..
+.oddooooooooddo.
+.oddggggggggddo.
+...oggggggggo...
+...ogoggggogo...
+...ogggllgggo...
+...oglllllllo...
+....olllkllo....
+....olllllllo...
+.....ollllo.....
+......oooo......
+................
+................
+................`]},
+ c:{name:'C · Couché, en long',desc:'Prend peu de hauteur : idéal en barre de terminal.',f:[
+`................
+................
+................
+................
+................
+................
+..oo............
+.oddoo..........
+oggggko.........
+ogglgggo......o.
+.oggggppoooooodo
+..ogggggggggggo.
+.ogglllggggggo..
+.ogoogoooogoo...
+................
+................`,
+`................
+................
+................
+................
+................
+................
+..oo............
+.oddoo..........
+oggggko.........
+ogglgggo........
+.oggggppoooooo.o
+..ogggggggggggdo
+.ogglllggggggo..
+.ogoogoooogoo...
+................
+................`]}
+};
+const STATES=['repos','réflexion','écrit du code','cherche','réussite','erreur','attend ta réponse','sommeil'];
+function drawDog(ctx,frame,s,st,t){
+  ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+  const rows=frame.trim().split('\n');let bob=(st==='réussite')?Math.round(Math.abs(Math.sin(t/120))*-2):(st==='sommeil'?0:(t%1200<600?0:1));
+  rows.forEach((r,y)=>[...r].forEach((ch,x)=>{if(ch==='.')return;let col=PAL[ch];
+    if(st==='sommeil'&&ch==='k'&&y<9)col=PAL.o;
+    ctx.fillStyle=col;ctx.fillRect(x*s,(y+bob+2)*s,s,s)}));
+  ctx.fillStyle=getComputedStyle(root).getPropertyValue('--t2');ctx.font=(s*3)+'px "JetBrains Mono",monospace';
+  const tx=12*s,ty=3*s;
+  if(st==='réflexion'){const n=Math.floor(t/300)%4;ctx.fillText('.'.repeat(n),tx,ty)}
+  if(st==='écrit du code'){ctx.fillStyle=PAL.c;ctx.fillText(Math.floor(t/250)%2?'{ }':'{_}',tx-2*s,ty)}
+  if(st==='cherche'){ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=s/1.5;const ox=tx+Math.sin(t/300)*s*2;ctx.beginPath();ctx.arc(ox,ty-s,s*1.4,0,7);ctx.stroke();ctx.fillRect(ox+s,ty,s,s)}
+  if(st==='réussite'){ctx.fillStyle='#7fc28a';ctx.fillText('✓',tx,ty)}
+  if(st==='erreur'){ctx.fillStyle='#ff7a6b';ctx.fillText('!',tx,ty)}
+  if(st==='attend ta réponse'){ctx.fillText(Math.floor(t/500)%2?'?':' ?',tx,ty)}
+  if(st==='sommeil'){const n=Math.floor(t/600)%3;ctx.fillText('z'+(n>0?'z':'')+(n>1?'Z':''),tx,ty)}
+}
+/* Terminal : demi-blocs ▀ en couleurs ANSI (ici simulées en HTML) */
+function termDog(frame,st){const rows=frame.trim().split('\n');let out='';
+  for(let y=0;y<rows.length;y+=2){let line='  ';for(let x=0;x<16;x++){const a=rows[y][x],b=(rows[y+1]||'')[x]||'.';
+    const ca=a==='.'?null:PAL[a],cb=b==='.'?null:PAL[b];
+    if(!ca&&!cb)line+=' ';else if(ca&&cb)line+=`<span style="color:${ca};background:${cb}">▀</span>`;else if(ca)line+=`<span style="color:${ca}">▀</span>`;else line+=`<span style="color:${cb}">▄</span>`}
+    out+=line+'\n'}
+  return out+`\n  <span style="color:#e0a24a">fabro code</span> <span style="color:#777">~/projets/budget-app</span>\n  <span style="color:#999">${st}</span>`}
+const dogState={a:'repos',b:'réflexion',c:'écrit du code'};
+$('#mascots').innerHTML=Object.entries(DOGS).filter(([k])=>k==="a").map(([k,d])=>`<div class="masc"><h4>${d.name}</h4><p>${d.desc}</p>
+  <div class="stage"><canvas id="dog-${k}" width="${16*7}" height="${19*7}"></canvas></div>
+  <div class="states" data-k="${k}">${STATES.map(s=>`<button class="${s===dogState[k]?'on':''}">${s}</button>`).join('')}</div>
+  <div class="term" id="term-${k}"></div></div>`).join('');
+$$('.states').forEach(el=>el.onclick=e=>{const b=e.target.closest('button');if(!b)return;dogState[el.dataset.k]=b.textContent;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function loop(t){
+  if(document.body.classList.contains('eco')||reduce)t=0;
+  for(const k in DOGS){const st=dogState[k],fr=DOGS[k].f[st==='sommeil'?0:Math.floor(t/(st==='réussite'?150:400))%2];
+    const cv=$('#dog-'+k);if(cv&&cv.offsetParent){drawDog(cv.getContext('2d'),fr,7,st,t);
+      if(Math.floor(t/400)!==loop['l'+k]){loop['l'+k]=Math.floor(t/400);$('#term-'+k).innerHTML=termDog(fr,st)}}}
+  const m=$('#mini');if(m.offsetParent)drawDog(m.getContext('2d'),DOGS.a.f[Math.floor(t/400)%2],2,'écrit du code',t);
+  const tb=$('#tbar');
+  requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+
+function drawAll(){drawPhoto();drawScreen();tint()}
+drawAll();go('chat');
+</script>
+</body>
+</html>

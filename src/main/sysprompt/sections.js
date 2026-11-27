@@ -141,6 +141,14 @@ const SECTIONS = [
   { id: 'files', prio: (s) => (s.conv.attach.files ? 1 : 4), when: (s) => (s.mode === 'agent' && (s.conv.attach.files || has(s, /^convert_file$/)) ? (s.conv.attach.files ? `${s.conv.attach.files} attached files` : 'file conversion tools') : ''),
     full: () => P.FILES, short: () => P.FILES_SHORT, smallShort: (s) => !s.conv.attach.files },
   { id: 'guides', prio: 2, when: (s) => (s.toolNames.includes('read_guide') ? 'guides library' : ''), full: (s, c) => guidesBlock(s, c, false), short: (s, c) => guidesBlock(s, c, true), smallShort: true },
+  // Fabro Knowledge: short on purpose (small models). The bases list stays one compact line.
+  { id: 'knowledge', prio: 2, when: (s) => (s.toolNames.includes('knowledge_search') ? 'knowledge bases' : ''),
+    full: () => { let l = ''; try { l = require('../agent/knowledge').promptLine(); } catch {} return `## Knowledge bases\nBefore a specialised task: knowledge_search, then knowledge_tree, then knowledge_read only the entries you need.${l ? `\nBases: ${l}` : ''}\nSecond time doing a kind of task with no base (or a habit in memory): ask with knowledge_ask. Never create one without a yes.`; },
+    short: () => '## Knowledge bases\nSpecialised task: knowledge_search → knowledge_tree → knowledge_read (only what you need). Second time, no base: knowledge_ask.', smallShort: true },
+  // Finished means checked.
+  { id: 'finish', prio: 2, when: (s) => (s.mode === 'agent' ? 'checked finish' : ''),
+    full: () => '## Before saying it is done\nCheck the result for real: run_test_sequence for code, open the file you wrote, re-read the page you changed. Say in one line what you checked. If a step of your plan is not done, say so.',
+    short: () => '## Done = checked\nVerify before saying done (run_test_sequence, reopen the file). Say what you checked.', smallShort: true },
   { id: 'skills', prio: 3, when: (s) => (s.mode === 'agent' && s.skillsText ? 'skills installed' : ''), full: (s) => s.skillsText, short: (s) => clip(s.skillsText, 600) },
   { id: 'env', prio: 1, when: (s) => (s.mode === 'agent' ? 'agent environment' : ''), full: (s) => P.envSection(s, false), short: (s) => P.envSection(s, true), smallShort: true },
   { id: 'code', prio: 0, when: (s) => (s.codeText ? 'code session' : ''), full: (s) => s.codeText, short: (s) => clip(s.codeText, 2400) },

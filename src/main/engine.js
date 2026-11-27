@@ -315,7 +315,7 @@ async function planLaunch(meta, model, o, key, specs) {
   return t;
 }
 // The final argv for a plan (pl may have been changed by the out-of-memory fallbacks).
-function argsFor(model, o, pl, port, tuned, safe) {
+function argsFor(model, o, pl, port, tuned, safe, meta) {
   let pairs = tuned.pairs.map((p) => p.slice());
   const setv = (f, v) => { const p = pairs.find((x) => x[0] === f); if (p) p[1] = v; };
   setv('-c', pl.ctx); setv('-ngl', pl.ngl);
@@ -323,6 +323,8 @@ function argsFor(model, o, pl, port, tuned, safe) {
   if (o.poll !== undefined && o.poll !== null) { pairs = pairs.filter((p) => p[0] !== '--poll'); pairs.push(['--poll', o.poll]); } // benchmark candidates
   if (o.threads > 0 && o._bench) { pairs = pairs.filter((p) => p[0] !== '-t'); pairs.push(['-t', o.threads]); }
   if (safe) pairs = pairs.filter((p) => !['-ctk', '-ctv', '-cram', '-tb', '--poll', '-b', '-ub'].includes(p[0])).map((p) => (p[0] === '-fa' ? ['-fa', 'auto'] : p));
+  // speculative decoding chosen by the arena (arena.js) for this model and build; never in safe mode
+  if (!safe) { try { pairs.push(...require('./arena').pairsFor(model, o, meta && meta.tag).map((p) => p.slice())); } catch (e) { console.error('arena', e); } }
   const { args, dropped } = autotune.materialize(pairs, port, tuned.caps);
   if (model.mmproj && !fs.existsSync(model.mmproj)) { const i = args.indexOf('--mmproj'); if (i >= 0) args.splice(i, 2); }
   return { args, dropped };
@@ -331,7 +333,7 @@ function argsFor(model, o, pl, port, tuned, safe) {
 // ───────────────────────────── instances ─────────────────────────────
 // key → { key, model, opts, plan, port, proc, status, lastUsed, busy, startedAt }
 const instances = new Map();
-const keyFor = (model, o) => JSON.stringify([model.path, o.ctx, o.gpuLayers, o.threads, o.flashAttn, o.kvType, o.cpuMoe, o.variant, o.role || 'chat', o._bench ? 'bench' : '']);
+const keyFor = (model, o) => JSON.stringify([model.path, o.ctx, o.gpuLayers, o.threads, o.flashAttn, o.kvType, o.cpuMoe, o.variant, o.role || 'chat', o._bench ? 'bench' : '', o.spec || '']);
 
 function loadedList() {
   return [...instances.values()].filter((i) => !i.opts._bench).map((i) => ({
@@ -351,7 +353,7 @@ function publish(extra = {}) {
 
 async function launch(meta, model, o, key, pl, tuned, safe = false) {
   const port = await freePort();
-  const { args, dropped } = argsFor(model, o, pl, port, tuned, safe);
+  const { args, dropped } = argsFor(model, o, pl, port, tuned, safe, meta);
   const binDir = path.dirname(meta.bin);
   const env = binEnv(meta.bin, meta.dir);
   if (!fs.existsSync(model.path)) throw new EngineError('MODEL_FILE', 'The model file is missing (moved or deleted?)', model.path);
@@ -653,6 +655,7 @@ async function yieldBench() {
   for (let i = 0; i < 100 && autotune.status().running; i++) await sleep(100);
 }
 const benchApi = {
+  async meta() { return readMeta(); },
   // the most recently used local chat model that has no measured profile yet
   async benchTarget() {
     const meta = await readMeta(); if (!meta) return null;
@@ -670,7 +673,7 @@ const benchApi = {
   // launches a throwaway server of `model` with candidate settings (stops the idle copy of the same model first)
   async benchLaunch(model, cand, signal) {
     for (const i of [...instances.values()]) if (i.model.path === model.path && !i.busy) { benchApi._was = benchApi._was || i.model; await stopInstance(i); }
-    const inst = await ensure(model, { threads: cand.threads, poll: cand.poll, ctx: cand.ctx, _bench: true, _noBench: true, _signal: signal, preload: 'demand' });
+    const inst = await ensure(model, { threads: cand.threads, poll: cand.poll, ctx: cand.ctx, spec: cand.spec, _specPairs: cand._specPairs, _bench: true, _noBench: true, _signal: signal, preload: 'demand' });
     return { port: inst.port, stop: () => stopInstance(inst) };
   },
   async afterBench(model) {
@@ -709,4 +712,4 @@ function tuning(id) {
   return i ? { summary: i.tuned && i.tuned.summary, why: i.tuned && i.tuned.why, args: i.args, dropped: i.dropped, plan: i.plan } : null;
 }
 module.exports = { init, ensure, acquire, release, stop, install, checkUpdate, rollback, getStatus, diagnostics, logs, preloadAll, setEnergy, optionsFor, find, EngineError,
-  resizeContext, resetContext, maxContext, tuning, readMeta, instancesList: () => [...instances.values()] };
+  resizeContext, resetContext, maxContext, tuning, readMeta, benchApi, instancesList: () => [...instances.values()] };

@@ -486,6 +486,18 @@ const CATALOG = [
   { id: 'sequential-thinking', icon: 'tasks', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sequential-thinking'], needs: [] },
   { id: 'playwright', icon: 'monitor', command: 'npx', args: ['-y', '@playwright/mcp@latest'], needs: [] },
   { id: 'github', icon: 'git', url: 'https://api.githubcopilot.com/mcp/', headers: { Authorization: '' }, needs: [{ where: 'header', name: 'Authorization', prefix: 'Bearer ', label: 'GitHub personal access token', secret: true, required: true, kind: 'password' }], link: 'https://github.com/settings/personal-access-tokens' },
+  // remote servers: sign-in happens in the browser (OAuth) the first time they are used
+  { id: 'notion', icon: 'tasks', url: 'https://mcp.notion.com/mcp', needs: [], link: 'https://developers.notion.com/docs/mcp' },
+  { id: 'linear', icon: 'tasks', url: 'https://mcp.linear.app/mcp', needs: [], link: 'https://linear.app/docs/mcp' },
+  { id: 'sentry', icon: 'monitor', url: 'https://mcp.sentry.dev/mcp', needs: [], link: 'https://docs.sentry.io/product/sentry-mcp/' },
+  { id: 'context7', icon: 'search', url: 'https://mcp.context7.com/mcp', needs: [], link: 'https://context7.com' },
+  { id: 'cloudflare-docs', icon: 'globe', url: 'https://docs.mcp.cloudflare.com/mcp', needs: [] },
+  { id: 'hugging-face', icon: 'brain', url: 'https://huggingface.co/mcp', headers: { Authorization: '' }, needs: [{ where: 'header', name: 'Authorization', prefix: 'Bearer ', label: 'Hugging Face token (optional)', secret: true, required: false, kind: 'password' }], link: 'https://huggingface.co/settings/tokens' },
+  // local servers (Fabro installs Node or uv for them when missing)
+  { id: 'sqlite', icon: 'folder', command: 'uvx', args: ['mcp-server-sqlite', '--db-path'], needs: [{ where: 'argAppend', name: 'file', label: 'SQLite database file', kind: 'file', secret: false, required: true }] },
+  { id: 'postgres', icon: 'folder', command: 'npx', args: ['-y', '@modelcontextprotocol/server-postgres'], needs: [{ where: 'argAppend', name: 'url', label: 'Connection string (postgresql://…), read-only user advised', secret: true, required: true, kind: 'password' }] },
+  { id: 'blender', icon: 'monitor', command: 'uvx', args: ['blender-mcp'], needs: [], link: 'https://github.com/ahujasid/blender-mcp' },
+  { id: 'obsidian', icon: 'brain', command: 'uvx', args: ['mcp-obsidian'], env: { OBSIDIAN_API_KEY: '' }, needs: [{ where: 'env', name: 'OBSIDIAN_API_KEY', label: 'Obsidian Local REST API key', secret: true, required: true, kind: 'password' }], link: 'https://github.com/MarkusPfundstein/mcp-obsidian' },
   { id: 'brave-search', icon: 'search', command: 'npx', args: ['-y', '@brave/brave-search-mcp-server', '--transport', 'stdio'], env: { BRAVE_API_KEY: '' }, needs: [{ where: 'env', name: 'BRAVE_API_KEY', label: 'Brave Search API key', secret: true, required: true, kind: 'password' }], link: 'https://brave.com/search/api/' },
 ];
 function catalog() {

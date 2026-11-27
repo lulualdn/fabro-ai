@@ -23,11 +23,17 @@
     { id: 'llm7/nemotron-3-nano:30b', name: 'Nemotron 3 Nano', tools: true },
     { id: 'ovh/Meta-Llama-3_3-70B-Instruct', name: 'Llama 3.3 70B', tools: true },
     { id: 'ovh/Qwen3.6-27B', name: 'Qwen3.6 27B', tools: true },
+    { id: 'ovh/DeepSeek-V4.1-Flash-1017', name: 'DeepSeek V4.1 Flash', tools: true },
+    { id: 'ovh/qwen3.6-35b-a3b', name: 'Qwen3.6 35B A3B', tools: true },
+    { id: 'ovh/Qwen3.8-27B', name: 'Qwen3.8 27B', tools: true },
+    { id: 'ovh/gemma-4-26b-a4b', name: 'Gemma 4 26B', tools: true, vision: true },
+    { id: 'ovh/nemotron3-nano-30b', name: 'Nemotron 3 Nano (OVH)', tools: true },
+    { id: 'ovh/qwen3-vl-30b-a3b', name: 'Qwen3 VL 30B', tools: true, vision: true },
     { id: 'ovh/Mistral-Small-3.2-24B-Instruct-2506', name: 'Mistral Small 3.2', tools: true, vision: true },
     { id: 'ovh/Qwen2.5-VL-72B-Instruct', name: 'Qwen2.5 VL 72B', tools: false, vision: true },
     { id: 'llm7/codestral-latest', name: 'Codestral', tools: true },
     { id: 'ovh/gpt-oss-20b', name: 'gpt-oss 20B (OVH)', tools: true },
-    { id: 'poll/openai-fast', name: 'Pollinations', tools: true },
+    { id: 'poll/openai-fast', name: 'Pollinations', tools: true, maxChars: 15000 }, // free API: 16 000 characters per request, tools included
   ];
   const AUTO = { id: 'auto', name: 'Auto', tools: true, vision: true };
   let freeModels = [AUTO, ...POOL];
@@ -68,7 +74,8 @@
     run_javascript: fn('run_javascript', 'Run JavaScript (sandboxed, no network, no page access) for a quick calculation or text processing. Return or console.log the result.', { code: { type: 'string' } }, ['code']),
     update_plan: fn('update_plan', 'Agent only: write or update your step-by-step plan for a multi-step task.', { steps: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, status: { type: 'string', enum: ['pending', 'in_progress', 'done'] } }, required: ['title'] } } }, ['steps']),
   };
-  const CHAT_TOOLS = ['web_search', 'fetch_url', 'generate_image', 'weather', 'get_datetime'];
+  if (window.FAMapTools) Object.assign(TOOLS, FAMapTools.schemas); // maps (maps-agent.js)
+  const CHAT_TOOLS = ['web_search', 'fetch_url', 'generate_image', 'weather', 'get_datetime', ...(window.FAMapTools ? FAMapTools.NAMES : [])];
   const AGENT_TOOLS = Object.keys(TOOLS);
   const OFFLINE_TOOLS = ['get_datetime', 'run_javascript', 'run_python'];
 
@@ -146,36 +153,65 @@
     web_search: webSearch, fetch_url: fetchUrl, generate_image: genImage, weather, run_javascript: runJs, run_python: runPy,
     get_datetime: async () => ({ result: JSON.stringify({ now: new Date().toString(), iso: new Date().toISOString(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone }) }),
     update_plan: async ({ steps }) => ({ result: 'Plan saved.', view: { steps } }),
+    ...(window.FAMapTools ? FAMapTools.run : {}),
   };
 
   // ───────────────────────────── the loop ─────────────────────────────
-  function system({ agent, lang, date, tools, local }) {
+  function system({ agent, lang, date, tools, local, pc }) {
     const L = { en: 'English', fr: 'French', es: 'Spanish', de: 'German' }[lang] || 'the user’s language';
     return [
       `You are Fabro, a helpful assistant, answering on the user's phone (Fabro Anywhere). Today is ${date}. Answer in ${L} unless the user writes in another language. Use Markdown.`,
       tools.length ? `You have tools (${tools.join(', ')}). Use them when they make the answer better or up to date — search before stating recent facts, cite sources as [1], [2] matching the search results.` : '',
       agent ? 'Agent mode: for a multi-step task, first call update_plan, then carry out the steps one by one with your tools, update the plan as you go, and finish with a clear summary of what you did and found. Do not ask for permission for each step.' : '',
-      'You cannot create documents, files, slides or web pages here. When the user asks for one, say in one sentence that it needs the computer (connect this phone to Fabro on the PC), then give the content as plain text if that helps.',
+      pc ? `Your tools run on the user's computer (${pc}): files, terminal, documents and the rest are really there. Files you write stay on that computer.` : 'You cannot create documents or files here: that needs the user\'s computer (connect it in Fabro Anywhere). Give the content as plain text if that helps.',
       tools.includes('web_search') ? '' : 'There is no internet right now: answer from memory, and say when a fact may be out of date.',
-      'Tools of the computer (files, terminal, computer control) are not available while the computer is away; say so if the task needs them.',
+      pc ? '' : 'Tools of the computer (files, terminal, computer control) are not available while the computer is away; say so if the task needs them.',
       local ? 'Be concise.' : '',
     ].filter(Boolean).join('\n\n');
   }
 
   // OpenAI-compatible streaming call with tools, over the pool: the chosen model first ("auto": best first),
   // a busy or exhausted one is skipped at once (and rested for as long as it says), the next one takes over.
+  // The user's own API key (OpenAI-compatible endpoint, called straight from the browser).
+  async function keyTurn(prov, messages, tools, signal, onDelta) {
+    const body = { model: prov.model, messages, stream: true };
+    if (tools.length) { body.tools = tools.map(schemaOf); body.tool_choice = 'auto'; }
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + prov.key };
+    if (/anthropic\.com/.test(prov.base)) { headers['x-api-key'] = prov.key; headers['anthropic-version'] = '2023-06-01'; headers['anthropic-dangerous-direct-browser-access'] = 'true'; }
+    if (/openrouter\.ai/.test(prov.base)) { headers['HTTP-Referer'] = location.origin; headers['X-Title'] = 'Fabro Anywhere'; }
+    const r = await fetch(prov.base.replace(/\/+$/, '') + '/chat/completions', { method: 'POST', headers, body: JSON.stringify(body), signal });
+    if (!r.ok) { let j = null; try { j = await r.json(); } catch {} const e = j && (j.error && (j.error.message || j.error) || j.message); throw new Error(`${prov.name}: ${e || 'HTTP ' + r.status}`); }
+    return readStream(r, onDelta, prov.model);
+  }
+  // a model with a small window: shorten tool results (pages read…), oldest first, then old messages, to fit
+  function fitChars(messages, max) {
+    const size = (l) => JSON.stringify(l).length;
+    if (size(messages) <= max) return messages;
+    const out = messages.map((x) => ({ ...x }));
+    const cut = (x, keep) => { if (typeof x.content === 'string' && x.content.length > keep) x.content = x.content.slice(0, keep) + '\n[…shortened]'; };
+    for (const keep of [3000, 1500, 700, 300]) {
+      for (const x of out) if (x.role === 'tool') { cut(x, keep); if (size(out) <= max) return out; }
+    }
+    for (let i = 1; i < out.length - 2 && size(out) > max; i++) if (out[i].role !== 'system') cut(out[i], 400);
+    return out;
+  }
   async function cloudTurn(model, messages, tools, signal, onDelta, needVision) {
     const fits = (m) => (!tools.length || m.tools) && (!needVision || m.vision);
     const chosen = POOL.find((m) => m.id === model);
     let order = [...(chosen && fits(chosen) ? [chosen] : []), ...POOL.filter((m) => m !== chosen && fits(m))];
     if (!order.length) order = POOL.filter((m) => !tools.length || m.tools);
-    let res = null, used = null, lastErr = '';
-    for (let round = 0; round < 3 && !res; round++) {
+    // every model resting: wait (up to 90 s in all, saying so) rather than fail at once
+    let res = null, used = null, lastErr = ''; const deadline = Date.now() + 90000;
+    const skip = new Set(); // refused this request itself (too long, bad tools…): the next model may take it
+    for (let round = 0; round < 12 && !res; round++) {
+      order = order.filter((m) => !skip.has(m.id)); if (!order.length) break;
       for (const m of order) {
         if (coolOf(m) > Date.now()) continue;
         const [pv] = m.id.split('/'); const api = m.id.slice(pv.length + 1); const p = P[pv];
-        const body = { model: api, messages: needVision && !m.vision ? stripImages(messages) : messages, stream: true, temperature: 0.6 };
-        if (tools.length) { body.tools = tools.map((n) => TOOLS[n]); body.tool_choice = 'auto'; }
+        let msgs = needVision && !m.vision ? stripImages(messages) : messages;
+        if (m.maxChars) msgs = fitChars(msgs, m.maxChars - (tools.length ? JSON.stringify(tools.map(schemaOf)).length : 0));
+        const body = { model: api, messages: msgs, stream: true, temperature: 0.6 };
+        if (tools.length) { body.tools = tools.map(schemaOf); body.tool_choice = 'auto'; }
         let r;
         try { r = await fetch(p.chat || p.base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }); }
         catch (e) { if (signal.aborted) throw e; lastErr = e.message; cool.set(m.id, Date.now() + 20000); continue; }
@@ -183,19 +219,26 @@
         let j = null; try { j = await r.json(); } catch {}
         const after = Number((j && j.error && j.error.retry_after) || r.headers.get('ratelimit-reset') || r.headers.get('retry-after') || (r.status === 429 ? 30 : 15));
         // a daily quota (hours) rests the whole provider; a per-minute limit only this model
+        lastErr = (j && j.error && (j.error.message || j.error)) || `HTTP ${r.status}`;
+        if (r.status !== 429 && r.status < 500 && r.status !== 404) { skip.add(m.id); continue; } // this request, not this model's rate: try the next one
         const whole = (j && j.error && /quota|concurrent/i.test(j.error.code || j.error.type || '')) || after > 300;
         cool.set(whole ? pv : m.id, Date.now() + Math.min(after, 86400) * 1000);
-        lastErr = (j && j.error && (j.error.message || j.error)) || `HTTP ${r.status}`;
-        if (r.status !== 429 && r.status < 500 && r.status !== 404) break;
       }
       if (!res) {
-        // everything is resting: wait for the first one to be back (20 s at most), then go round again
-        const next = Math.min(...order.map(coolOf)) - Date.now();
-        if (next > 20000 || round === 2) break;
-        await new Promise((ok, ko) => { const tm = setTimeout(ok, Math.max(500, next)); signal.addEventListener('abort', () => { clearTimeout(tm); ko(Object.assign(new Error('aborted'), { name: 'AbortError' })); }, { once: true }); });
+        if (!order.some((m) => !skip.has(m.id))) break;
+        const next = Math.min(...order.filter((m) => !skip.has(m.id)).map(coolOf)) - Date.now();
+        if (Date.now() + Math.max(0, next) > deadline) break;
+        const ms = Math.min(15000, Math.max(800, next));
+        onDelta('wait', String(Math.ceil(Math.max(next, ms) / 1000)));
+        await new Promise((ok, ko) => { const tm = setTimeout(ok, ms); signal.addEventListener('abort', () => { clearTimeout(tm); ko(Object.assign(new Error('aborted'), { name: 'AbortError' })); }, { once: true }); });
+        onDelta('wait', '');
       }
     }
+    if (!res && skip.size && /too long|context|length|maximum/i.test(String(lastErr))) throw new Error(window.FAHost ? window.FAHost.t('cloudLong') : 'This conversation is too long for Fabro Cloud right now. Start a new one, or use your own key.');
     if (!res) throw new Error(/429|quota|limit|busy/i.test(String(lastErr)) || !lastErr ? (window.FAHost ? window.FAHost.t('cloudBusy') : 'Fabro Cloud is busy') : String(lastErr));
+    return readStream(res, onDelta, used.name);
+  }
+  async function readStream(res, onDelta, modelName) {
     const rd = res.body.getReader(); const dec = new TextDecoder(); let buf = '', content = ''; const calls = [];
     for (;;) {
       const { done, value } = await rd.read(); if (done) break;
@@ -210,7 +253,7 @@
         for (const tc of d.tool_calls || []) { const k = tc.index ?? calls.length; const c = (calls[k] ||= { id: '', name: '', args: '' }); if (tc.id) c.id = tc.id; if (tc.function) { if (tc.function.name) c.name += tc.function.name; if (tc.function.arguments) c.args += tc.function.arguments; } }
       }
     }
-    return { content, calls: calls.filter((c) => c && c.name).map((c, k) => ({ ...c, id: c.id || 'call_' + Date.now().toString(36) + k })), model: used.name };
+    return { content, calls: calls.filter((c) => c && c.name).map((c, k) => ({ ...c, id: c.id || 'call_' + Date.now().toString(36) + k })), model: modelName };
   }
   const stripImages = (msgs) => msgs.map((m) => Array.isArray(m.content) ? { ...m, content: m.content.filter((x) => x.type === 'text').map((x) => x.text).join('\n') } : m);
   // The phone's own model (WebLLM): tools described in the prompt, called as <tool_call>{json}</tool_call>.
@@ -236,14 +279,21 @@
   // history (the conversation's path) → reply, with tool rounds. onEvent mirrors the computer's run events.
   // history: the conversation path (phone app), or messages: OpenAI-format messages already built (the computer's
   // interface, its own system prompt included). allTools: every tool while only the prompt says agent or not.
-  async function run({ history, messages, model, agent, allTools, lang, engine, signal, onEvent }) {
+  // ext: the computer's tools { name: 'PC', schemas: [...], call(name, args, id) → { content, view } }; prov: the user's API key
+  let EXT = null;
+  const schemaOf = (n) => (EXT && EXT.map[n]) || TOOLS[n];
+  async function run({ history, messages, model, agent, allTools, lang, engine, signal, onEvent, ext, prov }) {
+    EXT = ext && ext.schemas && ext.schemas.length ? { ...ext, map: Object.fromEntries(ext.schemas.map((x) => [x.function.name, x])) } : null;
+    if (EXT) delete EXT.map.my_location; // the position is the phone's, not the computer's
     const local = !!engine;
     const online = navigator.onLine !== false;
     let tools = agent || allTools ? AGENT_TOOLS : CHAT_TOOLS;
     if (!online) tools = tools.filter((n) => OFFLINE_TOOLS.includes(n));
     if (local && !agent) tools = tools.filter((n) => n !== 'fetch_url'); // keep small models focused
-    if (!local) { const m = POOL.find((x) => x.id === model); if (m && m.tools === false) tools = []; }
-    const loop = (m, tl, nv) => loopImpl(m, tl, nv, { model, agent, allTools, engine, signal, onEvent });
+    if (!local && !prov) { const m = POOL.find((x) => x.id === model); if (m && m.tools === false) tools = []; }
+    if (EXT && online) tools = [...new Set([...Object.keys(EXT.map), ...tools.filter((n) => !['fetch_url', 'run_python', 'run_javascript'].includes(n))])]; // the computer's tools first; its web tools read pages fully
+    const pc = EXT ? EXT.name : '';
+    const loop = (m, tl, nv) => loopImpl(m, tl, nv, { model, agent, allTools, engine, signal, onEvent, prov });
     let needVision = false;
     if (messages) {
       const sys = system({ agent, lang, date: new Date().toLocaleDateString(lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), tools, local });
@@ -253,7 +303,7 @@
       if (local) for (const m of out) if (Array.isArray(m.content)) m.content = m.content.filter((x) => x.type === 'text').map((x) => x.text).join('\n');
       return loop(out, tools, needVision);
     }
-    const msgs = [{ role: 'system', content: system({ agent, lang, date: new Date().toLocaleDateString(lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), tools, local }) }];
+    const msgs = [{ role: 'system', content: system({ agent, lang, date: new Date().toLocaleDateString(lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), tools, local, pc }) }];
     for (const n of history) {
       if (n.pending || (!(n.content || '').trim() && !(n.attachments || []).length)) continue;
       const imgs = (n.attachments || []).filter((a) => a.kind === 'image' && a.data);
@@ -262,14 +312,22 @@
     }
     return loop(msgs, tools, needVision);
   }
-  async function loopImpl(msgs, tools, needVision, { model, agent, allTools, engine, signal, onEvent }) {
+  async function loopImpl(msgs, tools, needVision, { model, agent, allTools, engine, signal, onEvent, prov }) {
     const local = !!engine;
-    const maxRounds = agent || allTools ? 14 : 5; let used = model;
+    const maxRounds = EXT ? 30 : agent || allTools ? 14 : 5; let used = model;
+    const one = (tl) => (prov ? keyTurn(prov, msgs, tl, signal, (k, x) => onEvent({ type: k, text: x }))
+      : local ? localTurn(engine, msgs, tl, signal, (k, x) => onEvent({ type: k, text: x }))
+      : cloudTurn(model, msgs, tl, signal, (k, x) => onEvent({ type: k, text: x }), needVision));
+    // tools were used but the model ends with no text (or runs out of rounds): one last round without tools
+    const finalWrite = async () => {
+      msgs.push({ role: 'user', content: '[Fabro] Stop using tools. Answer the user now from what you already found, and say what you could not find.' });
+      const t = await one([]); used = t.model || used; return { model: used };
+    };
     for (let round = 0; round < maxRounds; round++) {
-      const turn = local ? await localTurn(engine, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }))
-        : await cloudTurn(model, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }), needVision);
+      const turn = await one(tools);
       used = turn.model;
-      if (!turn.calls.length || signal.aborted) return { model: used };
+      if (signal.aborted) return { model: used };
+      if (!turn.calls.length) { if (round > 0 && !String(turn.content || '').trim()) return finalWrite(); return { model: used }; }
       msgs.push({ role: 'assistant', content: turn.content || '', tool_calls: turn.calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' } })) });
       onEvent({ type: 'tool_round' });
       for (const c of turn.calls) {
@@ -277,14 +335,16 @@
         onEvent({ type: 'tool_start', id: c.id, name: c.name, args });
         let out;
         try {
-          if (!tools.includes(c.name) || !RUN[c.name]) throw new Error('tool not available here');
-          out = await RUN[c.name](args);
+          if (!tools.includes(c.name)) throw new Error('tool not available here');
+          if (EXT && EXT.map[c.name]) { const r = await EXT.call(c.name, args, c.id); out = { result: r.content, view: r.view }; }
+          else if (RUN[c.name]) out = await RUN[c.name](args);
+          else throw new Error('tool not available here');
           onEvent({ type: 'tool_end', id: c.id, view: out.view });
         } catch (e) { out = { result: 'Error: ' + (e && e.message || e) }; onEvent({ type: 'tool_end', id: c.id, error: String(e && e.message || e) }); }
         msgs.push({ role: 'tool', tool_call_id: c.id, name: c.name, content: String(out.result || '') });
       }
     }
-    return { model: used };
+    return signal.aborted ? { model: used } : finalWrite();
   }
 
   window.FAAgent = { run, refreshModels, cloudHear, get models() { return freeModels; }, TOOLS, CLOUD };

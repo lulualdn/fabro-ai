@@ -1,66 +1,134 @@
 'use strict';
-/* Fabro Anywhere — the phone app. Pairs with a computer by reading its circular code, keeps conversations
-   offline (IndexedDB), talks to the computer's models through an end-to-end encrypted session (relay first,
-   then a direct WebRTC channel), queues messages while the computer is away, syncs both ways, and can answer
-   with a small model running in the browser (WebGPU) when the computer can't be reached. */
+/* Fabro Anywhere: Fabro in the browser, chat and agent only.
+   Who thinks: Fabro Cloud (free, no account, the default), the user's own API keys, or the models of their computer.
+   Where tools run: on the computer when it is linked and reachable (files, terminal, documents…), else the few
+   that run here (web search, pages, images, weather). The computer serves no interface: it answers an API over the
+   encrypted link (src/anywhere/core.js ↔ src/main/anywhere.js): hello, sync, run, tools.list, tool.call… */
 (function () {
   const A = window.FabroAnywhere;
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const now = () => Date.now();
-  let markPath = null; // the Fabro propeller, read from icons/mark.svg at start
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const uid = () => A.uid() + A.uid().slice(0, 4);
 
-  // ───────────────────────────── i18n ─────────────────────────────
-  const LANGS = ['en', 'fr', 'es', 'de'];
-  let lang = 'en';
-  const t = (k, v = {}) => String((FA_I18N[lang] || FA_I18N.en)[k] ?? FA_I18N.en[k] ?? k).replace(/\{(\w+)\}/g, (_, x) => v[x] ?? '');
+  // ───────────────────────────── text ─────────────────────────────
+  const I18N = {
+    fr: {
+      places: 'Mes lieux', placesSub: 'Maison, travail, favoris : Fabro s’en sert pour les itinéraires.', see: 'Voir',
+      cloudLong: 'Cette conversation est trop longue pour Fabro Cloud en ce moment. Commence-en une nouvelle, ou utilise ta propre clé.', profile: 'Profil', me: 'Moi', pfLocked: 'Protégé par mot de passe', pfOpen: 'Sans mot de passe', pfPwSet: 'Ajouter un mot de passe', pfPwChange: 'Changer le mot de passe', pfAdd: 'Ajouter ou changer', pfChange: 'Changer de profil', pfSub: '{n} sur 4 profils sur cet appareil.', pfDelT: 'Supprimer ce profil', pfDelLead: 'Ses conversations, ses clés et le lien avec ton ordinateur sont effacés de cet appareil.', pfPwLead: 'Avec un mot de passe, les conversations et les clés de ce profil sont chiffrées sur cet appareil. Laisse vide pour l’enlever.', pfPwOld: 'Mot de passe actuel', pfPwNew: 'Nouveau mot de passe', pfWrong: 'Mot de passe incorrect.', saved: 'Enregistré',
+      newChat: 'Nouvelle demande', search: 'Chercher', code: 'Fabro Code', settings: 'Réglages', today: 'Aujourd’hui', before: 'Avant', noChats: 'Rien pour l’instant',
+      homeH: 'Qu’est-ce qu’on fait ?', homeSub: 'Demande n’importe quoi. Fabro cherche, lit et agit pour toi.',
+      homeSubPc: 'Demande n’importe quoi. Les outils tournent sur {pc}.',
+      s1: 'Résume cette page', s2: 'Compare deux forfaits mobiles', s3: 'Que faire ce week-end à Lyon ?', s4: 'Range mon dossier Téléchargements',
+      ask: 'Demande n’importe quoi', askMore: 'Ajoute une consigne', send: 'Envoyer', stop: 'Arrêter', attach: 'Joindre une photo', dictate: 'Dicter', listening: 'Je t’écoute…',
+      copy: 'Copier', copied: 'Copié', retry: 'Refaire', steps1: '1 étape', stepsN: '{n} étapes', working: 'travaille',
+      pc: 'Ton PC', pcOn: '{pc} · connecté', pcOff: '{pc} · hors ligne', pcWait: '{pc} · connexion…', linkPc: 'Relier ton PC', noPc: 'Aucun PC relié',
+      model: 'Modèle', cloud: 'Fabro Cloud', cloudSub: 'Gratuit, sans compte', auto: 'Automatique', autoSub: 'Le meilleur modèle libre du moment',
+      keys: 'Tes clés API', keysSub: 'La clé reste sur cet appareil.', addKey: 'Ajouter une clé', provider: 'Fournisseur', apiKey: 'Clé', baseUrl: 'Adresse de l’API', modelName: 'Modèle', save: 'Enregistrer', remove: 'Retirer', cancel: 'Annuler', keyTesting: 'Vérification…', keyBad: 'Clé refusée : {e}', keyOk: 'Clé ajoutée',
+      pcModels: 'Modèles de ton PC', pcModelsSub: 'Tout tourne sur ton PC.', pcAway: 'Ton PC ne répond pas. Ouvre Fabro dessus.',
+      toolsOnPc: 'Outils sur {pc}', toolsHere: 'Outils du navigateur',
+      allow: 'Autoriser', always: 'Toujours', deny: 'Refuser', wants: 'Fabro veut agir sur {pc}',
+      queued: 'En attente de {pc}', answerCloud: 'Répondre avec Fabro Cloud',
+      pairH: 'Relier ton PC', pairLead: 'Sur ton PC : Fabro → Réglages → Fabro Anywhere → Relier un téléphone. Puis vise le cercle ou tape le code.',
+      scan: 'Scanner le cercle', typeCode: 'Taper le code', codePh: 'XXXX-XXXX-…', pair: 'Relier', pairing: 'Connexion à ton PC…', pairOk: 'PC relié', pairFail: 'Échec. Vérifie que la fenêtre de ton PC est ouverte.', badCode: 'Code invalide', noCamera: 'Caméra indisponible. Tape le code.',
+      forget: 'Oublier ce PC', forgetQ: 'Oublier ce PC ? Tes conversations restent ici.',
+      codeH: 'Fabro Code tourne sur ton ordinateur', codeLead: 'Il lit et modifie tes projets, lance les tests et la ligne de commande. Télécharge Fabro pour l’utiliser.',
+      codeOpen: 'Déjà installé sur {pc} ? Ouvre Fabro Code dessus, tes conversations se retrouvent ici.', yourOs: 'ton système',
+      theme: 'Apparence', light: 'Clair', dark: 'Sombre', autoT: 'Auto', eco: 'Mode éco', ecoSub: 'Sans flou ni reflets. Économise la batterie.', lang: 'Langue',
+      notify: 'Notifications', notifySub: 'Quand une réponse arrive et que l’app est fermée.', about: 'À propos', site: 'Le site de Fabro',
+      offline: 'Hors ligne', timeout: 'Pas de réponse', revoked: 'Ce PC a retiré l’accès.', cloudBusy: 'Fabro Cloud est saturé. Réessaie dans une minute.', photo: 'Photo',
+      deleteQ: 'Supprimer cette conversation ?', rename: 'Renommer', del: 'Supprimer', micDenied: 'Micro refusé', sttFail: 'Je n’ai pas compris',
+      retry: 'Recommencer', edit: 'Modifier', fork: 'Nouvelle conversation à partir d’ici', forked: 'Conversation créée', prev: 'Version précédente', next: 'Version suivante', cancel2: 'Annuler', resend: 'Renvoyer',
+      cloudWait: 'Fabro Cloud est chargé. Nouvel essai dans {s} s.', usePc: 'Répondre avec ton PC', useKey: 'Ajouter une clé API',
+      later: 'Envoyé après la réponse en cours', empty: 'Le modèle n’a rien répondu. Réessaie ou change de modèle.', noNet: 'Pas de réseau', install: 'Installer l’app', installSub: 'Ajoute Fabro à ton écran d’accueil.',
+    },
+    en: {
+      places: 'My places', placesSub: 'Home, work, favourites: Fabro uses them for routes.', see: 'See',
+      cloudLong: 'This conversation is too long for Fabro Cloud right now. Start a new one, or use your own key.', profile: 'Profile', me: 'Me', pfLocked: 'Password protected', pfOpen: 'No password', pfPwSet: 'Add a password', pfPwChange: 'Change password', pfAdd: 'Add or switch', pfChange: 'Switch profile', pfSub: '{n} of 4 profiles on this device.', pfDelT: 'Delete this profile', pfDelLead: 'Its chats, keys and the link to your computer are erased from this device.', pfPwLead: 'With a password, this profile’s chats and keys are encrypted on this device. Leave empty to remove it.', pfPwOld: 'Current password', pfPwNew: 'New password', pfWrong: 'Wrong password.', saved: 'Saved',
+      newChat: 'New request', search: 'Search', code: 'Fabro Code', settings: 'Settings', today: 'Today', before: 'Earlier', noChats: 'Nothing yet',
+      homeH: 'What are we doing?', homeSub: 'Ask anything. Fabro searches, reads and acts for you.',
+      homeSubPc: 'Ask anything. Tools run on {pc}.',
+      s1: 'Summarize this page', s2: 'Compare two phone plans', s3: 'What to do this weekend in Lyon?', s4: 'Tidy my Downloads folder',
+      ask: 'Ask anything', askMore: 'Add an instruction', send: 'Send', stop: 'Stop', attach: 'Attach a photo', dictate: 'Dictate', listening: 'Listening…',
+      copy: 'Copy', copied: 'Copied', retry: 'Redo', steps1: '1 step', stepsN: '{n} steps', working: 'working',
+      pc: 'Your PC', pcOn: '{pc} · connected', pcOff: '{pc} · offline', pcWait: '{pc} · connecting…', linkPc: 'Link your PC', noPc: 'No PC linked',
+      model: 'Model', cloud: 'Fabro Cloud', cloudSub: 'Free, no account', auto: 'Automatic', autoSub: 'The best free model right now',
+      keys: 'Your API keys', keysSub: 'The key stays on this device.', addKey: 'Add a key', provider: 'Provider', apiKey: 'Key', baseUrl: 'API address', modelName: 'Model', save: 'Save', remove: 'Remove', cancel: 'Cancel', keyTesting: 'Checking…', keyBad: 'Key refused: {e}', keyOk: 'Key added',
+      pcModels: 'Your PC’s models', pcModelsSub: 'Everything runs on your PC.', pcAway: 'Your PC isn’t answering. Open Fabro on it.',
+      toolsOnPc: 'Tools on {pc}', toolsHere: 'Browser tools',
+      allow: 'Allow', always: 'Always', deny: 'Deny', wants: 'Fabro wants to act on {pc}',
+      queued: 'Waiting for {pc}', answerCloud: 'Answer with Fabro Cloud',
+      pairH: 'Link your PC', pairLead: 'On your PC: Fabro → Settings → Fabro Anywhere → Link a phone. Then aim at the circle or type the code.',
+      scan: 'Scan the circle', typeCode: 'Type the code', codePh: 'XXXX-XXXX-…', pair: 'Link', pairing: 'Connecting to your PC…', pairOk: 'PC linked', pairFail: 'Failed. Check that the window on your PC is open.', badCode: 'Invalid code', noCamera: 'No camera. Type the code.',
+      forget: 'Forget this PC', forgetQ: 'Forget this PC? Your conversations stay here.',
+      codeH: 'Fabro Code runs on your computer', codeLead: 'It reads and edits your projects, runs tests and the command line. Download Fabro to use it.',
+      codeOpen: 'Already on {pc}? Open Fabro Code there, your conversations show up here.', yourOs: 'your system',
+      theme: 'Appearance', light: 'Light', dark: 'Dark', autoT: 'Auto', eco: 'Eco mode', ecoSub: 'No blur or reflections. Saves battery.', lang: 'Language',
+      notify: 'Notifications', notifySub: 'When an answer arrives and the app is closed.', about: 'About', site: 'Fabro website',
+      offline: 'Offline', timeout: 'No answer', revoked: 'This PC removed access.', cloudBusy: 'Fabro Cloud is busy. Try again in a minute.', photo: 'Photo',
+      deleteQ: 'Delete this conversation?', rename: 'Rename', del: 'Delete', micDenied: 'Microphone denied', sttFail: 'I didn’t catch that',
+      retry: 'Retry', edit: 'Edit', fork: 'New conversation from here', forked: 'Conversation created', prev: 'Previous version', next: 'Next version', cancel2: 'Cancel', resend: 'Send again',
+      cloudWait: 'Fabro Cloud is busy. Trying again in {s} s.', usePc: 'Answer with your PC', useKey: 'Add an API key',
+      later: 'Sent after the current answer', empty: 'The model gave no answer. Try again or pick another model.', noNet: 'No network', install: 'Install the app', installSub: 'Add Fabro to your home screen.',
+    },
+  };
+  let lang = 'fr';
+  const t = (k, v = {}) => String((I18N[lang] || I18N.en)[k] ?? I18N.en[k] ?? k).replace(/\{(\w+)\}/g, (_, x) => v[x] ?? '');
+
+  // ───────────────────────────── icons ─────────────────────────────
+  const ICONS = {
+    plus: '<path d="M12 5v14M5 12h14"/>', menu: '<path d="M4 7h16M4 12h16M4 17h10"/>', code: '<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
+    up: '<path d="M12 19V5M6 11l6-6 6 6"/>', stop: '<rect x="7" y="7" width="10" height="10" rx="2"/>', mic: '<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>',
+    img: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20 16l-5-5-8 8"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    chev: '<path d="M9 6l6 6-6 6"/>', down: '<path d="M6 9l6 6 6-6"/>', check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', pc: '<rect x="3.5" y="4.5" width="17" height="11" rx="2"/><path d="M9 19.5h6M12 15.5v4"/>',
+    key: '<circle cx="8" cy="14" r="4"/><path d="M11 11l8-8M16 6l2 2M14 8l2 2"/>', cloud: '<path d="M7 18a4.5 4.5 0 01-.6-9 6 6 0 0111.5 1.5A3.8 3.8 0 0117 18z"/>',
+    dl: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>', search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>', redo: '<path d="M4 12a8 8 0 0113.7-5.6L20 9M20 4v5h-5M20 12a8 8 0 01-13.7 5.6L4 15M4 20v-5h5"/>', pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/>', fork: '<circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 003 3h6a3 3 0 003-3V7M12 12v5"/>', left: '<path d="M15 6l-6 6 6 6"/>', right: '<path d="M9 6l6 6-6 6"/>',
+  };
+  const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+  let MARK = '';
+  const mark = () => `<svg viewBox="0 0 100 100" aria-hidden="true">${MARK}</svg>`;
 
   // ───────────────────────────── storage ─────────────────────────────
   const DB = {
     db: null,
     open() {
       if (this.db) return Promise.resolve(this.db);
-      return new Promise((res, rej) => {
-        const r = indexedDB.open('fabro-anywhere', 1);
-        r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('convs', { keyPath: 'id' }); };
-        r.onsuccess = () => { this.db = r.result; res(this.db); };
-        r.onerror = () => rej(r.error);
-      });
+      return new Promise((res, rej) => { const r = indexedDB.open(FAProfiles.dbName(), 1); r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('convs', { keyPath: 'id' }); }; r.onsuccess = () => { this.db = r.result; res(this.db); }; r.onerror = () => rej(r.error); });
     },
-    async tx(store, mode, fn) { const db = await this.open(); return new Promise((res, rej) => { const tr = db.transaction(store, mode); const st = tr.objectStore(store); const out = fn(st); tr.oncomplete = () => res(out instanceof IDBRequest ? out.result : out); tr.onerror = () => rej(tr.error); }); },
-    get(store, key) { return this.tx(store, 'readonly', (s) => s.get(key)); },
-    put(store, val, key) { return this.tx(store, 'readwrite', (s) => (key === undefined ? s.put(val) : s.put(val, key))); },
-    del(store, key) { return this.tx(store, 'readwrite', (s) => s.delete(key)); },
-    all(store) { return this.tx(store, 'readonly', (s) => s.getAll()); },
-    clear(store) { return this.tx(store, 'readwrite', (s) => s.clear()); },
+    async tx(store, mode, fn) { const db = await this.open(); return new Promise((res, rej) => { const tr = db.transaction(store, mode); const out = fn(tr.objectStore(store)); tr.oncomplete = () => res(out instanceof IDBRequest ? out.result : out); tr.onerror = () => rej(tr.error); }); },
+    // values are sealed when the profile has a password (profiles.js)
+    async get(s, k) { return FAProfiles.open(await this.tx(s, 'readonly', (x) => x.get(k))); },
+    async put(s, v, k) { const w = await FAProfiles.seal(v, k === undefined ? v.id : undefined); return this.tx(s, 'readwrite', (x) => (k === undefined ? x.put(w) : x.put(w, k))); },
+    del(s, k) { return this.tx(s, 'readwrite', (x) => x.delete(k)); },
+    async all(s) { const l = await this.tx(s, 'readonly', (x) => x.getAll()); return Promise.all((l || []).map((v) => FAProfiles.open(v).catch(() => null))).then((r) => r.filter(Boolean)); },
   };
   const kv = { get: (k) => DB.get('kv', k), set: (k, v) => DB.put('kv', v, k), del: (k) => DB.del('kv', k) };
 
   // ───────────────────────────── state ─────────────────────────────
+  // model: 'cloud:<id>' (Fabro Cloud) · 'key:<keyId>' (one of the user's keys) · { backend… } (a model of the computer)
   const S = {
-    view: 'welcome', identity: null, link: null,
-    // model: a computer model ref, 'cloud:<id>' (Fabro Cloud, free), or 'phone' (on this phone)
-    // away: what answers while the computer can't be reached — 'cloud' (free, needs a network), 'phone', 'wait'
-    settings: { lang: 'auto', theme: 'system', model: null, localFallback: true, localModel: null, agent: false, away: 'cloud', ears: null, voiceName: '', voiceFam: 'f' },
-    convs: new Map(), metas: [], cur: null, drawer: false,
-    conn: { state: 'off', info: null, err: '' }, models: [],
-    outbox: [], tombstones: [], runs: new Map(), asks: new Map(),
-    draft: '', atts: [], sheet: null, local: { status: 'none', progress: 0, text: '' }, voice: null, installEvt: null,
+    settings: { lang: 'auto', model: 'cloud:auto', notify: false },
+    keys: [], identity: null, link: null, conn: { state: 'off', info: null }, models: [], pcTools: null,
+    convs: new Map(), metas: [], cur: null, outbox: [], tombstones: [], runs: new Map(), asks: new Map(),
+    localRun: null, later: [], sheet: null, drawer: false, atts: [], installEvt: null, open: new Set(),
   };
   let relay = null, session = null, connecting = null, retryT = 0, retryN = 0, pingT = 0;
-
   const saveSettings = () => kv.set('settings', S.settings);
   async function saveConv(c) { S.convs.set(c.id, c); await DB.put('convs', c); }
   const curConv = () => (S.cur ? S.convs.get(S.cur) : null);
+  const pcName = () => (S.link && S.link.pcName) || t('pc');
+  const linked = () => !!S.link;
+  const online = () => !!session;
 
-  // ───────────────────────────── toasts ─────────────────────────────
   function toast(msg, kind = '') {
     const el = document.createElement('div'); el.className = 'toast ' + kind; el.textContent = msg;
-    $('#toast-root').appendChild(el); setTimeout(() => el.classList.add('out'), 3200); setTimeout(() => el.remove(), 3600);
+    $('#toast-root').appendChild(el); setTimeout(() => el.classList.add('out'), 3000); setTimeout(() => el.remove(), 3400);
   }
 
-  // ───────────────────────────── connection ─────────────────────────────
+  // ───────────────────────────── link to the computer ─────────────────────────────
   const rpcWait = new Map(); let rpcN = 0;
   function rpc(m, p = {}, timeout = 60000) {
     if (!session) return Promise.reject(new Error(t('offline')));
@@ -71,306 +139,181 @@
       session.send({ t: 'req', id, m, p }).then((ok) => { if (!ok) { clearTimeout(timer); rpcWait.delete(id); reject(new Error(t('offline'))); } });
     });
   }
-  function relayUrls() {
-    const custom = S.settings.customRelay;
-    const base = (S.link && S.link.relays && S.link.relays.length) ? S.link.relays : A.DEFAULT_RELAYS;
-    return [...new Set([...base, ...(custom ? [custom] : [])])];
-  }
-  function ensureRelay() {
-    if (relay) return relay;
-    relay = new A.Relay(relayUrls(), { onState: () => { if (S.conn.state === 'off' || S.conn.state === 'connecting') render(); } });
-    return relay;
-  }
-  function setConn(state, extra = {}) { S.conn = { ...S.conn, state, ...extra }; renderHeader(); if (S.view === 'main') renderComposer(); if (window.FAFull) FAFull.conn(state); }
+  const relayUrls = () => [...new Set((S.link && S.link.relays && S.link.relays.length) ? S.link.relays : A.DEFAULT_RELAYS)];
+  function setConn(state, extra = {}) { S.conn = { ...S.conn, state, ...extra }; renderSide(); renderTop(); renderCards(); }
   async function connect(force) {
     if (!S.link) return;
     if (connecting && !force) return connecting;
     clearTimeout(retryT);
     connecting = (async () => {
-      setConn('connecting', { err: '' });
-      ensureRelay();
-      // wait for at least one relay
+      setConn('connecting');
+      if (!relay) relay = new A.Relay(relayUrls(), {});
       for (let i = 0; i < 40 && !relay.up(); i++) await sleep(250);
       try {
-        let s = null;
-        s = await A.phoneConnect({
-          relay, link: S.link, ice: S.link.ice || A.STUN,
-          onMessage: onMessage,
+        const s = await A.phoneConnect({
+          relay, link: S.link, ice: S.link.ice || A.STUN, onMessage,
           onRevoked: () => { forget(true); toast(t('revoked'), 'err'); },
-          onState: (st, ss) => { if (session === ss || session === s) setConn(st === 'direct' ? 'direct' : st === 'relay' ? 'relay' : S.conn.state); },
+          onState: (st, ss) => { if (session === ss || session === s) setConn(st === 'direct' || st === 'relay' ? 'on' : S.conn.state); },
         });
         if (session) session.close();
-        session = s; retryN = 0;
-        setConn(s.via === 'direct' ? 'direct' : 'relay');
+        session = s; retryN = 0; setConn('on');
         clearInterval(pingT); pingT = setInterval(() => { if (session) session.send({ t: '_ping' }); if (session && now() - session.alive > 75000) dropped(); }, 25000);
         await afterConnect();
       } catch (e) {
         if (String(e.message) === 'revoked') { await forget(true); toast(t('revoked'), 'err'); return; }
-        setConn('off', { err: relay.up() ? t('pcAway') : t('noNet') });
-        scheduleRetry();
+        setConn('off'); scheduleRetry();
       } finally { connecting = null; }
     })();
     return connecting;
   }
   function scheduleRetry() {
-    clearTimeout(retryT);
-    if (document.hidden) return;
-    // a message waiting to go: keep trying often, so it leaves soon after the computer is back
-    const ms = Math.min([2000, 4000, 8000, 12000, 15000][Math.min(retryN++, 4)], S.outbox && S.outbox.length ? 6000 : Infinity);
+    clearTimeout(retryT); if (document.hidden) return;
+    const ms = Math.min([2000, 4000, 8000, 12000, 15000][Math.min(retryN++, 4)], S.outbox.length ? 6000 : Infinity);
     retryT = setTimeout(() => connect(), ms);
   }
   function dropped() {
     if (session) { session.close(); session = null; }
     for (const [, w] of rpcWait) { clearTimeout(w.timer); w.reject(new Error(t('offline'))); } rpcWait.clear();
-    setConn('off', { err: t('pcAway') });
-    scheduleRetry();
+    for (const [id, a] of S.asks) if (a.kind === 'tool') S.asks.delete(id);
+    setConn('off'); scheduleRetry();
   }
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
   async function afterConnect() {
     try {
       const info = await rpc('hello', { visible: !document.hidden, name: deviceName() });
       S.conn.info = info; S.models = info.models || [];
       if (info.pcName && S.link.pcName !== info.pcName) { S.link.pcName = info.pcName; await kv.set('link', S.link); }
-      if (!S.settings.model || (typeof S.settings.model !== 'string' && !S.models.some((m) => refKey(m.ref) === refKey(S.settings.model)))) S.settings.model = info.model || (S.models[0] && S.models[0].ref) || S.settings.model || null;
-      renderHeader();
-      if (window.FAFull && info.ui) FAFull.connected(info).catch((e) => console.warn('full ui', e)); // the computer's full interface
-      await syncNow();
-      await flushOutbox();
-      ensurePush(false);
+      S.pcTools = info.api >= 2 ? await rpc('tools.list', {}, 20000).then((r) => r.tools || []).catch(() => null) : null;
+      renderAll();
+      await syncNow(); await flushOutbox(); ensurePush(false);
     } catch (e) { console.warn('afterConnect', e); }
   }
   function onMessage(m) {
     if (!m) return;
-    if (m.t === 'bye') { dropped(); return; }
+    if (m.t === 'bye') return dropped();
     if (m.t === 'res') { const w = rpcWait.get(m.id); if (w) { rpcWait.delete(m.id); clearTimeout(w.timer); m.ok ? w.resolve(m.r) : w.reject(new Error(m.e || 'error')); } return; }
-    if (m.t === 'ev') {
-      if (m.k === 'run') return onRunEvents(m);
-      if (m.k === 'run.done') return onRunDone(m);
-      if (m.k === 'ask') return onAsk(m);
-      if (m.k === 'toast') { toast(`${m.title || ''} — ${m.body || ''}`); syncNow(); return; }
-      if (m.k === 'ui') { window.FAFull && FAFull.events(m.evs || []); return; }
-    }
+    if (m.t !== 'ev') return;
+    if (m.k === 'run') return onRunEvents(m);
+    if (m.k === 'run.done') return onRunDone(m);
+    if (m.k === 'ask') { S.asks.set(m.ask.id, { ...m.ask, kind: 'run', runId: m.runId, convId: m.convId }); renderCards(); if (document.hidden) localNotify(t('wants', { pc: pcName() }), m.ask.summary || '', m.convId); return; }
+    if (m.k === 'tool.ask') { S.asks.set(m.ask.id, { ...m.ask, kind: 'tool', convId: m.convId }); renderCards(); if (document.hidden) localNotify(t('wants', { pc: pcName() }), m.ask.summary || '', m.convId); return; }
+    if (m.k === 'toast') { toast(`${m.title || ''} · ${m.body || ''}`); syncNow(); }
   }
-  const refKey = (r) => !r ? '' : typeof r === 'string' ? r : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
   function deviceName() {
-    const ua = navigator.userAgent;
-    const m = ua.match(/\(([^)]+)\)/); const p = m ? m[1] : '';
+    const ua = navigator.userAgent; const p = (ua.match(/\(([^)]+)\)/) || [])[1] || '';
     if (/iPhone/.test(ua)) return 'iPhone'; if (/iPad/.test(ua)) return 'iPad';
-    if (/Android/.test(ua)) { const d = p.split(';').map((x) => x.trim()).find((x) => x && !/Android|Linux|wv|U$|^K$/.test(x)); return d || 'Android'; }
-    return 'Phone';
+    if (/Android/.test(ua)) return p.split(';').map((x) => x.trim()).find((x) => x && !/Android|Linux|wv|U$|^K$/.test(x)) || 'Android';
+    return /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'Navigateur';
   }
   const platform = () => (/iPhone|iPad/.test(navigator.userAgent) ? 'iOS' : /Android/.test(navigator.userAgent) ? 'Android' : (navigator.platform || 'web'));
 
   // ───────────────────────────── sync ─────────────────────────────
   const strip = (c) => { const { dirty, ...rest } = c; return rest; };
+  const hasNewer = (l, r) => { const ids = new Set(A.nodesOf(r).map((n) => n.id)); return A.nodesOf(l).some((n) => !ids.has(n.id)); };
   async function syncNow() {
     if (!session) return;
     const have = {}; for (const c of S.convs.values()) if (!c.partial) have[c.id] = c.updatedAt || 0;
-    const push = [...S.convs.values()].filter((c) => c.dirty && !c.ephemeral).map(strip);
+    const push = [...S.convs.values()].filter((c) => c.dirty && !c.ephemeral && !busy(c)).map(strip);
     const full = S.cur && (!S.convs.has(S.cur) || S.convs.get(S.cur).partial) ? [S.cur] : [];
     const r = await rpc('sync', { have, push, full, deleted: S.tombstones }, 90000);
     S.tombstones = []; await kv.set('tombstones', []);
     for (const c of push) { const l = S.convs.get(c.id); if (l) { l.dirty = false; await saveConv(l); } }
     const gone = new Set(r.deleted || []);
     for (const id of gone) if (S.convs.has(id)) { S.convs.delete(id); await DB.del('convs', id); if (S.cur === id) S.cur = null; }
-    for (const c of r.convs || []) {
-      const l = S.convs.get(c.id);
-      const merged = l && !l.partial ? A.mergeConv(l, c) : c;
-      merged.dirty = !!(l && l.dirty && hasNewer(l, c));
-      await saveConv(merged);
-    }
+    for (const c of r.convs || []) { const l = S.convs.get(c.id); const m = l && !l.partial ? A.mergeConv(l, c) : c; m.dirty = !!(l && l.dirty && hasNewer(l, c)); await saveConv(m); }
     S.metas = (r.metas || []).filter((m) => !gone.has(m.id)); await kv.set('metas', S.metas);
-    render();
+    renderSide(); if (S.cur) renderMain();
   }
-  const hasNewer = (local, remote) => { const ids = new Set(A.nodesOf(remote).map((n) => n.id)); return A.nodesOf(local).some((n) => !ids.has(n.id)); };
   async function openConv(id) {
-    S.cur = id; S.drawer = false; S.view = 'main';
-    render();
+    S.cur = id; S.drawer = false; renderAll();
     const c = S.convs.get(id);
-    if ((!c || c.partial) && session) {
-      try { const full = await rpc('conv.get', { id }); await saveConv(full); render(); } catch (e) { toast(e.message, 'err'); }
-    }
+    if ((!c || c.partial) && session) { try { await saveConv(await rpc('conv.get', { id })); renderMain(); } catch (e) { toast(e.message, 'err'); } }
     scrollChat(true);
+  }
+  function newChat() { S.cur = null; S.drawer = false; S.atts = []; renderAll(); setTimeout(() => { const ta = $('.composer textarea'); if (ta && innerWidth > 860) ta.focus(); }, 30); }
+
+  // ───────────────────────────── models ─────────────────────────────
+  const PRESETS = [
+    { id: 'openai', name: 'OpenAI', base: 'https://api.openai.com/v1', model: 'gpt-5-mini' },
+    { id: 'anthropic', name: 'Anthropic', base: 'https://api.anthropic.com/v1', model: 'claude-sonnet-5-5' },
+    { id: 'gemini', name: 'Google Gemini', base: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash' },
+    { id: 'mistral', name: 'Mistral', base: 'https://api.mistral.ai/v1', model: 'mistral-medium-latest' },
+    { id: 'openrouter', name: 'OpenRouter', base: 'https://openrouter.ai/api/v1', model: 'openrouter/auto' },
+    { id: 'groq', name: 'Groq', base: 'https://api.groq.com/openai/v1', model: 'openai/gpt-oss-120b' },
+    { id: 'custom', name: 'Autre (compatible OpenAI)', base: '', model: '' },
+  ];
+  const refKey = (r) => !r ? '' : typeof r === 'string' ? r : r.backend === 'provider' ? `p:${r.provider}:${r.model}` : r.backend === 'local' ? `l:${r.id}` : `${r.backend}:${r.id || r.name}`;
+  const isPcModel = (m) => m && typeof m === 'object';
+  const keyOf = (m) => (typeof m === 'string' && m.startsWith('key:') ? S.keys.find((k) => k.id === m.slice(4)) : null);
+  function modelLabel(m = S.settings.model) {
+    if (isPcModel(m)) { const x = S.models.find((y) => refKey(y.ref) === refKey(m)); return x ? x.label : (m.model || m.id || pcName()); }
+    const k = keyOf(m); if (k) return k.model;
+    const id = typeof m === 'string' && m.startsWith('cloud:') ? m.slice(6) : 'auto';
+    return id === 'auto' ? t('cloud') : ((FAAgent.models.find((x) => x.id === id) || {}).name || t('cloud'));
   }
 
   // ───────────────────────────── sending ─────────────────────────────
-  function newConv() { const c = { id: A.uid() + A.uid().slice(0, 4), title: '', createdAt: now(), updatedAt: now(), nodes: [], leafId: null, agent: !!S.settings.agent, origin: 'phone' }; return c; }
-  async function send(text, atts = []) {
-    text = (text || '').trim();
+  const busy = (c) => !!c && A.pathOf(c).some((n) => n.pending);
+  async function send(text) {
+    text = (text || '').trim(); const atts = S.atts.splice(0);
     if (!text && !atts.length) return;
     let c = curConv();
-    if (!c || c.partial) { c = newConv(); S.cur = c.id; }
+    if (!c || c.partial) { c = { id: uid(), title: '', createdAt: now(), updatedAt: now(), nodes: [], leafId: null, agent: true, origin: 'phone' }; S.cur = c.id; }
     const node = { id: A.uid(), role: 'user', content: text, attachments: atts, createdAt: now(), updatedAt: now(), parentId: c.leafId || null };
     c.nodes = [...A.nodesOf(c), node]; delete c.messages; c.leafId = node.id; c.updatedAt = now(); c.dirty = true;
     if (!c.title) c.title = text.replace(/\s+/g, ' ').slice(0, 64) || t('photo');
-    await saveConv(c);
-    S.draft = ''; S.atts = []; render(); scrollChat(true);
+    await saveConv(c); renderAll(); scrollChat(true);
     return dispatch(c, node);
   }
-  // Who answers: the chosen model; with a computer model and no computer, what "away" says.
-  const isCloud = (m) => typeof m === 'string' && m.startsWith('cloud:');
-  const cloudId = () => (isCloud(S.settings.model) ? S.settings.model.slice(6) : 'auto');
-  function awayRoute() {
-    const a = S.settings.away || 'cloud';
-    const phoneOk = !!localInfo() && S.local.status !== 'unsupported';
-    if (a === 'cloud' && navigator.onLine !== false) return 'cloud';
-    if (a !== 'wait' && phoneOk && S.settings.localFallback !== false) return 'phone';
-    if (a === 'phone' && navigator.onLine !== false) return 'cloud';
-    return 'wait';
-  }
-  async function dispatch(c, node) {
-    if (S.settings.model === 'phone') return runPhone(c, node, 'phone');
-    if (isCloud(S.settings.model)) return navigator.onLine === false && localInfo() ? runPhone(c, node, 'phone') : runPhone(c, node, 'cloud');
-    if (!session) {
-      const r = awayRoute();
-      if (r !== 'wait') return runPhone(c, node, r);
-      S.outbox.push({ convId: c.id, nodeId: node.id }); await kv.set('outbox', S.outbox); render(); connect(); return;
-    }
+  async function dispatch(c, node, regenerate = false) {
+    const m = S.settings.model;
+    if (!isPcModel(m)) return runHere(c, node);
+    if (!session) { S.outbox.push({ convId: c.id, nodeId: node.id }); await kv.set('outbox', S.outbox); renderCards(); connect(); return; }
     try {
-      const res = await rpc('run', { conv: strip(c), nodeId: node.id, model: S.settings.model && S.settings.model !== 'phone' ? S.settings.model : null, agent: !!c.agent });
+      const res = await rpc('run', { conv: strip(c), nodeId: node.id, model: m, agent: true, regenerate });
       c.dirty = false;
-      if (res.already) { await syncNow(); return; }
-      const asst = { id: res.nodeId, role: 'assistant', content: '', reasoning: '', steps: [], model: res.model, pending: true, createdAt: now(), parentId: node.id };
-      c.nodes = [...A.nodesOf(c), asst]; c.leafId = asst.id;
-      await saveConv(c);
-      S.runs.set(res.runId, { convId: c.id, nodeId: asst.id });
-      render(); scrollChat(true);
-    } catch (e) {
-      S.outbox.push({ convId: c.id, nodeId: node.id }); await kv.set('outbox', S.outbox);
-      toast(e.message, 'err'); render();
-    }
+      if (res.already) return syncNow();
+      const asst = { id: res.nodeId, role: 'assistant', content: '', steps: [], model: res.model, pending: true, createdAt: now(), parentId: node.id };
+      c.nodes = [...A.nodesOf(c), asst]; c.leafId = asst.id; await saveConv(c);
+      S.runs.set(res.runId, { convId: c.id, nodeId: asst.id }); renderMain(); renderComposer(); scrollChat(true);
+    } catch (e) { S.outbox.push({ convId: c.id, nodeId: node.id }); await kv.set('outbox', S.outbox); toast(e.message, 'err'); renderCards(); }
   }
   async function flushOutbox() {
     if (!session || !S.outbox.length) return;
     const list = S.outbox.splice(0); await kv.set('outbox', S.outbox);
     for (const q of list) {
-      const c = S.convs.get(q.convId); if (!c) continue;
-      const node = A.nodesOf(c).find((n) => n.id === q.nodeId); if (!node) continue;
-      if (A.nodesOf(c).some((n) => n.parentId === node.id && n.role === 'assistant')) continue;
-      await dispatch(c, node);
+      const c = S.convs.get(q.convId); const node = c && A.nodesOf(c).find((n) => n.id === q.nodeId);
+      if (node && !A.nodesOf(c).some((n) => n.parentId === node.id && n.role === 'assistant')) await dispatch(c, node);
     }
+    renderCards();
   }
-  const queued = (nodeId) => S.outbox.some((q) => q.nodeId === nodeId);
+  async function answerQueuedWithCloud() {
+    const list = S.outbox.splice(0); await kv.set('outbox', S.outbox); renderCards();
+    for (const q of list) { const c = S.convs.get(q.convId); const node = c && A.nodesOf(c).find((n) => n.id === q.nodeId); if (node) await runHere(c, node, true); }
+  }
 
-  // run events from the computer
-  let paintT = 0;
-  function onRunEvents(m) {
-    const c = S.convs.get(m.convId); if (!c) return;
-    let n = A.nodesOf(c).find((x) => x.id === m.nodeId);
-    if (!n) { n = { id: m.nodeId, role: 'assistant', content: '', reasoning: '', steps: [], pending: true, createdAt: now(), parentId: c.leafId }; c.nodes = [...A.nodesOf(c), n]; c.leafId = n.id; S.runs.set(m.runId, { convId: c.id, nodeId: n.id }); }
-    for (const ev of m.evs || []) {
-      if (ev.type === 'token') n.content = (n.content || '') + ev.text;
-      else if (ev.type === 'reasoning') n.reasoning = (n.reasoning || '') + ev.text;
-      else if (ev.type === 'tool_start') (n.steps = n.steps || []).push({ id: ev.id, name: ev.name, status: 'running', parent: ev.parent, args: ev.args });
-      else if (ev.type === 'tool_end') { const st = (n.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; } }
-      else if (ev.type === 'tool_round') { if (n.content && !/\n\n$/.test(n.content)) n.content += '\n\n'; }
-      else if (ev.type === 'retract') n.content = '';
-      else if (ev.type === 'agent_switch') c.agent = true;
+  // The model answers from here (Fabro Cloud or a key); tools run on the computer when it's reachable.
+  async function runHere(c, node, forceCloud = false) {
+    const key = forceCloud ? null : keyOf(S.settings.model);
+    const cloudId = !forceCloud && typeof S.settings.model === 'string' && S.settings.model.startsWith('cloud:') ? S.settings.model.slice(6) : 'auto';
+    const asst = { id: A.uid(), role: 'assistant', content: '', reasoning: '', steps: [], model: key ? key.model : modelLabel('cloud:' + cloudId), pending: true, createdAt: now(), parentId: node.id, origin: key ? 'phone-key' : 'phone-cloud' };
+    if (session && S.pcTools) asst.toolsOn = pcName();
+    c.nodes = [...A.nodesOf(c), asst]; c.leafId = asst.id; await saveConv(c); renderMain(); renderComposer(); scrollChat(true);
+    const ctl = new AbortController(); const inflight = new Set();
+    S.localRun = { convId: c.id, abort: () => { ctl.abort(); for (const id of inflight) rpc('tool.abort', { callId: id }).catch(() => {}); } };
+    let ext = null;
+    if (session && S.pcTools) {
+      const tools = await rpc('tools.list', { text: node.content, used: [] }, 8000).then((r) => r.tools).catch(() => S.pcTools);
+      ext = { name: pcName(), schemas: tools, call: async (name, args, id) => { inflight.add(id); try { return await rpc('tool.call', { name, args, callId: id, convId: c.id }, 20 * 60000); } finally { inflight.delete(id); } } };
     }
-    n.runId = m.runId;
-    if (S.cur === c.id && S.view === 'main') { cancelAnimationFrame(paintT); paintT = requestAnimationFrame(() => { paintMessage(n); scrollChat(); }); }
-    if (S.voice && S.voice.convId === c.id) S.voice.feed(n.content || '');
-  }
-  async function onRunDone(m) {
-    S.runs.delete(m.runId);
-    for (const [k, v] of S.asks) if (v.runId === m.runId) S.asks.delete(k);
-    if (m.conv) {
-      const l = S.convs.get(m.conv.id);
-      const merged = l ? A.mergeConv(l, m.conv) : m.conv;
-      merged.dirty = !!(l && l.dirty && hasNewer(l, m.conv));
-      await saveConv(merged);
-      if (S.cur === merged.id) render();
-      const last = A.pathOf(merged).slice(-1)[0];
-      if (S.voice && S.voice.convId === merged.id) S.voice.done(last ? last.content || '' : '', last && last.error);
-      if (document.hidden && last) localNotify(merged.title || 'Fabro', (last.error ? '⚠ ' + last.error : last.content || '').replace(/[#*_`>]/g, '').slice(0, 140), merged.id);
-    }
-  }
-  function onAsk(m) {
-    S.asks.set(m.ask.id, { ...m.ask, runId: m.runId, convId: m.convId });
-    if (S.cur === m.convId) render();
-    if (document.hidden) localNotify(t('askTitle'), m.ask.summary || '', m.convId);
-  }
-  async function answerAsk(id, value) {
-    const a = S.asks.get(id); if (!a) return;
-    S.asks.delete(id); render();
-    try { await rpc('run.answer', { runId: a.runId, callId: id, value }); } catch (e) { toast(e.message, 'err'); }
-  }
-  async function stopRun() {
-    const c = curConv(); if (!c) return;
-    for (const [runId, r] of S.runs) if (r.convId === c.id) rpc('run.abort', { runId }).catch(() => {});
-    if (S.localRun) S.localRun.abort();
-  }
-  const busy = (c) => !!c && A.pathOf(c).some((n) => n.pending);
-
-  // ───────────────────────────── phone model (WebGPU) ─────────────────────────────
-  const LOCAL_MODELS = [
-    { id: 'qwen3-0.6b', name: 'Qwen3 0.6B', f16: 'Qwen3-0.6B-q4f16_1-MLC', f32: 'Qwen3-0.6B-q4f32_1-MLC', size: '≈ 0.5 GB' },
-    { id: 'qwen3-1.7b', name: 'Qwen3 1.7B', f16: 'Qwen3-1.7B-q4f16_1-MLC', f32: 'Qwen3-1.7B-q4f32_1-MLC', size: '≈ 1.2 GB' },
-  ];
-  const WEBLLM = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/+esm';
-  let engine = null;
-  // Phones have little memory for a page: one model at a time, the small one only on iPhone / low-memory
-  // Android, a short context, and a load that killed the page is never tried twice in a row.
-  const PHONE_DEV = !!(window.FASpeech && FASpeech.PHONE);
-  const LOW_MEM = PHONE_DEV && (/iPhone|iPad|iPod|Mac/.test(navigator.userAgent) || (navigator.deviceMemory || 4) <= 4);
-  const localAllowed = (m) => !(LOW_MEM && m.id !== 'qwen3-0.6b');
-  const TRY_KEY = 'fa-local-try';
-  const tryMark = (v) => { try { v ? localStorage.setItem(TRY_KEY, v) : localStorage.removeItem(TRY_KEY); } catch {} };
-  const tryCrashed = (id) => { try { return localStorage.getItem(TRY_KEY) === id; } catch { return false; } };
-  async function unloadLocal() { const e = engine; engine = null; try { if (e) await e.unload(); } catch {} if (S.local.status === 'ready' || S.local.status === 'loading') S.local = { status: 'idle', progress: 0, text: '' }; }
-  window.FAHeavy = { freeFor: async (what) => { if (what === 'ears') await unloadLocal(); else if (window.FASpeech && FASpeech.release) FASpeech.release(); } };
-  const localInfo = () => LOCAL_MODELS.find((m) => m.id === (S.settings.localModel || {}).id);
-  async function webgpu() {
-    if (!navigator.gpu) return null;
-    try { const ad = await navigator.gpu.requestAdapter(); return ad ? { f16: ad.features.has('shader-f16') } : null; } catch { return null; }
-  }
-  async function loadLocal(model, { download = false } = {}) {
-    const gpu = await webgpu();
-    if (!gpu) { S.local = { status: 'unsupported', progress: 0, text: t('noWebgpu') }; renderSheet(); return false; }
-    const mid = gpu.f16 ? model.f16 : model.f32;
-    const heavy = (key) => { S.local = { status: download ? 'error' : 'none', progress: 0, text: t(key) }; renderSheet(); renderHeader(); if (!download) toast(t(key), 'err'); return false; };
-    if (!localAllowed(model)) return heavy('localTooBig');
-    if (tryCrashed(model.id)) { tryMark(''); if (!download) { S.settings.localModel = null; if (S.settings.model === 'phone') S.settings.model = null; await saveSettings(); } return heavy('localCrashed'); }
-    if (PHONE_DEV) await window.FAHeavy.freeFor('llm');
-    S.local = { status: 'loading', progress: 0, text: '' }; renderSheet(); renderHeader();
-    tryMark(model.id);
-    try {
-      const webllm = await import(WEBLLM);
-      engine = await webllm.CreateMLCEngine(mid, { initProgressCallback: (p) => { S.local.progress = p.progress || 0; S.local.text = p.text || ''; renderSheet(); } }, PHONE_DEV ? { context_window_size: LOW_MEM ? 2048 : 4096 } : undefined);
-      S.settings.localModel = { id: model.id, mid }; await saveSettings();
-      S.local = { status: 'ready', progress: 1, text: '' };
-      tryMark('');
-    } catch (e) {
-      tryMark('');
-      engine = null;
-      S.local = { status: download ? 'error' : 'none', progress: 0, text: String(e && e.message || e).slice(0, 200) };
-    }
-    renderSheet(); renderHeader(); render();
-    return S.local.status === 'ready';
-  }
-  async function removeLocal() {
-    try { if (engine) await engine.unload(); } catch {}
-    engine = null;
-    try { const webllm = await import(WEBLLM); const m = S.settings.localModel; if (m && m.mid && webllm.deleteModelAllInfoInCache) await webllm.deleteModelAllInfoInCache(m.mid); } catch {}
-    for (const k of await caches.keys()) if (/webllm/i.test(k)) await caches.delete(k);
-    S.settings.localModel = null; if (S.settings.model === 'phone') S.settings.model = null; await saveSettings();
-    S.local = { status: 'none', progress: 0, text: '' }; renderSheet(); renderHeader();
-  }
-  // The phone answers alone (Fabro Cloud or the phone's model), with tools: chat and agent as on the computer.
-  async function runPhone(c, node, how) {
-    if (how === 'phone' && S.local.status !== 'ready') { const m = localInfo(); if (!m || !(await loadLocal(m))) { if (navigator.onLine !== false) how = 'cloud'; else { toast(t('localUnavailable'), 'err'); return; } } }
-    const lm = localInfo(); const cid = cloudId();
-    const label = how === 'phone' ? `${lm ? lm.name : ''} · ${t('onPhone')}` : `${(FAAgent.models.find((x) => x.id === cid) || { name: cid }).name} · Fabro Cloud`;
-    const asst = { id: A.uid(), role: 'assistant', content: '', reasoning: '', steps: [], model: label, pending: true, createdAt: now(), parentId: node.id, origin: how === 'phone' ? 'phone-local' : 'phone-cloud' };
-    c.nodes = [...A.nodesOf(c), asst]; c.leafId = asst.id; await saveConv(c); render(); scrollChat(true);
-    const ctl = new AbortController(); S.localRun = { abort: () => ctl.abort() };
-    const paint = () => { if (S.cur === c.id) { cancelAnimationFrame(paintT); paintT = requestAnimationFrame(() => { paintMessage(asst); scrollChat(); }); } if (S.voice && S.voice.convId === c.id) S.voice.feed(asst.content || ''); };
+    let paintT = 0;
+    const paint = () => { if (S.cur === c.id) { cancelAnimationFrame(paintT); paintT = requestAnimationFrame(() => { paintMessage(asst); scrollChat(); }); } };
     try {
       const out = await FAAgent.run({
-        history: A.pathOf({ ...c, leafId: node.id }), model: cid, agent: false, lang, engine: how === 'phone' ? engine : null, signal: ctl.signal,
+        history: A.pathOf({ ...c, leafId: node.id }), model: cloudId, agent: true, lang, signal: ctl.signal, ext,
+        prov: key ? { name: key.name, base: key.base, key: key.key, model: key.model } : null,
         onEvent: (ev) => {
-          if (ev.type === 'token') asst.content = (asst.content + ev.text).replace(/【(\d+)†[^】]*】/g, '[$1]'); // gpt-oss citations → [n]
+          if (ev.type === 'wait') { asst.wait = ev.text || ''; }
+          else if (ev.type === 'token') { asst.wait = ''; asst.content = (asst.content + ev.text).replace(/【(\d+)†[^】]*】/g, '[$1]'); }
           else if (ev.type === 'reasoning') asst.reasoning = (asst.reasoning || '') + ev.text;
           else if (ev.type === 'tool_round') { if (asst.content && !/\n\n$/.test(asst.content)) asst.content += '\n\n'; }
           else if (ev.type === 'tool_start') asst.steps.push({ id: ev.id, name: ev.name, status: 'running', args: ev.args });
@@ -378,33 +321,66 @@
           paint();
         },
       });
-      if (how === 'cloud' && out && out.model) asst.model = `${out.model} · Fabro Cloud`;
+      if (!key && out && out.model) asst.model = out.model;
     } catch (e) { if (e && e.name !== 'AbortError') asst.error = String(e && e.message || e); }
     S.localRun = null;
-    asst.content = asst.content.trim();
-    asst.pending = false; asst.updatedAt = now(); c.updatedAt = now(); c.dirty = true;
-    await saveConv(c); render();
-    if (S.voice && S.voice.convId === c.id) S.voice.done(asst.content, asst.error);
-    if (document.hidden) localNotify(c.title || 'Fabro', (asst.error ? '⚠ ' + asst.error : asst.content).replace(/[#*_`>]/g, '').slice(0, 140), c.id);
+    delete asst.wait; asst.content = asst.content.trim(); asst.pending = false; asst.updatedAt = now(); c.updatedAt = now(); c.dirty = true;
+    if (!asst.content && !asst.error && !ctl.signal.aborted && !asst.steps.some((x) => x.view && x.view.image)) asst.error = t('empty');
+    await saveConv(c); renderMain(); renderComposer(); renderSide(); sendLater(c.id);
+    if (document.hidden) localNotify(c.title || 'Fabro', (asst.error ? asst.error : asst.content).replace(/[#*_`>]/g, '').slice(0, 140), c.id);
     if (session) syncNow().catch(() => {});
   }
 
+  function onRunEvents(m) {
+    const c = S.convs.get(m.convId); if (!c) return;
+    let n = A.nodesOf(c).find((x) => x.id === m.nodeId);
+    if (!n) { n = { id: m.nodeId, role: 'assistant', content: '', steps: [], pending: true, createdAt: now(), parentId: c.leafId }; c.nodes = [...A.nodesOf(c), n]; c.leafId = n.id; S.runs.set(m.runId, { convId: c.id, nodeId: n.id }); }
+    for (const ev of m.evs || []) {
+      if (ev.type === 'token') n.content = (n.content || '') + ev.text;
+      else if (ev.type === 'tool_start') (n.steps = n.steps || []).push({ id: ev.id, name: ev.name, status: 'running', args: ev.args });
+      else if (ev.type === 'tool_end') { const st = (n.steps || []).find((x) => x.id === ev.id); if (st) { st.status = ev.error ? 'error' : ev.refused ? 'refused' : 'done'; st.view = ev.view; } }
+      else if (ev.type === 'tool_round') { if (n.content && !/\n\n$/.test(n.content)) n.content += '\n\n'; }
+      else if (ev.type === 'retract') n.content = '';
+    }
+    n.runId = m.runId;
+    if (S.cur === c.id) requestAnimationFrame(() => { paintMessage(n); scrollChat(); });
+  }
+  async function onRunDone(m) {
+    S.runs.delete(m.runId);
+    for (const [k, v] of S.asks) if (v.runId === m.runId) S.asks.delete(k);
+    if (!m.conv) return;
+    const l = S.convs.get(m.conv.id); const merged = l ? A.mergeConv(l, m.conv) : m.conv;
+    merged.dirty = !!(l && l.dirty && hasNewer(l, m.conv)); await saveConv(merged);
+    if (S.cur === merged.id) { renderMain(); renderComposer(); } renderSide(); renderCards(); sendLater(merged.id);
+    const last = A.pathOf(merged).slice(-1)[0];
+    if (document.hidden && last) localNotify(merged.title || 'Fabro', (last.error || last.content || '').replace(/[#*_`>]/g, '').slice(0, 140), merged.id);
+  }
+  function sendLater(convId) {
+    const i = S.later.findIndex((x) => x.convId === convId); if (i < 0) return;
+    const [x] = S.later.splice(i, 1); if (S.cur !== convId) return;
+    S.atts = x.atts; send(x.text);
+  }
+  async function answerAsk(id, value) {
+    const a = S.asks.get(id); if (!a) return; S.asks.delete(id); renderCards();
+    try { if (a.kind === 'tool') await rpc('tool.answer', { id, value }); else await rpc('run.answer', { runId: a.runId, callId: id, value }); } catch (e) { toast(e.message, 'err'); }
+  }
+  function stopRun() {
+    const c = curConv(); if (!c) return;
+    for (const [runId, r] of S.runs) if (r.convId === c.id) rpc('run.abort', { runId }).catch(() => {});
+    if (S.localRun && S.localRun.convId === c.id) S.localRun.abort();
+  }
+
   // ───────────────────────────── notifications ─────────────────────────────
-  const urlB64 = (s) => A.unb64u(s);
   async function ensurePush(ask) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !S.conn.info || !S.conn.info.vapid) return false;
     if (Notification.permission === 'denied') return false;
     if (Notification.permission !== 'granted') { if (!ask) return false; if ((await Notification.requestPermission()) !== 'granted') return false; }
     try {
-      const reg = await navigator.serviceWorker.ready;
-      let sub = await reg.pushManager.getSubscription();
-      const key = S.conn.info.vapid;
+      const reg = await navigator.serviceWorker.ready; let sub = await reg.pushManager.getSubscription(); const key = S.conn.info.vapid;
       if (sub && sub.options && sub.options.applicationServerKey && A.b64u(new Uint8Array(sub.options.applicationServerKey)) !== key) { await sub.unsubscribe(); sub = null; }
-      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(key) });
-      await rpc('push.sub', { sub: sub.toJSON() });
-      S.settings.notify = true; await saveSettings();
-      return true;
-    } catch (e) { console.warn('push', e); if (ask) toast(t('pushFailed'), 'err'); return false; }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: A.unb64u(key) });
+      await rpc('push.sub', { sub: sub.toJSON() }); S.settings.notify = true; await saveSettings(); return true;
+    } catch (e) { console.warn('push', e); return false; }
   }
   async function disablePush() {
     try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch {}
@@ -413,996 +389,517 @@
   }
   async function localNotify(title, body, convId) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    try { const reg = await navigator.serviceWorker.ready; reg.showNotification(title, { body, tag: convId, data: { convId }, icon: 'icons/icon-192.png', badge: 'icons/badge.png' }); } catch {}
+    try { (await navigator.serviceWorker.ready).showNotification(title, { body, tag: convId, data: { convId }, icon: 'icons/icon-192.png', badge: 'icons/badge.png' }); } catch {}
   }
 
   // ───────────────────────────── pairing ─────────────────────────────
   let scan = null;
   async function startScan() {
-    S.view = 'scan'; render();
-    const video = $('#scan-video');
+    const video = $('#scan-video'); if (!video) return;
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); }
-    catch { S.view = 'code'; render(); toast(t('noCamera'), 'err'); return; }
+    catch { toast(t('noCamera'), 'err'); S.sheet = { kind: 'pair', mode: 'code' }; renderSheet(); return; }
     video.srcObject = stream; await video.play().catch(() => {});
-    const worker = new Worker('scan-worker.js');
-    const cv = document.createElement('canvas'); const side = 520; cv.width = side; cv.height = side; const g = cv.getContext('2d', { willReadFrequently: true });
+    const worker = new Worker('scan-worker.js'); const side = 520;
+    const cv = document.createElement('canvas'); cv.width = side; cv.height = side; const g = cv.getContext('2d', { willReadFrequently: true });
     let busyW = false, stopped = false;
     scan = { stop() { stopped = true; worker.terminate(); stream.getTracks().forEach((x) => x.stop()); scan = null; } };
-    worker.onmessage = async (e) => {
-      busyW = false;
-      if (stopped) return;
-      if (e.data && e.data.ok) { navigator.vibrate && navigator.vibrate(40); $('.scan-ring') && $('.scan-ring').classList.add('hit'); scan.stop(); await pairWith(e.data.data27); }
-    };
+    worker.onmessage = async (e) => { busyW = false; if (stopped) return; if (e.data && e.data.ok) { navigator.vibrate && navigator.vibrate(40); scan.stop(); await pairWith(e.data.data27); } };
     const tick = () => {
       if (stopped) return;
-      if (!busyW && video.videoWidth) {
-        const vw = video.videoWidth, vh = video.videoHeight, s = Math.min(vw, vh);
-        g.drawImage(video, (vw - s) / 2, (vh - s) / 2, s, s, 0, 0, side, side);
-        const im = g.getImageData(0, 0, side, side);
-        busyW = true; worker.postMessage({ data: im.data.buffer, width: side, height: side }, [im.data.buffer]);
-      }
+      if (!busyW && video.videoWidth) { const vw = video.videoWidth, vh = video.videoHeight, s = Math.min(vw, vh); g.drawImage(video, (vw - s) / 2, (vh - s) / 2, s, s, 0, 0, side, side); const im = g.getImageData(0, 0, side, side); busyW = true; worker.postMessage({ data: im.data.buffer, width: side, height: side }, [im.data.buffer]); }
       requestAnimationFrame(tick);
     };
     tick();
   }
-  function stopScan() { if (scan) scan.stop(); }
   async function pairWith(data27) {
     const payload = A.unpackPayload(data27 instanceof Uint8Array ? data27 : new Uint8Array(data27));
-    if (!payload) { toast(t('badCode'), 'err'); S.view = 'welcome'; render(); return; }
-    S.view = 'pairing'; S.pairErr = ''; render();
+    if (!payload) { toast(t('badCode'), 'err'); return; }
+    S.sheet = { kind: 'pair', mode: 'busy' }; renderSheet();
     if (!S.identity) { S.identity = await A.genKeys(); await kv.set('identity', S.identity.jwk); }
-    const urls = A.relaysFor(payload.flags, S.settings.customRelay);
+    const urls = A.relaysFor(payload.flags, null);
     if (relay) relay.close();
     relay = new A.Relay(urls, {});
     for (let i = 0; i < 40 && !relay.up(); i++) await sleep(250);
     try {
       const link = await A.phonePair({ relay, identity: S.identity, payload, name: deviceName(), platform: platform(), timeout: 45000 });
       link.relays = link.relays && link.relays.length ? link.relays : urls;
-      S.link = link; await kv.set('link', link); S.forceWelcome = false; if (S.settings.model === 'phone' && S.settings.guest) S.settings.model = null; S.settings.guest = false; await saveSettings();
-      S.view = 'paired'; render();
-      connect(true);
-    } catch (e) {
-      S.pairErr = String(e.message) === 'timeout' ? t('pairTimeout') : t('pairFailed');
-      S.view = 'pairing'; render();
-    }
+      S.link = link; await kv.set('link', link);
+      S.sheet = null; renderSheet(); toast(t('pairOk')); renderAll(); connect(true);
+    } catch (e) { S.sheet = { kind: 'pair', mode: 'code', err: t('pairFail') }; renderSheet(); }
   }
   async function forget(remote) {
     if (session && !remote) { try { await rpc('unpair', {}, 5000); } catch {} }
     if (session) { try { await session.send({ t: 'bye' }); } catch {} session.close(); session = null; }
     if (relay) { relay.close(); relay = null; }
-    S.link = null; S.conn = { state: 'off', info: null, err: '' };
-    await kv.del('link');
-    S.view = 'welcome'; render();
+    S.link = null; S.conn = { state: 'off', info: null }; S.models = []; S.pcTools = null;
+    if (isPcModel(S.settings.model)) { S.settings.model = 'cloud:auto'; await saveSettings(); }
+    await kv.del('link'); renderAll();
   }
 
-  // ───────────────────────────── photos ─────────────────────────────
+  // ───────────────────────────── photos and voice ─────────────────────────────
   async function addPhotos(files) {
-    for (const f of [...files].slice(0, 4)) {
+    for (const f of [...files].slice(0, 4 - S.atts.length)) {
       if (!/^image\//.test(f.type)) continue;
-      const url = URL.createObjectURL(f);
-      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; }).catch(() => null);
-      URL.revokeObjectURL(url); if (!img) continue;
-      const k = Math.min(1, 1600 / Math.max(img.width, img.height));
-      const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      S.atts.push({ kind: 'image', name: f.name || 'photo.jpg', type: 'image/jpeg', data: cv.toDataURL('image/jpeg', 0.85) });
+      const bmp = await createImageBitmap(f).catch(() => null); if (!bmp) continue;
+      const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+      cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+      S.atts.push({ kind: 'image', name: f.name || 'photo.jpg', data: cv.toDataURL('image/jpeg', 0.85) });
     }
     renderComposer();
   }
-
-  // ───────────────────────────── voice ─────────────────────────────
-  // Microphone with simple voice-activity detection → 16 kHz WAV (what the computer's Whisper expects).
-  const Mic = {
-    stream: null, ctx: null, proc: null, rec: null, pre: [], speaking: false, voiced: 0, silent: 0, floor: 0.008,
-    async start(onUtterance, onLevel, opts = {}) {
-      this.onUtterance = onUtterance; this.onLevel = onLevel; this.vad = opts.vad !== false;
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('insecure'), { name: 'SecurityError' });
-      // The audio context is created — and resumed — right away, during the tap: made after the permission
-      // prompt, iOS and some Android browsers keep it suspended and the microphone seems deaf.
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.ctx.resume().catch(() => {});
-      // No browser noise suppression: it erases whispers. Echo cancellation and automatic gain stay on.
-      try { this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: true, channelCount: 1 } }); }
-      catch (e) { try { this.ctx.close(); } catch {} this.ctx = null; throw e; }
-      if (this.ctx.state !== 'running') await this.ctx.resume().catch(() => {});
-      const src = this.ctx.createMediaStreamSource(this.stream);
-      this.proc = this.ctx.createScriptProcessor(2048, 1, 1);
-      const mute = this.ctx.createGain(); mute.gain.value = 0;
-      src.connect(this.proc); this.proc.connect(mute); mute.connect(this.ctx.destination);
-      const frameMs = (2048 / this.ctx.sampleRate) * 1000;
-      if (!this.vad) this.rec = [];
-      this.proc.onaudioprocess = (e) => {
-        const d = e.inputBuffer.getChannelData(0); let sum = 0; for (let i = 0; i < d.length; i++) sum += d[i] * d[i];
-        const rms = Math.sqrt(sum / d.length); this.onLevel && this.onLevel(rms);
-        const copy = new Float32Array(d);
-        if (!this.vad) { this.rec.push(copy); return; }
-        if (this.paused) return;
-        // just above the room's noise floor, low enough for a whisper; 4 frames (~170 ms) to start
-        const thr = Math.max(0.0045, this.floor * 2.4);
-        if (!this.speaking) {
-          this.floor = this.floor * 0.97 + Math.min(rms, 0.05) * 0.03;
-          this.pre.push(copy); if (this.pre.length > 12) this.pre.shift();
-          if (rms > thr) { if (++this.voiced >= 4) { this.speaking = true; this.rec = [...this.pre]; this.silent = 0; } } else this.voiced = 0;
-        } else {
-          this.rec.push(copy);
-          if (rms < thr * 0.65) this.silent += frameMs; else this.silent = 0;
-          const dur = this.rec.length * frameMs;
-          if (this.silent > 900 || dur > 30000) {
-            this.speaking = false; this.voiced = 0; this.pre = [];
-            const chunks = this.rec; this.rec = null;
-            if (dur - this.silent > 350) this.onUtterance(wav(chunks, this.ctx.sampleRate));
-          }
-        }
-      };
-    },
-    finish() { const chunks = this.rec || []; const rate = this.ctx ? this.ctx.sampleRate : 48000; this.stop(); return wav(chunks, rate); },
-    stop() {
-      try { this.proc && (this.proc.onaudioprocess = null); this.ctx && this.ctx.close(); } catch {}
-      if (this.stream) this.stream.getTracks().forEach((x) => x.stop());
-      Object.assign(this, { stream: null, ctx: null, proc: null, rec: null, pre: [], speaking: false, voiced: 0, silent: 0, paused: false });
-    },
-  };
-  function wav(chunks, rate) {
-    const n = chunks.reduce((a, c) => a + c.length, 0); const all = new Float32Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
-    const ratio = rate / 16000, len = Math.floor(n / ratio), pcm = new Int16Array(len);
-    for (let i = 0; i < len; i++) pcm[i] = Math.max(-1, Math.min(1, all[Math.floor(i * ratio)])) * 0x7fff;
-    const buf = new ArrayBuffer(44 + len * 2), v = new DataView(buf); const w = (p, s) => { for (let i = 0; i < s.length; i++) v.setUint8(p + i, s.charCodeAt(i)); };
-    w(0, 'RIFF'); v.setUint32(4, 36 + len * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-    v.setUint32(24, 16000, true); v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, len * 2, true);
-    new Int16Array(buf, 44).set(pcm); return new Uint8Array(buf);
-  }
-  const pcVoice = () => !!(session && S.conn.info && S.conn.info.voice && S.conn.info.voice.ready);
-  // Whisper on the phone itself (downloaded once, works offline)
-  const earsReady = () => !!(S.settings.ears && S.settings.ears.id);
-  async function transcribe(wavBytes, { noDevice = false } = {}) {
-    if (pcVoice()) {
-      try { const r = await rpc('voice.stt', { wav: A.b64u(wavBytes).replace(/-/g, '+').replace(/_/g, '/'), lang }, 120000); return (r && r.text) || ''; }
-      catch (e) { if (!earsReady()) throw e; }
-    }
-    // online: Whisper large-v3 turbo in the cloud (free, nothing to download), with the conversation as context
-    if (navigator.onLine !== false && S.settings.cloudEars !== false) {
-      try { const c = curConv(); const last = c && A.pathOf(c).filter((n) => n.role === 'assistant').slice(-1)[0]; return await FAAgent.cloudHear(wavBytes, { lang, prompt: ['Fabro', last ? speakable(last.content).slice(-300) : ''].join('. ') }); }
-      catch (e) { if (!earsReady()) throw e.busy ? new Error(t('cloudBusy')) : e; }
-    }
-    if (earsReady() && !noDevice) return FASpeech.hear(wavBytes, { model: S.settings.ears.id, lang });
-    throw new Error(t('noStt'));
-  }
-  // Microphone refused or missing: explain how to allow it on this exact device, instead of failing silently.
-  async function micHelp(e) {
-    const n = e && e.name;
-    if (n === 'NotFoundError' || n === 'OverconstrainedError') { toast(t('micNone'), 'err'); return; }
-    if (n === 'NotReadableError') { toast(t('micBusy'), 'err'); return; }
-    S.micHelp = { key: FASpeech.micHelpKey(), state: await FASpeech.micState(), insecure: n === 'SecurityError' && !isSecureContext };
-    S.sheet = 'mic'; renderSheet();
-  }
-  function micSheet() {
-    const h = S.micHelp || {};
-    return `<h2>${esc(t('micTitle'))}</h2>
-      <div class="card mic-card"><span class="mic-ic">${ic('mic', 26)}</span><div><b>${esc(t(h.insecure ? 'micInsecure' : 'micBlocked'))}</b><small>${esc(t('micWhy'))}</small></div></div>
-      <ol class="mic-steps">${t(h.key || 'micHelpChrome').split('|').map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
-      <button class="btn primary" data-act="mic-retry">${ic('mic', 18)} ${esc(t('micRetry'))}</button>
-      ${'SpeechRecognition' in window || 'webkitSpeechRecognition' in window ? '' : `<p class="hint">${esc(t('micNoSr'))}</p>`}`;
-  }
-  // Browser speech recognition (fallback when the computer's voice isn't available).
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  function browserListen() {
-    return new Promise((resolve, reject) => {
-      const r = new SR(); r.lang = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', de: 'de-DE' }[lang]; r.interimResults = false; r.maxAlternatives = 1;
-      let got = ''; r.onresult = (e) => { got = e.results[0][0].transcript; };
-      r.onerror = (e) => { const er = new Error(e.error); er.name = e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'NotAllowedError' : e.error === 'audio-capture' ? 'NotFoundError' : 'SpeechError'; er.sr = e.error; reject(er); };
-      r.onend = () => resolve(got); r.start();
-      Mic._sr = r;
-    });
-  }
-  // Speaker: sentence by sentence, from the computer's Piper voice, else the phone's own voice.
-  const Speaker = {
-    q: [], playing: false, gen: 0, audio: null,
-    say(text) { const clean = speakable(text); if (!clean) return; const g = this.gen; const job = { text: clean, wav: pcVoice() ? rpc('voice.tts', { text: clean }, 60000).catch(() => null) : null }; this.q.push(job); if (!this.playing) this.next(g); },
-    async next(g) {
-      if (g !== this.gen) return; const job = this.q.shift(); if (!job) { this.playing = false; this.onIdle && this.onIdle(); return; }
-      this.playing = true;
-      const r = job.wav ? await job.wav : null;
-      if (g !== this.gen) return;
-      if (r && r.wav) {
-        // the computer's voice (Piper), played in one audio element unlocked by the first tap (iOS)
-        const bytes = A.unb64u(r.wav.replace(/\+/g, '-').replace(/\//g, '_'));
-        const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
-        const el = this.el || (this.el = new Audio()); this.audio = el; el.src = url;
-        await new Promise((res) => { el.onended = res; el.onerror = res; el.play().catch(res); });
-        URL.revokeObjectURL(url);
-      } else {
-        // the phone's best natural voices, each sentence in its own language
-        await FASpeech.speak(job.text, { lang, fam: S.settings.voiceFam || 'f', voiceName: S.settings.voiceName || '', rate: S.settings.voiceRate || 1.03 });
-      }
-      this.next(g);
-    },
-    unlock() { try { const el = this.el || (this.el = new Audio()); el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; el.play().catch(() => {}); } catch {} },
-    stop() { this.gen++; this.q = []; this.playing = false; try { this.audio && this.audio.pause(); } catch {} FASpeech.stop(); },
-  };
-  const speakable = (s) => String(s || '').replace(/```[\s\S]*?```/g, ' ').replace(/`([^`]+)`/g, '$1').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[#*_>|~]/g, '').replace(/\s+/g, ' ').trim();
-
-  // Voice mode: listen → transcribe → ask → speak, hands-free, until closed.
-  function openVoice() {
-    if (!S.cur) { const c = newConv(); S.cur = c.id; saveConv(c); }
-    Speaker.unlock();
-    const V = S.voice = { phase: 'listening', user: '', ai: '', convId: S.cur, spoken: 0, level: 0, err: '' };
-    V.feed = (text) => {
-      V.ai = text; V.phase = 'speaking';
-      // speak complete sentences as they arrive
-      const done = text.slice(V.spoken); const m = done.match(/^[\s\S]*?[.!?…:](\s|$)/g);
-      if (m) { const chunk = m.join(''); V.spoken += chunk.length; Speaker.say(chunk); }
-      paintVoice();
-    };
-    V.done = (text, err) => {
-      if (err) { V.err = err; V.phase = 'listening'; paintVoice(); return; }
-      const rest = (text || '').slice(V.spoken); if (rest.trim()) Speaker.say(rest); V.spoken = (text || '').length;
-      Speaker.onIdle = () => { if (S.voice === V) { V.phase = 'listening'; Mic.paused = false; paintVoice(); } };
-      if (!Speaker.playing) Speaker.onIdle();
-    };
-    renderVoice();
-    const heard = async (bytes) => {
-      if (S.voice !== V) return;
-      Mic.paused = true; V.phase = 'thinking'; paintVoice();
+  let rec = null;
+  async function dictate() {
+    if (rec) return rec.stop();
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } }); } catch { return toast(t('micDenied'), 'err'); }
+    const ac = new (window.AudioContext || window.webkitAudioContext)(); const src = ac.createMediaStreamSource(stream);
+    const proc = ac.createScriptProcessor(4096, 1, 1); const chunks = [];
+    proc.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    src.connect(proc); proc.connect(ac.destination);
+    const comp = $('.composer'); comp && comp.classList.add('rec');
+    rec = { stop: async () => {
+      rec = null; proc.disconnect(); src.disconnect(); stream.getTracks().forEach((x) => x.stop()); const rate = ac.sampleRate; ac.close();
+      $('.composer') && $('.composer').classList.remove('rec');
+      const wav = toWav(chunks, rate); if (wav.length < 16000) return;
       try {
-        const text = await transcribe(bytes);
-        if (!text.trim()) { Mic.paused = false; V.phase = 'listening'; paintVoice(); return; }
-        V.user = text; V.ai = ''; V.spoken = 0; paintVoice();
-        await send(text);
-      } catch (e) { V.err = e.message; Mic.paused = false; V.phase = 'listening'; paintVoice(); }
-    };
-    // the computer's Whisper, else Whisper on the phone, else the browser's own recognition
-    const canHear = () => pcVoice() || earsReady() || (navigator.onLine !== false && S.settings.cloudEars !== false);
-    if (canHear() || !SR) {
-      if (!canHear()) { V.err = t('earsNeeded'); V.needEars = true; paintVoice(); return; }
-      Mic.start(heard, (lv) => { V.level = lv; const o = $('.vx-orb'); if (o) o.style.setProperty('--lv', Math.min(1, lv * 14).toFixed(2)); }).catch((e) => { V.err = t('noMic'); paintVoice(); micHelp(e); });
-    } else {
-      const loop = async () => {
-        while (S.voice === V) {
-          if (V.phase !== 'listening') { await sleep(300); continue; }
-          try { const text = await browserListen(); if (S.voice !== V) return; if (text.trim()) { V.phase = 'thinking'; V.user = text; V.ai = ''; V.spoken = 0; paintVoice(); await send(text); } }
-          catch (e) {
-            if (e.name === 'NotAllowedError' || e.name === 'NotFoundError') { V.err = t('noMic'); V.needEars = e.sr === 'service-not-allowed'; paintVoice(); if (e.sr !== 'service-not-allowed') micHelp(e); return; }
-            if (e.sr !== 'no-speech' && e.sr !== 'aborted') { V.err = e.message; paintVoice(); }
-            await sleep(e.sr === 'no-speech' ? 50 : 1500);
-          }
-        }
-      };
-      loop();
-    }
+        let text = '';
+        if (session && S.conn.info && S.conn.info.voice && S.conn.info.voice.ready) { const r = await rpc('voice.stt', { wav: A.b64u(wav).replace(/-/g, '+').replace(/_/g, '/'), lang }, 60000); text = typeof r === 'string' ? r : (r && r.text) || ''; }
+        else text = await FAAgent.cloudHear(wav, { lang });
+        const ta = $('.composer textarea'); if (text && ta) { ta.value = (ta.value ? ta.value + ' ' : '') + text.trim(); ta.dispatchEvent(new Event('input')); ta.focus(); } else if (!text) toast(t('sttFail'));
+      } catch { toast(t('sttFail'), 'err'); }
+    } };
   }
-  function closeVoice() { Mic.stop(); Speaker.stop(); try { Mic._sr && Mic._sr.abort(); } catch {} S.voice = null; $('#vx') && $('#vx').remove(); render(); }
-  // Dictation into the composer.
-  async function dictate(btn) {
-    if (S.dictating) {
-      S.dictating = false; btn.classList.remove('rec');
-      const bytes = Mic.finish();
-      try { const text = await transcribe(bytes); if (text) { S.draft = (S.draft ? S.draft + ' ' : '') + text; renderComposer(); $('#prompt') && $('#prompt').focus(); } } catch (e) { toast(e.message, 'err'); }
-      return;
-    }
-    if (!pcVoice() && !earsReady() && !(navigator.onLine !== false && S.settings.cloudEars !== false)) {
-      if (!SR) { S.sheet = 'settings'; S.scrollTo = 'ears'; renderSheet(); toast(t('earsNeeded')); return; }
-      btn.classList.add('rec');
-      try { const text = await browserListen(); if (text) { S.draft = (S.draft ? S.draft + ' ' : '') + text; renderComposer(); } }
-      catch (e) { if (e.name === 'NotAllowedError' && e.sr === 'service-not-allowed') toast(t('earsNeeded'), 'err'); else if (e.name === 'NotAllowedError' || e.name === 'NotFoundError') micHelp(e); else if (e.sr !== 'no-speech') toast(e.message, 'err'); }
-      btn.classList.remove('rec'); return;
-    }
-    try { await Mic.start(() => {}, null, { vad: false }); S.dictating = true; btn.classList.add('rec'); } catch (e) { micHelp(e); }
-  }
-
-  // ───────────────────────────── artifacts (read-only on the phone) ─────────────────────────────
-  const attrsOf = (x) => { const o = {}; for (const m of String(x).matchAll(/(\w+)\s*=\s*"([^"]*)"/g)) o[m[1].toLowerCase()] = m[2]; return o; };
-  function artType(t, body) {
-    t = String(t || '').toLowerCase();
-    if (/slide|deck|present/.test(t)) return 'slides'; if (/svg|draw/.test(t)) return 'svg'; if (/html|page|web|site/.test(t)) return 'html'; if (/code|script|program/.test(t)) return 'code';
-    if (/^\s*<svg/i.test(body)) return 'svg'; if (/^\s*(<!doctype|<html)/i.test(body)) return 'html'; return 'markdown';
-  }
-  function splitArt(content) {
-    const out = []; let rest = String(content || ''), i = 0;
-    for (;;) {
-      const open = rest.match(/<artifact\b([^>]*)>/i);
-      if (!open) { if (rest) out.push({ kind: 'text', text: rest }); break; }
-      if (open.index) out.push({ kind: 'text', text: rest.slice(0, open.index) });
-      const after = rest.slice(open.index + open[0].length), close = after.search(/<\/artifact>/i), at = attrsOf(open[1]);
-      const body = (close < 0 ? after : after.slice(0, close)).replace(/^\n+/, '').replace(/\s+$/, '');
-      out.push({ kind: 'artifact', i: i++, type: artType(at.type, body), title: at.title || '', lang: at.lang || '', body, open: close < 0 });
-      if (close < 0) break; rest = after.slice(close + '</artifact>'.length);
-    }
-    return out;
-  }
-  const ART_ICON = { markdown: '📄', slides: '🖼️', html: '🌐', svg: '✏️', code: '⌨️' };
-  function artBody(a) {
-    if (a.type === 'markdown') return `<div class="md doc">${md(a.body)}</div>`;
-    if (a.type === 'slides') return a.body.split(/\n-{3,}\n/).map((x, i) => `<section class="slide"><small>${i + 1}</small><div class="md">${md(x)}</div></section>`).join('');
-    if (a.type === 'svg') return `<img class="art-svg" alt="" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(a.body)}">`;
-    if (a.type === 'html') return `<iframe class="art-frame" sandbox title="${esc(a.title)}" srcdoc="${esc(a.body)}"></iframe>`;
-    return `<pre class="art-code"><code>${esc(a.body)}</code></pre>`;
-  }
-  function openArt(a) {
-    S.art = a; let el = $('#av'); if (!el) { el = document.createElement('div'); el.id = 'av'; el.className = 'av'; document.body.appendChild(el); }
-    el.innerHTML = `<header><button class="icon-btn" data-act="art-close" aria-label="${esc(t('close'))}">${ic('back')}</button><div class="av-t"><b>${esc(a.title || t('untitled'))}</b><small>${esc(t('readOnly'))}${a.versions ? ' · v' + a.versions : ''}</small></div>
-      ${a.pdf ? `<button class="btn sm primary" data-act="art-pdf">PDF</button>` : ''}</header><div class="av-body ${a.type}">${a.loading ? `<p class="muted pad">${esc(t('loading'))}</p>` : artBody(a)}</div>`;
-  }
-  async function openArtById(id) {
-    if (!session) { toast(t('offline'), 'err'); return; }
-    openArt({ title: '…', loading: true });
-    try { const a = await rpc('artifact.get', { id }); openArt({ ...a, body: a.content, type: a.type === 'html' ? 'html' : artType(a.type, a.content) }); } catch (e) { $('#av') && $('#av').remove(); toast(e.message, 'err'); }
-  }
-  async function openPdf(id) {
-    try {
-      toast(t('loading'));
-      const r = await rpc('doc.pdf', { id }, 120000);
-      const url = URL.createObjectURL(new Blob([A.unb64u(r.data.replace(/\+/g, '-').replace(/\//g, '_'))], { type: 'application/pdf' }));
-      const w = window.open(url, '_blank'); if (!w) location.href = url;
-    } catch (e) { toast(e.message, 'err'); }
+  function toWav(chunks, rate) {
+    const n = chunks.reduce((a, c) => a + c.length, 0); const all = new Float32Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+    const out = 16000, len = Math.floor(n * out / rate); const pcm = new Int16Array(len);
+    for (let i = 0; i < len; i++) { const x = i * rate / out, j = Math.floor(x), f = x - j; const v = (all[j] || 0) * (1 - f) + (all[j + 1] || 0) * f; pcm[i] = Math.max(-1, Math.min(1, v)) * 0x7fff; }
+    const buf = new ArrayBuffer(44 + pcm.length * 2), dv = new DataView(buf); const w = (p, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(p + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); dv.setUint32(4, 36 + pcm.length * 2, true); w(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, out, true); dv.setUint32(28, out * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, pcm.length * 2, true);
+    new Int16Array(buf, 44).set(pcm); return new Uint8Array(buf);
   }
 
   // ───────────────────────────── rendering ─────────────────────────────
-  const ICON = {
-    menu: '<path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>',
-    plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/>',
-    send: '<path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
-    stop: '<rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/>',
-    mic: '<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>',
-    wave: '<path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/>',
-    photo: '<path d="M4 7h3l2-2.5h6L17 7h3v12H4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><circle cx="12" cy="13" r="3.6" stroke="currentColor" stroke-width="2" fill="none"/>',
-    gear: '<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1l.4 2.5h4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="none"/>',
-    x: '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
-    search: '<circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M15.5 15.5l5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
-    download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
-    trash: '<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>',
-    back: '<path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
-    pc: '<rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-    phone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M11 18.5h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-    agent: '<rect x="4" y="7" width="16" height="12" rx="3" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="9.5" cy="13" r="1.5" fill="currentColor"/><circle cx="14.5" cy="13" r="1.5" fill="currentColor"/><path d="M12 7V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-    check: '<path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
-    eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="3" fill="currentColor"/>',
-    keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M6 10h1M9.5 10h1M13 10h1M16.5 10h1M7 14h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-    cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.4 9.3 4.6 4.6 0 0 0 7 18.5z" fill="currentColor"/>',
-    copy: '<rect x="8" y="8" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" stroke="currentColor" stroke-width="2" fill="none"/>',
-    redo: '<path d="M19 8v5h-5M18.5 12.5A7 7 0 1 1 16 6.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
-    speaker: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>',
-    bolt: '<path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z" fill="currentColor"/>',
-    globe: '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M3 12h18M12 3c2.6 2.6 3.6 5.6 3.6 9s-1 6.4-3.6 9c-2.6-2.6-3.6-5.6-3.6-9s1-6.4 3.6-9z" stroke="currentColor" stroke-width="1.8" fill="none"/>',
-    image: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="M5 18l5-5 3.5 3.5L16 14l3.5 3.5" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>',
-    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/><path d="M10 20.5a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="2" fill="none"/>',
+  marked.setOptions({ gfm: true, breaks: true });
+  function md(text, sources) {
+    let h = DOMPurify.sanitize(marked.parse(String(text || '')), { ADD_ATTR: ['target'] });
+    h = h.replace(/\[(\d{1,2})\](?![^<]*<\/a>)(?![^<]*<\/code>)/g, (m, n) => { const s = sources && sources[n - 1]; return s ? `<a class="cite" href="${esc(s.url)}" target="_blank" rel="noopener"><cite>${n}</cite></a>` : `<cite>${n}</cite>`; });
+    return h.replace(/<a href=/g, '<a target="_blank" rel="noopener" href=');
+  }
+  const STEP = {
+    fr: { web_search: 'Cherche sur le web', fetch_url: 'Lit une page', read_page: 'Lit une page', generate_image: 'Crée une image', weather: 'Regarde la météo', get_datetime: 'Regarde l’heure', run_python: 'Calcule', run_javascript: 'Calcule', update_plan: 'Fait un plan', read_file: 'Lit un fichier', write_file: 'Écrit un fichier', edit_file: 'Modifie un fichier', run_command: 'Lance une commande', list_files: 'Parcourt des fichiers', map_search: 'Cherche un lieu', map_show: 'Affiche une carte', map_route: 'Calcule un itinéraire', places_saved: 'Consulte tes lieux', my_location: 'Regarde ta position' },
+    en: { web_search: 'Searches the web', fetch_url: 'Reads a page', read_page: 'Reads a page', generate_image: 'Makes an image', weather: 'Checks the weather', get_datetime: 'Checks the time', run_python: 'Computes', run_javascript: 'Computes', update_plan: 'Makes a plan', read_file: 'Reads a file', write_file: 'Writes a file', edit_file: 'Edits a file', run_command: 'Runs a command', list_files: 'Browses files', map_search: 'Looks up a place', map_show: 'Shows a map', map_route: 'Plans a route', places_saved: 'Checks your places', my_location: 'Checks your position' },
   };
-  const ic = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n] || ''}</svg>`;
-  const logo = (s = 28, cls = '') => `<svg class="logo ${cls}" width="${s}" height="${s}" viewBox="0 0 100 100" aria-hidden="true">${markPath ? `<path class="prop" fill-rule="evenodd" d="${markPath}"/>` : '<circle class="prop" cx="50" cy="50" r="30"/>'}</svg>`;
+  const stepName = (s) => (STEP[lang] || STEP.en)[s.name] || s.name.replace(/^mcp__/, '').replace(/_/g, ' ');
+  const stepArg = (s) => { const a = s.args || {}; return a.query || a.url || a.path || a.command || a.city || a.prompt || ''; };
+  function stepsHtml(n) {
+    const st = (n.steps || []).filter((s) => !s.parent); if (!st.length) return '';
+    const live = n.pending && st.some((s) => s.status === 'running');
+    const last = st[st.length - 1];
+    const open = S.open.has(n.id);
+    return `<div class="steps${live ? ' live' : ''}${open ? ' open' : ''}" data-steps="${esc(n.id)}"><button data-act="steps" data-id="${esc(n.id)}" aria-expanded="${open}"><span class="dot"></span>${st.length === 1 ? t('steps1') : t('stepsN', { n: st.length })} · ${esc(stepName(last))}${ic('chev')}</button>
+      <ol>${st.map((s) => `<li class="${s.status}"><span>${esc(stepName(s))}${stepArg(s) ? ' · ' + esc(String(stepArg(s)).slice(0, 90)) : ''}</span></li>`).join('')}</ol></div>`;
+  }
+  function sourcesOf(n) { const out = []; for (const s of n.steps || []) if (s.view && Array.isArray(s.view.sources)) for (const x of s.view.sources) if (x && x.url) out.push({ url: x.url, title: x.title || x.url }); return out; }
+  function aiInner(n) {
+    const src = sourcesOf(n);
+    const imgs = (n.steps || []).map((s) => s.view && s.view.image).filter((x) => x && /^(data:image|https:)/.test(x));
+    const body = n.content ? md(n.content, src) : '';
+    const caret = n.pending ? '<span class="caret"></span>' : '';
+    const wait = n.pending && n.wait ? `<div class="wait">${esc(t('cloudWait', { s: n.wait }))}</div>` : '';
+    return `${stepsHtml(n)}${window.FAMaps ? FAMaps.cards(n) : ''}${wait}<div class="md">${body}${caret && !body ? caret : ''}</div>
+      ${imgs.map((u) => `<div class="gen"><img src="${esc(u)}" alt="" data-tint></div>`).join('')}
+      ${n.error ? `<div class="err">${esc(n.error)}</div>${n.origin === 'phone-cloud' ? `<div class="err-acts"><button class="btn" data-act="retry" data-id="${esc(n.id)}">${ic('redo')}${t('retry')}</button>${S.models.length ? `<button class="btn" data-act="use-pc" data-id="${esc(n.id)}">${ic('pc')}${t('usePc')}</button>` : ''}<button class="btn ghost" data-act="add-key">${ic('key')}${t('useKey')}</button></div>` : ''}` : ''}
+      ${!n.pending && src.length ? `<div class="sources">${src.slice(0, 6).map((s, i) => `<a href="${esc(s.url)}" target="_blank" rel="noopener"><cite>${i + 1}</cite><span>${esc(host(s.url))}</span></a>`).join('')}</div>` : ''}
+      ${n.pending ? '' : `<div class="meta">${versions(n)}<button data-act="copy" data-id="${esc(n.id)}">${t('copy')}</button><button class="mi" data-act="retry" data-id="${esc(n.id)}" title="${t('retry')}">${ic('redo')}</button><button class="mi" data-act="fork" data-id="${esc(n.id)}" title="${t('fork')}">${ic('fork')}</button><span>${esc(n.model || '')}${n.toolsOn ? ' · ' + esc(t('toolsOnPc', { pc: n.toolsOn })) : ''}</span></div>`}`;
+  }
+  const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+  // other answers (or edits) of the same message: < 2/3 >
+  function siblingsOf(n) { const c = curConv(); return c ? A.nodesOf(c).filter((x) => x.parentId === n.parentId && x.role === n.role).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)) : [n]; }
+  function versions(n) {
+    const sib = siblingsOf(n); if (sib.length < 2) return '';
+    const i = sib.findIndex((x) => x.id === n.id);
+    return `<span class="ver"><button data-act="ver" data-id="${esc(n.id)}" data-d="-1" ${i <= 0 ? 'disabled' : ''} aria-label="${t('prev')}">${ic('left')}</button><span class="mono">${i + 1}/${sib.length}</span><button data-act="ver" data-id="${esc(n.id)}" data-d="1" ${i >= sib.length - 1 ? 'disabled' : ''} aria-label="${t('next')}">${ic('right')}</button></span>`;
+  }
+  function msgHtml(n) {
+    if (n.role === 'user' && S.editing === n.id) return `<div class="msg you editing" data-n="${esc(n.id)}"><textarea class="edit-in" rows="3">${esc(n.content || '')}</textarea><div class="edit-acts"><button class="btn ghost" data-act="edit-cancel">${t('cancel2')}</button><button class="btn pri" data-act="edit-send" data-id="${esc(n.id)}">${t('resend')}</button></div></div>`;
+    if (n.role === 'user') return `<div class="msg you" data-n="${esc(n.id)}">${(n.attachments || []).some((a) => a.data) ? `<div class="imgs">${n.attachments.filter((a) => a.data).map((a) => `<img src="${esc(a.data)}" alt="" data-tint>`).join('')}</div>` : ''}${n.content ? `<div class="q">${esc(n.content)}</div>` : ''}<div class="umeta">${versions(n)}<button class="mi" data-act="edit" data-id="${esc(n.id)}" title="${t('edit')}">${ic('pen')}</button></div></div>`;
+    return `<div class="msg ai${n.pending ? ' pending' : ''}" data-n="${esc(n.id)}"><div class="mk">${mark()}</div><div class="body">${aiInner(n)}</div></div>`;
+  }
+  function paintMessage(n) {
+    const el = $(`.msg[data-n="${CSS.escape(n.id)}"]`); if (!el) return renderMain();
+    el.classList.toggle('pending', !!n.pending);
+    const b = $('.body', el); if (b) b.innerHTML = aiInner(n);
+    const md = $('.md', el); if (n.pending && md && n.content) { const last = md.lastElementChild || md; last.insertAdjacentHTML('beforeend', '<span class="caret"></span>'); }
+  }
+  let stick = true;
+  function scrollChat(force) { const s = $('.scroll'); if (!s) return; if (force || stick) s.scrollTop = s.scrollHeight; }
 
-  setTimeout(() => FAS.init({ esc, t, md, ic }));
-  // files the AI made on the PC: fetched on demand, shown here or saved on the phone
-  const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', txt: 'text/plain', md: 'text/markdown', csv: 'text/csv', json: 'application/json', html: 'text/html', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' };
-  async function getFile(path) {
-    if (!session) throw new Error(t('pcAway'));
-    toast(t('loading'));
-    const r = await rpc('file.get', { convId: S.cur, path }, 180000);
-    const ext = (r.name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
-    return { name: r.name, ext, blob: new Blob([A.unb64u(r.data.replace(/\+/g, '-').replace(/\//g, '_'))], { type: MIME[ext] || 'application/octet-stream' }) };
+  function groups() {
+    const list = [...S.convs.values()].filter((c) => !c.ephemeral).map((c) => ({ id: c.id, title: c.title, at: c.updatedAt || 0, busy: busy(c) }));
+    for (const m of S.metas) if (!S.convs.has(m.id)) list.push({ id: m.id, title: m.title, at: m.updatedAt || 0 });
+    list.sort((a, b) => b.at - a.at);
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+    return [[t('today'), list.filter((x) => x.at >= d0)], [t('before'), list.filter((x) => x.at < d0).slice(0, 60)]].filter((g) => g[1].length);
   }
-  function saveBlob(f) { const url = URL.createObjectURL(f.blob); const a = document.createElement('a'); a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); }
-  async function viewFile(path) {
-    try {
-      const f = await getFile(path); const url = URL.createObjectURL(f.blob);
-      let body;
-      if (/^image\//.test(f.blob.type)) body = `<img class="fv-img" src="${url}" alt="">`;
-      else if (/^audio\//.test(f.blob.type)) body = `<div class="fv-audio">${logo(64)}<audio controls autoplay src="${url}"></audio></div>`;
-      else if (f.ext === 'pdf') body = `<iframe class="art-frame" src="${url}" title="${esc(f.name)}"></iframe>`;
-      else if (/^text\/|json/.test(f.blob.type)) { const tx = await f.blob.text(); body = f.ext === 'md' ? `<div class="doc md">${md(tx)}</div>` : `<pre class="art-code">${esc(tx.slice(0, 300000))}</pre>`; }
-      else body = `<div class="fv-none"><p>${esc(t('noPreview'))}</p><button class="btn primary" data-act="fv-dl">${ic('download', 18)} ${esc(t('saveFile'))}</button></div>`;
-      S.fv = f;
-      const el = document.createElement('div'); el.className = 'av'; el.id = 'av';
-      el.innerHTML = `<header><button class="icon-btn" data-act="art-close" aria-label="${esc(t('close'))}">${ic('back')}</button><div class="av-t"><b>${esc(f.name)}</b><small>${esc(fmtSize(f.blob.size))}</small></div><button class="icon-btn" data-act="fv-dl" aria-label="${esc(t('saveFile'))}">${ic('download')}</button></header><div class="av-body ${f.ext === 'pdf' ? 'html' : ''}">${body}</div>`;
-      $('#av') && $('#av').remove(); document.body.appendChild(el);
-    } catch (e) { toast(e.message, 'err'); }
+  function renderSide() {
+    const el = $('.side'); if (!el) return;
+    const g = groups();
+    const st = !linked() ? '' : S.conn.state === 'on' ? 'on' : S.conn.state === 'connecting' ? 'wait' : '';
+    el.innerHTML = `<div class="brand">${mark()}<b>Fabro</b><span>Anywhere</span></div>
+      <div class="nav"><button data-act="new">${ic('plus')}${t('newChat')}</button><button data-act="code">${ic('code')}${t('code')}</button></div>
+      <div class="convs">${g.length ? g.map(([h, l]) => `<div class="grp">${h}</div>${l.map((c) => `<button data-act="open" data-id="${esc(c.id)}" class="${c.id === S.cur ? 'on' : ''}">${c.busy ? '<i class="run"></i>' : ''}<span>${esc(c.title || '…')}</span></button>`).join('')}`).join('') : `<div class="grp">${t('today')}</div><div class="empty">${t('noChats')}</div>`}</div>
+      <div class="foot">
+        <div class="nav"><button data-act="${linked() ? 'settings' : 'pair'}" class="pc"><span class="st ${st}"></span>${linked() ? esc(S.conn.state === 'on' ? t('pcOn', { pc: pcName() }) : S.conn.state === 'connecting' ? t('pcWait', { pc: pcName() }) : t('pcOff', { pc: pcName() })) : t('linkPc')}</button>
+        <button data-act="settings">${ic('gear')}${t('settings')}</button></div>
+      </div>`;
   }
-  const fmtSize = (n) => n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB';
-
-  function md(text) {
-    try { return DOMPurify.sanitize(marked.parse(String(text || ''), { breaks: true, gfm: true }), { FORBID_TAGS: ['style', 'iframe', 'form', 'input'], FORBID_ATTR: ['style'] }); } catch { return esc(text); }
-  }
-  function render() {
-    const app = $('#app');
-    document.documentElement.lang = lang;
-    if (!S.link && !S.settings.guest && !['scan', 'code', 'pairing', 'paired'].includes(S.view)) S.view = 'welcome';
-    if (S.forceWelcome && S.view === 'main') S.view = 'welcome';
-    if (S.view === 'welcome') app.innerHTML = welcomeView();
-    else if (S.view === 'scan') app.innerHTML = scanView();
-    else if (S.view === 'code') app.innerHTML = codeView();
-    else if (S.view === 'pairing') app.innerHTML = pairingView();
-    else if (S.view === 'paired') app.innerHTML = pairedView();
-    else { app.innerHTML = mainView(); renderHeader(); renderComposer(); }
-    renderSheet();
-    // the loading screen stays while the computer's interface loads (it covers this light view); else it goes
-    if (S.view !== 'main' || !window.FAFull || (S.settings.ui || 'full') === 'lite') { window.FASplash && FASplash.hide(); }
-  }
-  function welcomeView() {
-    return `<main class="welcome">
-      <div class="w-hero">${logo(84, 'spin-in')}<h1>Fabro Anywhere</h1><p>${esc(t('tagline'))}</p></div>
-      <ol class="w-steps"><li>${esc(t('step1'))}</li><li>${esc(t('step2'))}</li></ol>
-      <div class="w-actions">
-        <button class="btn primary lg" data-act="scan">${ic('eye', 20)} ${esc(t('pair'))}</button>
-        <button class="btn ghost" data-act="code">${ic('keyboard', 18)} ${esc(t('typeCode'))}</button>
-        ${S.settings.guest ? `<button class="btn ghost" data-act="home">${ic('back', 18)} ${esc(t('back'))}</button>` : `<button class="link guest" data-act="guest">${esc(t('guest'))}</button>`}
-      </div>
-      ${installHint()}
-      <footer class="w-foot"><a href="../">${esc(t('about'))}</a> · <a href="../privacy.html">${esc(t('privacy'))}</a></footer>
-    </main>`;
-  }
-  function installHint() {
-    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-    if (standalone) return '';
-    if (S.installEvt) return `<button class="btn ghost sm" data-act="install">${ic('plus', 16)} ${esc(t('install'))}</button>`;
-    if (/iPhone|iPad/.test(navigator.userAgent)) return `<p class="hint">${esc(t('installIos'))}</p>`;
-    return '';
-  }
-  const scanView = () => `<main class="scan">
-      <video id="scan-video" playsinline muted></video>
-      <div class="scan-shade"><div class="scan-ring"></div></div>
-      <div class="scan-top"><button class="icon-btn light" data-act="scan-close" aria-label="${esc(t('close'))}">${ic('x')}</button></div>
-      <div class="scan-bottom"><p>${esc(t('scanHint'))}</p><button class="btn ghost light" data-act="code">${ic('keyboard', 18)} ${esc(t('typeCode'))}</button></div>
-    </main>`;
-  const codeView = () => `<main class="welcome">
-      <div class="w-hero">${logo(56)}<h1>${esc(t('typeCode'))}</h1><p>${esc(t('codeHint'))}</p></div>
-      <form class="code-form" data-form="code"><input id="code-in" class="input big mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-…" aria-label="${esc(t('typeCode'))}">
-      <button class="btn primary lg" type="submit">${esc(t('pairBtn'))}</button></form>
-      <button class="btn ghost" data-act="home">${ic('back', 18)} ${esc(t('back'))}</button>
-    </main>`;
-  const pairingView = () => `<main class="welcome">
-      <div class="w-hero">${S.pairErr ? logo(64) : `<div class="spinner-big">${logo(72, 'spin')}</div>`}<h1>${esc(S.pairErr ? t('pairFailedT') : t('pairing'))}</h1><p>${esc(S.pairErr || t('pairingHint'))}</p></div>
-      ${S.pairErr ? `<div class="w-actions"><button class="btn primary lg" data-act="scan">${esc(t('retry'))}</button><button class="btn ghost" data-act="home">${esc(t('back'))}</button></div>` : ''}
-    </main>`;
-  const pairedView = () => `<main class="welcome">
-      <div class="w-hero"><div class="ok-badge">${ic('check', 40)}</div><h1>${esc(t('pairedT', { n: S.link.pcName || 'PC' }))}</h1><p>${esc(t('pairedB'))}</p></div>
-      <div class="w-actions">
-        ${'PushManager' in window ? `<button class="btn primary lg" data-act="notify-on">${ic('bell', 20)} ${esc(t('notifyOn'))}</button>` : ''}
-        <button class="btn ${'PushManager' in window ? 'ghost' : 'primary lg'}" data-act="start">${esc(t('start'))}</button>
-      </div>
-      ${installHint()}
-    </main>`;
-
-  function mainView() {
-    return `<div class="shell ${S.drawer ? 'drawer-open' : ''}">
-      <aside class="drawer" aria-label="${esc(t('chats'))}">
-        <div class="d-head">${logo(24)}<b>Fabro</b><span class="grow"></span><button class="icon-btn sm" data-act="drawer-close" aria-label="${esc(t('close'))}">${ic('x', 18)}</button></div>
-        <label class="d-search">${ic('search', 16)}<input id="d-q" placeholder="${esc(t('search'))}" autocomplete="off"></label>
-        <button class="nav-it new" data-act="new"><span class="nv-plus">${ic('plus', 14)}</span>${esc(t('newChat'))}</button>
-        <button class="nav-it" data-act="settings">${ic('gear', 18)}${esc(t('settings'))}</button>
-        <nav class="d-list" data-h="${esc(t('recents'))}">${convList()}</nav>
-        <button class="d-pc" data-act="model" id="d-pc"></button>
-      </aside>
-      <div class="scrim" data-act="drawer-close"></div>
-      <section class="main">
-        <header class="top" id="top"></header>
-        <div class="chat" id="chat">${chatBody()}</div>
-        <button id="to-bottom" class="to-bottom" data-act="to-bottom" aria-label="↓">${ic('back', 18)}</button>
-        <div class="composer-wrap" id="composer"></div>
-      </section>
-    </div>`;
-  }
-  function allConvs() {
-    const map = new Map();
-    for (const m of S.metas) map.set(m.id, { ...m, partial: true });
-    for (const c of S.convs.values()) map.set(c.id, { id: c.id, title: c.title, updatedAt: c.updatedAt, agent: c.agent, dirty: c.dirty });
-    return [...map.values()].filter((c) => !S.tombstones.includes(c.id)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  }
-  function convList() {
-    const q = (S.q || '').toLowerCase(); const list = allConvs().filter((c) => !q || (c.title || '').toLowerCase().includes(q));
-    if (!list.length) return `<p class="muted pad">${esc(t('noChats'))}</p>`;
-    return list.slice(0, 300).map((c) => `<button class="d-item ${c.id === S.cur ? 'on' : ''}" data-act="open" data-id="${esc(c.id)}">
-      ${c.agent ? `<span class="d-ic">${ic('agent', 15)}</span>` : ''}<span class="d-t">${esc(c.title || t('untitled'))}</span>${c.dirty ? '<span class="dot" title=""></span>' : ''}</button>`).join('');
-  }
-  function renderHeader() {
-    const el = $('#top'); if (!el) return;
-    const st = S.conn.state;
-    const route = curRoute();
-    const label = st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : route === 'cloud' ? 'Fabro Cloud' : route === 'phone' ? t('phoneModel') : t('offlineShort');
-    document.documentElement.dataset.route = route || 'pc';
+  function renderTop() {
+    const el = $('.top'); if (!el) return;
     const c = curConv();
-    const mn = $('.main'); if (mn) mn.classList.toggle('home', !c && !(S.cur && S.metas.some((m) => m.id === S.cur)));
-    const pc = $('#d-pc'); if (pc) pc.innerHTML = `<span class="av">${ic('pc', 16)}<i class="pc-dot ${st}"></i></span><span class="pc-txt"><b>${esc(S.link ? S.link.pcName || 'PC' : t('guestMode'))}</b><small>${esc(modelLabel())} · ${esc(label)}</small></span><span class="chev">⌄</span>`;
-    el.innerHTML = `<button class="icon-btn" data-act="drawer" aria-label="${esc(t('chats'))}">${ic('menu')}</button>
-      <span class="top-title">${esc(c ? c.title || t('untitled') : '')}</span>
-      <button class="pc-chip" data-act="model">
-        <span class="pc-dot ${st}"></span>
-        <span class="pc-txt"><b class="m-title">${esc(c ? c.title || t('untitled') : 'Fabro')}</b><b class="d-title">${esc(modelLabel())}</b><small>${esc(S.link ? (st === 'off' && curRoute() !== 'wait' ? `${modelLabel()} · ${label}` : `${S.link.pcName || 'PC'} · ${modelLabel()}`) : `${modelLabel()} · ${label}`)}</small></span>
-      </button>
-      <span class="grow"></span>
-      <button class="icon-btn" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave')}</button>
-      <button class="icon-btn top-new" data-act="new" aria-label="${esc(t('newChat'))}">${ic('plus')}</button>`;
+    el.innerHTML = `<button class="ib menu-btn" data-act="drawer" aria-label="Menu">${ic('menu')}</button>
+      <span class="title">${c ? esc(c.title || '') : ''}</span><span class="sp"></span>
+      <button class="chip" data-act="model" aria-label="${t('model')}"><span>${esc(modelLabel())}</span>${ic('down')}</button>`;
   }
-  function modelLabel() {
-    if (S.settings.model === 'phone') { const m = localInfo(); return m ? `${m.name} · ${t('onPhone')}` : t('localTitle'); }
-    if (isCloud(S.settings.model)) { const id = S.settings.model.slice(6); return (FAAgent.models.find((x) => x.id === id) || { name: id }).name; }
-    const m = S.models.find((x) => refKey(x.ref) === refKey(S.settings.model));
-    return m ? m.label : (S.conn.info ? t('defaultModel') : 'Fabro');
-  }
-  function chatBody() {
+  function renderMain() {
+    const el = $('.body-area'); if (!el) return;
     const c = curConv();
     if (!c) {
-      const meta = S.cur && S.metas.find((m) => m.id === S.cur);
-      if (meta) return `<div class="empty">${logo(48)}<p>${esc(session ? t('loading') : t('notDownloaded'))}</p></div>`;
-      return document.documentElement.dataset.device === 'desktop' ? desktopHome() : phoneHome();
+      el.innerHTML = `<div class="home"><h1>${t('homeH')}</h1><p class="sub">${online() && S.pcTools ? esc(t('homeSubPc', { pc: pcName() })) : t('homeSub')}</p><div class="slot-composer"></div>
+        <div class="sugg">${['s1', 's2', 's3', 's4'].map((k) => `<button data-act="sugg">${t(k)}</button>`).join('')}</div></div>`;
+      $('.slot-composer', el).appendChild(composer()); $('.dock .slot-composer2').innerHTML = '';
+    } else {
+      el.innerHTML = `<div class="scroll"><div class="col">${A.pathOf(c).map(msgHtml).join('')}</div></div>`;
+      const sc = $('.scroll', el); sc.addEventListener('scroll', () => { stick = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80; tintSoon(); }, { passive: true });
+      $('.dock .slot-composer2').appendChild(composer());
+      $$('.msg .md', el).forEach((m, i, arr) => { const n = A.pathOf(c).filter((x) => x.role === 'assistant').find((x) => x.pending); if (n && i === arr.length - 1 && n.content) { const last = m.lastElementChild || m; last.insertAdjacentHTML('beforeend', '<span class="caret"></span>'); } });
     }
-    const path = A.pathOf(c);
-    return `<div class="msgs">${path.map(msgHtml).join('')}</div>`;
+    renderComposer(); renderCards(); tintSoon();
   }
-  // Where the answer comes from right now: the computer, Fabro Cloud, or the phone itself.
-  function curRoute() {
-    const st = S.conn.state;
-    if (S.settings.model === 'phone') return 'phone';
-    if (isCloud(S.settings.model)) return 'cloud';
-    return !S.link || st === 'off' ? awayRoute() : '';
-  }
-  function routePill() {
-    const st = S.conn.state, r = curRoute() || 'pc';
-    const k = S.link && (st === 'direct' || st === 'relay') && r === 'pc' ? 'pc' : r === 'phone' ? 'phone' : r === 'cloud' ? 'cloud' : st === 'connecting' ? 'connecting' : 'wait';
-    const txt = k === 'pc' ? t('routePc', { n: S.link.pcName || 'PC' }) : k === 'cloud' ? t('routeCloud') : k === 'phone' ? t('routePhone') : k === 'connecting' ? t('connecting') : t('routeWait');
-    return `<button class="route-pill ${k}" data-act="model"><i></i>${ic(k === 'pc' ? 'pc' : k === 'phone' ? 'phone' : k === 'cloud' ? 'cloud' : 'pc', 15)}<span>${esc(txt)}</span></button>`;
-  }
-  // Phone home: thumb-sized shortcuts and the latest conversations, right under the greeting.
-  function phoneHome() {
-    const rec = allConvs().slice(0, 4);
-    return `<div class="home-phone">${hwScene()}
-      <div class="hp-hero"><h2 class="greet">${logo(40, 'spin-in')}<span class="greet-t" data-text="${esc(t('hello'))}">${esc(t('hello'))}</span></h2>${routePill()}</div>
-      <div class="qa-grid">
-        <button class="qa" data-act="voice"><span class="qa-ic talk">${ic('wave', 22)}</span><b>${esc(t('qa_talk'))}</b><small>${esc(t('qa_talkS'))}</small></button>
-        <label class="qa"><span class="qa-ic photo">${ic('photo', 22)}</span><b>${esc(t('qa_photo'))}</b><small>${esc(t('qa_photoS'))}</small><input type="file" accept="image/*" capture="environment" hidden id="photo-cam"></label>
-        <button class="qa" data-act="qa-agent"><span class="qa-ic agent">${ic('agent', 22)}</span><b>${esc(t('agent'))}</b><small>${esc(t('qa_agentS'))}</small></button>
-        <button class="qa" data-act="qa-search"><span class="qa-ic web">${ic('globe', 22)}</span><b>${esc(t('qa_search'))}</b><small>${esc(t('qa_searchS'))}</small></button>
-      </div>
-      ${rec.length ? `<div class="hp-rec"><div class="hp-h"><span>${esc(t('recents'))}</span><button class="link" data-act="drawer">${esc(t('seeAll'))}</button></div>${rec.map((c) => `<button class="d-item hp-it" data-act="open" data-id="${esc(c.id)}">${c.agent ? `<span class="d-ic">${ic('agent', 15)}</span>` : `<span class="d-ic dim">${ic('menu', 14)}</span>`}<span class="d-t">${esc(c.title || t('untitled'))}</span><small>${esc(ago(c.updatedAt))}</small></button>`).join('')}</div>` : ''}
-    </div>`;
-  }
-  // Computer home: greeting, where it runs, what it can do (cards), keyboard hints.
-  // Halloween decor of the home (shown by the skin only): a hanging lantern and a jack-o'-lantern, lit by fx.js
-  const hwScene = () => `<div class="hw-scene" aria-hidden="true">
-        <div class="hw-lamp"><i class="hw-chain"></i><svg viewBox="0 0 80 132" class="hw-lantern"><defs><radialGradient id="hwFlame" cx="50%" cy="60%" r="50%"><stop offset="0" stop-color="#fff6d8"/><stop offset=".45" stop-color="#ffc44d"/><stop offset="1" stop-color="#ff6a00" stop-opacity="0"/></radialGradient><linearGradient id="hwMetal" x1="0" x2="1"><stop offset="0" stop-color="#1a1210"/><stop offset=".5" stop-color="#4a3626"/><stop offset="1" stop-color="#140d0b"/></linearGradient></defs>
-          <path d="M40 2a7 7 0 1 1 0 14a7 7 0 1 1 0-14zm0 4a3 3 0 1 0 0 6a3 3 0 1 0 0-6z" fill="url(#hwMetal)"/><path d="M20 26h40l-6-10H26z" fill="url(#hwMetal)"/>
-          <rect class="hw-glass" x="18" y="26" width="44" height="72" rx="6" fill="rgba(255,170,70,.16)"/>
-          <ellipse class="hw-halo" cx="40" cy="66" rx="20" ry="26" fill="url(#hwFlame)"/>
-          <path class="hw-flame" d="M40 46c6 9 9 15 9 21a9 9 0 0 1-18 0c0-6 3-12 9-21z" fill="url(#hwFlame)"/>
-          <path d="M18 26h44v72H18z M18 50h44M18 74h44M40 26v72" fill="none" stroke="url(#hwMetal)" stroke-width="3"/>
-          <path d="M14 98h52l-4 10H18z" fill="url(#hwMetal)"/><path d="M26 108h28l-3 8H29z" fill="url(#hwMetal)"/></svg></div>
-        <div class="hw-pumpkin"><svg viewBox="0 0 120 104"><defs><radialGradient id="hwSkin" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#ffa13a"/><stop offset=".6" stop-color="#e0570f"/><stop offset="1" stop-color="#7a2304"/></radialGradient><radialGradient id="hwIn" cx="50%" cy="55%" r="60%"><stop offset="0" stop-color="#fff3b0"/><stop offset=".6" stop-color="#ffb02e"/><stop offset="1" stop-color="#ff5a00"/></radialGradient></defs>
-          <path d="M56 14c0-8 4-12 10-13l2 4c-4 1-6 4-6 10z" fill="#3d5a1f"/>
-          <ellipse cx="34" cy="60" rx="30" ry="38" fill="url(#hwSkin)"/><ellipse cx="86" cy="60" rx="30" ry="38" fill="url(#hwSkin)"/><ellipse cx="60" cy="60" rx="30" ry="42" fill="url(#hwSkin)"/>
-          <g class="hw-face" fill="url(#hwIn)"><path d="M32 46l14 4-12 10z"/><path d="M88 46l-14 4 12 10z"/><path d="M60 58l6 10H54z"/><path d="M26 74c10 8 22 12 34 12s24-4 34-12l-6 14-8-6-6 8-6-6-8 7-8-7-6 6-6-8-8 6z"/></g></svg></div>
-      </div>`;
-  function desktopHome() {
-    return `<div class="home-desk">${hwScene()}
-      <h2 class="greet">${logo(40, 'spin-in')}<span class="greet-t" data-text="${esc(t('hello'))}">${esc(t('hello'))}</span></h2>
-      <div class="hd-sub">${routePill()}<span class="kbd-hint"><kbd>/</kbd> ${esc(t('kb_focus'))} · <kbd>Ctrl</kbd><kbd>K</kbd> ${esc(t('kb_search'))} · <kbd>Ctrl</kbd><kbd>⇧</kbd><kbd>O</kbd> ${esc(t('newChat'))}</span></div>
-    </div>`;
-  }
-  function desktopCards() {
-    return `<div class="hd-cards">
-      ${[['voice', 'wave', 'qa_talk', 'qa_talkS'], ['qa-agent', 'agent', 'agent', 'qa_agentS'], ['qa-search', 'globe', 'qa_search', 'qa_searchS'], ['qa-image', 'image', 'qa_image', 'qa_imageS']].map(([a, i, k, d]) => `<button class="hd-card" data-act="${a}">${ic(i, 20)}<b>${esc(t(k))}</b><small>${esc(t(d))}</small></button>`).join('')}
-    </div>`;
-  }
-  const ago = (ts) => { if (!ts) return ''; const d = (now() - ts) / 60000; if (d < 60) return Math.max(1, Math.round(d)) + ' min'; if (d < 1440) return Math.round(d / 60) + ' h'; return new Date(ts).toLocaleDateString(lang, { day: 'numeric', month: 'short' }); };
-  // hover actions on messages (computer); on a phone the same actions are a long press away
-  const msgActs = (m) => `<div class="m-acts">${m.role === 'assistant' ? `<button data-act="m-copy" data-id="${esc(m.id)}" title="${esc(t('copy'))}">${ic('copy', 16)}</button><button data-act="m-read" data-id="${esc(m.id)}" title="${esc(t('readAloud'))}">${ic('speaker', 16)}</button><button data-act="m-regen" data-id="${esc(m.id)}" title="${esc(t('regenerate'))}">${ic('redo', 16)}</button>` : `<button data-act="m-copy" data-id="${esc(m.id)}" title="${esc(t('copy'))}">${ic('copy', 16)}</button><button data-act="m-edit" data-id="${esc(m.id)}" title="${esc(t('editMsg'))}">✎</button>`}</div>`;
-  function msgHtml(m) {
-    if (m.role === 'user') {
-      const imgs = (m.attachments || []).filter((a) => a.kind === 'image' && a.data).map((a) => `<img src="${esc(a.data)}" alt="${esc(a.name || '')}" class="att-img">`).join('');
-      const files = (m.attachments || []).filter((a) => a.kind !== 'image').map((a) => `<span class="att-file">${esc(a.name || 'file')}</span>`).join('');
-      return `<div class="msg user" id="m-${esc(m.id)}">${imgs || files ? `<div class="atts">${imgs}${files}</div>` : ''}${m.content ? `<div class="bubble md">${md(m.content)}</div>` : ''}${queued(m.id) ? `<div class="queued">${esc(t('queued'))}</div>` : ''}${msgActs(m)}</div>`;
+  function renderCards() {
+    const el = $('.cards'); if (!el) return;
+    const c = curConv(); const out = [];
+    for (const [id, a] of S.asks) {
+      if (c && a.convId && a.convId !== c.id) continue;
+      out.push(`<div class="card">${ic('pc')}<div class="grow">${esc(t('wants', { pc: pcName() }))}<small>${esc(a.summary || a.tool || '')}</small></div><div class="acts"><button class="btn" data-act="ask" data-id="${esc(id)}" data-v="deny">${t('deny')}</button>${a.kind === 'tool' && a.risk !== 'danger' ? `<button class="btn" data-act="ask" data-id="${esc(id)}" data-v="always">${t('always')}</button>` : ''}<button class="btn pri" data-act="ask" data-id="${esc(id)}" data-v="once">${t('allow')}</button></div></div>`);
     }
-    return `<div class="msg ai" id="m-${esc(m.id)}">${aiInner(m)}</div>`;
+    if (S.outbox.length && (!c || S.outbox.some((q) => q.convId === c.id))) out.push(`<div class="card">${ic('pc')}<div class="grow">${esc(t('queued', { pc: pcName() }))}<small>${esc(t('pcAway'))}</small></div><button class="btn" data-act="cloud-now">${t('answerCloud')}</button></div>`);
+    el.innerHTML = out.join('');
   }
-  function aiInner(m) {
-    const steps = (m.steps || []).filter((s) => !s.parent);
-    const asks = [...S.asks.values()].filter((a) => a.runId === m.runId || (m.pending && a.convId === S.cur));
-    const cites = FAS.sourceMap(m);
-    return `<div class="ai-head">${logo(18, m.pending ? 'spin' : '')}<b>Fabro</b>${m.pending ? `<small>${esc(t('thinking'))}…</small>` : ''}</div>
-      ${FAS.think(m, m.pending && !m.content)}
-      ${steps.length ? FAS.steps(m) : ''}
-      ${asks.map((a) => `<div class="ask"><b>${esc(t('askTitle'))}</b><p>${esc(a.summary || a.tool || '')}</p>${a.detail ? `<pre>${esc(String(a.detail).slice(0, 600))}</pre>` : ''}<div class="ask-btns"><button class="btn primary sm" data-act="ask" data-id="${esc(a.id)}" data-v="once">${esc(t('allow'))}</button><button class="btn sm" data-act="ask" data-id="${esc(a.id)}" data-v="deny">${esc(t('deny'))}</button></div></div>`).join('')}
-      <div class="md">${m.content ? splitArt(m.content).map((g) => g.kind === 'text' ? FAS.linkCites(md(g.text), cites) : `<button class="art-card" data-act="art" data-node="${esc(m.id)}" data-i="${g.i}"><span class="art-ic">${ART_ICON[g.type] || '📄'}</span><span><b>${esc(g.title || t('untitled'))}</b><small>${esc(g.open ? t('writing') : t('art_' + g.type))}</small></span></button>`).join('') : m.pending ? `<span class="typing">${logo(22, 'spin')}</span>` : ''}</div>
-      ${(m.steps || []).filter((s2) => s2.view && s2.view.artifactId).map((s2) => `<button class="art-card" data-act="art-id" data-id="${esc(s2.view.artifactId)}"><span class="art-ic">${s2.view.format === 'pdf' ? '📕' : '📄'}</span><span><b>${esc(s2.view.title || t('untitled'))}</b><small>${esc(s2.view.format === 'pdf' ? 'PDF' + (s2.view.pages ? ' · ' + s2.view.pages + ' p.' : '') : t('art_markdown'))}</small></span></button>`).join('')}
-      ${FAS.cited(m)}
-      ${m.error ? `<div class="err">⚠ ${esc(m.error)}</div>` : ''}
-      ${!m.pending ? `<div class="meta">${esc(m.model || '')}</div>${msgActs(m)}` : ''}`;
-  }
-  const toolName = (n) => ({ web_search: t('t_search'), fetch_url: t('t_fetch'), generate_image: t('t_image'), run_subagent: t('t_sub'), update_plan: t('t_plan') }[n] || String(n || '').replace(/_/g, ' '));
-  function paintMessage(m) {
-    const el = $(`#m-${CSS.escape(m.id)}`);
-    if (!el) { const box = $('#chat'); if (box) box.innerHTML = chatBody(); return; }
-    el.innerHTML = aiInner(m);
-  }
-  function scrollChat(force) {
-    const el = $('#chat'); if (!el) return;
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
-    if (force || near) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+  let compEl = null;
+  function composer() {
+    if (compEl) return compEl;
+    const d = document.createElement('div'); d.className = 'composer glass';
+    d.innerHTML = `<div class="att"></div><div class="row">
+      <label class="ib" title="${t('attach')}">${ic('img')}<input type="file" accept="image/*" multiple class="sr" data-act="photos"></label>
+      <textarea rows="1" placeholder="${t('ask')}" aria-label="${t('ask')}" enterkeyhint="send"></textarea>
+      <div class="wave">${'<i></i>'.repeat(24)}</div>
+      <button class="ib mic" data-act="mic" title="${t('dictate')}" aria-label="${t('dictate')}">${ic('mic')}</button>
+      <button class="ib send" data-act="send" disabled aria-label="${t('send')}">${ic('up')}</button></div>`;
+    const ta = $('textarea', d);
+    ta.addEventListener('input', () => { ta.style.height = '36px'; ta.style.height = Math.min(ta.scrollHeight, 180) + 'px'; renderComposer(); });
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(hover:hover)').matches) { e.preventDefault(); submit(); } });
+    $$('.wave i', d).forEach((i, n) => { i.style.animationDelay = (n * 53 % 900) + 'ms'; });
+    compEl = d; return d;
   }
   function renderComposer() {
-    const el = $('#composer'); if (!el) return;
-    const c = curConv();
-    const running = busy(c);
-    const ph = S.conn.state === 'off' && S.settings.model !== 'phone' && !isCloud(S.settings.model) && awayRoute() === 'wait' ? t('phOffline') : t('placeholder');
-    const vision = S.settings.model === 'phone' ? false : isCloud(S.settings.model) ? !!(FAAgent.models.find((x) => 'cloud:' + x.id === S.settings.model) || { vision: true }).vision : (S.models.find((x) => refKey(x.ref) === refKey(S.settings.model)) || {}).vision !== false;
-    const kept = $('#prompt') ? $('#prompt').value : S.draft;
-    el.innerHTML = `${S.conn.state === 'off' && S.link ? `<div class="banner ${awayRoute()}">${awayRoute() === 'wait' ? esc(S.conn.err || t('pcAway')) : esc(t(awayRoute() === 'cloud' ? 'bannerCloud' : 'bannerPhone', { n: S.link.pcName || 'PC' }))} <button class="link" data-act="reconnect">${esc(t('retry'))}</button></div>` : ''}
-      ${S.atts.length ? `<div class="c-atts">${S.atts.map((a, i) => `<span class="c-att"><img src="${esc(a.data)}" alt=""><button data-act="att-rm" data-i="${i}" aria-label="${esc(t('remove'))}">${ic('x', 14)}</button></span>`).join('')}</div>` : ''}
-      ${S.editing ? `<div class="edit-bar">✎ ${esc(t('editing'))}<span class="grow"></span><button type="button" class="link" data-act="edit-cancel">${esc(t('cancel'))}</button></div>` : ''}
-      <form class="composer ${kept && kept.trim() ? 'has-text' : ''}" data-form="send">
-        <textarea id="prompt" rows="1" placeholder="${esc(ph)}" aria-label="${esc(t('placeholder'))}">${esc(kept)}</textarea>
-        <div class="c-row">
-          <label class="icon-btn c-plus ${vision ? '' : 'dim'}" aria-label="${esc(t('addPhoto'))}">${ic('plus', 18)}<input type="file" accept="image/*" multiple hidden id="photo-in"></label>
-${['direct', 'relay'].includes(S.conn.state) ? `<button type="button" class="chip ${c && c.agent || (!c && S.settings.agent) ? 'on' : ''}" data-act="agent">${ic('agent', 16)} ${esc(t('agent'))}</button>` : ''}
-          <span class="grow"></span>
-          <button type="button" class="model-pill" data-act="model">${esc(modelLabel())} <span class="chev">⌄</span></button>
-          <button type="button" class="c-talk" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave', 19)}</button>
-          <button type="button" class="icon-btn c-voice" data-act="voice" aria-label="${esc(t('voiceMode'))}">${ic('wave', 18)}</button>
-          <button type="button" class="icon-btn ${S.dictating ? 'rec' : ''}" data-act="dictate" aria-label="${esc(t('dictate'))}">${ic('mic')}</button>
-          ${running ? `<button type="button" class="send stop" data-act="stop" aria-label="${esc(t('stop'))}">${ic('stop', 18)}</button>` : `<button type="submit" class="send" aria-label="${esc(t('send'))}">${ic('send', 20)}</button>`}
-        </div>
-      </form>
-      ${!c && !S.cur ? (document.documentElement.dataset.device === 'desktop' ? desktopCards() : '') + `<div class="sugs">${[t('sug1'), t('sug2'), t('sug3')].map((x) => `<button class="sug" data-act="sug">${esc(x)}</button>`).join('')}</div>` : ''}`;
-    const ta = $('#prompt'); fit(ta);
+    const d = compEl; if (!d) return;
+    const c = curConv(); const b = busy(c); const ta = $('textarea', d);
+    d.classList.toggle('busy', b);
+    ta.placeholder = b ? t('askMore') : t('ask');
+    const send = $('.send', d); const has = !!ta.value.trim() || S.atts.length > 0;
+    send.disabled = !b && !has; send.innerHTML = b && !has ? ic('stop') : ic('up'); send.setAttribute('aria-label', b && !has ? t('stop') : t('send'));
+    $('.att', d).innerHTML = S.atts.map((a, i) => `<span><img src="${esc(a.data)}" alt=""><button data-act="unatt" data-i="${i}" aria-label="${t('remove')}">×</button></span>`).join('');
   }
-  const fit = (ta) => { if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 180) + 'px'; };
+  function submit() {
+    const ta = $('.composer textarea'); const c = curConv();
+    if (busy(c) && !ta.value.trim() && !S.atts.length) return stopRun();
+    const v = ta.value; ta.value = ''; ta.style.height = '36px';
+    if (busy(c)) { S.later.push({ convId: c.id, text: v, atts: S.atts.splice(0) }); renderComposer(); return toast(t('later')); }
+    send(v);
+  }
+  function renderAll() {
+    document.body.classList.toggle('open-drawer', !!S.drawer);
+    $('#app').classList.toggle('open-drawer', !!S.drawer);
+    renderSide(); renderTop(); renderMain();
+  }
 
-  // sheets (settings, model picker)
-  function renderSheet() {
-    const root = $('#sheet-root'); if (!root) return;
-    if (!S.sheet) { root.innerHTML = ''; return; }
-    const body = S.sheet === 'settings' ? settingsSheet() : S.sheet === 'model' ? modelSheet() : S.sheet === 'mic' ? micSheet() : '';
-    const keepScroll = $('.sheet-body') ? $('.sheet-body').scrollTop : 0;
-    root.innerHTML = `<div class="sheet-bg" data-act="sheet-close"></div><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div class="sheet-body">${body}</div></div>`;
-    $('.sheet-body').scrollTop = keepScroll;
-    if (S.scrollTo) { const el = $('#set-' + S.scrollTo); if (el) el.scrollIntoView({ block: 'start' }); S.scrollTo = null; }
+  // ── reflections: the glass edges take the color of the pictures close to them (average color, computed once) ──
+  const tints = new WeakMap();
+  function colorOf(img) {
+    if (tints.has(img)) return tints.get(img);
+    if (!img.complete || !img.naturalWidth) { img.addEventListener('load', tintSoon, { once: true }); return null; }
+    try { const cv = document.createElement('canvas'); cv.width = cv.height = 8; const g = cv.getContext('2d'); g.drawImage(img, 0, 0, 8, 8); const d = g.getImageData(0, 0, 8, 8).data; let r = 0, gg = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; } const c = `${r / 64 | 0},${gg / 64 | 0},${b / 64 | 0}`; tints.set(img, c); return c; } catch { tints.set(img, null); return null; }
   }
+  let tintT = 0;
+  function tintSoon() { cancelAnimationFrame(tintT); tintT = requestAnimationFrame(tint); }
+  function tint() {
+    if (document.documentElement.classList.contains('eco')) return;
+    const imgs = $$('img[data-tint]').filter((i) => i.offsetParent);
+    for (const g of $$('.glass')) {
+      const r = g.getBoundingClientRect(); let tl = 'transparent', tr = 'transparent', tb = 'transparent';
+      for (const im of imgs) {
+        const q = im.getBoundingClientRect(); const col = colorOf(im); if (!col) continue;
+        const gap = Math.max(0, q.top - r.bottom, r.top - q.bottom, q.left - r.right, r.left - q.right); const near = Math.max(0, 1 - gap / 200); if (!near) continue;
+        if (q.left >= r.right - 4) tr = `rgba(${col},${0.55 * near})`; else if (q.right <= r.left + 4) tl = `rgba(${col},${0.55 * near})`; else tb = `rgba(${col},${0.6 * near})`;
+      }
+      g.style.setProperty('--tl', tl); g.style.setProperty('--tr', tr); g.style.setProperty('--tb', tb);
+    }
+  }
+
+  // ───────────────────────────── sheets ─────────────────────────────
+  function renderSheet() {
+    const root = $('#sheet-root');
+    if (scan && (!S.sheet || S.sheet.kind !== 'pair' || S.sheet.mode !== 'scan')) scan.stop();
+    if (!S.sheet) { root.innerHTML = ''; return; }
+    const k = S.sheet.kind;
+    const body = k === 'model' ? modelSheet() : k === 'settings' ? settingsSheet() : k === 'pair' ? pairSheet() : k === 'code' ? codeSheet() : k === 'key' ? keySheet() : k === 'pf' ? pfSheet() : '';
+    root.innerHTML = `<div class="back" data-act="close"></div><div class="sheet glass" role="dialog" aria-modal="true">${body}</div>`;
+    if (k === 'pair' && S.sheet.mode === 'scan') startScan();
+    const f = $('.sheet input:not([type=hidden])', root); if (f && k !== 'settings') f.focus();
+  }
+  const head = (title) => `<h2>${title}<button class="ib" data-act="close" aria-label="Fermer">${ic('x')}</button></h2>`;
+  const ckIf = (on) => (on ? `<svg class="i ck" viewBox="0 0 24 24">${ICONS.check}</svg>` : '');
   function modelSheet() {
-    const cur = refKey(S.settings.model);
-    const pc = S.models.map((m) => `<button class="opt ${cur === refKey(m.ref) ? 'on' : ''}" data-act="pick-model" data-k="${esc(refKey(m.ref))}"><span class="opt-ic">${ic('pc', 18)}</span><span class="opt-t"><b>${esc(m.label)}</b><small>${esc([m.provider, m.vision ? t('vision') : ''].filter(Boolean).join(' · ') || t('onPc'))}</small></span>${cur === refKey(m.ref) ? ic('check', 18) : ''}</button>`).join('');
-    const lm = localInfo();
-    const cloud = FAAgent.models.map((m) => { const k = 'cloud:' + m.id; return `<button class="opt ${cur === k ? 'on' : ''}" data-act="pick-model" data-k="${esc(k)}"><span class="opt-ic cloud">${ic('cloud', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc([t('freeCloud'), m.tools ? t('withTools') : ''].filter(Boolean).join(' · '))}</small></span>${cur === k ? ic('check', 18) : ''}</button>`; }).join('');
-    return `<h2>${esc(t('model'))}</h2>
-      ${S.link ? `<h3 class="opt-h">${ic('pc', 15)} ${esc((S.link && S.link.pcName) || 'PC')}</h3>${S.models.length ? pc : `<p class="muted">${esc(session ? t('noModels') : t('modelsOffline'))}</p>`}` : ''}
-      <h3 class="opt-h">${ic('cloud', 15)} Fabro Cloud <span class="tag">${esc(t('free'))}</span></h3>
-      <p class="muted small">${esc(t('freeCloudHint'))}</p>
-      ${cloud}
-      <h3 class="opt-h">${ic('phone', 15)} ${esc(t('localTitle'))}</h3>
-      ${lm ? `<button class="opt ${cur === 'phone' ? 'on' : ''}" data-act="pick-model" data-k="phone"><span class="opt-ic">${ic('phone', 18)}</span><span class="opt-t"><b>${esc(lm.name)}</b><small>${esc(t('onPhone'))} · ${esc(S.local.status === 'ready' ? t('ready') : t('loadsWhenUsed'))}</small></span>${cur === 'phone' ? ic('check', 18) : ''}</button>`
-        : `<button class="opt" data-act="settings">${ic('phone', 18)}<span class="opt-t"><b>${esc(t('localTitle'))}</b><small>${esc(t('localHint'))}</small></span></button>`}`;
+    const m = S.settings.model; const k = refKey(m);
+    const cloud = FAAgent.models.filter((x) => x.id === 'auto' || x.tools !== false).slice(0, 8);
+    return `${head(t('model'))}
+      <h3>${t('cloud')} · ${t('cloudSub')}</h3>
+      ${cloud.map((x) => `<button class="opt ${k === 'cloud:' + x.id ? 'on' : ''}" data-act="pick" data-m="cloud:${esc(x.id)}">${ic('cloud')}<span class="grow">${x.id === 'auto' ? t('auto') + `<small>${t('autoSub')}</small>` : esc(x.name)}</span>${ckIf(k === 'cloud:' + x.id)}</button>`).join('')}
+      <div class="row2"><div>${t('places')}<small>${t('placesSub')}</small></div><button class="btn" data-act="places">${t('see')}</button></div>
+      <h3>${t('keys')}</h3>
+      ${S.keys.map((x) => `<button class="opt ${k === 'key:' + x.id ? 'on' : ''}" data-act="pick" data-m="key:${esc(x.id)}">${ic('key')}<span class="grow">${esc(x.model)}<small>${esc(x.name)}</small></span>${ckIf(k === 'key:' + x.id)}</button>`).join('')}
+      <button class="opt" data-act="add-key">${ic('plus')}<span class="grow">${t('addKey')}<small>${t('keysSub')}</small></span></button>
+      <h3>${t('pcModels')}${linked() ? ' · ' + t('pcModelsSub') : ''}</h3>
+      ${linked() ? (S.models.length ? S.models.map((x, i) => `<button class="opt ${k === refKey(x.ref) ? 'on' : ''}" data-act="pick-pc" data-i="${i}">${ic('pc')}<span class="grow">${esc(x.label)}<small>${esc(x.provider || pcName())}</small></span>${ckIf(k === refKey(x.ref))}</button>`).join('') : `<p class="lead" style="margin:6px 10px">${esc(t('pcAway'))}</p>`)
+        : `<button class="opt" data-act="pair">${ic('pc')}<span class="grow">${t('linkPc')}</span></button>`}`;
+  }
+  function keySheet() {
+    const p = PRESETS.find((x) => x.id === (S.sheet.preset || 'openai')) || PRESETS[0];
+    return `${head(t('addKey'))}<p class="lead">${t('keysSub')}</p>
+      <form data-form="key">
+      <label class="field">${t('provider')}<select name="preset" data-act="preset">${PRESETS.map((x) => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+      ${p.id === 'custom' ? `<label class="field">${t('baseUrl')}<input name="base" type="url" placeholder="https://…/v1" required></label>` : ''}
+      <label class="field">${t('apiKey')}<input name="key" type="password" autocomplete="off" required></label>
+      <label class="field">${t('modelName')}<input name="model" value="${esc(p.model)}" required list="model-list"><datalist id="model-list"></datalist></label>
+      ${S.sheet.err ? `<p class="err">${esc(S.sheet.err)}</p>` : ''}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" data-act="close">${t('cancel')}</button><button class="btn pri" ${S.sheet.busy ? 'disabled' : ''}>${S.sheet.busy ? t('keyTesting') : t('save')}</button></div></form>`;
   }
   function settingsSheet() {
-    const st = S.conn.state; const info = S.conn.info || {};
-    const lm = localInfo();
-    const loc = S.local;
-    const pushOk = 'PushManager' in window;
-    const notifyOn = pushOk && Notification.permission === 'granted' && S.settings.notify;
-    return `<h2>${esc(t('settings'))}</h2>
-      ${!S.link ? `<div class="card pc-card">${ic('phone', 26)}<div><b>${esc(t('guestMode'))}</b><small>${esc(t('guestHint'))}</small></div></div><button class="btn primary" data-act="pair-pc">${ic('pc', 18)} ${esc(t('pairPc'))}</button>` : ''}
-      ${S.link ? `<div class="card pc-card">${ic('pc', 26)}<div><b>${esc((S.link && S.link.pcName) || 'PC')}</b><small>${esc(st === 'direct' ? t('direct') : st === 'relay' ? t('viaRelay') : st === 'connecting' ? t('connecting') : t('offlineShort'))}${info.version ? ' · Fabro ' + esc(info.version) : ''}</small></div></div>` : ''}
-      ${S.link && info.ui ? `<div class="set-row"><span>${ic('pc', 18)} ${esc(t('fullUi'))}</span><button class="switch ${(S.settings.ui || 'full') !== 'lite' ? 'on' : ''}" data-act="full-ui" role="switch" aria-checked="${(S.settings.ui || 'full') !== 'lite'}"><i></i></button></div><p class="hint">${esc(t('fullUiHint'))}</p>` : ''}
-      <div class="set-row"><span>${ic('bell', 18)} ${esc(t('notifications'))}</span>${pushOk ? `<button class="switch ${notifyOn ? 'on' : ''}" data-act="${notifyOn ? 'notify-off' : 'notify-on'}" role="switch" aria-checked="${notifyOn}"><i></i></button>` : `<small class="muted">${esc(t('noPush'))}</small>`}</div>
-      ${pushOk && /iPhone|iPad/.test(navigator.userAgent) && !(matchMedia('(display-mode: standalone)').matches || navigator.standalone) ? `<p class="hint">${esc(t('iosPush'))}</p>` : ''}
-      <h3>${esc(t('localTitle'))}</h3>
-      <p class="muted small">${esc(t('localExplain'))}</p>
-      ${loc.status === 'loading' ? `<div class="progress"><i style="width:${Math.round(loc.progress * 100)}%"></i></div><p class="muted small">${esc(loc.text.slice(0, 120))}</p>`
-        : loc.status === 'unsupported' ? `<p class="err small">${esc(t('noWebgpu'))}</p>`
-        : lm ? `<div class="set-row"><span>${esc(lm.name)} <small class="muted">${esc(lm.size)}</small></span><button class="btn sm" data-act="local-rm">${ic('trash', 15)} ${esc(t('remove'))}</button></div>
-               <div class="set-row"><span>${esc(t('localFallback'))}</span><button class="switch ${S.settings.localFallback ? 'on' : ''}" data-act="local-fallback" role="switch" aria-checked="${!!S.settings.localFallback}"><i></i></button></div>`
-        : LOCAL_MODELS.filter(localAllowed).map((m) => `<button class="opt" data-act="local-get" data-id="${m.id}"><span class="opt-ic">${ic('phone', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc(m.size)} · ${esc(t('saveFile'))}</small></span></button>`).join('')}
-      ${loc.status === 'error' ? `<p class="err small">${esc(loc.text)}</p>` : ''}
-      ${S.link ? `<h3>${esc(t('awayTitle'))}</h3><p class="muted small">${esc(t('awayHint'))}</p>
-      <div class="seg3">${['cloud', 'phone', 'wait'].map((v) => `<button class="${(S.settings.away || 'cloud') === v ? 'on' : ''}" data-act="away" data-v="${v}">${ic(v === 'cloud' ? 'cloud' : v === 'phone' ? 'phone' : 'pc', 16)}<span>${esc(t('away_' + v))}</span></button>`).join('')}</div>` : ''}
-      <h3 id="set-ears">${esc(t('earsTitle'))}</h3>
-      <p class="muted small">${esc(t('earsHint'))}</p>
-      ${S.ears && S.ears.loading ? `<div class="progress"><i style="width:${Math.round((S.ears.p || 0) * 100)}%"></i></div><p class="muted small">${esc(t('downloading'))}</p>`
-        : earsReady() ? `<div class="set-row"><span>${esc((FASpeech.MODELS.find((m) => m.id === S.settings.ears.id) || { name: S.settings.ears.id }).name)} <small class="muted">${esc(t('ready'))}</small></span><button class="btn sm" data-act="ears-rm">${ic('trash', 15)} ${esc(t('remove'))}</button></div>`
-        : FASpeech.MODELS.filter((m) => !m.gpu || navigator.gpu).map((m) => `<button class="opt" data-act="ears-get" data-id="${esc(m.id)}"><span class="opt-ic">${ic('mic', 18)}</span><span class="opt-t"><b>${esc(m.name)}</b><small>${esc(m.size)} · ${esc(t(m.gpu ? 'earsGpu' : m.id.endsWith('base') ? 'earsFast' : 'earsBetter'))}</small></span></button>`).join('')}
-      ${S.ears && S.ears.err ? `<p class="err small">${esc(S.ears.err)}</p>` : ''}
-      <h3>${esc(t('voiceTitle'))}</h3>
-      <div class="set-row"><span>${esc(t('voiceFam'))}</span><div class="seg2">${['f', 'm'].map((v) => `<button class="${(S.settings.voiceFam || 'f') === v ? 'on' : ''}" data-act="voice-fam" data-v="${v}">${esc(t('fam_' + v))}</button>`).join('')}</div></div>
-      <div class="set-row"><span>${esc(t('voiceName'))}</span><select class="input sm voice-sel" data-change="voiceName"><option value="">${esc(t('voiceAuto'))}</option>${FASpeech.listVoices(lang).slice(0, 30).map((v) => `<option value="${esc(v.name)}" ${S.settings.voiceName === v.name ? 'selected' : ''}>${esc(v.name.replace(/^Microsoft |^Google /, ''))}</option>`).join('')}</select></div>
-      <button class="btn sm ghost" data-act="voice-test">${ic('wave', 16)} ${esc(t('voiceTest'))}</button>
-      <p class="muted small">${esc(t(pcVoice() ? 'voicePcUsed' : 'voicePhoneUsed'))}</p>
-      <h3>${esc(t('display'))}</h3>
-      <div class="set-row"><span>${esc(t('language'))}</span><select class="input sm" data-change="lang">${['auto', ...LANGS].map((l) => `<option value="${l}" ${S.settings.lang === l ? 'selected' : ''}>${l === 'auto' ? t('auto') : { en: 'English', fr: 'Français', es: 'Español', de: 'Deutsch' }[l]}</option>`).join('')}</select></div>
-      <div class="set-row"><span>${esc(t('theme'))}</span><select class="input sm" data-change="theme">${['system', 'light', 'dark', ...(spooky() ? ['halloween'] : [])].map((v) => `<option value="${v}" ${S.settings.theme === v ? 'selected' : ''}>${esc(t('theme_' + v))}</option>`).join('')}</select></div>
-      <div class="set-row"><span>${esc(t('layout'))}</span><select class="input sm" data-change="layout">${['auto', 'phone', 'desktop'].map((v) => `<option value="${v}" ${(S.settings.layout || 'auto') === v ? 'selected' : ''}>${esc(t('layout_' + v))}</option>`).join('')}</select></div>
-      <h3>${esc(t('advanced'))}</h3>
-      <label class="field"><span>${esc(t('customRelay'))}</span><input class="input" data-change="relay" placeholder="wss://…" value="${esc(S.settings.customRelay || '')}"></label>
-      <p class="muted small">${esc(t('relayHint'))}</p>
-      <div class="sep"></div>
-      ${S.link ? `<button class="btn danger" data-act="unpair">${esc(t('unpair'))}</button>` : ''}
-      <p class="muted small center">Fabro Anywhere · <a href="../privacy.html">${esc(t('privacy'))}</a></p>`;
+    const th = (() => { try { return localStorage.getItem('fa-theme') || 'auto'; } catch { return 'auto'; } })();
+    const eco = document.documentElement.classList.contains('eco');
+    return `${head(t('settings'))}
+      ${profileRows()}
+      <h3>${t('pc')}</h3>
+      ${linked() ? `<div class="row2"><div>${esc(pcName())}<small>${S.conn.state === 'on' ? (S.pcTools ? t('toolsOnPc', { pc: pcName() }) : t('pcOn', { pc: pcName() })) : t('pcAway')}</small></div><button class="btn" data-act="forget">${t('forget')}</button></div>
+        ${'PushManager' in window ? `<div class="row2"><div>${t('notify')}<small>${t('notifySub')}</small></div><button class="tog ${S.settings.notify ? 'on' : ''}" data-act="notify" aria-pressed="${!!S.settings.notify}"></button></div>` : ''}`
+        : `<div class="row2"><div>${t('noPc')}<small>${t('pairLead')}</small></div><button class="btn pri" data-act="pair">${t('linkPc')}</button></div>`}
+      <h3>${t('keys')}</h3>
+      ${S.keys.map((x) => `<div class="row2"><div>${esc(x.name)}<small>${esc(x.model)} · ••••${esc(x.key.slice(-4))}</small></div><button class="btn" data-act="del-key" data-id="${esc(x.id)}">${t('remove')}</button></div>`).join('')}
+      <div class="row2"><div><small>${t('keysSub')}</small></div><button class="btn" data-act="add-key">${t('addKey')}</button></div>
+      <h3>${t('theme')}</h3>
+      <div class="row2"><div>${t('theme')}</div><div class="seg">${[['light', 'light'], ['dark', 'dark'], ['auto', 'autoT']].map(([v, l]) => `<button data-act="theme" data-v="${v}" class="${th === v ? 'on' : ''}">${t(l)}</button>`).join('')}</div></div>
+      <div class="row2"><div>${t('eco')}<small>${t('ecoSub')}</small></div><button class="tog ${eco ? 'on' : ''}" data-act="eco" aria-pressed="${eco}"></button></div>
+      <div class="row2"><div>${t('lang')}</div><div class="seg">${[['auto', 'Auto'], ['fr', 'FR'], ['en', 'EN']].map(([v, l]) => `<button data-act="lang" data-v="${v}" class="${(S.settings.lang || 'auto') === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+      ${S.installEvt ? `<div class="row2"><div>${t('install')}<small>${t('installSub')}</small></div><button class="btn" data-act="install">${t('install')}</button></div>` : ''}
+      <h3>${t('about')}</h3><div class="row2"><div>Fabro Anywhere</div><a class="btn ghost" href="../" target="_blank" rel="noopener">${t('site')}${ic('ext')}</a></div>`;
   }
-  function renderVoice() {
-    let el = $('#vx'); if (!el) { el = document.createElement('div'); el.id = 'vx'; el.className = 'vx'; document.body.appendChild(el); }
-    el.innerHTML = `<div class="vx-top"><span>${esc(t('voiceMode'))}</span><button class="icon-btn light" data-act="voice-close" aria-label="${esc(t('close'))}">${ic('x')}</button></div>
-      <div class="vx-mid"><div class="vx-orb">${logo(120, 'vx-prop')}</div><p class="vx-phase"></p></div>
-      <div class="vx-sub"><p class="vx-user"></p><p class="vx-ai"></p><p class="vx-err err"></p>
-        ${session && !pcVoice() ? `<p class="vx-hint">${esc(t('voicePcMissing'))}</p><button class="btn ghost sm" data-act="voice-install" ${S.voiceInstalling ? 'disabled' : ''}>${esc(S.voiceInstalling ? t('installing') : t('voiceInstall'))}</button>` : ''}
-        ${!pcVoice() && !earsReady() && navigator.onLine === false ? `<button class="btn ghost sm vx-ears" data-act="ears-get" data-id="${esc(FASpeech.MODELS[0].id)}">${ic('download', 16)} ${esc(t('earsGet'))}</button>` : ''}</div>`;
-    paintVoice();
+  // profiles (profiles.js): who is using this device
+  function profileRows() {
+    const p = FAProfiles.current() || {}; const all = FAProfiles.list();
+    const others = all.filter((x) => x.id !== p.id);
+    return `<h3>${t('profile')}</h3>
+      <div class="row2"><div style="display:flex;align-items:center;gap:10px">${FAProfiles.av(p)}<div>${esc(p.name || t('me'))}<small>${p.pw ? t('pfLocked') : t('pfOpen')}</small></div></div><button class="btn" data-act="pf-pw">${p.pw ? t('pfPwChange') : t('pfPwSet')}</button></div>
+      ${others.map((x) => `<button class="opt" data-act="pf-switch" data-id="${esc(x.id)}">${FAProfiles.av(x)}<span class="grow">${esc(x.name || t('me'))}${x.locked ? `<small>${t('pfLocked')}</small>` : ''}</span></button>`).join('')}
+      <div class="row2"><div><small>${t('pfSub', { n: all.length })}</small></div><div style="display:flex;gap:6px">${all.length > 1 ? `<button class="btn ghost" data-act="pf-del">${t('remove')}</button>` : ''}<button class="btn" data-act="pf-switch">${all.length < FAProfiles.MAX ? t('pfAdd') : t('pfChange')}</button></div></div>`;
   }
-  function paintVoice() {
-    const V = S.voice; const el = $('#vx'); if (!V || !el) return;
-    el.dataset.phase = V.phase;
-    $('.vx-phase', el).textContent = t('vx_' + V.phase);
-    $('.vx-user', el).textContent = V.user ? `“${V.user}”` : '';
-    $('.vx-ai', el).textContent = speakable(V.ai).slice(-280);
-    $('.vx-err', el).textContent = V.err || '';
+  function pfSheet() {
+    const p = FAProfiles.current() || {}; const m = S.sheet.mode;
+    return `${head(m === 'del' ? t('pfDelT') : p.pw ? t('pfPwChange') : t('pfPwSet'))}
+      <form data-form="pf">
+      ${m === 'del' ? `<p class="lead">${t('pfDelLead')}</p>` : `<p class="lead">${t('pfPwLead')}</p>`}
+      ${p.pw ? `<label class="field">${t('pfPwOld')}<input name="old" type="password" autocomplete="current-password" required></label>` : ''}
+      ${m === 'del' ? '' : `<label class="field">${t('pfPwNew')}<input name="pw" type="password" autocomplete="new-password"></label>`}
+      ${S.sheet.err ? `<p class="err">${esc(S.sheet.err)}</p>` : ''}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" data-act="close">${t('cancel')}</button><button class="btn ${m === 'del' ? 'danger' : 'pri'}" ${S.sheet.busy ? 'disabled' : ''}>${S.sheet.busy ? '…' : m === 'del' ? t('remove') : t('save')}</button></div></form>`;
+  }
+  function pairSheet() {
+    const mode = S.sheet.mode || 'choose';
+    if (mode === 'busy') return `${head(t('pairH'))}<p class="lead">${t('pairing')}</p>`;
+    return `${head(t('pairH'))}<p class="lead">${t('pairLead')}</p>
+      ${mode === 'scan' ? '<div class="scan"><video id="scan-video" playsinline muted></video></div>' : ''}
+      <form data-form="code"><label class="field">${t('typeCode')}<input id="code-in" class="code-in" placeholder="${t('codePh')}" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+      ${S.sheet.err ? `<p class="err">${esc(S.sheet.err)}</p>` : ''}
+      <div style="display:flex;gap:8px;margin-top:12px">${mode !== 'scan' && navigator.mediaDevices ? `<button type="button" class="btn" data-act="scan">${t('scan')}</button>` : ''}<span style="flex:1"></span><button class="btn pri">${t('pair')}</button></div></form>`;
+  }
+  let DL = null;
+  function codeSheet() {
+    const ua = navigator.userAgent; const mine = /Mac/.test(ua) && !/iPhone|iPad/.test(ua) ? 'mac' : /Windows/.test(ua) ? 'win' : /Linux/.test(ua) && !/Android/.test(ua) ? 'linux' : '';
+    const d = DL || {}; const v = d.version ? ' ' + d.version : '';
+    const item = (k, name, file) => `<a class="${k === mine ? 'me' : ''}" href="${esc(d[k] || '../#telecharger')}">${ic('dl')}<b style="font-weight:500">${name}</b><small>${esc(file || '')}${k === mine ? ' · ' + t('yourOs') : ''}</small></a>`;
+    return `${head(t('codeH'))}<p class="lead">${t('codeLead')}</p>
+      <div class="dl">${item('win', 'Windows', 'Windows 10, 11')}${item('mac', 'macOS', 'Apple Silicon, Intel')}${item('linux', 'Linux', 'AppImage, .deb')}</div>
+      ${linked() ? `<p class="lead" style="margin-top:10px">${esc(t('codeOpen', { pc: pcName() }))}</p>` : ''}<p class="mono" style="color:var(--t3)">Fabro${esc(v)}</p>`;
   }
 
   // ───────────────────────────── events ─────────────────────────────
-  const acts = {
-    scan: () => startScan(),
-    'scan-close': () => { stopScan(); S.view = S.link ? 'main' : 'welcome'; render(); },
-    code: () => { stopScan(); S.view = 'code'; render(); setTimeout(() => $('#code-in') && $('#code-in').focus(), 50); },
-    home: () => { S.forceWelcome = false; S.view = S.link || S.settings.guest ? 'main' : 'welcome'; render(); },
-    install: async () => { if (S.installEvt) { S.installEvt.prompt(); await S.installEvt.userChoice.catch(() => {}); S.installEvt = null; render(); } },
-    'notify-on': async () => { const ok = await ensurePush(true); if (S.view === 'paired') { S.view = 'main'; render(); } else renderSheet(); if (ok) toast(t('notifyReady')); },
-    'notify-off': async () => { await disablePush(); renderSheet(); },
-    start: () => { S.view = 'main'; render(); if (window.FAFull && !FAFull.active && (S.settings.ui || 'full') !== 'lite') FAFull.start(); },
-    'full-ui': async () => { if ((S.settings.ui || 'full') !== 'lite') { S.settings.ui = 'lite'; await saveSettings(); window.FAFull && FAFull.close(); renderSheet(); } else { S.sheet = null; renderSheet(); window.FAFull && FAFull.open(); } },
-    new: () => { S.cur = null; S.drawer = false; render(); setTimeout(() => $('#prompt') && $('#prompt').focus(), 50); },
-    open: (el) => openConv(el.dataset.id),
-    drawer: () => { S.drawer = true; $('.shell') && $('.shell').classList.add('drawer-open'); },
-    'drawer-close': () => { S.drawer = false; $('.shell') && $('.shell').classList.remove('drawer-open'); },
-    settings: () => { S.drawer = false; $('.shell') && $('.shell').classList.remove('drawer-open'); S.sheet = 'settings'; renderSheet(); },
-    model: () => { S.sheet = 'model'; renderSheet(); if (session) rpc('models').then((l) => { S.models = l; renderSheet(); }).catch(() => {}); },
-    'sheet-close': () => { S.sheet = null; renderSheet(); },
-    'pick-model': async (el) => {
-      const k = el.dataset.k;
-      S.settings.model = k === 'phone' || k.startsWith('cloud:') ? k : (S.models.find((m) => refKey(m.ref) === k) || {}).ref || null;
-      await saveSettings(); S.sheet = null; renderSheet(); renderHeader(); renderComposer();
-      if (k === 'phone' && S.local.status !== 'ready') loadLocal(localInfo());
-    },
-    sug: (el) => { S.draft = el.textContent; renderComposer(); $('#prompt').focus(); },
-    agent: async () => { const c = curConv(); if (c) { c.agent = !c.agent; c.updatedAt = now(); c.dirty = true; await saveConv(c); } else { S.settings.agent = !S.settings.agent; await saveSettings(); } renderComposer(); },
-    dictate: (el) => dictate(el),
-    stop: () => stopRun(),
-    ask: (el) => answerAsk(el.dataset.id, el.dataset.v),
-    'att-rm': (el) => { S.atts.splice(+el.dataset.i, 1); renderComposer(); },
-    reconnect: () => { retryN = 0; connect(true); },
-    art: (el) => { const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.node); const g = n && splitArt(n.content).filter((x) => x.kind === 'artifact')[+el.dataset.i]; if (g) { const ref = (n.artifacts || [])[+el.dataset.i]; openArt({ ...g, refId: ref && ref.id }); if (ref && ref.id && session) rpc('artifact.get', { id: ref.id }).then((a) => { if (S.art && S.art.refId === ref.id) openArt({ ...a, body: a.content, refId: ref.id, type: artType(a.type, a.content) }); }).catch(() => {}); } },
-    'art-id': (el) => openArtById(el.dataset.id),
-    'file-view': (el) => viewFile(el.dataset.path),
-    'file-dl': async (el) => { try { saveBlob(await getFile(el.dataset.path)); } catch (e) { toast(e.message, 'err'); } },
-    'fv-dl': () => { if (S.fv) saveBlob(S.fv); },
-    'img-view': (el) => { const v = document.createElement('div'); v.className = 'av'; v.id = 'av'; v.innerHTML = `<header><button class="icon-btn" data-act="art-close" aria-label="${esc(t('close'))}">${ic('back')}</button><span class="grow"></span></header><div class="av-body"><img class="fv-img" src="${esc(el.getAttribute('src'))}" alt=""></div>`; $('#av') && $('#av').remove(); document.body.appendChild(v); },
-    'art-close': () => { S.art = null; $('#av') && $('#av').remove(); },
-    'art-pdf': () => { if (S.art && S.art.id) openPdf(S.art.id); },
-    'voice-install': async () => { if (!session) return; S.voiceInstalling = true; paintVoice(); try { const st = await rpc('voice.install', { lang }, 20 * 60000); S.conn.info.voice = { ready: !!(st.runtime && st.whisperReady), voice: st.voice }; toast(t('voiceReady')); } catch (e) { toast(e.message, 'err'); } S.voiceInstalling = false; if (S.voice) { closeVoice(); openVoice(); } },
-    // no computer: Fabro Cloud answers right away (free, no account); the phone's model can be added later
-    guest: async () => { S.settings.guest = true; S.settings.model = 'cloud:auto'; await saveSettings(); S.view = 'main'; render(); if (window.FAFull && (S.settings.ui || 'full') !== 'lite') FAFull.start(); },
-    away: async (el) => { S.settings.away = el.dataset.v; await saveSettings(); renderSheet(); renderHeader(); renderComposer(); },
-    'voice-fam': async (el) => { S.settings.voiceFam = el.dataset.v; S.settings.voiceName = ''; await saveSettings(); renderSheet(); },
-    'voice-test': () => { Speaker.stop(); Speaker.unlock(); Speaker.say(t('voiceSample')); },
-    'mic-retry': async () => { S.sheet = null; renderSheet(); try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach((x) => x.stop()); toast(t('micOk')); } catch (e) { micHelp(e); } },
-    'ears-get': async (el) => {
-      const id = el.dataset.id; S.ears = { loading: true, p: 0 }; renderSheet(); if (S.voice) paintVoice();
-      try { await FASpeech.loadEars(id, (p) => { S.ears.p = p; if (S.sheet === 'settings') { const b = $('.sheet .progress i'); if (b) b.style.width = Math.round(p * 100) + '%'; } }); S.settings.ears = { id }; await saveSettings(); S.ears = null; toast(t('earsReady')); if (S.voice) { closeVoice(); openVoice(); } }
-      catch (e) { S.ears = { err: e && e.code === 'TOO_HEAVY' ? t('earsCrashed') : String(e.message || e).slice(0, 200) }; }
-      renderSheet();
-    },
-    'ears-rm': async () => { S.settings.ears = null; await saveSettings(); try { for (const k of await caches.keys()) if (/transformers/i.test(k)) await caches.delete(k); } catch {} renderSheet(); },
-    'pair-pc': () => { S.sheet = null; renderSheet(); S.view = 'welcome'; S.forceWelcome = true; render(); },
-    voice: () => openVoice(),
-    'voice-close': () => closeVoice(),
-    'local-get': (el) => { const m = LOCAL_MODELS.find((x) => x.id === el.dataset.id); if (m) loadLocal(m, { download: true }); },
-    'local-rm': () => removeLocal(),
-    'local-fallback': async () => { S.settings.localFallback = !S.settings.localFallback; await saveSettings(); renderSheet(); },
-    unpair: async () => { if (!confirm(t('unpairQ'))) return; S.sheet = null; await forget(false); },
-    delete: async (el) => {
-      const id = el.dataset.id; if (!confirm(t('deleteQ'))) return;
-      S.convs.delete(id); await DB.del('convs', id); S.metas = S.metas.filter((m) => m.id !== id);
-      if (session) rpc('conv.delete', { id }).catch(() => { S.tombstones.push(id); kv.set('tombstones', S.tombstones); });
-      else { S.tombstones.push(id); await kv.set('tombstones', S.tombstones); }
-      if (S.cur === id) S.cur = null; render();
-    },
-  };
-  // ───────────────────────────── touch: long press, swipes, action sheets ─────────────────────────────
-  const buzz = (ms = 12) => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
-  function actionSheet(title, items) {
-    $('#act-sheet') && $('#act-sheet').remove();
-    const el = document.createElement('div'); el.id = 'act-sheet'; el.className = 'as-wrap';
-    el.innerHTML = `<div class="as-bg" data-act="as-close"></div><div class="as" role="menu">${title ? `<div class="as-title">${esc(title)}</div>` : ''}
-      ${items.map((it, i) => `<button class="as-it ${it.danger ? 'danger' : ''}" data-act="as-pick" data-i="${i}" role="menuitem"><span class="as-ic">${it.icon || ''}</span>${esc(it.label)}</button>`).join('')}
-      <button class="as-it cancel" data-act="as-close">${esc(t('cancel'))}</button></div>`;
-    S.asItems = items; document.body.appendChild(el); buzz();
-  }
-  const closeSheet = () => { const el = $('#act-sheet'); if (!el) return; el.classList.add('out'); setTimeout(() => el.remove(), 200); };
-  const nodeOf = (id) => { const c = curConv(); return c && A.nodesOf(c).find((n) => n.id === id); };
-  function messageMenu(id) {
-    const n = nodeOf(id); if (!n) return; const c = curConv();
-    const text = n.content || '';
-    const items = [{ label: t('copy'), icon: '⧉', run: () => navigator.clipboard.writeText(text).then(() => toast(t('copied'))) }];
-    if (n.role === 'user' && !busy(c)) items.push({ label: t('editMsg'), icon: '✎', run: () => { S.editing = n.id; S.draft = text; render(); const ta = $('#prompt'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } } });
-    if (n.role === 'assistant' && !n.pending && !busy(c)) items.push({ label: t('regenerate'), icon: '↻', run: () => { const p = nodeOf(n.parentId); if (!p) return; c.leafId = p.parentId || null; send(p.content, p.attachments || []); } });
-    if (navigator.share) items.push({ label: t('share'), icon: '↗', run: () => navigator.share({ text }).catch(() => {}) });
-    if (n.role === 'assistant' && text) items.push({ label: t('readAloud'), icon: '🔊', run: () => { try { Speaker.say(speakable(text)); } catch {} } });
-    items.push({ label: t('selectText'), icon: '⌶', run: () => { const v = document.createElement('div'); v.className = 'av'; v.id = 'av'; v.innerHTML = `<header><button class="icon-btn" data-act="art-close" aria-label="${esc(t('close'))}">${ic('back')}</button><div class="av-t"><b>${esc(t('selectText'))}</b></div></header><div class="av-body"><div class="sel-text">${esc(text)}</div></div>`; document.body.appendChild(v); } });
-    actionSheet('', items);
-  }
-  function convMenu(id) {
-    const meta = allConvs().find((c) => c.id === id); if (!meta) return;
-    actionSheet(meta.title || t('untitled'), [
-      { label: t('rename'), icon: '✎', run: async () => { const v = prompt(t('rename'), meta.title || ''); if (!v) return; const c = S.convs.get(id); if (c) { c.title = v.slice(0, 120); await saveConv(c); } if (session) rpc('conv.rename', { id, title: v }).catch(() => {}); render(); } },
-      { label: t('delete'), icon: '🗑', danger: true, run: () => acts.delete({ dataset: { id } }) },
-    ]);
-  }
-  // long press (450 ms without moving) on a message or a conversation
-  let lp = null;
-  document.addEventListener('touchstart', (e) => {
-    const m = e.target.closest('.msg[id^="m-"], .d-item[data-id]'); if (!m || e.touches.length > 1) return;
-    const t0 = e.touches[0]; lp = { x: t0.clientX, y: t0.clientY, el: m, timer: setTimeout(() => { lp.fired = true; m.classList.add('pressed'); setTimeout(() => m.classList.remove('pressed'), 250); if (m.classList.contains('d-item')) convMenu(m.dataset.id); else messageMenu(m.id.slice(2)); }, 450) };
-  }, { passive: true });
-  document.addEventListener('touchmove', (e) => { if (lp && Math.hypot(e.touches[0].clientX - lp.x, e.touches[0].clientY - lp.y) > 10) { clearTimeout(lp.timer); lp = null; } }, { passive: true });
-  document.addEventListener('touchend', (e) => { if (!lp) return; clearTimeout(lp.timer); if (lp.fired) e.preventDefault(); lp = null; });
-  document.addEventListener('contextmenu', (e) => { const m = e.target.closest('.msg[id^="m-"], .d-item[data-id]'); if (!m || matchMedia('(pointer: fine)').matches && !e.ctrlKey) return; e.preventDefault(); });
-  // swipe from the left edge opens the conversations, swipe left closes them
-  let sw = null;
-  document.addEventListener('touchstart', (e) => { const x = e.touches[0].clientX; if (S.view !== 'main' || innerWidth >= 820) return; if ((!S.drawer && x < 24) || (S.drawer && e.target.closest('.drawer'))) sw = { x, y: e.touches[0].clientY, open: S.drawer }; }, { passive: true });
-  document.addEventListener('touchend', (e) => {
-    if (!sw) return; const tch = e.changedTouches[0]; const dx = tch.clientX - sw.x, dy = Math.abs(tch.clientY - sw.y);
-    if (!sw.open && dx > 60 && dy < 60) acts.drawer(); else if (sw.open && dx < -60 && dy < 60) acts['drawer-close']();
-    sw = null;
-  });
-  // tap a code block to copy it
-  document.addEventListener('click', (e) => { const pre = e.target.closest('.md pre'); if (!pre || window.getSelection().toString()) return; navigator.clipboard.writeText(pre.innerText).then(() => { buzz(8); toast(t('copied')); }).catch(() => {}); });
-  // a button to jump back to the latest message
-  document.addEventListener('scroll', (e) => { if (e.target.id !== 'chat') return; const el = e.target; const far = el.scrollHeight - el.scrollTop - el.clientHeight > 400; const b = $('#to-bottom'); if (b) b.classList.toggle('show', far); }, true);
-  const startWith = async (agent, text) => { S.cur = null; S.drawer = false; if (S.settings.agent !== agent) { S.settings.agent = agent; await saveSettings(); } render(); S.draft = text || ''; renderComposer(); const ta = $('#prompt'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } };
-  Object.assign(acts, {
-    'qa-agent': () => startWith(true, ''),
-    'qa-search': () => startWith(false, t('qa_searchP')),
-    'qa-image': () => startWith(false, t('qa_imageP')),
-    'm-copy': (el) => { const n = nodeOf(el.dataset.id); if (n) navigator.clipboard.writeText(n.content || '').then(() => toast(t('copied'))); },
-    'm-read': (el) => { const n = nodeOf(el.dataset.id); if (n) { Speaker.stop(); Speaker.unlock(); Speaker.say(speakable(n.content || '')); } },
-    'm-regen': (el) => { const n = nodeOf(el.dataset.id); const c = curConv(); if (!n || !c || busy(c)) return; const p = nodeOf(n.parentId); if (!p) return; c.leafId = p.parentId || null; send(p.content, p.attachments || []); },
-    'm-edit': (el) => { const n = nodeOf(el.dataset.id); const c = curConv(); if (!n || busy(c)) return; S.editing = n.id; S.draft = n.content || ''; render(); const ta = $('#prompt'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } },
-    'as-close': () => closeSheet(),
-    'as-pick': (el) => { const it = (S.asItems || [])[+el.dataset.i]; closeSheet(); if (it) setTimeout(() => it.run(), 60); },
-    'to-bottom': () => scrollChat(true),
-    'edit-cancel': () => { S.editing = null; S.draft = ''; renderComposer(); },
-    'msg-menu': (el) => messageMenu(el.dataset.id),
-  });
-
-  document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-act]'); if (!el) return;
-    const fn = acts[el.dataset.act]; if (fn) { e.preventDefault(); fn(el, e); }
-  });
-  document.addEventListener('submit', (e) => {
-    const f = e.target.closest('form[data-form]'); if (!f) return; e.preventDefault();
-    if (f.dataset.form === 'send') {
-      const ta = $('#prompt'); const v = ta.value; const c = curConv(); if (busy(c)) return;
-      // editing a message: the new version branches from the same place
-      if (S.editing && c) { const n = A.nodesOf(c).find((x) => x.id === S.editing); if (n) c.leafId = n.parentId || null; S.editing = null; }
-      send(v, S.atts.slice());
+  document.addEventListener('click', async (e) => {
+    const el = e.target.closest('[data-act]'); if (!el || el.tagName === 'INPUT' || el.tagName === 'SELECT') return;
+    const a = el.dataset.act;
+    if (a === 'close') { S.sheet = null; return renderSheet(); }
+    if (a === 'new') return newChat();
+    if (a === 'open') return openConv(el.dataset.id);
+    if (a === 'drawer') { S.drawer = !S.drawer; return renderAll(); }
+    if (a === 'code') { S.drawer = false; renderAll(); S.sheet = { kind: 'code' }; renderSheet(); if (!DL) { DL = await fetch('downloads.json').then((r) => r.json()).catch(() => ({})); renderSheet(); } return; }
+    if (a === 'settings') { S.drawer = false; renderAll(); S.sheet = { kind: 'settings' }; return renderSheet(); }
+    if (a === 'pair') { S.drawer = false; renderAll(); S.sheet = { kind: 'pair', mode: 'choose' }; return renderSheet(); }
+    if (a === 'scan') { S.sheet = { kind: 'pair', mode: 'scan' }; return renderSheet(); }
+    if (a === 'model') { S.sheet = { kind: 'model' }; renderSheet(); FAAgent.refreshModels().then(() => { if (S.sheet && S.sheet.kind === 'model') renderSheet(); }).catch(() => {}); return; }
+    if (a === 'pick') { S.settings.model = el.dataset.m; await saveSettings(); S.sheet = null; renderSheet(); renderTop(); return; }
+    if (a === 'pick-pc') { const x = S.models[+el.dataset.i]; if (x) { S.settings.model = x.ref; await saveSettings(); } S.sheet = null; renderSheet(); renderTop(); return; }
+    if (a === 'add-key') { S.sheet = { kind: 'key', preset: 'openai' }; return renderSheet(); }
+    if (a === 'del-key') { S.keys = S.keys.filter((k) => k.id !== el.dataset.id); await kv.set('keys', S.keys); if (!keyOf(S.settings.model) && String(S.settings.model).startsWith('key:')) { S.settings.model = 'cloud:auto'; await saveSettings(); } renderSheet(); renderTop(); return; }
+    if (a === 'forget') { if (confirm(t('forgetQ'))) { await forget(false); S.sheet = null; renderSheet(); } return; }
+    if (a === 'notify') { if (S.settings.notify) await disablePush(); else await ensurePush(true); return renderSheet(); }
+    if (a === 'places') { S.sheet = null; renderSheet(); return window.FAMaps && FAMaps.openFull(null); }
+    if (a === 'pf-pw') { S.sheet = { kind: 'pf', mode: 'pw' }; return renderSheet(); }
+    if (a === 'pf-del') { S.sheet = { kind: 'pf', mode: 'del' }; return renderSheet(); }
+    if (a === 'pf-switch') { if (el.dataset.id) return FAProfiles.switchTo(el.dataset.id); return FAProfiles.lock(); }
+    if (a === 'theme') { try { localStorage.setItem('fa-theme', el.dataset.v); } catch {} applyTheme(); return renderSheet(); }
+    if (a === 'eco') { const on = !document.documentElement.classList.contains('eco'); document.documentElement.classList.toggle('eco', on); try { localStorage.setItem('fa-eco', on ? '1' : '0'); } catch {} if (!on) tintSoon(); return renderSheet(); }
+    if (a === 'lang') { S.settings.lang = el.dataset.v; await saveSettings(); applyLang(); compEl = null; renderAll(); return renderSheet(); }
+    if (a === 'install') { if (S.installEvt) { S.installEvt.prompt(); S.installEvt = null; renderSheet(); } return; }
+    if (a === 'send') return submit();
+    if (a === 'mic') return dictate();
+    if (a === 'unatt') { S.atts.splice(+el.dataset.i, 1); return renderComposer(); }
+    if (a === 'sugg') { const ta = $('.composer textarea'); ta.value = el.textContent; ta.dispatchEvent(new Event('input')); ta.focus(); return; }
+    if (a === 'ask') return answerAsk(el.dataset.id, el.dataset.v);
+    if (a === 'cloud-now') return answerQueuedWithCloud();
+    if (a === 'retry' || a === 'use-pc') {
+      const c = curConv(); if (!c || busy(c)) return;
+      const n = A.nodesOf(c).find((x) => x.id === el.dataset.id); if (!n) return;
+      const user = n.role === 'user' ? n : A.nodesOf(c).find((x) => x.id === n.parentId); if (!user) return;
+      if (a === 'use-pc' && S.models.length) { S.settings.model = S.models[0].ref; await saveSettings(); renderTop(); }
+      c.leafId = user.id; await saveConv(c); renderMain(); return dispatch(c, user, true);
     }
-    if (f.dataset.form === 'code') { A.parseTextCode($('#code-in').value).then((d) => { if (d) pairWith(d); else toast(t('badCode'), 'err'); }); }
+    if (a === 'add-key') { S.sheet = { kind: 'key', preset: 'openai' }; return renderSheet(); }
+    if (a === 'ver') {
+      const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.id); if (!n) return;
+      const sib = siblingsOf(n); const j = sib.findIndex((x) => x.id === n.id) + Number(el.dataset.d); const to = sib[j]; if (!to) return;
+      // follow the most recent path below that version
+      let leaf = to; for (;;) { const kids = A.nodesOf(c).filter((x) => x.parentId === leaf.id).sort((a2, b2) => (b2.createdAt || 0) - (a2.createdAt || 0)); if (!kids.length) break; leaf = kids[0]; }
+      c.leafId = leaf.id; c.dirty = true; await saveConv(c); return renderMain();
+    }
+    if (a === 'edit') { S.editing = el.dataset.id; renderMain(); const ta = $('.edit-in'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
+    if (a === 'edit-cancel') { S.editing = null; return renderMain(); }
+    if (a === 'edit-send') {
+      const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.id); const v = ($('.edit-in') || {}).value || '';
+      S.editing = null; if (!n || !v.trim() || busy(c)) return renderMain();
+      const node = { id: A.uid(), role: 'user', content: v.trim(), attachments: n.attachments || [], createdAt: now(), updatedAt: now(), parentId: n.parentId || null };
+      c.nodes = [...A.nodesOf(c), node]; c.leafId = node.id; c.updatedAt = now(); c.dirty = true; await saveConv(c); renderMain(); scrollChat(true);
+      return dispatch(c, node);
+    }
+    if (a === 'fork') {
+      const c = curConv(); if (!c) return; const upTo = A.pathOf({ ...c, leafId: el.dataset.id });
+      const f = { id: uid(), title: (c.title || '') + ' ↳', createdAt: now(), updatedAt: now(), nodes: upTo.map((x) => ({ ...x, pending: false })), leafId: el.dataset.id, agent: true, origin: 'phone', dirty: true };
+      await saveConv(f); toast(t('forked')); return openConv(f.id);
+    }
+    if (a === 'steps') { const id = el.dataset.id; S.open.has(id) ? S.open.delete(id) : S.open.add(id); const box = el.parentElement; box.classList.toggle('open'); el.setAttribute('aria-expanded', box.classList.contains('open')); return; }
+    if (a === 'copy') { const c = curConv(); const n = c && A.nodesOf(c).find((x) => x.id === el.dataset.id); if (n) { await navigator.clipboard.writeText(n.content || '').catch(() => {}); el.textContent = t('copied'); setTimeout(() => { el.textContent = t('copy'); }, 1200); } return; }
   });
-  document.addEventListener('input', (e) => { if (e.target.id === 'd-q') { S.q = e.target.value; const l = $('.d-list'); if (l) l.innerHTML = convList(); return; } if (e.target.id === 'prompt') { S.draft = e.target.value; fit(e.target); const f = e.target.form; if (f) f.classList.toggle('has-text', !!e.target.value.trim() || S.atts.length > 0); } });
-  // computer shortcuts: / to type, Ctrl+K search, Ctrl+Shift+O new chat
-  document.addEventListener('keydown', (e) => {
-    if (S.view !== 'main') return;
-    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
-    if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey) { const ta = $('#prompt'); if (ta) { e.preventDefault(); ta.focus(); } }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); acts.drawer(); const q = $('#d-q'); if (q) q.focus(); }
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); acts.new(); }
+  document.addEventListener('change', (e) => {
+    if (e.target.matches('[data-act=photos]')) { addPhotos(e.target.files); e.target.value = ''; }
+    if (e.target.matches('[data-act=preset]')) { S.sheet = { kind: 'key', preset: e.target.value }; renderSheet(); }
   });
-  // computer: files and artifacts open in a panel beside the chat instead of over it
-  new MutationObserver(() => document.body.classList.toggle('av-open', !!document.getElementById('av'))).observe(document.body, { childList: true });
-  document.addEventListener('keydown', (e) => {
-    if (e.target.id === 'prompt' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); e.target.form.requestSubmit(); }
-    if (e.key === 'Escape') { if ($('#av')) acts['art-close'](); else if (S.voice) closeVoice(); else if (S.sheet) { S.sheet = null; renderSheet(); } }
+  document.addEventListener('submit', async (e) => {
+    const f = e.target.closest('form[data-form]'); if (!f) return; e.preventDefault();
+    if (f.dataset.form === 'code') { const d = await A.parseTextCode($('#code-in').value); if (d) pairWith(d); else { S.sheet = { ...S.sheet, err: t('badCode') }; renderSheet(); } return; }
+    if (f.dataset.form === 'pf') {
+      const fd = new FormData(f); S.sheet = { ...S.sheet, busy: true, err: '' }; renderSheet();
+      try {
+        if (S.sheet.mode === 'del') { const id = FAProfiles.current().id; await FAProfiles.remove(id, fd.get('old')); return FAProfiles.lock(); }
+        await FAProfiles.setPassword(fd.get('pw') || null, fd.get('old')); S.sheet = { kind: 'settings' }; renderSheet(); toast(t('saved'));
+      } catch (err) { S.sheet = { ...S.sheet, busy: false, err: err.message === 'wrong' ? t('pfWrong') : String(err.message || err) }; renderSheet(); }
+      return;
+    }
+    if (f.dataset.form === 'key') {
+      const fd = new FormData(f); const p = PRESETS.find((x) => x.id === fd.get('preset')) || PRESETS[0];
+      const k = { id: A.uid(), name: p.id === 'custom' ? host(String(fd.get('base'))) : p.name, base: p.id === 'custom' ? String(fd.get('base')).trim() : p.base, key: String(fd.get('key')).trim(), model: String(fd.get('model')).trim() };
+      S.sheet = { ...S.sheet, busy: true, err: '' }; renderSheet();
+      try {
+        // a one-word request: checks the key, the address and the model at once
+        const r = await fetch(k.base.replace(/\/+$/, '') + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + k.key, ...(/anthropic\.com/.test(k.base) ? { 'x-api-key': k.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } : {}) }, body: JSON.stringify({ model: k.model, messages: [{ role: 'user', content: 'ok' }], max_tokens: 1 }), signal: AbortSignal.timeout(20000) });
+        if (!r.ok) { let j = null; try { j = await r.json(); } catch {} throw new Error((j && j.error && (j.error.message || j.error)) || 'HTTP ' + r.status); }
+        S.keys.push(k); await kv.set('keys', S.keys); S.settings.model = 'key:' + k.id; await saveSettings();
+        S.sheet = null; renderSheet(); renderTop(); toast(t('keyOk'));
+      } catch (err) { S.sheet = { kind: 'key', preset: p.id, err: t('keyBad', { e: String(err.message || err).slice(0, 160) }) }; renderSheet(); }
+    }
   });
-  document.addEventListener('change', async (e) => {
-    if (e.target.id === 'photo-in' || e.target.id === 'photo-cam') { await addPhotos(e.target.files); return; }
-    const k = e.target.dataset.change; if (!k) return;
-    if (k === 'lang') { S.settings.lang = e.target.value; await saveSettings(); applyLang(); render(); }
-    if (k === 'theme') { S.settings.theme = e.target.value; await saveSettings(); applyTheme(); }
-    if (k === 'layout') { S.settings.layout = e.target.value; await saveSettings(); applyDevice(); render(); }
-    if (k === 'voiceName') { S.settings.voiceName = e.target.value; await saveSettings(); Speaker.stop(); Speaker.say(t('voiceSample')); }
-    if (k === 'relay') { const v = e.target.value.trim(); if (v && !/^wss:\/\//.test(v) && !/^ws:\/\/(127\.0\.0\.1|localhost)/.test(v)) { toast('wss://…', 'err'); return; } S.settings.customRelay = v; await saveSettings(); if (relay) { relay.close(); relay = null; } if (session) { session.close(); session = null; } connect(true); }
+  // once the key is typed: the provider's own model list fills the suggestions
+  document.addEventListener('focusout', async (e) => {
+    const f = e.target.closest && e.target.closest('form[data-form=key]'); if (!f || e.target.name !== 'key' || !e.target.value.trim()) return;
+    const p = PRESETS.find((x) => x.id === f.preset.value) || PRESETS[0]; const base = p.id === 'custom' ? (f.base && f.base.value) : p.base; if (!base) return;
+    const key = e.target.value.trim();
+    try {
+      const r = await fetch(base.replace(/\/+$/, '') + '/models', { headers: { Authorization: 'Bearer ' + key, ...(/anthropic\.com/.test(base) ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } : {}) }, signal: AbortSignal.timeout(10000) });
+      const j = await r.json(); const ids = (j.data || j.models || []).map((m) => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean).slice(0, 200);
+      const dl = $('#model-list'); if (dl) dl.innerHTML = ids.map((x) => `<option value="${esc(x)}">`).join('');
+    } catch {}
   });
-  // long-press a conversation to delete it
-  let lpT = 0;
-  document.addEventListener('pointerdown', (e) => { const el = e.target.closest('.d-item'); if (!el) return; lpT = setTimeout(() => { lpT = 0; if (confirm(t('deleteQ'))) acts.delete({ dataset: { id: el.dataset.id } }); }, 650); });
-  document.addEventListener('pointerup', () => clearTimeout(lpT)); document.addEventListener('pointercancel', () => clearTimeout(lpT));
-  document.addEventListener('contextmenu', (e) => { if (e.target.closest('.d-item')) e.preventDefault(); });
-
-  document.addEventListener('visibilitychange', () => {
-    if (session) session.send({ t: 'req', id: 'v' + now(), m: 'state', p: { visible: !document.hidden } });
-    if (!document.hidden && S.link && !session) { retryN = 0; connect(); }
-  });
-  addEventListener('online', () => { if (S.link && !session) { retryN = 0; connect(true); } });
-  addEventListener('pagehide', () => { if (session) session.send({ t: 'bye' }); });
-  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; if (S.view === 'welcome' || S.view === 'paired') render(); });
-  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'open' && e.data.convId) openConv(e.data.convId); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.sheet) { S.sheet = null; renderSheet(); } });
+  document.addEventListener('paste', (e) => { const files = [...(e.clipboardData && e.clipboardData.files || [])].filter((f) => /^image\//.test(f.type)); if (files.length) { e.preventDefault(); addPhotos(files); } });
 
   function applyLang() {
-    const pref = S.settings.lang;
-    if (pref && pref !== 'auto') lang = pref;
-    else { lang = 'en'; for (const l of navigator.languages || [navigator.language]) { const b = String(l).slice(0, 2); if (LANGS.includes(b)) { lang = b; break; } } }
+    const want = S.settings.lang && S.settings.lang !== 'auto' ? S.settings.lang : (navigator.languages || [navigator.language || 'fr']).map((l) => String(l).slice(0, 2)).find((l) => I18N[l]) || 'en';
+    lang = I18N[want] ? want : 'en'; document.documentElement.lang = lang;
   }
-  // Halloween is seasonal: offered from mid-October to early November, then back to the system theme
-  const spooky = (d = new Date()) => (d.getMonth() === 9 && d.getDate() >= 15) || (d.getMonth() === 10 && d.getDate() <= 3);
   function applyTheme() {
-    if (S.settings.theme === 'halloween' && !spooky()) { S.settings.theme = 'system'; saveSettings(); }
-    const v = S.settings.theme;
-    try { localStorage.setItem('fa-theme', JSON.stringify(v === 'system' ? null : v)); } catch {}
-    document.documentElement.dataset.theme = v === 'halloween' ? 'dark' : v === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : v;
-    if (v === 'halloween') document.documentElement.dataset.skin = 'halloween'; else delete document.documentElement.dataset.skin;
-    // status bar colour: follows the system unless a theme is chosen
-    for (const m of $$('meta[name=theme-color]')) { if (!m.dataset.orig) m.dataset.orig = m.content; m.content = v === 'system' ? m.dataset.orig : v === 'halloween' ? '#120d17' : v === 'dark' ? '#12161d' : '#f6f5f1'; }
+    let th = 'auto'; try { th = localStorage.getItem('fa-theme') || 'auto'; } catch {}
+    document.documentElement.dataset.theme = th === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : th;
   }
-  // Phone or computer: two different interfaces. A phone (touch, small screen) gets the thumb-first layout;
-  // a computer's browser gets the desktop one (sidebar always there, panels side by side, shortcuts, hover).
-  function deviceKind() {
-    const f = S.settings.layout; if (f === 'phone' || f === 'desktop') return f;
-    const coarse = matchMedia('(pointer: coarse)').matches, small = Math.min(screen.width, screen.height) < 600;
-    if (/iPhone|Android.+Mobile|Mobile Safari/.test(navigator.userAgent) || (coarse && small)) return 'phone';
-    return innerWidth >= 900 ? 'desktop' : 'phone';
-  }
-  function applyDevice() { const d = deviceKind(); if (document.documentElement.dataset.device !== d) { document.documentElement.dataset.device = d; if (S.view === 'main') render(); } }
-  addEventListener('resize', () => { clearTimeout(applyDevice.t); applyDevice.t = setTimeout(applyDevice, 150); });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener && matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (S.settings.theme === 'system') applyTheme(); });
 
-  // ───────────────────────────── boot ─────────────────────────────
+  // ───────────────────────────── start ─────────────────────────────
   (async () => {
-    try { const svg = await (await fetch('icons/mark.svg')).text(); const m = svg.match(/ d="([^"]+)"/); if (m) markPath = m[1]; } catch {}
+    applyLang();
+    try { const svg = await (await fetch('icons/mark.svg')).text(); MARK = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, ''); } catch {}
+    await FAProfiles.ready($('#app'));
     try {
-      const [settings, idJwk, link, outbox, tombstones, metas, convs] = await Promise.all([kv.get('settings'), kv.get('identity'), kv.get('link'), kv.get('outbox'), kv.get('tombstones'), kv.get('metas'), DB.all('convs')]);
-      Object.assign(S.settings, settings || {});
+      const [settings, idJwk, link, outbox, tomb, metas, keys, convs] = await Promise.all(['settings', 'identity', 'link', 'outbox', 'tombstones', 'metas', 'keys'].map((k) => kv.get(k)).concat(DB.all('convs')));
+      if (settings) { S.settings = { ...S.settings, ...settings }; if (!S.settings.model || S.settings.model === 'phone') S.settings.model = 'cloud:auto'; }
       if (idJwk) S.identity = await A.importPriv(idJwk);
-      S.link = link || null; S.outbox = outbox || []; S.tombstones = tombstones || []; S.metas = metas || [];
-      for (const c of convs || []) S.convs.set(c.id, c);
-    } catch (e) { console.error(e); }
-    applyLang(); applyTheme(); applyDevice();
-    FAAgent.refreshModels().then(() => { if (S.sheet === 'model') renderSheet(); });
-    const q = new URLSearchParams(location.search);
-    if (q.get('c')) S.cur = q.get('c');
-    S.view = S.link || S.settings.guest ? 'main' : 'welcome';
-    render();
+      S.link = link || null; S.outbox = outbox || []; S.tombstones = tomb || []; S.metas = metas || []; S.keys = keys || [];
+      for (const c of convs || []) { for (const n of A.nodesOf(c)) if (n.pending && n.origin && /^phone/.test(n.origin)) { n.pending = false; n.error = n.error || t('timeout'); } S.convs.set(c.id, c); }
+    } catch (e) { console.error('boot', e); }
+    applyLang();
+    $('#app').innerHTML = '<aside class="side glass"></aside><div class="scrim" data-act="drawer"></div><main class="main"><div class="top"></div><div class="body-area" style="flex:1;display:flex;flex-direction:column;min-height:0"></div><div class="dock"><div class="cards"></div><div class="slot-composer2" style="width:100%;display:flex;justify-content:center"></div></div></main>';
+    const q = new URLSearchParams(location.search).get('c'); if (q) S.cur = q;
+    renderAll();
     if ('serviceWorker' in navigator) {
-      // an update took over: reload once, so the new version shows now and not on the next launch
-      const had = !!navigator.serviceWorker.controller; let done = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !done) { done = true; location.reload(); } });
       navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'open' && e.data.convId) openConv(e.data.convId); });
     }
+    addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; });
+    document.addEventListener('visibilitychange', () => { if (session) session.send({ t: 'req', id: 'v' + now(), m: 'state', p: { visible: !document.hidden } }); if (!document.hidden && S.link && !session) { retryN = 0; connect(); } });
+    addEventListener('online', () => { if (S.link) { retryN = 0; connect(true); } });
+    addEventListener('pagehide', () => { if (session) session.send({ t: 'bye' }); });
+    addEventListener('resize', tintSoon);
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
     if (S.link) connect();
-    // the same interface as on the computer, with or without it
-    if ((S.link || S.settings.guest) && S.view === 'main' && window.FAFull) FAFull.start(); else window.FASplash && FASplash.hide();
-    // the phone model loads on demand (first use); the WebGPU check is cheap
-    if (S.settings.localModel) S.local = { status: 'idle', progress: 0, text: '' };
-    window.__fa = { S, send, connect, syncNow, pairWith, rpc, decode: A.decodeRingCode }; // tests & debugging
+    FAAgent.refreshModels().catch(() => {});
+    window.__fa = { S, send, rpc, pairWith, renderAll }; // tests
+    // agent.js reads its texts ("Fabro Cloud is busy") from here; maps.js / maps-agent.js the saved places of this profile
+    const placesList = async () => (await kv.get('places').catch(() => null)) || [];
+    window.FAHost = { t, lang: () => lang, curConv, toast,
+      places: {
+        list: placesList,
+        async save(p) {
+          const name = String(p.name || '').trim().slice(0, 60); if (!name || !isFinite(p.lat)) throw new Error('A place needs a name.');
+          const l = await placesList(); const i = l.findIndex((x) => x.name.toLowerCase() === name.toLowerCase());
+          const x = { id: i >= 0 ? l[i].id : Math.random().toString(36).slice(2, 10), name, lat: +p.lat, lon: +p.lon, note: String(p.note || '').slice(0, 300), tag: p.tag || '', label: String(p.label || '').slice(0, 200), at: Date.now() };
+          if (i >= 0) l[i] = x; else l.push(x); await kv.set('places', l.slice(-200)); return x;
+        },
+        async remove(idOrName) { const l = await placesList(); const k = String(idOrName).toLowerCase(); const n = l.filter((x) => x.id !== idOrName && x.name.toLowerCase() !== k); await kv.set('places', n); return l.length - n.length; },
+      } };
   })();
-  // what the full interface (full.js) uses from this app
-  window.FAHost = {
-    reconnect: () => { retryN = 0; connect(true); },
-    rpc: (m, p, ms) => rpc(m, p, ms), get conn() { return S.conn; }, get settings() { return S.settings; }, saveSettings,
-    t: (k, v) => t(k, v), esc, ic, toast, saveBlob, render: () => render(), kv, micHelp: (e) => micHelp(e),
-    get lang() { return lang; }, get link() { return S.link; }, get session() { return !!session; },
-    // the computer's interface without the computer (local-pc.js): conversations in the phone's store, synced later
-    local: {
-      list: async () => allConvs().map((c) => ({ id: c.id, title: c.title || '', updatedAt: c.updatedAt || 0, pinned: !!c.pinned, agent: !!c.agent, project: c.project || null })),
-      get: async (id) => { const c = S.convs.get(id); if (!c || c.partial) throw new Error(t('notDownloaded')); const { dirty, ...rest } = c; return rest; },
-      save: async (c) => { if (!c || !c.id || c.ephemeral) return c; const prev = S.convs.get(c.id); const next = { ...c, updatedAt: c.updatedAt || now(), dirty: true, origin: (prev && prev.origin) || 'phone' }; await saveConv(next); if (session) syncNow().catch(() => {}); return c; },
-      del: async (id) => { S.convs.delete(id); await DB.del('convs', id); S.metas = S.metas.filter((m) => m.id !== id); if (session) rpc('conv.delete', { id }).catch(() => {}); else { S.tombstones.push(id); await kv.set('tombstones', S.tombstones); } return true; },
-    },
-    // voice mode: Whisper on the phone itself as soon as it's downloaded (it downloads in the background meanwhile)
-    hear: async (wav, o = {}) => {
-      const b = wav instanceof Uint8Array ? wav : new Uint8Array(wav);
-      if (o.local && window.VLocal) {
-        const tx = await VLocal.hear(b, { lang: o.lang || lang }).catch(() => null); if (tx != null) return tx;
-        // still downloading: the computer or the cloud meanwhile — never a second Whisper on the phone (memory)
-        try { return await transcribe(b, { noDevice: true }); } catch { return VLocal.hear(b, { lang: o.lang || lang, wait: true }); }
-      }
-      return transcribe(b);
-    },
-    // the phone's natural voice (Piper), as WAV bytes — null while it downloads (the system voice speaks then)
-    tts: (text, o = {}) => (window.VLocal ? VLocal.say(speakable(text), { lang: o.lang || lang, speed: o.speed || 1 }) : Promise.resolve(null)),
-    prepareVoice: (l) => { if (window.VLocal) VLocal.prepare(l || lang); },
-    speak: (text, o = {}) => FASpeech.speak(speakable(text), { lang, fam: S.settings.voiceFam || 'f', voiceName: S.settings.voiceName || '', rate: S.settings.voiceRate || 1.03, single: !!o.single }),
-    notify: (title, body) => localNotify(title, body, S.cur),
-    localEngine: () => (S.local.status === 'ready' ? engine : null),
-    showPair: () => { S.forceWelcome = true; S.view = 'welcome'; render(); },
-  };
 })();

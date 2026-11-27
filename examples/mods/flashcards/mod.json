@@ -1,0 +1,9 @@
+{
+  "id": "flashcards",
+  "name": "Flashcards",
+  "version": "1.0.0",
+  "author": "UFStudios",
+  "description": "/flashcards transforme la dernière réponse en cartes à réviser, affichées au-dessus du chat.",
+  "ui": ["ui.js"],
+  "permissions": ["send a message to the AI", "show a card above the chat", "store cards on this computer"]
+}

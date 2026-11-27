@@ -143,7 +143,12 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "v$(node -p "require('./package.json').version")" installer/target/release/Fabro-Installer.exe --clobber
+        run: |
+          v="v$(node -p "require('./package.json').version")"
+          cd installer/target/release
+          # the app checks this before running a downloaded installer (src/main/updater.js)
+          sha256sum Fabro-Installer.exe | cut -d' ' -f1 > Fabro-Installer.exe.sha256
+          gh release upload "$v" Fabro-Installer.exe Fabro-Installer.exe.sha256 --clobber
       - name: Release notes from the commit message
         if: env.PUBLISH == 'true'
         shell: bash

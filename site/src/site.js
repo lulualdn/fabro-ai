@@ -23,6 +23,8 @@
     const pk = document.documentElement.dataset.page;
     if (pk) { document.title = t(pk + '_title'); }
     const sel = $('#lang'); if (sel) sel.value = lang;
+    // long texts exist in English and French only: Spanish and German readers get the English one
+    for (const el of $$('[data-lang]')) el.hidden = el.dataset.lang !== (lang === 'fr' ? 'fr' : 'en');
     document.dispatchEvent(new CustomEvent('langchange'));
   }
   $('#lang')?.addEventListener('change', (e) => { lang = e.target.value; store.set('fabro-lang', lang); applyLang(); });
@@ -189,7 +191,47 @@
     renderCir();
   }
 
-  document.addEventListener('langchange', () => { renderDownloads(); renderChangelog(); renderCir(); });
+  // ───────── dev page: votes and suggestions ─────────
+  const VOTED = 'fabro-votes';
+  let counts = null;
+  const voted = () => { try { return JSON.parse(store.get(VOTED) || '[]'); } catch { return []; } };
+  function paintVotes() {
+    const mine = voted();
+    for (const b of $$('button.vote')) {
+      const id = b.dataset.id; $('.n', b).textContent = counts ? String(counts[id] || 0) : '·';
+      const on = mine.includes(id); b.classList.toggle('on', on); b.disabled = on || !counts;
+      const lab = $('[data-i]', b); lab.dataset.i = on ? 'dev_voted' : 'dev_vote'; lab.textContent = t(lab.dataset.i);
+    }
+  }
+  async function setupVotes() {
+    if (!$('button.vote')) return;
+    try { const r = await fetch('/api/vote', { cache: 'no-store' }); if (r.ok) counts = (await r.json()).counts || {}; } catch {}
+    if (!counts) { const off = $('#votes-off'); if (off) off.hidden = false; }
+    paintVotes();
+    document.addEventListener('click', async (e) => {
+      const b = e.target.closest('button.vote'); if (!b || b.disabled) return;
+      b.disabled = true;
+      try {
+        const r = await fetch('/api/vote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: b.dataset.id }) });
+        const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+        counts = j.counts; store.set(VOTED, JSON.stringify([...new Set([...voted(), b.dataset.id])])); paintVotes();
+      } catch { b.disabled = false; }
+    });
+  }
+  const sug = $('form.sug');
+  if (sug) sug.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const st = $('.status', sug); const btn = $('button', sug); btn.disabled = true;
+    try {
+      const r = await fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(new FormData(sug)).toString() });
+      if (!r.ok) throw new Error(String(r.status));
+      sug.reset(); st.textContent = t('dev_sug_ok');
+    } catch { st.textContent = t('dev_sug_err'); }
+    btn.disabled = false;
+  });
+
+  document.addEventListener('langchange', () => { renderDownloads(); renderChangelog(); renderCir(); if ($('button.vote')) paintVotes(); });
+  setupVotes();
   setupCir();
   applyLang();
 })();

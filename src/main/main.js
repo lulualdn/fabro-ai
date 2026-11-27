@@ -1,6 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell, nativeTheme, Menu, dialog } = require('electron');
 // Fabro Anywhere full interface: must see every ipcMain.handle() registration, so it goes first.
-const remoteUi = require('./remote-ui'); remoteUi.capture();
 const path = require('path');
 const store = require('./store');
 const system = require('./system');
@@ -17,7 +16,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/core-tools'); require('./agent/reader'); require('./agent/vision'); require('./agent/diag'); require('./agent/knowledge'); require('./agent/mod-tools'); require('./workshop').registerTool(); require('./maps').registerTools(); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const computer = require('./computer');
@@ -94,15 +93,19 @@ app.on('open-file', (e, f) => { e.preventDefault(); openSkill(f); }); // macOS
 
 function overlayColors(dark) {
   if (store.getSettings().devMode) return { color: dark ? '#3a2a12' : '#f6d48a', symbolColor: dark ? '#f6d48a' : '#3a2a12', height: 28 };
-  return { color: dark ? '#12161d' : '#f6f5f1', symbolColor: dark ? '#c9cfd6' : '#3b3934', height: 44 };
+  return { color: dark ? '#141312' : '#f6f3ef', symbolColor: dark ? '#b3aba2' : '#5c554e', height: 44 };
 }
 
+// The v1 interface (src/renderer/v1) by default; the previous one stays reachable (Settings → Advanced) for what
+// isn't rebuilt yet. ui:switch swaps them and reloads the window.
+let uiHash = '';
+function uiFile() { return path.join(__dirname, '..', 'renderer', ...(store.getSettings().ui === 'legacy' ? ['index.html'] : ['v1', 'index.html'])); }
 function createWindow() {
   const dark = nativeTheme.shouldUseDarkColors;
   win = new BrowserWindow({
     width: 1280, height: 820, minWidth: 760, minHeight: 520, show: false,
     title: 'Fabro',
-    backgroundColor: dark ? '#12161d' : '#f6f5f1',
+    backgroundColor: dark ? '#141312' : '#f6f3ef',
     titleBarStyle: 'hidden',
     ...(isMac ? { trafficLightPosition: { x: 24, y: 25 } } : { titleBarOverlay: overlayColors(dark) }),
     webPreferences: {
@@ -112,8 +115,7 @@ function createWindow() {
     },
   });
   desktop.attachMain(win);
-  remoteUi.tee(win.webContents); // paired phones showing the full interface get the same events
-  win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  win.loadFile(uiFile());
   // Developer mode: F12 / Ctrl+Shift+I devtools, Ctrl+R reload.
   win.webContents.on('before-input-event', (e, input) => {
     if (!store.getSettings().devMode || input.type !== 'keyDown') return;
@@ -122,16 +124,30 @@ function createWindow() {
     if ((input.control || input.meta) && !input.shift && k === 'r') { win.webContents.reload(); e.preventDefault(); }
   });
   win.once('ready-to-show', () => { if (!process.argv.includes('--hidden')) win.show(); });
+  // a crashed window restarts without mods (Settings shows it and can turn them back on)
+  win.webContents.on('render-process-gone', (_e, d) => { if (d && d.reason !== 'clean-exit') store.setSettings({ mods: { safe: true } }).catch(() => {}); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   // Microphone for dictation / voice mode (the app's own page only); nothing else.
-  win.webContents.session.setPermissionRequestHandler((wc, perm, cb, details) => cb(wc === win.webContents && (perm === 'media' && (!details.mediaTypes || details.mediaTypes.every((t) => t === 'audio')) || perm === 'clipboard-sanitized-write')));
-  win.webContents.session.setPermissionCheckHandler((wc, perm) => perm === 'media' || perm === 'clipboard-sanitized-write');
+  win.webContents.session.setPermissionRequestHandler((wc, perm, cb, details) => cb(wc === win.webContents && (perm === 'media' && (!details.mediaTypes || details.mediaTypes.every((t) => t === 'audio')) || perm === 'clipboard-sanitized-write' || (perm === 'geolocation' && require('./maps').geoPermission()))));
+  win.webContents.session.setPermissionCheckHandler((wc, perm) => perm === 'media' || perm === 'clipboard-sanitized-write' || (perm === 'geolocation' && require('./maps').geoPermission()));
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); shell.openExternal(url); } });
 }
 
 function registerIpc() {
   const h = (ch, fn) => ipcMain.handle(ch, (_e, ...a) => fn(...a));
 
+  h('ui:switch', async (to, page) => {
+    await store.setSettings({ ui: to === 'legacy' ? 'legacy' : 'v1' }); uiHash = String(page || '');
+    if (win && !win.isDestroyed()) win.loadFile(uiFile(), uiHash ? { hash: uiHash } : undefined);
+    return true;
+  });
+  require('./share').register(h);
+  require('./agent/knowledge').register(h);
+  require('./mcpb').register(h);
+  require('./cli-bridge').register(h);
+  require('./arena').register(h, (ch, d) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(ch, d); });
+  require('./maps').register(h);
+  h('workshop:detect', () => require('./workshop').detect(true)); h('workshop:state', (root) => require('./workshop').state(String(root || '')));
   h('app:info', () => ({
     version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, e2e: !!process.env.FABRO_E2E,
     locale: app.getLocale(), systemLanguages: app.getPreferredSystemLanguages(),
@@ -295,6 +311,7 @@ function registerIpc() {
     if (dep === 'voice') return voice.install(prog);
     throw new Error('Unknown dependency');
   });
+  h('search:engines', () => { searxng.setConfig((S().search || {}).searxng || {}); return { list: searxng.engineList(), status: searxng.status() }; });
   h('deps:remove', (dep) => { if (dep === 'searxng') return searxng.remove(); throw new Error('Unknown dependency'); });
   // Tool runtime + crash reports
   h('runtime:status', () => runtime.status());
@@ -427,14 +444,18 @@ app.whenReady().then(async () => {
   try { db.init(); } catch (e) { console.error('db init failed', e); }
   exporter.handleProtocol();
   await providers.migrate();
-  // modest computer, nothing downloaded yet: the free cloud answers until a local model is there
-  try { const [sp, loc] = await Promise.all([system.getSpecs(), models.listLocal ? models.listLocal() : []]); await providers.autoFree(sp, loc.length > 0); } catch (e) { console.warn('autoFree', e.message); }
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
   require('./myfabro').init(ipcMain); // v0.2 Mon Fabro: memory entries, profile, timeline, reminders, skill ideas
   require('./modelfinder').init(ipcMain); require('./modeltiers').init(ipcMain); // v0.2 models: find a model in plain words, light/medium/complex tiers
   require('./resources').init(ipcMain, send); require('./storage').init(ipcMain, send); // v0.2 perf: Resources screen data + slow-disk advice
   models.init((p) => send('models:progress', p));
+  // Instant start: the window opens now; hardware detection and the engine start behind it.
+  createWindow();
+  accounts.handoff(win);
+  // modest computer, nothing downloaded yet: the free cloud answers until a local model is there (the interface
+  // refreshes its model list when this is done)
+  (async () => { try { const [sp, loc] = await Promise.all([system.getSpecs(), models.listLocal ? models.listLocal() : []]); await providers.autoFree(sp, loc.length > 0); send('models:progress', { providers: true }); } catch (e) { console.warn('autoFree', e.message); } })();
   // First model chosen in the Windows installer: start its download once, into the chosen disk.
   const fm = S().firstModel;
   if (fm && fm.catalogId) {
@@ -448,8 +469,8 @@ app.whenReady().then(async () => {
   localapi.init((st) => send('localapi:status', st)).catch(() => {});
   setTimeout(() => engine.preloadAll(async () => (await models.installed()).local).catch(() => {}), 2500);
   updater.init(send);
-  createWindow();
-  accounts.handoff(win);
+  // `fabro code` in a terminal talks to this app (same engine, sessions, permissions)
+  try { const cli = require('./cli-bridge'); cli.start(); cli.ensureCommand().catch(() => {}); } catch (e) { console.error('cli bridge', e); }
   browser.init(win, send);
   computer.init({ getMain: () => win });
   mcp.init(send);

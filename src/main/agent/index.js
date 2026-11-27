@@ -24,6 +24,11 @@ function select({ agentMode, text = '', used = [], sub = false, code = false, ke
   const q = String(text).toLowerCase();
   const usedCats = new Set(used.map((n) => (registry.get(n) || {}).category).filter(Boolean));
   const kept = new Set(keep);
+  const tm = s.toolMode || 'classic';
+  if (tm !== 'classic' && !code) {
+    const star = new Set(['open_tools', 'ask_user', 'update_plan', 'read_file', 'write_file', 'edit_file', 'read_page', 'run_command', 'memory_search', ...(tm === 'use_tool' ? ['use_tool'] : [...kept, ...used])]);
+    return all().filter((t) => star.has(t.name) && !disabled.has(t.name) && !CHAT_TOOL_NAMES.has(t.name));
+  }
   const picked = all().filter((t) => {
     if (disabled.has(t.name) || CHAT_TOOL_NAMES.has(t.name)) return false;
     if (t.codeOnly && !code) return false;
@@ -55,10 +60,43 @@ async function setPolicy(name, value) {
 // Sensitive actions always ask, whatever the policy says.
 const SENSITIVE = /\b(pay|payer|paiement|acheter|achat|buy|purchase|checkout|commander|order|place order|envoyer|send|submit|publier|publish|post|supprimer|delete|remove|effacer|transfer|virement|réserver|book|confirm|confirmer|s['’]inscrire|sign up|subscribe|abonner|download|télécharger)\b/i;
 
+// ───────────────────────────── tools opened with open_tools ─────────────────────────────
+// open_tools("web/research") makes that tool available in this conversation from the next round on.
+const opened = new Map(); // convId → Set of tool names
+const openedFor = (convId) => [...(opened.get(convId || '') || [])];
+function openTool(convId, name) { const k = convId || ''; if (!opened.has(k)) opened.set(k, new Set()); opened.get(k).add(name); if (opened.size > 500) opened.delete(opened.keys().next().value); }
+
+// ───────────────────────────── errors that teach ─────────────────────────────
+// A wrong call gets: the cause, the corrected shape of the call, a fallback tool; the full card after two failures.
+const fails = new Map(); // convId|tool → count
+function card(t) {
+  const p = (t.parameters && t.parameters.properties) || {}; const req = new Set((t.parameters && t.parameters.required) || []);
+  const args = Object.entries(p).map(([k, v]) => `  ${k}${req.has(k) ? ' (required)' : ''}: ${v.type || 'any'}${v.enum ? ' one of ' + v.enum.join('|') : ''}${v.description ? ' · ' + String(v.description).slice(0, 140) : ''}`).join('\n');
+  return `${t.name}: ${t.description}${args ? '\nArguments:\n' + args : ''}${t.example ? '\nExample: ' + t.example : ''}${t.fallback ? '\nIf it fails: ' + t.fallback : ''}`;
+}
+function checkArgs(t, args) {
+  const req = (t.parameters && t.parameters.required) || []; const props = (t.parameters && t.parameters.properties) || {};
+  const missing = req.filter((k) => args[k] === undefined || args[k] === null || args[k] === '');
+  const unknown = Object.keys(args).filter((k) => Object.keys(props).length && !(k in props));
+  return missing.length ? `missing argument${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}${unknown.length ? ` (got ${unknown.join(', ')} instead?)` : ''}` : '';
+}
+function teach(t, err, ctx) {
+  const k = `${(ctx && ctx.convId) || ''}|${t.name}`; const n = (fails.get(k) || 0) + 1; fails.set(k, n);
+  if (fails.size > 2000) fails.delete(fails.keys().next().value);
+  const req = (t.parameters && t.parameters.required) || [];
+  const shape = `${t.name}({ ${req.map((r) => `${r}: …`).join(', ')} })`;
+  return `${err}\nCorrect call: ${shape}${t.fallback ? `\nOther way: ${t.fallback}` : ''}${n >= 2 ? `\n\nFull card:\n${card(t)}` : ''}`;
+}
+
 async function execute(call, ctx) {
   const tool = registry.get(call.name);
-  if (!tool) throw Object.assign(new Error(`Unknown tool: ${call.name}`), { code: 'UNKNOWN_TOOL' });
+  if (!tool) {
+    const near = [...registry.keys()].filter((n) => n.split('_').some((w) => String(call.name).includes(w))).slice(0, 5);
+    throw Object.assign(new Error(`Unknown tool: ${call.name}.${near.length ? ` Close ones: ${near.join(', ')}.` : ''} Use open_tools to find the right one.`), { code: 'UNKNOWN_TOOL' });
+  }
   const args = call.args || {};
+  const bad = checkArgs(tool, args);
+  if (bad) throw Object.assign(new Error(teach(tool, `Wrong call to ${tool.name}: ${bad}.`, ctx)), { code: 'BAD_ARGS' });
   const guard = tool.guard ? await tool.guard(args, ctx) : null; // { refuse?: reason, confirm?: reason }
   if (guard && guard.refuse) return { content: `Refused: ${guard.refuse}`, view: { kind: 'refused', reason: guard.refuse }, refused: true };
   const policy = ctx.policyFor ? ctx.policyFor(tool, policyFor(tool)) : policyFor(tool);
@@ -72,7 +110,9 @@ async function execute(call, ctx) {
     if (decision !== 'once' && decision !== 'always') return { content: 'The user refused this action. Ask them how to proceed or try another way.', view: { kind: 'refused', reason: 'user' }, refused: true };
   }
   ctx.lastConfirmed = !!(needsAsk && guard && guard.confirm);
-  const result = await tool.run(args, ctx);
+  let result;
+  try { result = await tool.run(args, ctx); }
+  catch (e) { ctx.lastConfirmed = false; if (e && e.code === 'ABORTED') throw e; throw Object.assign(new Error(teach(tool, String((e && e.message) || e), ctx)), { code: (e && e.code) || 'TOOL_ERROR' }); }
   ctx.lastConfirmed = false;
   // Content from pages, files and tools is data, never instructions.
   if (result && typeof result.content === 'string' && tool.untrusted) {
@@ -85,4 +125,4 @@ function list() {
   return all().map((t) => ({ name: t.name, category: t.category, description: t.description, risk: t.risk, policy: policyFor(t), core: !!t.core }));
 }
 
-module.exports = { register, unregisterWhere, get, all, list, select, schema, estTokens, execute, isAgentTool, policyFor, setPolicy, SENSITIVE, CHAT_TOOL_NAMES };
+module.exports = { openedFor, openTool, card, register, unregisterWhere, get, all, list, select, schema, estTokens, execute, isAgentTool, policyFor, setPolicy, SENSITIVE, CHAT_TOOL_NAMES };

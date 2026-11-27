@@ -87,7 +87,7 @@ function pick(text, n = 2) {
 // ── chat: the guide(s) + the artifact format, under a budget ──
 const tokens = (s) => Math.ceil(String(s || '').length / 3.6);
 const FORMAT = {
-  web: 'Format: answer with <artifact type="html" title="…"> then ONE complete HTML page with your own <style> (no CSS framework, no external files), then </artifact>. No Markdown inside.',
+  web: 'Format: answer with <artifact type="html" title="…"> then ONE complete HTML page with your own <style> (no CSS framework or external file unless the piece really needs one: then a library found with find_library, exact version), then </artifact>. No Markdown inside.',
   documents: 'Format: answer with <artifact type="document" title="…"> then ONE complete HTML page with your own <style>, then </artifact>. It prints on A4 (set your own @page). No Markdown inside.',
   slides: 'Format: answer with <artifact type="slides" title="…"> then ONE HTML page with your own <style>: one <section class="slide"> per slide, each 1280×720px, then </artifact>.',
   svg: 'Format: answer with <artifact type="svg" title="…"> then ONE <svg xmlns="http://www.w3.org/2000/svg" viewBox="…">, then </artifact>.',
@@ -128,8 +128,10 @@ function guide(kind) {
   const g = picks[0].guide;
   const others = picks.slice(1).map((p) => p.guide).concat(load().filter((x) => x.category === 'technique' && picks[0].guide.body.includes(x.name)))
     .filter((x, i, a) => x !== g && a.indexOf(x) === i).slice(0, 4);
+  const chapters = load().filter((x) => x.category === 'technique' && x !== g && !others.includes(x)); // method chapters: palette, fonts, libraries…
   return [`# Guide: ${g.title} (${g.name})`, g.body,
     others.length ? `Related guides (call design_guide with the name if you need one):\n${others.map((x) => `- ${x.name}: ${x.when}`).join('\n')}` : '',
+    chapters.length ? `Method chapters (any piece):\n${chapters.map((x) => `- ${x.name}: ${x.when}`).join('\n')}` : '',
     'Build it with create_artifact (a complete HTML page with your own <style>), then look at the check result and fix every ✗.'].filter(Boolean).join('\n\n');
 }
 const kindsList = () => load().map((g) => g.name);

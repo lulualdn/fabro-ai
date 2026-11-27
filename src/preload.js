@@ -36,7 +36,7 @@ contextBridge.exposeInMainWorld('api', {
   browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
   computer: { test: i('computer:test'), status: i('computer:status') },
   deps: { status: i('deps:status'), install: i('deps:install'), remove: i('deps:remove') },
-  search: { test: i('search:test') },
+  search: { test: i('search:test'), engines: i('search:engines') },
   runtime: { status: i('runtime:status') },
   crash: { list: i('crash:list'), folder: i('crash:folder'), report: i('crash:report') },
   images: { status: i('images:status'), install: i('images:install') },
@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('api', {
   mcp: { view: i('mcp:view'), add: i('mcp:add'), remove: i('mcp:remove'), toggle: i('mcp:toggle'), signIn: i('mcp:signin'), reconnect: i('mcp:reconnect'), claudeConfig: i('mcp:claudeConfig'), importClaude: i('mcp:importClaude') },
   skills: { list: i('skills:list'), toggle: i('skills:toggle'), create: i('skills:create'), openFolder: i('skills:openFolder') },
   skillimport: { preview: i('skillimport:preview'), install: i('skillimport:install'), found: i('skillimport:found'), remove: i('skillimport:remove'), discard: i('skillimport:discard'), pick: i('skillimport:pick'), export: i('skillimport:export'), openFile: i('skillimport:openFile') },
-  mcpeasy: { parse: i('mcpeasy:parse'), catalog: i('mcpeasy:catalog'), prereq: i('mcpeasy:prereq'), test: i('mcpeasy:test'), add: i('mcpeasy:add'), found: i('mcpeasy:found'), import: i('mcpeasy:import'), setTool: i('mcpeasy:setTool') },
+  mcpeasy: { mcpb: i('mcpeasy:mcpb'), parse: i('mcpeasy:parse'), catalog: i('mcpeasy:catalog'), prereq: i('mcpeasy:prereq'), test: i('mcpeasy:test'), add: i('mcpeasy:add'), found: i('mcpeasy:found'), import: i('mcpeasy:import'), setTool: i('mcpeasy:setTool') },
   providers: {
     view: i('providers:view'), detect: i('providers:detect'), add: i('providers:add'), update: i('providers:update'),
     remove: i('providers:remove'), refresh: i('providers:refresh'), enable: i('providers:enable'), models: i('providers:models'), free: i('providers:free'),
@@ -71,10 +71,17 @@ contextBridge.exposeInMainWorld('api', {
   modes: { install: i('modes:install') },
   shell: { open: i('shell:open'), reveal: i('shell:reveal'), openPath: i('shell:openPath') },
   files: { ingest: i('files:ingest'), preview: i('files:preview'), pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } } },
+  ui: { switch: i('ui:switch') },
+  cli: { install: i('cli:install'), status: i('cli:status') },
+  knowledge: { list: i('knowledge:list'), get: i('knowledge:get'), save: i('knowledge:save'), delete: i('knowledge:delete') },
+  maps: { places: i('maps:places'), save: i('maps:save'), remove: i('maps:remove'), search: i('maps:search'), reverse: i('maps:reverse'), locate: i('maps:locate') },
+  arena: { run: i('arena:run'), result: i('arena:result'), cancel: i('arena:cancel') },
+  workshop: { detect: i('workshop:detect'), state: i('workshop:state') },
+  share: { create: i('share:create'), remove: i('share:remove'), list: i('share:list') },
   anywhere: { status: i('anywhere:status'), pairStart: i('anywhere:pairStart'), pairStop: i('anywhere:pairStop'), revoke: i('anywhere:revoke'), rename: i('anywhere:rename'), configure: i('anywhere:configure'), reply: i('anywhere:reply') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },
   mods: {
-    list: i('mods:list'), ready: i('mods:ready'), enable: i('mods:enable'), uninstall: i('mods:uninstall'), call: i('mods:call'),
+    list: i('mods:list'), ready: i('mods:ready'), safeOff: i('mods:safeOff'), enable: i('mods:enable'), uninstall: i('mods:uninstall'), call: i('mods:call'),
     openFolder: i('mods:openFolder'), addFrom: i('mods:addFrom'), webBounds: i('mods:webBounds'), webHide: i('mods:webHide'), commands: i('mods:commands'),
     browsers: i('mods:browsers'), importCookies: i('mods:importCookies'),
   },
@@ -91,7 +98,7 @@ contextBridge.exposeInMainWorld('api', {
   tiers: { list: i('tiers:list'), resolve: i('tiers:resolve'), setOverride: i('tiers:setOverride'), setPreferred: i('tiers:setPreferred') },
   resources: { overview: i('resources:overview'), disk: i('resources:disk'), clearCaches: i('resources:clearCaches'), subscribe: i('resources:subscribe'), unsubscribe: i('resources:unsubscribe'), history: i('resources:history'), tips: i('resources:tips'), action: i('resources:action'), maxContext: i('resources:maxContext'), autotune: i('resources:autotune'), autotuneCancel: i('resources:autotuneCancel'), storageAdvice: i('storage:advice'), storageRefuse: i('storage:refuse'), storageClassify: i('storage:classify') },
   on: (channel, cb) => {
-    const allowed = ['wakeups:changed', 'wakeups:done', 'chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command', 'accounts:event', 'resources:sample', 'resources:pressure', 'resources:queue', 'storage:advice', 'skillimport:open'];
+    const allowed = ['v1:card', 'arena:step', 'anywhere:status', 'wakeups:changed', 'wakeups:done', 'chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command', 'accounts:event', 'resources:sample', 'resources:pressure', 'resources:queue', 'storage:advice', 'skillimport:open'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

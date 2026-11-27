@@ -386,6 +386,8 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
     if (be.gen) params = { ...params, ...Object.fromEntries(Object.entries(be.gen).filter(([, v]) => v !== null && v !== '' && v !== undefined)) };
     // v0.2 context: the renderer sends the whole conversation (with ids and digests); a summary may stand for its
     // older part. Never compressed mid tool round: only here (forced, ~85 %) and after the answer (background, ~65 %).
+    // pictures for a model that can't see: described by one that can (vision-fallback.js)
+    if (!params.vision && !parent) messages = await require('./vision-fallback').strip(messages, { lang: (params.userContext || {}).lang, onStatus: () => out({ type: 'status', status: 'looking' }) });
     const rawMessages = messages;
     const ctxConv = !parent && meta.convId && !/^bg-/.test(reqId) ? meta.convId : null;
     const compressRun = (raw) => context.compress(ctxConv, raw, {
@@ -417,7 +419,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       const chatT = tools.schemas(params.tools || []);
       // local engines: a tool offered once in this chat stays offered, so their prompt cache is not thrown away
       const sticky = ctxConv && be.kind === 'local' ? [ctxConv, agentMode ? 'agent' : 'chat'] : null;
-      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: recentText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx, keep: sticky ? freeze.keep(...sticky) : [] }).map(agent.schema);
+      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: recentText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx, keep: [...(sticky ? freeze.keep(...sticky) : []), ...agent.openedFor(meta.convId || reqId)] }).map(agent.schema);
       if (sticky && agentT.length) freeze.remember(...sticky, agentT.map((x) => x.function.name));
       const ctxT = prepared && (prepared.compressed || rawMessages.length > 24) && params.agent !== false ? ['context_list', 'context_read', 'context_pin'].map((n) => agent.get(n)).filter(Boolean).map(agent.schema) : [];
       return [...chatT, ...agentT, ...ctxT.filter((x) => !agentT.some((y) => y.function.name === x.function.name))];
@@ -549,6 +551,16 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         }
         const nudge = nudges < 3 && !bare && !ctrl.signal.aborted && !(acc.noTools && !acc.fallback) && steps < maxSteps()
           ? sp.guard({ text: r.content, schemas: toolSchemas, turnTools, lastError, plan: lastPlan, used: guardUsed, agentMode, userText, qaBad }) : null;
+        // Still no text after tool work (the nudge was used or could not run): one last round without tools, so
+        // the searches and pages read end in an answer instead of "the model gave no answer".
+        if (!nudge && !String(r.content || '').trim() && turnTools.length && !acc.finalWrite && !ctrl.signal.aborted) {
+          acc.finalWrite = true;
+          msgs.push({ role: 'user', content: '[Fabro runtime] Stop using tools. Write your answer to the user now from what you already found and did, and say what you could not do.' });
+          let r2 = await complete(be, msgs, params, ctrl.signal, acc, []);
+          if (!String(r2.content || '').trim() && !ctrl.signal.aborted) r2 = await complete(be, msgs, { ...params, reasoning: false, reasoningEffort: 'low' }, ctrl.signal, acc, []);
+          finishRound(r2);
+          break;
+        }
         if (!nudge) {
           // second look: the model hunts for a mistake in its own work, and says so when it finds one
           const dq = !parent ? require('./agent/doubt').ask({ acc, text: r.content, turnTools, agentMode, bare, aborted: ctrl.signal.aborted, steps, max: maxSteps(), unattended: meta.unattended }) : null;
@@ -621,7 +633,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         if (result.endTurn && !parent) endTurn = true;
         if (result.image) {
           if (params.vision) msgs.push({ role: 'user', content: [{ type: 'text', text: `(Image returned by ${c.name})` }, { type: 'image_url', image_url: { url: result.image } }] });
-          else msgs[msgs.length - 1].content += '\n(An image was produced but this model cannot see images.)';
+          else msgs[msgs.length - 1].content += '\n(An image was produced but this model cannot see images. Do not describe it or guess what it shows: tell the user this model cannot see pictures and suggest a model that can.)';
         }
       }
       if (endTurn) { out({ type: 'tool_round' }); break; }
