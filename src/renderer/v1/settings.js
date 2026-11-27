@@ -73,8 +73,21 @@ window.V1Settings = (function () {
   function models() {
     const { t, S } = V1; const sel = V1.refKey(S.settings.selectedModel);
     return V1.allModels().map((m) => row(V1.esc(m.label), V1.esc(m.sub || ''), V1.refKey(m.ref) === sel ? `<span class="mono" style="color:var(--ok)">${t('active')}</span>` : `<button class="btn" data-act="pick" data-k="${V1.esc(V1.refKey(m.ref))}">${t('use')}</button>`)).join('')
+      + arenaRow()
       + row(t('installModel'), '', `<button class="btn" data-act="legacy" data-page="models">${t('open')}</button>`);
   }
+  // engines arena (src/main/arena.js): llama.cpp alone vs n-gram vs MTP on the selected local model
+  function arenaRow() {
+    const { t, S } = V1; const sel = S.settings.selectedModel;
+    if (!sel || sel.backend !== 'local') return '';
+    if (st.arena === undefined) { st.arena = null; api.arena.result().then((r) => { st.arena = r; render(); }).catch(() => {}); }
+    const r = st.arena; const live = st.arenaLive;
+    let sub = t('arenaSub');
+    if (live) sub = live;
+    else if (r && r.results) sub = r.results.map((x) => `${x.label} : ${x.error ? t('arenaFail') : x.out ? x.out : `${x.tokPerSec} tok/s · ${x.ttftMs} ms`}${x.id === r.winner ? ' ✓' : ''}`).join(' · ');
+    return row(t('arena'), V1.esc(sub), live ? `<button class="btn" data-act="set:arenaStop">${t('stop')}</button>` : `<button class="btn" data-act="set:arena">${r && r.results ? t('arenaAgain') : t('arenaGo')}</button>`);
+  }
+  if (window.api && api.on) api.on('arena:step', (s) => { st.arenaLive = s.phase === 'start' ? `${s.label}…` : s.phase === 'done' ? `${s.label} : ${s.tokPerSec} tok/s` : `${s.variant} : ${s.error || ''}`; if (tab === 'models') render(); });
 
   function anywhere() {
     const { t } = V1; const s = st.any || {}; const p = st.pair;
@@ -112,6 +125,12 @@ window.V1Settings = (function () {
       if (k === 'anywhere') { await api.anywhere.configure({ enabled: !(st.any && st.any.enabled) }); st.any = await api.anywhere.status(); return render(); }
       v[k] = !v[k]; await V1.saveSettings({ v1: v }); V1.applyTheme(); return render();
     }
+    if (a === 'arena') {
+      st.arenaLive = '…'; render();
+      try { st.arena = await api.arena.run(); if (st.arena && st.arena.busy) V1.toast(V1.t('arenaBusy')); } catch (e) { V1.toast(String(e.message || e), 'err'); }
+      st.arenaLive = null; return render();
+    }
+    if (a === 'arenaStop') { await api.arena.cancel().catch(() => {}); return; }
     if (a === 'memory') {
       const list = S.memories;
       V1.sheet(`${V1.head(V1.t('memory'))}${list.map((m) => `<div class="opt"><span class="grow">${V1.esc(m.text)}</span><button class="ib" data-act="set:forget" data-id="${V1.esc(m.id)}">${V1.ic('x')}</button></div>`).join('') || '<p class="lead">—</p>'}`);

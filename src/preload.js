@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('api', {
   ui: { switch: i('ui:switch') },
   cli: { install: i('cli:install'), status: i('cli:status') },
   knowledge: { list: i('knowledge:list'), get: i('knowledge:get'), save: i('knowledge:save'), delete: i('knowledge:delete') },
+  arena: { run: i('arena:run'), result: i('arena:result'), cancel: i('arena:cancel') },
   workshop: { detect: i('workshop:detect'), state: i('workshop:state') },
   share: { create: i('share:create'), remove: i('share:remove'), list: i('share:list') },
   anywhere: { status: i('anywhere:status'), pairStart: i('anywhere:pairStart'), pairStop: i('anywhere:pairStop'), revoke: i('anywhere:revoke'), rename: i('anywhere:rename'), configure: i('anywhere:configure'), reply: i('anywhere:reply') },
@@ -96,7 +97,7 @@ contextBridge.exposeInMainWorld('api', {
   tiers: { list: i('tiers:list'), resolve: i('tiers:resolve'), setOverride: i('tiers:setOverride'), setPreferred: i('tiers:setPreferred') },
   resources: { overview: i('resources:overview'), disk: i('resources:disk'), clearCaches: i('resources:clearCaches'), subscribe: i('resources:subscribe'), unsubscribe: i('resources:unsubscribe'), history: i('resources:history'), tips: i('resources:tips'), action: i('resources:action'), maxContext: i('resources:maxContext'), autotune: i('resources:autotune'), autotuneCancel: i('resources:autotuneCancel'), storageAdvice: i('storage:advice'), storageRefuse: i('storage:refuse'), storageClassify: i('storage:classify') },
   on: (channel, cb) => {
-    const allowed = ['v1:card', 'anywhere:status', 'wakeups:changed', 'wakeups:done', 'chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command', 'accounts:event', 'resources:sample', 'resources:pressure', 'resources:queue', 'storage:advice', 'skillimport:open'];
+    const allowed = ['v1:card', 'arena:step', 'anywhere:status', 'wakeups:changed', 'wakeups:done', 'chat:event', 'engine:status', 'models:progress', 'updater:status', 'quick:run', 'quick:show', 'quick:started', 'app:command', 'localapi:status', 'browser:state', 'browser:focus', 'browser:blocked', 'mcp:status', 'deps:progress', 'code:term', 'code:exit', 'code:changed', 'projects:file', 'projects:embed', 'anywhere:event', 'anywhere:ask', 'tasks:event', 'mods:event', 'mods:web', 'app:deeplink', 'quick:command', 'accounts:event', 'resources:sample', 'resources:pressure', 'resources:queue', 'storage:advice', 'skillimport:open'];
     if (!allowed.includes(channel)) return () => {};
     const fn = (_e, data) => cb(data);
     ipcRenderer.on(channel, fn);

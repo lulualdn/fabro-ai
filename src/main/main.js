@@ -145,6 +145,7 @@ function registerIpc() {
   require('./agent/knowledge').register(h);
   require('./mcpb').register(h);
   require('./cli-bridge').register(h);
+  require('./arena').register(h, (ch, d) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(ch, d); });
   h('workshop:detect', () => require('./workshop').detect(true)); h('workshop:state', (root) => require('./workshop').state(String(root || '')));
   h('app:info', () => ({
     version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, e2e: !!process.env.FABRO_E2E,
