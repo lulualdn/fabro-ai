@@ -33,7 +33,7 @@
     { id: 'ovh/Qwen2.5-VL-72B-Instruct', name: 'Qwen2.5 VL 72B', tools: false, vision: true },
     { id: 'llm7/codestral-latest', name: 'Codestral', tools: true },
     { id: 'ovh/gpt-oss-20b', name: 'gpt-oss 20B (OVH)', tools: true },
-    { id: 'poll/openai-fast', name: 'Pollinations', tools: true },
+    { id: 'poll/openai-fast', name: 'Pollinations', tools: true, maxChars: 15000 }, // free API: 16 000 characters per request, tools included
   ];
   const AUTO = { id: 'auto', name: 'Auto', tools: true, vision: true };
   let freeModels = [AUTO, ...POOL];
@@ -181,6 +181,18 @@
     if (!r.ok) { let j = null; try { j = await r.json(); } catch {} const e = j && (j.error && (j.error.message || j.error) || j.message); throw new Error(`${prov.name}: ${e || 'HTTP ' + r.status}`); }
     return readStream(r, onDelta, prov.model);
   }
+  // a model with a small window: shorten tool results (pages read…), oldest first, then old messages, to fit
+  function fitChars(messages, max) {
+    const size = (l) => JSON.stringify(l).length;
+    if (size(messages) <= max) return messages;
+    const out = messages.map((x) => ({ ...x }));
+    const cut = (x, keep) => { if (typeof x.content === 'string' && x.content.length > keep) x.content = x.content.slice(0, keep) + '\n[…shortened]'; };
+    for (const keep of [3000, 1500, 700, 300]) {
+      for (const x of out) if (x.role === 'tool') { cut(x, keep); if (size(out) <= max) return out; }
+    }
+    for (let i = 1; i < out.length - 2 && size(out) > max; i++) if (out[i].role !== 'system') cut(out[i], 400);
+    return out;
+  }
   async function cloudTurn(model, messages, tools, signal, onDelta, needVision) {
     const fits = (m) => (!tools.length || m.tools) && (!needVision || m.vision);
     const chosen = POOL.find((m) => m.id === model);
@@ -188,11 +200,15 @@
     if (!order.length) order = POOL.filter((m) => !tools.length || m.tools);
     // every model resting: wait (up to 90 s in all, saying so) rather than fail at once
     let res = null, used = null, lastErr = ''; const deadline = Date.now() + 90000;
+    const skip = new Set(); // refused this request itself (too long, bad tools…): the next model may take it
     for (let round = 0; round < 12 && !res; round++) {
+      order = order.filter((m) => !skip.has(m.id)); if (!order.length) break;
       for (const m of order) {
         if (coolOf(m) > Date.now()) continue;
         const [pv] = m.id.split('/'); const api = m.id.slice(pv.length + 1); const p = P[pv];
-        const body = { model: api, messages: needVision && !m.vision ? stripImages(messages) : messages, stream: true, temperature: 0.6 };
+        let msgs = needVision && !m.vision ? stripImages(messages) : messages;
+        if (m.maxChars) msgs = fitChars(msgs, m.maxChars - (tools.length ? JSON.stringify(tools.map(schemaOf)).length : 0));
+        const body = { model: api, messages: msgs, stream: true, temperature: 0.6 };
         if (tools.length) { body.tools = tools.map(schemaOf); body.tool_choice = 'auto'; }
         let r;
         try { r = await fetch(p.chat || p.base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }); }
@@ -201,13 +217,14 @@
         let j = null; try { j = await r.json(); } catch {}
         const after = Number((j && j.error && j.error.retry_after) || r.headers.get('ratelimit-reset') || r.headers.get('retry-after') || (r.status === 429 ? 30 : 15));
         // a daily quota (hours) rests the whole provider; a per-minute limit only this model
+        lastErr = (j && j.error && (j.error.message || j.error)) || `HTTP ${r.status}`;
+        if (r.status !== 429 && r.status < 500 && r.status !== 404) { skip.add(m.id); continue; } // this request, not this model's rate: try the next one
         const whole = (j && j.error && /quota|concurrent/i.test(j.error.code || j.error.type || '')) || after > 300;
         cool.set(whole ? pv : m.id, Date.now() + Math.min(after, 86400) * 1000);
-        lastErr = (j && j.error && (j.error.message || j.error)) || `HTTP ${r.status}`;
-        if (r.status !== 429 && r.status < 500 && r.status !== 404) break;
       }
       if (!res) {
-        const next = Math.min(...order.map(coolOf)) - Date.now();
+        if (!order.some((m) => !skip.has(m.id))) break;
+        const next = Math.min(...order.filter((m) => !skip.has(m.id)).map(coolOf)) - Date.now();
         if (Date.now() + Math.max(0, next) > deadline) break;
         const ms = Math.min(15000, Math.max(800, next));
         onDelta('wait', String(Math.ceil(Math.max(next, ms) / 1000)));
@@ -215,6 +232,7 @@
         onDelta('wait', '');
       }
     }
+    if (!res && skip.size && /too long|context|length|maximum/i.test(String(lastErr))) throw new Error(window.FAHost ? window.FAHost.t('cloudLong') : 'This conversation is too long for Fabro Cloud right now. Start a new one, or use your own key.');
     if (!res) throw new Error(/429|quota|limit|busy/i.test(String(lastErr)) || !lastErr ? (window.FAHost ? window.FAHost.t('cloudBusy') : 'Fabro Cloud is busy') : String(lastErr));
     return readStream(res, onDelta, used.name);
   }
@@ -294,12 +312,19 @@
   async function loopImpl(msgs, tools, needVision, { model, agent, allTools, engine, signal, onEvent, prov }) {
     const local = !!engine;
     const maxRounds = EXT ? 30 : agent || allTools ? 14 : 5; let used = model;
+    const one = (tl) => (prov ? keyTurn(prov, msgs, tl, signal, (k, x) => onEvent({ type: k, text: x }))
+      : local ? localTurn(engine, msgs, tl, signal, (k, x) => onEvent({ type: k, text: x }))
+      : cloudTurn(model, msgs, tl, signal, (k, x) => onEvent({ type: k, text: x }), needVision));
+    // tools were used but the model ends with no text (or runs out of rounds): one last round without tools
+    const finalWrite = async () => {
+      msgs.push({ role: 'user', content: '[Fabro] Stop using tools. Answer the user now from what you already found, and say what you could not find.' });
+      const t = await one([]); used = t.model || used; return { model: used };
+    };
     for (let round = 0; round < maxRounds; round++) {
-      const turn = prov ? await keyTurn(prov, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }))
-        : local ? await localTurn(engine, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }))
-        : await cloudTurn(model, msgs, tools, signal, (k, x) => onEvent({ type: k, text: x }), needVision);
+      const turn = await one(tools);
       used = turn.model;
-      if (!turn.calls.length || signal.aborted) return { model: used };
+      if (signal.aborted) return { model: used };
+      if (!turn.calls.length) { if (round > 0 && !String(turn.content || '').trim()) return finalWrite(); return { model: used }; }
       msgs.push({ role: 'assistant', content: turn.content || '', tool_calls: turn.calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.args || '{}' } })) });
       onEvent({ type: 'tool_round' });
       for (const c of turn.calls) {
@@ -316,7 +341,7 @@
         msgs.push({ role: 'tool', tool_call_id: c.id, name: c.name, content: String(out.result || '') });
       }
     }
-    return { model: used };
+    return signal.aborted ? { model: used } : finalWrite();
   }
 
   window.FAAgent = { run, refreshModels, cloudHear, get models() { return freeModels; }, TOOLS, CLOUD };

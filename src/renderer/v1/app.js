@@ -260,11 +260,18 @@
     return h;
   }
   const STEP = {
-    fr: { web_search: 'Cherche sur le web', fetch_url: 'Lit une page', read_page: 'Lit une page', research: 'Fait une recherche', generate_image: 'Crée une image', read_file: 'Lit un fichier', write_file: 'Écrit un fichier', edit_file: 'Modifie un fichier', run_command: 'Lance une commande', run_python: 'Calcule', update_plan: 'Met à jour le plan', create_artifact: 'Crée un artefact', edit_artifact: 'Modifie un artefact', list_files: 'Parcourt des fichiers', memory_save: 'Retient', memory_search: 'Se souvient', chat_search: 'Cherche dans tes conversations', computer: 'Utilise l’écran', see_images: 'Regarde des images', convert_file: 'Lit un fichier' },
-    en: { web_search: 'Searches the web', fetch_url: 'Reads a page', read_page: 'Reads a page', research: 'Researches', generate_image: 'Makes an image', read_file: 'Reads a file', write_file: 'Writes a file', edit_file: 'Edits a file', run_command: 'Runs a command', run_python: 'Computes', update_plan: 'Updates the plan', create_artifact: 'Makes an artifact', edit_artifact: 'Edits an artifact', list_files: 'Browses files', memory_save: 'Remembers', memory_search: 'Recalls', chat_search: 'Searches your chats', computer: 'Uses the screen', see_images: 'Looks at pictures', convert_file: 'Reads a file' },
+    fr: { web_search: 'Cherche sur le web', fetch_url: 'Lit une page', read_page: 'Lit une page', research: 'Fait une recherche', generate_image: 'Crée une image', read_file: 'Lit un fichier', write_file: 'Écrit un fichier', edit_file: 'Modifie un fichier', run_command: 'Lance une commande', run_python: 'Calcule', update_plan: 'Met à jour le plan', create_artifact: 'Crée un artefact', edit_artifact: 'Modifie un artefact', list_files: 'Parcourt des fichiers', memory_save: 'Retient', memory_search: 'Se souvient', chat_search: 'Cherche dans tes conversations', computer: 'Utilise l’écran', see_images: 'Regarde des images', convert_file: 'Lit un fichier', browser_search: 'Cherche dans le navigateur', web_images: 'Cherche des images', list_dir: 'Parcourt le dossier', research: 'Fait une recherche', knowledge_search: 'Consulte ses notes', workshop: 'Travaille dans l’atelier Linux', run_test_sequence: 'Lance les tests', diagnose: 'Diagnostique', task_notes: 'Prend des notes' },
+    en: { web_search: 'Searches the web', fetch_url: 'Reads a page', read_page: 'Reads a page', research: 'Researches', generate_image: 'Makes an image', read_file: 'Reads a file', write_file: 'Writes a file', edit_file: 'Edits a file', run_command: 'Runs a command', run_python: 'Computes', update_plan: 'Updates the plan', create_artifact: 'Makes an artifact', edit_artifact: 'Edits an artifact', list_files: 'Browses files', memory_save: 'Remembers', memory_search: 'Recalls', chat_search: 'Searches your chats', computer: 'Uses the screen', see_images: 'Looks at pictures', convert_file: 'Reads a file', browser_search: 'Searches in the browser', web_images: 'Looks for pictures', list_dir: 'Browses the folder', research: 'Researches', knowledge_search: 'Checks its notes', workshop: 'Works in the Linux workshop', run_test_sequence: 'Runs the tests', diagnose: 'Diagnoses', task_notes: 'Takes notes' },
   };
   const stepName = (s) => (STEP[lang] || STEP.en)[s.name] || String(s.name).replace(/^mcp__/, '').replace(/_/g, ' ');
-  const stepArg = (s) => { const a = s.args || {}; return a.query || a.url || a.path || a.command || a.title || ''; };
+  // a path inside the open project is shown relative to it (Fabro Code), others by their last parts
+  const stepArg = (s) => {
+    const a = s.args || {}; let v = a.query || a.url || a.path || a.command || a.title || '';
+    const root = S.conv && S.conv.code && S.conv.code.root;
+    if (root && typeof v === 'string') { const r = root.replace(/[\\/]+$/, ''); v = v.split(r + '/').join('').split(r + '\\').join('').split(r).join('.'); }
+    if ((a.path && v === a.path) && v.length > 60) v = '…/' + v.split(/[\\/]/).slice(-2).join('/');
+    return v;
+  };
   const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
   function sourcesOf(n) { const out = []; for (const s of n.steps || []) if (s.view && Array.isArray(s.view.sources)) for (const x of s.view.sources) if (x && x.url && !out.some((y) => y.url === x.url)) out.push({ url: x.url, title: x.title || x.url }); return out; }
   function planHtml(n) {
@@ -287,7 +294,7 @@
   function aiInner(n) {
     const src = sourcesOf(n);
     const imgs = (n.steps || []).map((s) => s.view && s.view.image).filter((x) => x && /^(data:image|file:|https:)/.test(x));
-    const status = n.pending && !n.content ? (n.status === 'loading' ? t('loadingModel') : n.status === 'queued' ? t('queued') : n.status === 'thinking' ? t('thinking') + '…' : '') : '';
+    const status = n.pending && !n.content ? (n.status === 'loading' ? t('loadingModel') : n.status === 'queued' ? t('queued') : n.status === 'thinking' ? t('thinking') + '…' : n.status === 'looking' ? t('looking') : '') : '';
     const v = Fabro._view();
     let body = n.content ? md(n.content, src) : '';
     if (n.pending) body += '<span class="caret"></span>';

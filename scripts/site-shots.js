@@ -1,7 +1,5 @@
 // Screenshots for the website (site/img/v1/*.webp, light and dark) + their sizes in site/src/dims.json.
-// Practical views: a long task with its steps, a page read with sources, connectors, computer use, Fabro Code,
-// the update bar, Fabro Anywhere on a phone. Until the new interface is in the app, the desktop views come
-// from the mockup (maquettes/fabro-ui.html); Fabro Anywhere is the real app (site/dist/app, built first).
+// OLD: views from the mockup. The site now uses real captures: scripts/site-real/ (see its README).
 // Run: node site/build.js && node scripts/site-shots.js
 const { chromium } = require('playwright');
 const http = require('http');

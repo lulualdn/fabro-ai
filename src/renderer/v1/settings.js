@@ -45,14 +45,38 @@ window.V1Settings = (function () {
     try { const v = await api.mcp.view(); st.servers = new Set(((v && (v.servers || v.list)) || (Array.isArray(v) ? v : [])).map((x) => x.name || x.id)); } catch { st.servers = new Set(); }
     render();
   }
+  // display names and one line on what each catalog connector does (src/main/mcpeasy.js ids)
+  const CONN = {
+    filesystem: ['Files', 'Lit et écrit dans un dossier que tu choisis', 'Reads and writes a folder you choose'],
+    fetch: ['Fetch', 'Lit une page web en texte', 'Reads a web page as text'],
+    memory: ['Memory graph', 'Retient des faits entre les conversations', 'Keeps facts between chats'],
+    git: ['Git', 'Historique et changements d’un dépôt', 'History and changes of a repository'],
+    time: ['Time', 'Heure et fuseaux horaires', 'Time and time zones'],
+    'sequential-thinking': ['Step by step', 'Raisonne en étapes sur un problème difficile', 'Thinks a hard problem through in steps'],
+    playwright: ['Playwright', 'Pilote un navigateur', 'Drives a browser'],
+    github: ['GitHub', 'Issues, pull requests et code', 'Issues, pull requests and code'],
+    notion: ['Notion', 'Pages et bases Notion', 'Notion pages and databases'],
+    linear: ['Linear', 'Tickets et projets', 'Issues and projects'],
+    sentry: ['Sentry', 'Erreurs de tes applis', 'Errors from your apps'],
+    context7: ['Context7', 'Doc à jour des bibliothèques de code', 'Up-to-date docs of code libraries'],
+    'cloudflare-docs': ['Cloudflare Docs', 'Documentation Cloudflare', 'Cloudflare documentation'],
+    'hugging-face': ['Hugging Face', 'Modèles, jeux de données et Spaces', 'Models, datasets and Spaces'],
+    sqlite: ['SQLite', 'Interroge une base SQLite', 'Queries an SQLite database'],
+    postgres: ['PostgreSQL', 'Interroge une base Postgres', 'Queries a Postgres database'],
+    blender: ['Blender', 'Crée et modifie des scènes 3D', 'Creates and edits 3D scenes'],
+    obsidian: ['Obsidian', 'Notes de ton coffre Obsidian', 'Notes from your Obsidian vault'],
+    'brave-search': ['Brave Search', 'Recherche web avec ta clé Brave', 'Web search with your Brave key'],
+  };
+  const connName = (c) => (CONN[c.id] || [c.id])[0];
+  const connSub = (c) => { const x = CONN[c.id]; return x ? x[V1.lang === 'fr' ? 1 : 2] : (c.requires || (c.server.url ? 'web' : '')); };
   function connectors() {
     const { t } = V1;
     if (!st.catalog) return `<p class="lead">…</p>`;
     const need = st.need;
     return `<input class="in" data-set="mcpq" placeholder="${t('connSearch')}" style="width:100%" value="${V1.esc(st.q || '')}">
-      <div class="mcps">${st.catalog.filter((c) => !st.q || c.id.includes(st.q.toLowerCase())).map((c) => {
+      <div class="mcps">${st.catalog.filter((c) => !st.q || (c.id + ' ' + connName(c) + ' ' + connSub(c)).toLowerCase().includes(st.q.toLowerCase())).map((c) => {
         const on = st.servers.has(c.id) || st.servers.has(c.server.name); const ing = st.adding.has(c.id);
-        return `<div class="mcp"><span class="ic">${V1.esc(c.id.slice(0, 2))}</span><div class="grow">${V1.esc(c.id)}<small>${V1.esc(c.requires || (c.server.url ? 'web' : ''))}</small></div><button class="add ${on ? 'ok' : ''}" data-act="set:mcp" data-id="${V1.esc(c.id)}" ${on || ing ? 'disabled' : ''}>${on ? t('added') : ing ? t('adding') : t('add')}</button></div>`;
+        return `<div class="mcp"><span class="ic">${V1.esc(connName(c).slice(0, 2))}</span><div class="grow">${V1.esc(connName(c))}<small>${V1.esc(connSub(c))}</small></div><button class="add ${on ? 'ok' : ''}" data-act="set:mcp" data-id="${V1.esc(c.id)}" ${on || ing ? 'disabled' : ''}>${on ? t('added') : ing ? t('adding') : t('add')}</button></div>`;
       }).join('')}</div>
       ${need ? `<div class="card"><div class="grow">${V1.esc(need.id)} · ${t('needs')}${need.missing.map((k) => `<input class="in" data-need="${V1.esc(k)}" placeholder="${V1.esc((need.labels || {})[k] || k)}" style="width:100%;margin-top:6px">`).join('')}</div><button class="btn pri" data-act="set:mcp" data-id="${V1.esc(need.id)}">${t('add')}</button></div>` : ''}
       <div class="dropzone">${t('mcpbDrop')}<input class="in" data-set="mcpurl" placeholder="https://…/mcp"><button class="btn" data-act="set:mcpurl">${t('addUrl')}</button></div>`;

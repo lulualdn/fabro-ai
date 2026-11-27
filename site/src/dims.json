@@ -8,11 +8,11 @@
   1640
  ],
  "v1/code-dark.webp": [
-  2188,
+  2140,
   1640
  ],
  "v1/code-light.webp": [
-  2188,
+  2140,
   1640
  ],
  "v1/cu-dark.webp": [
@@ -24,11 +24,11 @@
   1640
  ],
  "v1/mcp-dark.webp": [
-  1440,
+  1480,
   1120
  ],
  "v1/mcp-light.webp": [
-  1440,
+  1480,
   1120
  ],
  "v1/phone-dark.webp": [
@@ -40,27 +40,27 @@
   1688
  ],
  "v1/reader-dark.webp": [
-  1336,
-  1146
+  1480,
+  1200
  ],
  "v1/reader-light.webp": [
-  1336,
-  1146
+  1480,
+  1200
  ],
  "v1/task-dark.webp": [
-  1272,
-  730
+  1480,
+  846
  ],
  "v1/task-light.webp": [
-  1272,
-  730
+  1480,
+  846
  ],
  "v1/update-dark.webp": [
-  1200,
-  494
+  880,
+  224
  ],
  "v1/update-light.webp": [
-  1200,
-  494
+  880,
+  224
  ]
 }
