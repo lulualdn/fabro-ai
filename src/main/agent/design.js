@@ -42,7 +42,7 @@ async function npmSearch(need) {
     const r = await fetch(`https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(need)}&size=6&popularity=1.0`, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) return [];
     const j = await r.json();
-    return (j.objects || []).map((o) => o.package).filter((p) => p && p.name).slice(0, 5).map((p) => ({ name: p.name, version: p.version, description: (p.description || '').slice(0, 140) }));
+    return (j.objects || []).filter((o) => o.package && o.package.name).slice(0, 6).map((o) => ({ name: o.package.name, version: o.package.version, date: String(o.package.date || '').slice(0, 10), description: (o.package.description || '').slice(0, 140), score: Math.round(((o.score || {}).final || 0) * 100) }));
   } catch { return []; }
 }
 
@@ -60,13 +60,14 @@ agent.register({
   parameters: { type: 'object', properties: { need: { type: 'string', description: 'What you need, e.g. "interactive map", "3d globe", "drag and drop list"' } }, required: ['need'] },
   summarize: (a) => a.need,
   async run(a) {
+    // live search first (two phrasings), then the known-good list as a fallback
+    const seen = new Set(), live = [];
+    for (const q of [a.need, `${a.need} browser javascript`]) for (const p of await npmSearch(q)) if (!seen.has(p.name)) { seen.add(p.name); live.push(p); }
+    const lines = [];
+    if (live.length) lines.push('## Live results on npm (compare at least 3: recent release, size, licence, accessibility; read their docs before use)\n' + live.slice(0, 8).map((p) => `- ${p.name}@${p.version} (last release ${p.date || '?'}, score ${p.score}) — ${p.description}\n  <script src="https://cdn.jsdelivr.net/npm/${p.name}@${p.version}"></script>  (ES module: import x from "https://cdn.jsdelivr.net/npm/${p.name}@${p.version}/+esm")`).join('\n'));
     const c = curated(a.need);
-    const lines = c.map((l) => `## ${l.name}\n${l.tags.join('\n')}\nUse: ${l.use}${l.note ? `\nNote: ${l.note}` : ''}`);
-    if (c.length < 2) {
-      const npm = await npmSearch(a.need);
-      if (npm.length) lines.push('## Other packages on npm (load from jsDelivr; check that they work in the browser)\n' + npm.map((p) => `- ${p.name}@${p.version} — ${p.description}\n  <script src="https://cdn.jsdelivr.net/npm/${p.name}@${p.version}"></script>  (ES module: import x from "https://cdn.jsdelivr.net/npm/${p.name}@${p.version}/+esm")`).join('\n'));
-    }
-    return { content: lines.length ? lines.join('\n\n') + '\n\nPut <link> in <head> and <script> before your own script at the end of <body>. Prefer no library when plain HTML/CSS/JS can do it.' : `No library found for “${a.need}”. Plain JavaScript is often enough.` };
+    if (c.length) lines.push('## Known to work in Fabro (fallback)\n' + c.map((l) => `### ${l.name}\n${l.tags.join('\n')}\nUse: ${l.use}${l.note ? `\nNote: ${l.note}` : ''}`).join('\n'));
+    return { content: lines.length ? lines.join('\n\n') + '\n\nPin the exact version. Put <link> in <head> and <script> before your own script at the end of <body>. Prefer no library when plain HTML/CSS/JS can do it.' : `No library found for “${a.need}”. Plain JavaScript is often enough.` };
   },
 });
 

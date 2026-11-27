@@ -103,7 +103,14 @@ function start() {
 function cliScript() { return app.isPackaged ? path.join(process.resourcesPath, 'app.asar', 'src', 'cli', 'fabro.js') : path.join(__dirname, '..', 'cli', 'fabro.js'); }
 async function installCommand() {
   const exe = process.execPath; const script = cliScript(); const home = app.getPath('userData');
-  if (process.env.APPIMAGE) return { ok: false, error: 'AppImage: the path changes at each start. Install the .deb to get the fabro command.' };
+  if (process.env.APPIMAGE) { // the mount path changes at each start: copy the CLI out and run it through the .AppImage file itself
+    const share = path.join(os.homedir(), '.local', 'share', 'fabro-cli'); fs.mkdirSync(path.join(share, 'cli'), { recursive: true }); fs.mkdirSync(path.join(share, 'shared'), { recursive: true });
+    const src = path.dirname(script); fs.writeFileSync(path.join(share, 'cli', 'fabro.js'), fs.readFileSync(script)); fs.writeFileSync(path.join(share, 'shared', 'mascot.js'), fs.readFileSync(path.join(src, '..', 'shared', 'mascot.js')));
+    const dir = path.join(os.homedir(), '.local', 'bin'); fs.mkdirSync(dir, { recursive: true }); const f = path.join(dir, 'fabro');
+    fs.writeFileSync(f, `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 FABRO_HOME=${JSON.stringify(home)} exec ${JSON.stringify(process.env.APPIMAGE)} ${JSON.stringify(path.join(share, 'cli', 'fabro.js'))} "$@"\n`, { mode: 0o755 });
+    const inPath = (process.env.PATH || '').split(':').includes(dir);
+    return { ok: true, path: f, note: (inPath ? 'Type: fabro code' : `Add ${dir} to your PATH, then type: fabro code`) + ' (reinstall the command if you move the .AppImage file)' };
+  }
   if (process.platform === 'win32') {
     const dir = path.join(path.dirname(exe), 'bin'); fs.mkdirSync(dir, { recursive: true });
     const devArgs = app.isPackaged ? '' : ` "${path.join(__dirname, '..', '..')}"`;

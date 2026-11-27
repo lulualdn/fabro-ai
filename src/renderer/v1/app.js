@@ -483,7 +483,7 @@
     const html = /^(html|svg|page|slides|web)$/.test(a.type) || /^\s*<(!doctype|html|svg)/i.test(content);
     sheet(`${head(esc(a.title || t('artifact')))}<div class="viewer">${html ? '<iframe sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>' : `<pre>${esc(content)}</pre>`}</div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn" data-act="share-art" data-id="${esc(a.id)}">${ic('share')}${t('share')}</button></div>`, 'wide');
-    if (html) $('.viewer iframe').srcdoc = content;
+    if (html) { const fr = $('.viewer iframe'); const u = await api.exporter.preview(content).catch(() => null); if (u) fr.src = u; else fr.srcdoc = content; }
   }
   function openCode() { S.conv = null; S.view = 'code'; renderAll(); }
 
