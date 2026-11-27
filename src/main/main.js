@@ -16,7 +16,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/core-tools'); require('./agent/reader'); require('./agent/vision'); require('./agent/diag'); require('./agent/knowledge'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const computer = require('./computer');
@@ -140,6 +140,8 @@ function registerIpc() {
     return true;
   });
   require('./share').register(h);
+  require('./agent/knowledge').register(h);
+  require('./mcpb').register(h);
   h('app:info', () => ({
     version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, e2e: !!process.env.FABRO_E2E,
     locale: app.getLocale(), systemLanguages: app.getPreferredSystemLanguages(),
@@ -435,14 +437,18 @@ app.whenReady().then(async () => {
   try { db.init(); } catch (e) { console.error('db init failed', e); }
   exporter.handleProtocol();
   await providers.migrate();
-  // modest computer, nothing downloaded yet: the free cloud answers until a local model is there
-  try { const [sp, loc] = await Promise.all([system.getSpecs(), models.listLocal ? models.listLocal() : []]); await providers.autoFree(sp, loc.length > 0); } catch (e) { console.warn('autoFree', e.message); }
   if (!isMac) Menu.setApplicationMenu(null);
   registerIpc();
   require('./myfabro').init(ipcMain); // v0.2 Mon Fabro: memory entries, profile, timeline, reminders, skill ideas
   require('./modelfinder').init(ipcMain); require('./modeltiers').init(ipcMain); // v0.2 models: find a model in plain words, light/medium/complex tiers
   require('./resources').init(ipcMain, send); require('./storage').init(ipcMain, send); // v0.2 perf: Resources screen data + slow-disk advice
   models.init((p) => send('models:progress', p));
+  // Instant start: the window opens now; hardware detection and the engine start behind it.
+  createWindow();
+  accounts.handoff(win);
+  // modest computer, nothing downloaded yet: the free cloud answers until a local model is there (the interface
+  // refreshes its model list when this is done)
+  (async () => { try { const [sp, loc] = await Promise.all([system.getSpecs(), models.listLocal ? models.listLocal() : []]); await providers.autoFree(sp, loc.length > 0); send('models:progress', { providers: true }); } catch (e) { console.warn('autoFree', e.message); } })();
   // First model chosen in the Windows installer: start its download once, into the chosen disk.
   const fm = S().firstModel;
   if (fm && fm.catalogId) {
@@ -456,8 +462,6 @@ app.whenReady().then(async () => {
   localapi.init((st) => send('localapi:status', st)).catch(() => {});
   setTimeout(() => engine.preloadAll(async () => (await models.installed()).local).catch(() => {}), 2500);
   updater.init(send);
-  createWindow();
-  accounts.handoff(win);
   browser.init(win, send);
   computer.init({ getMain: () => win });
   mcp.init(send);

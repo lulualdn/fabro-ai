@@ -417,7 +417,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
       const chatT = tools.schemas(params.tools || []);
       // local engines: a tool offered once in this chat stays offered, so their prompt cache is not thrown away
       const sticky = ctxConv && be.kind === 'local' ? [ctxConv, agentMode ? 'agent' : 'chat'] : null;
-      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: recentText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx, keep: sticky ? freeze.keep(...sticky) : [] }).map(agent.schema);
+      const agentT = params.agent === false ? [] : agent.select({ agentMode, text: recentText, used: params.usedTools || [], sub: !!parent, code: !!codeCtx, keep: [...(sticky ? freeze.keep(...sticky) : []), ...agent.openedFor(meta.convId || reqId)] }).map(agent.schema);
       if (sticky && agentT.length) freeze.remember(...sticky, agentT.map((x) => x.function.name));
       const ctxT = prepared && (prepared.compressed || rawMessages.length > 24) && params.agent !== false ? ['context_list', 'context_read', 'context_pin'].map((n) => agent.get(n)).filter(Boolean).map(agent.schema) : [];
       return [...chatT, ...agentT, ...ctxT.filter((x) => !agentT.some((y) => y.function.name === x.function.name))];
@@ -621,7 +621,7 @@ async function send({ reqId, model, messages, params = {}, meta = {} }, emit, pa
         if (result.endTurn && !parent) endTurn = true;
         if (result.image) {
           if (params.vision) msgs.push({ role: 'user', content: [{ type: 'text', text: `(Image returned by ${c.name})` }, { type: 'image_url', image_url: { url: result.image } }] });
-          else msgs[msgs.length - 1].content += '\n(An image was produced but this model cannot see images.)';
+          else msgs[msgs.length - 1].content += '\n(An image was produced but this model cannot see images. Do not describe it or guess what it shows: tell the user this model cannot see pictures and suggest a model that can.)';
         }
       }
       if (endTurn) { out({ type: 'tool_round' }); break; }

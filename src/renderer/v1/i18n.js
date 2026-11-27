@@ -24,6 +24,10 @@ window.V1_I18N = {
     shareH: 'Partager par lien', shareConv: 'La conversation s’ouvrira en aperçu, sans tes fichiers ni tes images.', shareArt: 'L’artefact s’affichera et pourra être téléchargé.', shareGo: 'Créer le lien', shareDone: 'Lien copié', shareOff: 'Retirer le lien', shareWho: 'Toute personne qui a le lien pourra le voir.',
     artifact: 'Artefact', openArt: 'Ouvrir', download: 'Télécharger', close: 'Fermer', thinking: 'Réfléchit', loadingModel: 'Charge le modèle…', queued: 'En file d’attente…',
     edit: 'Modifier', fork: 'Nouvelle conversation à partir d’ici', forked: 'Conversation créée', prev: 'Version précédente', next: 'Version suivante', cancel: 'Annuler', resend: 'Renvoyer',
+    resumeQ: '« {t} » s’est arrêtée avant la fin.', resumeSub: 'Fabro reprend à partir du plan et de son carnet.', resume: 'Reprendre', dismiss: 'Laisser', resumeMsg: 'Reprends la tâche là où elle s’est arrêtée : relis ton plan et ton carnet (task_notes), puis continue.',
+    planLeft: 'Le plan n’est pas fini, Fabro continue.', planMsg: 'Le plan n’est pas terminé (reste : {s}). Continue, puis vérifie le résultat avant de dire que c’est fini.',
+    bigSet: 'Gros modèle', bigSetSub: 'Pour « Demander au gros modèle ». Il peut tourner ici, sur un autre PC ou en ligne.', none: 'Aucun', bigWhere: 'Réponse de {m}',
+    kb: 'Bases de connaissances', kbSub: '{n} bases. Tu peux les lire, les corriger et les supprimer.', save: 'Enregistrer', builtin: 'intégrée', mcpbOk: 'Connecteur ajouté : {n}',
     later: 'Envoyé après la réponse en cours', empty: 'Le modèle n’a rien répondu.', private: 'Privée : rien n’est enregistré',
   },
   en: {
@@ -49,6 +53,10 @@ window.V1_I18N = {
     shareH: 'Share by link', shareConv: 'The conversation opens as a preview, without your files or pictures.', shareArt: 'The artifact is shown and can be downloaded.', shareGo: 'Create link', shareDone: 'Link copied', shareOff: 'Remove link', shareWho: 'Anyone with the link can see it.',
     artifact: 'Artifact', openArt: 'Open', download: 'Download', close: 'Close', thinking: 'Thinking', loadingModel: 'Loading the model…', queued: 'Queued…',
     edit: 'Edit', fork: 'New conversation from here', forked: 'Conversation created', prev: 'Previous version', next: 'Next version', cancel: 'Cancel', resend: 'Send again',
+    resumeQ: '“{t}” stopped before the end.', resumeSub: 'Fabro picks up from its plan and notebook.', resume: 'Resume', dismiss: 'Leave it', resumeMsg: 'Resume the task where it stopped: read your plan and notebook (task_notes) again, then continue.',
+    planLeft: 'The plan is not finished, Fabro goes on.', planMsg: 'The plan is not finished (left: {s}). Go on, then check the result before saying it is done.',
+    bigSet: 'Big model', bigSetSub: 'For “Ask the big model”. It can run here, on another PC or online.', none: 'None', bigWhere: 'Answer from {m}',
+    kb: 'Knowledge bases', kbSub: '{n} bases. You can read, fix and delete them.', save: 'Save', builtin: 'built in', mcpbOk: 'Connector added: {n}',
     later: 'Sent after the current answer', empty: 'The model gave no answer.', private: 'Private: nothing is saved',
   },
 };

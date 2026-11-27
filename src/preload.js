@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('api', {
   mcp: { view: i('mcp:view'), add: i('mcp:add'), remove: i('mcp:remove'), toggle: i('mcp:toggle'), signIn: i('mcp:signin'), reconnect: i('mcp:reconnect'), claudeConfig: i('mcp:claudeConfig'), importClaude: i('mcp:importClaude') },
   skills: { list: i('skills:list'), toggle: i('skills:toggle'), create: i('skills:create'), openFolder: i('skills:openFolder') },
   skillimport: { preview: i('skillimport:preview'), install: i('skillimport:install'), found: i('skillimport:found'), remove: i('skillimport:remove'), discard: i('skillimport:discard'), pick: i('skillimport:pick'), export: i('skillimport:export'), openFile: i('skillimport:openFile') },
-  mcpeasy: { parse: i('mcpeasy:parse'), catalog: i('mcpeasy:catalog'), prereq: i('mcpeasy:prereq'), test: i('mcpeasy:test'), add: i('mcpeasy:add'), found: i('mcpeasy:found'), import: i('mcpeasy:import'), setTool: i('mcpeasy:setTool') },
+  mcpeasy: { mcpb: i('mcpeasy:mcpb'), parse: i('mcpeasy:parse'), catalog: i('mcpeasy:catalog'), prereq: i('mcpeasy:prereq'), test: i('mcpeasy:test'), add: i('mcpeasy:add'), found: i('mcpeasy:found'), import: i('mcpeasy:import'), setTool: i('mcpeasy:setTool') },
   providers: {
     view: i('providers:view'), detect: i('providers:detect'), add: i('providers:add'), update: i('providers:update'),
     remove: i('providers:remove'), refresh: i('providers:refresh'), enable: i('providers:enable'), models: i('providers:models'), free: i('providers:free'),
@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('api', {
   shell: { open: i('shell:open'), reveal: i('shell:reveal'), openPath: i('shell:openPath') },
   files: { ingest: i('files:ingest'), preview: i('files:preview'), pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } } },
   ui: { switch: i('ui:switch') },
+  knowledge: { list: i('knowledge:list'), get: i('knowledge:get'), save: i('knowledge:save'), delete: i('knowledge:delete') },
   share: { create: i('share:create'), remove: i('share:remove'), list: i('share:list') },
   anywhere: { status: i('anywhere:status'), pairStart: i('anywhere:pairStart'), pairStop: i('anywhere:pairStop'), revoke: i('anywhere:revoke'), rename: i('anywhere:rename'), configure: i('anywhere:configure'), reply: i('anywhere:reply') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },

@@ -237,4 +237,4 @@ function removeProject(pid) { db.deleteProject(pid); try { fs.rmSync(path.join(r
 async function reindexAll() { for (const p of db.listProjects()) await embedProject(p.id).catch(() => {}); }
 function init(emitter) { emit = emitter; }
 
-module.exports = { init, extract, chunk, addFiles, addText, search, context, status, removeFile, removeProject, embedProject, reindexAll };
+module.exports = { embed, init, extract, chunk, addFiles, addText, search, context, status, removeFile, removeProject, embedProject, reindexAll };

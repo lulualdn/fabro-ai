@@ -114,15 +114,9 @@ async function webSearch(query, ctx = {}, opts = {}) {
   let engine = s.engine || 'searxng';
   let results, extra = {};
   const n = Math.max(1, Math.min(30, Math.round(Number(opts.count)) || 15)); // the model says how many it wants
-  // SearXNG (default): the private instance is installed on demand, the first time it's needed.
-  if (engine === 'searxng' && !s.searxngUrl && !searxng.installed()) {
-    let ok = false;
-    if (ctx.needDeps && !s.searxngDeclined) {
-      ok = await ctx.needDeps('searxng');
-      if (!ok) await store.setSettings({ search: { searxngDeclined: true } });
-    }
-    if (!ok || !searxng.installed()) engine = 'duckduckgo';
-  }
+  // Search works with nothing to install: until the private SearXNG instance is installed (Settings, or when
+  // image/video search needs it), web search goes straight to DuckDuckGo instead of stopping to ask.
+  if (engine === 'searxng' && !s.searxngUrl && !searxng.installed()) engine = 'duckduckgo';
   try {
     if (engine === 'searxng') { const r = await searxng.search(query, s, { lang: opts.lang, category: opts.category, time: opts.time, page: opts.page, limit: n }); results = r.results; extra = { answers: r.answers, infobox: r.infobox, suggestions: r.suggestions, pageUrl: r.pageUrl }; }
     else results = engine === 'brave' ? await brave(query, providers.getKey('search:brave'), n)

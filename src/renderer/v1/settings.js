@@ -33,6 +33,7 @@ window.V1Settings = (function () {
       + row(t('motion'), '', tog('reduceMotion', v.reduceMotion))
       + row(t('askBefore'), t('askBeforeSub'), seg('ask', v.ask === 'never' ? 'never' : 'risky', [['risky', t('risky')], ['never', t('never')]]))
       + row(t('lang'), '', seg('language', s.language && s.language !== 'auto' ? s.language : 'auto', [['auto', 'Auto'], ['fr', 'FR'], ['en', 'EN']]))
+      + row(t('bigSet'), t('bigSetSub'), `<select class="in" data-set="bigModel" style="max-width:240px"><option value="">${t('none')}</option>${V1.allModels().map((m) => `<option value="${V1.esc(V1.refKey(m.ref))}" ${V1.refKey(m.ref) === V1.refKey(v.bigModel) ? 'selected' : ''}>${V1.esc(m.label)}${m.sub ? ' · ' + V1.esc(m.sub) : ''}</option>`).join('')}</select>`)
       + row(t('memory'), t('memorySub', { n: S.memories.length }), `<button class="btn" data-act="set:memory">${t('see')}</button>`)
       + row(t('mods'), t('modsSub', { n: modsOn }), `<button class="btn" data-act="legacy" data-page="mods">${t('manage')}</button>`);
   }
@@ -84,7 +85,10 @@ window.V1Settings = (function () {
 
   function advanced() {
     const { t } = V1;
-    return row(t('legacy'), t('legacySub'), `<button class="btn" data-act="legacy">${t('open')}</button>`);
+    if (!st.kb) api.knowledge.list().then((l) => { st.kb = l || []; render(); }).catch(() => { st.kb = []; });
+    return row(t('kb'), t('kbSub', { n: (st.kb || []).length }), '')
+      + (st.kb || []).map((b) => row(V1.esc(b.title), V1.esc(b.when) + (b.builtin ? ' · ' + t('builtin') : ''), `<button class="btn" data-act="set:kb" data-id="${V1.esc(b.id)}">${t('see')}</button>`)).join('')
+      + row(t('legacy'), t('legacySub'), `<button class="btn" data-act="legacy">${t('open')}</button>`);
   }
 
   async function action(a, el) {
@@ -109,6 +113,13 @@ window.V1Settings = (function () {
     }
     if (a === 'forget') { await api.memory.delete(el.dataset.id).catch(() => {}); S.memories = await api.memory.list().catch(() => S.memories); return action('memory'); }
     if (a === 'mcp') return addMcp(el.dataset.id);
+    if (a === 'kb') {
+      const b = await api.knowledge.get(el.dataset.id); if (!b) return;
+      V1.sheet(`${V1.head(V1.esc(el.dataset.id))}<textarea class="in" id="kbtext" style="width:100%;height:52vh;padding:12px;font:12.5px/1.5 var(--mono)" ${b.builtin ? 'readonly' : ''}>${V1.esc(b.text)}</textarea><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">${b.builtin ? '' : `<button class="btn ghost" data-act="set:kbdel" data-id="${V1.esc(b.id)}">${V1.t('del')}</button><button class="btn pri" data-act="set:kbsave" data-id="${V1.esc(b.id)}">${V1.t('save')}</button>`}</div>`, 'wide');
+      return;
+    }
+    if (a === 'kbsave') { const r = await api.knowledge.save(el.dataset.id, document.getElementById('kbtext').value); if (r && r.ok) { V1.sheet(''); st.kb = null; render(); } else V1.toast((r && r.errors || ['?']).join(' '), 'err'); return; }
+    if (a === 'kbdel') { await api.knowledge.delete(el.dataset.id); V1.sheet(''); st.kb = null; return render(); }
     if (a === 'mcpurl') {
       const u = (document.querySelector('[data-set=mcpurl]') || {}).value || ''; if (!/^https:\/\//.test(u.trim())) return;
       const r = await api.mcpeasy.parse(u.trim()).catch(() => null);
@@ -123,8 +134,19 @@ window.V1Settings = (function () {
   async function change(el) {
     const k = el.dataset.set;
     if (k === 'userName') { await V1.saveSettings({ userName: el.value.trim() }); V1.renderSide(); }
+    if (k === 'bigModel') { const m = V1.allModels().find((x) => V1.refKey(x.ref) === el.value); await V1.saveSettings({ v1: { ...(V1.S.settings.v1 || {}), bigModel: m ? m.ref : null } }); }
     if (k === 'mcpq') { st.q = el.value.trim(); render(); const i = document.querySelector('[data-set=mcpq]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
   }
+  document.addEventListener('dragover', (e) => { if (tab === 'connectors' && box && box.isConnected) e.preventDefault(); });
+  document.addEventListener('drop', async (e) => {
+    if (tab !== 'connectors' || !box || !box.isConnected) return; e.preventDefault();
+    for (const f of e.dataTransfer.files) {
+      if (!/\.(mcpb|dxt)$/i.test(f.name)) continue;
+      try { const r = await api.mcpeasy.mcpb(api.files.pathOf(f)); const ok = r.result && r.result.ok !== false; V1.toast(ok ? V1.t('mcpbOk', { n: r.declares.name }) : String((r.result && r.result.error) || '?'), ok ? '' : 'err'); }
+      catch (err) { V1.toast(String(err.message || err), 'err'); }
+    }
+    st.catalog = null; render();
+  });
   // the paired phone shows up as soon as it's linked
   api.on('anywhere:status', (s) => { st.any = s; if (s && (s.devices || []).length && st.pair && !s.pairing) st.pair = null; if (tab === 'anywhere' && box && box.isConnected) render(); });
   return { render, action, change };

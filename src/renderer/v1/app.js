@@ -137,10 +137,17 @@
     Fabro._emit('send', { text, convId: S.conv.id });
     generate(model, opts);
   }
+  // tasks running now, kept in settings: after a close or a crash, Fabro offers to resume them
+  function markRunning(c, on) {
+    const v = { ...(S.settings.v1 || {}) }; const list = (v.running || []).filter((x) => x.id !== c.id);
+    if (on && !c.ephemeral) list.push({ id: c.id, title: c.title || '', at: now() });
+    v.running = list.slice(-10); saveSettings({ v1: v });
+  }
   function generate(model, opts = {}) {
-    const c = S.conv;
+    const c = S.conv; markRunning(c, true);
     const msg = addNode({ id: uid(), role: 'assistant', content: '', reasoning: '', steps: [], model: model.label, pending: true, createdAt: now(), status: 'loading' });
-    const reqId = uid(); S.streaming = { reqId, msg, convId: c.id };
+    const reqId = uid(); S.streaming = { reqId, msg, convId: c.id, big: !!opts.big };
+    clearInterval(S.saveT); S.saveT = setInterval(() => { if (S.streaming && S.conv && S.conv.id === c.id) persist(); }, 8000); // a crash keeps what was done
     renderAll(); scrollChat(true);
     const usedTools = [...new Set(c.messages.flatMap((x) => (x.steps || []).map((st) => st.name)))];
     const gen = S.settings.gen || {}; const ct = S.settings.chatTools || {};
@@ -173,6 +180,8 @@
   }
   function finish() {
     const st = S.streaming; if (!st) return; S.streaming = null;
+    clearInterval(S.saveT);
+    const conv = S.conv && S.conv.id === st.convId ? S.conv : null; if (conv) markRunning(conv, false);
     const m = st.msg; m.pending = false; delete m.status; m.content = (m.content || '').trim();
     if (!m.content && !m.error && !m.steps.some((x) => x.view && (x.view.image || x.view.kind === 'artifact'))) m.error = t('empty');
     for (const [k, a] of S.asks) if (a.reqId === st.reqId) S.asks.delete(k);
@@ -180,6 +189,11 @@
     renderSide(); renderComposer(); renderCards();
     notifyHidden((m.error || m.content || '').replace(/[#*_`>]/g, '').slice(0, 140));
     Fabro._emit('done', { convId: st.convId, id: m.id });
+    // a plan with steps left is not "done": go on, twice at most, then let the user decide
+    if (conv && !m.error && m.plan && m.plan.some((x) => x.status !== 'done') && (conv.autoGo || 0) < 2 && !S.later.some((x) => x.convId === conv.id)) {
+      conv.autoGo = (conv.autoGo || 0) + 1; toast(t('planLeft'));
+      return setTimeout(() => send(t('planMsg', { s: m.plan.filter((x) => x.status !== 'done').map((x) => x.title).join(' ; ') })), 400);
+    }
     const i = S.later.findIndex((x) => x.convId === st.convId);
     if (i >= 0 && S.conv && S.conv.id === st.convId) { const [x] = S.later.splice(i, 1); S.pending = x.atts; send(x.text); }
   }
@@ -269,7 +283,7 @@
       ${imgs.map((u) => `<div class="gen"><img src="${esc(u)}" alt="" data-tint></div>`).join('')}${artsHtml(n)}
       ${n.error ? `<div class="err">${esc(n.error)}</div>` : ''}
       ${!n.pending && src.length ? `<div class="sources">${src.slice(0, 8).map((s, i) => `<a href="${esc(s.url)}"><cite>${i + 1}</cite><span>${esc(host(s.url))}</span></a>`).join('')}</div>` : ''}
-      ${n.pending ? '' : `<div class="meta">${versions(n)}<button data-act="copy" data-id="${esc(n.id)}">${t('copy')}</button><button class="mi" data-act="redo" data-id="${esc(n.id)}" title="${t('retry')}">${ic('redo')}</button><button class="mi" data-act="fork" data-id="${esc(n.id)}" title="${t('fork')}">${ic('fork')}</button><span>${esc(n.model || '')}</span><span class="slot-message" data-slot="message"></span></div>`}`;
+      ${n.pending ? '' : `<div class="meta">${versions(n)}<button data-act="copy" data-id="${esc(n.id)}">${t('copy')}</button><button class="mi" data-act="redo" data-id="${esc(n.id)}" title="${t('retry')}">${ic('redo')}</button><button class="mi" data-act="fork" data-id="${esc(n.id)}" title="${t('fork')}">${ic('fork')}</button><button class="mi" data-act="big" data-id="${esc(n.id)}" title="${t('bigModel')}">${ic('big')}</button><span>${esc(n.model || '')}</span><span class="slot-message" data-slot="message"></span></div>`}`;
     if (v && typeof v.message === 'function') { try { html = v.message(n, html) || html; } catch (e) { console.error('[mod view]', e); } }
     return html;
   }
@@ -337,7 +351,8 @@
   }
   function renderCards() {
     const el = $('.cards'); if (!el) return;
-    el.innerHTML = [...S.asks.entries()].map(([id, a]) => a.kind === 'deps'
+    const stopped = S.streaming ? [] : (v1set().running || []).filter((x) => !S.conv || x.id === S.conv.id).slice(-2);
+    el.innerHTML = stopped.map((x) => `<div class="card">${ic('list')}<div class="grow">${esc(t('resumeQ', { t: x.title || '…' }))}<small>${t('resumeSub')}</small></div><div class="acts"><button class="btn" data-act="resume-no" data-id="${esc(x.id)}">${t('dismiss')}</button><button class="btn pri" data-act="resume" data-id="${esc(x.id)}">${t('resume')}</button></div></div>`).join('') + [...S.asks.entries()].map(([id, a]) => a.kind === 'deps'
       ? `<div class="card">${ic('dl')}<div class="grow">${esc(t('installQ', { d: a.dep }))}</div><div class="acts"><button class="btn" data-act="ask" data-id="${esc(id)}" data-v="deny">${t('deny')}</button><button class="btn pri" data-act="ask" data-id="${esc(id)}" data-v="once">${t('install')}</button></div></div>`
       : `<div class="card">${ic('pc')}<div class="grow">${esc(t('wants', { s: a.summary || a.tool }))}${a.reason ? `<small>${esc(a.reason)}</small>` : ''}</div><div class="acts"><button class="btn" data-act="ask" data-id="${esc(id)}" data-v="deny">${t('deny')}</button>${a.risk !== 'danger' ? `<button class="btn" data-act="ask" data-id="${esc(id)}" data-v="always">${t('always')}</button>` : ''}<button class="btn pri" data-act="ask" data-id="${esc(id)}" data-v="once">${t('allow')}</button></div></div>`).join('');
     Fabro._paint('above-chat');
@@ -473,6 +488,17 @@
     if (a === 'copy') { const n = S.conv && S.conv.nodes.find((x) => x.id === el.dataset.id); if (n) { await navigator.clipboard.writeText(n.content || ''); el.textContent = t('copied'); setTimeout(() => { el.textContent = t('copy'); }, 1200); } return; }
     if (a === 'redo') { if (S.streaming) return; const c = S.conv; const n = c.nodes.find((x) => x.id === el.dataset.id); if (!n) return; c.leafId = n.parentId; c.messages = A.pathOf(c); const m = currentModel(); if (m) generate(m); return; }
     if (a === 'art') return openArtifact(el.dataset.id);
+    if (a === 'big') {
+      if (S.streaming) return; const big = allModels().find((x) => refKey(x.ref) === refKey(v1set().bigModel));
+      if (!big) { S.view = 'settings'; renderAll(); return toast(t('bigSetSub')); }
+      const c = S.conv; const n = c.nodes.find((x) => x.id === el.dataset.id); if (!n) return;
+      c.leafId = n.role === 'assistant' ? n.parentId : n.id; c.messages = A.pathOf(c); toast(t('bigWhere', { m: big.label })); return generate(big, { big: true });
+    }
+    if (a === 'resume') {
+      const id = el.dataset.id; const v = { ...(S.settings.v1 || {}) }; v.running = (v.running || []).filter((x) => x.id !== id); await saveSettings({ v1: v });
+      await openConv(id); return send(t('resumeMsg'), { agent: true });
+    }
+    if (a === 'resume-no') { const v = { ...(S.settings.v1 || {}) }; v.running = (v.running || []).filter((x) => x.id !== el.dataset.id); await saveSettings({ v1: v }); return renderCards(); }
     if (a === 'ver') {
       const c = S.conv; const n = c && c.nodes.find((x) => x.id === el.dataset.id); if (!n || S.streaming) return;
       const sib = siblingsOf(n); const to = sib[sib.findIndex((x) => x.id === n.id) + Number(el.dataset.d)]; if (!to) return;
