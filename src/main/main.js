@@ -310,6 +310,7 @@ function registerIpc() {
     if (dep === 'voice') return voice.install(prog);
     throw new Error('Unknown dependency');
   });
+  h('search:engines', () => { searxng.setConfig((S().search || {}).searxng || {}); return { list: searxng.engineList(), status: searxng.status() }; });
   h('deps:remove', (dep) => { if (dep === 'searxng') return searxng.remove(); throw new Error('Unknown dependency'); });
   // Tool runtime + crash reports
   h('runtime:status', () => runtime.status());

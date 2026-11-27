@@ -103,15 +103,36 @@ window.V1Settings = (function () {
     if (!st.kb) api.knowledge.list().then((l) => { st.kb = l || []; render(); }).catch(() => { st.kb = []; });
     return row(t('kb'), t('kbSub', { n: (st.kb || []).length }), '')
       + (st.kb || []).map((b) => row(V1.esc(b.title), V1.esc(b.when) + (b.builtin ? ' · ' + t('builtin') : ''), `<button class="btn" data-act="set:kb" data-id="${V1.esc(b.id)}">${t('see')}</button>`)).join('')
+      + searchBlock()
       + row(t('labsWs'), t('labsWsSub') + (st.ws ? ' · ' + V1.esc(st.ws.kind ? st.ws.kind : st.ws.note || '') : ''), tog('labs:workshop', ((V1.S.settings.labs || {}).workshop)))
       + row(t('legacy'), t('legacySub'), `<button class="btn" data-act="legacy">${t('open')}</button>`);
   }
 
+  // web search: SearXNG (private, on this PC) by default, or your own instance, or DuckDuckGo
+  function searchBlock() {
+    const { t, S } = V1; const se = S.settings.search || {}; const cfg = se.searxng || {};
+    if (!st.sx) { st.sx = {}; api.search.engines().then((r) => { st.sx = r || {}; render(); }).catch(() => {}); }
+    const mode = se.engine === 'duckduckgo' ? 'ddg' : se.searxngUrl || se.sxMode === 'url' ? 'url' : 'sx';
+    const stx = st.sx.status || {}; const busy = st.sxBusy;
+    let h = `<h3 class="sec">${t('webSearch')}</h3>`
+      + row(t('searchEngine'), mode === 'sx' ? (stx.installed ? t('sxReady') : busy ? t('sxInstalling') : t('sxNot')) : mode === 'url' ? t('sxOwn') : t('ddgSub'), seg('search', mode, [['sx', 'SearXNG'], ['url', t('sxUrl')], ['ddg', 'DuckDuckGo']]))
+      + (mode === 'sx' && !stx.installed ? row('', '', `<button class="btn" data-act="set:sxinstall" ${busy ? 'disabled' : ''}>${busy ? '…' : t('install')}</button>`) : '')
+      + (mode === 'url' ? row(t('sxUrl'), t('sxUrlSub'), `<input class="in" data-set="searxngUrl" placeholder="https://searx.example.org" value="${V1.esc(se.searxngUrl || '')}" style="width:260px">`) : '');
+    if (mode !== 'ddg') {
+      h += row(t('safe'), '', seg('safe', String(cfg.safe || 0), [['0', t('safe0')], ['1', t('safe1')], ['2', t('safe2')]]));
+      if (mode === 'sx') h += (st.sx.list || []).map((g) => row(t('cat_' + g.cat) || g.cat, '', `<div class="chips">${g.engines.map((e) => `<button class="chip ${e.on ? 'on' : ''}" data-act="set:sxeng" data-n="${V1.esc(e.name)}">${V1.esc(e.name)}</button>`).join('')}</div>`)).join('')
+        + row('', t('sxEngSub'), `<button class="btn ghost" data-act="set:sxreset">${t('sxReset')}</button>`);
+    }
+    return h;
+  }
+  async function saveSearch(patch) { const se = { ...(V1.S.settings.search || {}), ...patch }; await V1.saveSettings({ search: se }); st.sx = null; render(); }
   async function action(a, el) {
     const { S } = V1; const v = { ...(S.settings.v1 || {}) };
     if (a === 'tab') { tab = el.dataset.tab; return render(); }
     if (a === 'seg') {
       const k = el.dataset.key, val = el.dataset.v;
+      if (k === 'search') { if (val === 'ddg') return saveSearch({ engine: 'duckduckgo', sxMode: '' }); if (val === 'sx') return saveSearch({ engine: 'searxng', searxngUrl: '', sxMode: '' }); return saveSearch({ engine: 'searxng', sxMode: 'url' }); }
+      if (k === 'safe') { const se = S.settings.search || {}; return saveSearch({ searxng: { ...(se.searxng || {}), safe: +val } }); }
       if (k === 'theme') { await V1.saveSettings({ theme: val }); V1.applyTheme(); }
       else if (k === 'language') { await V1.saveSettings({ language: val }); location.reload(); return; }
       else { v[k] = val; await V1.saveSettings({ v1: v }); }
@@ -130,6 +151,9 @@ window.V1Settings = (function () {
       try { st.arena = await api.arena.run(); if (st.arena && st.arena.busy) V1.toast(V1.t('arenaBusy')); } catch (e) { V1.toast(String(e.message || e), 'err'); }
       st.arenaLive = null; return render();
     }
+    if (a === 'sxeng') { const se = S.settings.search || {}; const c = se.searxng || {}; const n = el.dataset.n; const cur = !(n in (c.engines || {})) || c.engines[n]; return saveSearch({ searxng: { ...c, engines: { ...(c.engines || {}), [n]: !cur } } }); }
+    if (a === 'sxreset') { const se = S.settings.search || {}; return saveSearch({ searxng: { ...(se.searxng || {}), engines: {} } }); }
+    if (a === 'sxinstall') { st.sxBusy = true; render(); try { await api.deps.install('searxng'); } catch (e) { V1.toast(String(e.message || e), 'err'); } st.sxBusy = false; st.sx = null; return render(); }
     if (a === 'arenaStop') { await api.arena.cancel().catch(() => {}); return; }
     if (a === 'memory') {
       const list = S.memories;
@@ -160,6 +184,7 @@ window.V1Settings = (function () {
     const k = el.dataset.set;
     if (k === 'userName') { await V1.saveSettings({ userName: el.value.trim() }); V1.renderSide(); }
     if (k === 'bigModel') { const m = V1.allModels().find((x) => V1.refKey(x.ref) === el.value); await V1.saveSettings({ v1: { ...(V1.S.settings.v1 || {}), bigModel: m ? m.ref : null } }); }
+    if (k === 'searxngUrl') { const v = el.value.trim(); if (v && !/^https?:\/\/[^/]+/.test(v)) return V1.toast(V1.t('sxUrlBad'), 'err'); return saveSearch({ searxngUrl: v.replace(/\/+$/, '') }); }
     if (k === 'mcpq') { st.q = el.value.trim(); render(); const i = document.querySelector('[data-set=mcpq]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
   }
   document.addEventListener('dragover', (e) => { if (tab === 'connectors' && box && box.isConnected) e.preventDefault(); });

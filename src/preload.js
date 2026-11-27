@@ -36,7 +36,7 @@ contextBridge.exposeInMainWorld('api', {
   browser: { bounds: i('browser:bounds'), control: i('browser:control'), state: i('browser:state') },
   computer: { test: i('computer:test'), status: i('computer:status') },
   deps: { status: i('deps:status'), install: i('deps:install'), remove: i('deps:remove') },
-  search: { test: i('search:test') },
+  search: { test: i('search:test'), engines: i('search:engines') },
   runtime: { status: i('runtime:status') },
   crash: { list: i('crash:list'), folder: i('crash:folder'), report: i('crash:report') },
   images: { status: i('images:status'), install: i('images:install') },

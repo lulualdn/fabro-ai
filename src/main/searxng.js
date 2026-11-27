@@ -79,19 +79,48 @@ function shims() {
 function freePort() {
   return new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
 }
+// Engines Fabro turns on by default, chosen for good results without API keys (the user can change them:
+// settings.search.searxng.engines = { "<name>": true|false }). Some are off upstream because they block busy
+// public instances; a private instance on one home IP is fine, and SearXNG suspends an engine that fails.
+const ENGINES = {
+  general: ['google', 'bing', 'brave', 'duckduckgo', 'qwant', 'wikipedia', 'wikidata', 'currency'], // startpage, mojeek: inactive upstream (proof-of-work captcha)
+  images: ['google images', 'bing images', 'brave.images', 'duckduckgo images', 'qwant images', 'wikicommons.images'],
+  videos: ['youtube', 'google videos', 'bing videos', 'brave.videos', 'dailymotion', 'vimeo'],
+  news: ['google news', 'bing news', 'brave.news', 'duckduckgo news', 'qwant news'],
+  science: ['arxiv', 'google scholar', 'semantic scholar'],
+  it: ['github', 'stackoverflow', 'mdn', 'pypi', 'npm'],
+  map: ['openstreetmap', 'photon'],
+};
+const DEFAULT_CFG = { safe: 0, timeout: 3, engines: {} };
+let cfg = { ...DEFAULT_CFG }; let cfgSig = '';
+const sigOf = (c) => JSON.stringify([c.safe, c.timeout, c.engines]);
+function setConfig(c = {}) {
+  const next = { safe: [0, 1, 2].includes(+c.safe) ? +c.safe : 0, timeout: Math.min(8, Math.max(1.5, +c.timeout || 3)), engines: c.engines && typeof c.engines === 'object' ? c.engines : {} };
+  const changed = sigOf(next) !== sigOf(cfg); cfg = next;
+  if (changed && proc) stop(); // next search starts it again with the new settings.yml
+}
+function engineList() {
+  const on = (n) => (n in cfg.engines ? !!cfg.engines[n] : true);
+  return Object.entries(ENGINES).map(([cat, names]) => ({ cat, engines: names.map((name) => ({ name, on: on(name) })) }));
+}
+const q = (x) => JSON.stringify(String(x));
 function settingsFile(p, lang) {
   const f = path.join(dir(), 'settings.yml');
   let key = '';
   try { key = (fs.readFileSync(f, 'utf8').match(/secret_key: "([0-9a-f]+)"/) || [])[1] || ''; } catch {}
   key = key || crypto.randomBytes(24).toString('hex');
+  const all = Object.values(ENGINES).flat();
+  const on = all.filter((n) => (n in cfg.engines ? !!cfg.engines[n] : true));
   fs.writeFileSync(f, [
-    'use_default_settings: true',
-    'general:', '  instance_name: "Fabro Search"', '  enable_metrics: false',
+    'use_default_settings:', '  engines:', `    keep_only: [${on.map(q).join(', ')}]`,
+    'general:', '  instance_name: "Fabro Search"', '  enable_metrics: false', '  contact_url: "https://fabro.ufstudios.eu/help.html"',
     'server:', `  secret_key: "${key}"`, '  bind_address: "127.0.0.1"', `  port: ${p}`, '  limiter: false', '  public_instance: false', '  image_proxy: true', '  method: "GET"',
-    'search:', '  formats: [html, json]', '  safe_search: 0', '  autocomplete: "duckduckgo"', `  default_lang: "${lang || 'auto'}"`,
+    'search:', '  formats: [html, json]', `  safe_search: ${cfg.safe}`, '  autocomplete: "duckduckgo"', `  default_lang: "${lang || 'auto'}"`, '  ban_time_on_fail: 5', '  max_ban_time_on_fail: 60',
     'valkey:', '  url: false',
     'ui:', '  default_theme: simple', '  theme_args:', '    simple_style: auto', '  query_in_title: true', '  infinite_scroll: true', '  center_alignment: true',
-    'outgoing:', '  request_timeout: 4.0', '  max_request_timeout: 8.0',
+    'outgoing:', `  request_timeout: ${cfg.timeout.toFixed(1)}`, `  max_request_timeout: ${(cfg.timeout * 2).toFixed(1)}`, '  pool_connections: 100', '  pool_maxsize: 20', '  enable_http2: true',
+    // engines that are off upstream are turned on here (only the ones kept above)
+    'engines:', ...on.map((n) => `  - name: ${q(n)}\n    disabled: false`),
     '',
   ].join('\n'));
   return f;
@@ -127,6 +156,7 @@ function stop() { if (proc) { try { proc.kill(); } catch {} proc = null; } }
 
 // Base URL to use: the user's own instance, else the private one (started on demand).
 async function base(s, lang) {
+  setConfig(s.searxng || {});
   if (s.searxngUrl) return s.searxngUrl.replace(/\/+$/, '');
   return start(lang);
 }
@@ -164,4 +194,4 @@ async function homeUrl(s, q) {
 function status() { return { installed: installed(), running: !!proc, port: proc ? port : null }; }
 function remove() { stop(); fs.rmSync(dir(), { recursive: true, force: true }); return status(); }
 
-module.exports = { configure, install, installed, start, stop, search, homeUrl, status, remove };
+module.exports = { ENGINES, setConfig, engineList, settingsFile, configure, install, installed, start, stop, search, homeUrl, status, remove };

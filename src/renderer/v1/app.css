@@ -310,3 +310,7 @@ input.in:focus,textarea.in:focus{border-color:var(--line2)}
 .pf-new{margin-top:10px;display:flex;flex-direction:column;gap:8px}
 .pf-new .acts{display:flex;gap:8px;justify-content:flex-end}
 .sheet .acts{display:flex;gap:8px;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:440px}
+.chips .chip{border:1px solid var(--line);height:26px;font-size:12.5px;cursor:pointer;background:none}
+.chips .chip.on{color:var(--t1);border-color:var(--line2,var(--t3));background:var(--line)}
+h3.sec{font-weight:500;font-size:13px;color:var(--t3);margin:22px 0 4px}
