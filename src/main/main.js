@@ -16,7 +16,7 @@ const db = require('./db');
 const brain = require('./brain');
 const exporter = require('./export');
 const agent = require('./agent');
-require('./agent/files'); require('./agent/core-tools'); require('./agent/reader'); require('./agent/vision'); require('./agent/diag'); require('./agent/knowledge'); require('./agent/mod-tools'); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
+require('./agent/files'); require('./agent/core-tools'); require('./agent/reader'); require('./agent/vision'); require('./agent/diag'); require('./agent/knowledge'); require('./agent/mod-tools'); require('./workshop').registerTool(); require('./agent/shell'); require('./agent/documents'); require('./agent/plan'); require('./agent/layout'); require('./agent/design'); require('./agent/webimages'); require('./agent/extras'); require('./agent/installs'); require('./agent/docmaker'); require('./agent/wakeup'); require('./agent/models'); const filetools = require('./agent/filetools');
 const tasks = require('./tasks');
 const browser = require('./agent/browser');
 const computer = require('./computer');
@@ -145,6 +145,7 @@ function registerIpc() {
   require('./agent/knowledge').register(h);
   require('./mcpb').register(h);
   require('./cli-bridge').register(h);
+  h('workshop:detect', () => require('./workshop').detect(true)); h('workshop:state', (root) => require('./workshop').state(String(root || '')));
   h('app:info', () => ({
     version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, e2e: !!process.env.FABRO_E2E,
     locale: app.getLocale(), systemLanguages: app.getPreferredSystemLanguages(),

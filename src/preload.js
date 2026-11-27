@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('api', {
   ui: { switch: i('ui:switch') },
   cli: { install: i('cli:install'), status: i('cli:status') },
   knowledge: { list: i('knowledge:list'), get: i('knowledge:get'), save: i('knowledge:save'), delete: i('knowledge:delete') },
+  workshop: { detect: i('workshop:detect'), state: i('workshop:state') },
   share: { create: i('share:create'), remove: i('share:remove'), list: i('share:list') },
   anywhere: { status: i('anywhere:status'), pairStart: i('anywhere:pairStart'), pairStop: i('anywhere:pairStop'), revoke: i('anywhere:revoke'), rename: i('anywhere:rename'), configure: i('anywhere:configure'), reply: i('anywhere:reply') },
   win: { theme: i('window:theme'), buttons: i('window:buttons'), devtools: i('window:devtools') },

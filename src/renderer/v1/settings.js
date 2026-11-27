@@ -90,6 +90,7 @@ window.V1Settings = (function () {
     if (!st.kb) api.knowledge.list().then((l) => { st.kb = l || []; render(); }).catch(() => { st.kb = []; });
     return row(t('kb'), t('kbSub', { n: (st.kb || []).length }), '')
       + (st.kb || []).map((b) => row(V1.esc(b.title), V1.esc(b.when) + (b.builtin ? ' · ' + t('builtin') : ''), `<button class="btn" data-act="set:kb" data-id="${V1.esc(b.id)}">${t('see')}</button>`)).join('')
+      + row(t('labsWs'), t('labsWsSub') + (st.ws ? ' · ' + V1.esc(st.ws.kind ? st.ws.kind : st.ws.note || '') : ''), tog('labs:workshop', ((V1.S.settings.labs || {}).workshop)))
       + row(t('legacy'), t('legacySub'), `<button class="btn" data-act="legacy">${t('open')}</button>`);
   }
 
@@ -107,6 +108,7 @@ window.V1Settings = (function () {
     if (a === 'tog') {
       const k = el.dataset.key;
       if (k.startsWith('mod:')) { const id = k.slice(4); const m = (st.mods || []).find((x) => x.id === id); await api.mods.enable(id, !(m && m.enabled)); location.reload(); return; }
+      if (k.startsWith('labs:')) { const n = k.slice(5); const labs = { ...(S.settings.labs || {}) }; labs[n] = !labs[n]; await V1.saveSettings({ labs }); if (n === 'workshop' && labs[n]) st.ws = await api.workshop.detect().catch(() => null); return render(); }
       if (k === 'anywhere') { await api.anywhere.configure({ enabled: !(st.any && st.any.enabled) }); st.any = await api.anywhere.status(); return render(); }
       v[k] = !v[k]; await V1.saveSettings({ v1: v }); V1.applyTheme(); return render();
     }
