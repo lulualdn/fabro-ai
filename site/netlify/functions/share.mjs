@@ -27,7 +27,7 @@ function clean(b) {
 }
 
 export default async (req, context) => {
-  const store = getStore('shares');
+  const store = getStore({ name: 'shares', consistency: 'strong' }); // a link just made must open at once
   const url = new URL(req.url);
   const id = url.searchParams.get('id') || '';
   const salt = Netlify.env.get('SHARE_SALT') || (context.site && context.site.id) || 'fabro';

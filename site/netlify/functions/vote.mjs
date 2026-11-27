@@ -9,7 +9,7 @@ const IDS = new Set(roadmap.map((r) => r.id));
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
 export default async (req, context) => {
-  const store = getStore('votes');
+  const store = getStore({ name: 'votes', consistency: 'strong' });
   const counts = (await store.get('counts', { type: 'json' })) || {};
   if (req.method === 'GET') return json({ counts });
   if (req.method !== 'POST') return json({ error: 'method' }, 405);

@@ -241,3 +241,38 @@ section .split.top-align{grid-template-columns:minmax(0,1fr) 340px}
   .lic em{grid-column:1/-1}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* shared conversation / artifact (/s/<id>) */
+.share{padding:48px 0 24px}
+.sh-head{margin-bottom:28px}
+.sh-head.row{display:flex;gap:20px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+.sh-head h1{font-size:clamp(26px,3.4vw,38px)}
+.sh-head .kicker{margin-bottom:8px}
+.sh-acts{display:flex;gap:8px}
+.sh-thread{display:flex;flex-direction:column;gap:22px}
+.sh-you{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.sh-you .q{max-width:80%;background:var(--surf2);padding:10px 14px;border-radius:14px 14px 4px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.sh-files{display:flex;gap:6px;flex-wrap:wrap}
+.sh-files span{font-size:13px;color:var(--t2);background:var(--line);padding:4px 10px;border-radius:8px}
+.sh-ai{display:grid;grid-template-columns:20px minmax(0,1fr);gap:14px}
+.sh-ai .mk svg{width:18px;height:18px;margin-top:4px}
+.sh-ai .md{overflow-wrap:anywhere}
+.sh-ai .md>*+*{margin-top:10px}
+.sh-ai .md pre{background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:13px}
+.sh-ai .md code{font-family:var(--mono);font-size:.88em}
+.sh-ai .md a{color:var(--acc-t)}
+.sh-ai .md ul,.sh-ai .md ol{padding-left:22px}
+.sh-steps,.sh-model{font-size:13px;color:var(--t3)}
+.sh-steps{margin-bottom:6px}
+.sh-model{margin-top:8px}
+.sh-src{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.sh-src a{display:inline-flex;gap:6px;align-items:center;height:26px;padding:0 8px;border-radius:7px;background:var(--line);font-size:12.5px;color:var(--t2);text-decoration:none}
+.sh-src b{font-family:var(--mono);font-weight:400;font-size:11px}
+.sh-art{display:flex;flex-direction:column;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surf);margin-top:10px;font-size:14px}
+.sh-art small{color:var(--t3)}
+.sh-frame{border-radius:var(--r-card);overflow:hidden;border:1px solid var(--line);background:#fff;height:min(72vh,820px);box-shadow:var(--shadow)}
+.sh-frame iframe{width:100%;height:100%;border:0;display:block}
+.sh-code{background:var(--surf);border:1px solid var(--line);border-radius:var(--r-card);padding:16px;overflow:auto;font:13px/1.6 var(--mono);max-height:72vh}
+.sh-doc{max-width:none}
+.sh-made{color:var(--t3);font-size:14px;padding:12px 0 56px}
+.sh-made a{color:var(--t2)}
