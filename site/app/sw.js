@@ -1,7 +1,7 @@
 // Fabro Anywhere service worker: works offline (app shell), shows notifications sent by the computer (Web Push),
 // and opens the right conversation when one is tapped.
 const VERSION = '__VERSION__';
-const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'core.js', 'agent.js', 'theme.js', 'scan-worker.js', 'py-worker.js', 'manifest.webmanifest', 'vendor/marked.umd.js', 'vendor/purify.min.js',
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'core.js', 'agent.js', 'profiles.js', 'theme.js', 'scan-worker.js', 'py-worker.js', 'manifest.webmanifest', 'vendor/marked.umd.js', 'vendor/purify.min.js',
   'icons/icon.svg', 'icons/mark.svg', 'icons/icon-192.png', 'icons/badge.png', '../fonts/hanken-grotesk-latin-400-normal.woff2', '../fonts/hanken-grotesk-latin-500-normal.woff2'];
 const SHELL_CACHE = 'fa-shell-' + VERSION, RUNTIME = 'fa-runtime';
 

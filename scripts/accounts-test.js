@@ -1,5 +1,5 @@
 // Offline test of local accounts: migration of a pre-accounts install (resume, failure → fallback), isolation,
-// 5-account limit, passwords (hash, verify, rate limit, sealed secrets), model sharing, account deletion.
+// 4-account limit, passwords (hash, verify, rate limit, sealed secrets), model sharing, account deletion.
 // Electron is mocked; every "start" of Fabro is simulated by resetting the modules' state.
 const Module = require('module'); const os = require('os'); const path = require('path'); const fs = require('fs'); const assert = require('assert');
 let tmp = null;
@@ -118,10 +118,10 @@ async function openFor(id, dk) { restart(); const a = registry.find(id); account
   await openFor(a1);
   assert.deepStrictEqual(db.listConversations().map((c) => c.id).sort(), ['c1', 'old'], 'A does not see B');
   assert.strictEqual(store.getSettings().theme, 'dark'); assert.strictEqual(store.getSettings().engine.ctx, 4096, 'engine setting is machine-wide');
-  for (let i = 0; i < 3; i++) await call('accounts:create', { name: 'P' + i });
-  await assert.rejects(() => call('accounts:create', { name: 'Sixth' }), /ACCOUNT_LIMIT/);
+  for (let i = 0; i < 2; i++) await call('accounts:create', { name: 'P' + i });
+  await assert.rejects(() => call('accounts:create', { name: 'Fifth' }), /ACCOUNT_LIMIT/);
   await assert.rejects(() => call('accounts:create', { name: '   ' }), /NAME_REQUIRED|ACCOUNT_LIMIT/);
-  ok('data written in A is invisible in B; 5 accounts max');
+  ok('data written in A is invisible in B; 4 accounts max');
 
   console.log('passwords');
   const h = await password.hash('café 123'); assert.ok(h.salt && h.hash && !JSON.stringify(h).includes('café'));
@@ -197,7 +197,7 @@ async function openFor(id, dk) { restart(); const a = registry.find(id); account
   r = await handlers.get('accounts:forget')({ sender: pk2.webContents }, a1, 'nope'); assert.ok(!r.ok && r.confirm);
   r = await handlers.get('accounts:forget')({ sender: pk2.webContents }, a1, 'Lulu'); assert.ok(r.ok);
   assert.ok(!fs.existsSync(registry.dirOf(a1))); assert.ok(!fs.existsSync(path.join(tmp, 'Partitions', 'mod-mymod')), 'legacy web sessions of the deleted account removed');
-  assert.strictEqual(registry.get().accounts.length, 3);
+  assert.strictEqual(registry.get().accounts.length, 2);
   void p2;
   ok('delete account (own, and forgotten password from the picker)');
 

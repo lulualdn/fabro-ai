@@ -1,4 +1,4 @@
-// Local accounts (profiles) on one computer: up to 5, nothing in common, no server, no e-mail.
+// Local accounts (profiles) on one computer: up to 4, nothing in common, no server, no e-mail.
 // See docs/v02/accounts.md for what is per account and what is shared, and what the password protects.
 //
 // Switching is a controlled relaunch: every per-account module (settings, database, scheduled tasks, MCP

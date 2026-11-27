@@ -4,7 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const paths = require('../paths');
 
-const MAX = 5;
+const MAX = 4; // existing installs with 5 keep them; a 5th can't be created
 const ICONS = ['initial', 'star', 'sun', 'moon', 'rocket', 'bulb', 'book', 'brush', 'globe', 'zap', 'flask', 'home'];
 const COLORS = ['coral', 'amber', 'moss', 'teal', 'sky', 'rose', 'slate', 'sand'];
 const file = () => paths.inShared('accounts.json');

@@ -242,8 +242,20 @@
 
   // ───────────────────────────── rendering ─────────────────────────────
   marked.setOptions({ gfm: true, breaks: true });
+  // pictures Fabro saved (web_images → fabro-img:<id>): <img src="fabro-img:…">, ![…](fabro-img:…) or a stray
+  // <photo fabro-img:…> become a real <img>, loaded from the main process once and cached
+  const fimg = new Map();
+  function loadFimg(id) {
+    if (fimg.has(id)) return; fimg.set(id, null);
+    api.iui.img('fabro-img:' + id).then((u) => { if (!u || !/^data:image\//.test(u)) return; fimg.set(id, u); document.querySelectorAll(`img[data-fimg="${id}"]`).forEach((im) => { im.src = u; }); }).catch(() => {});
+  }
   function md(text, sources) {
-    let h = DOMPurify.sanitize(marked.parse(String(text || '')));
+    let src = String(text || '')
+      .replace(/!\[([^\]]*)\]\(fabro-img:([a-f0-9]{8,40})\)/g, (x, alt, id) => `<img data-fimg="${id}" alt="${esc(alt)}">`)
+      .replace(/<img\b[^>]*?src=["']fabro-img:([a-f0-9]{8,40})["'][^>]*>/g, (x, id) => { const alt = (x.match(/alt=["']([^"']*)/) || [])[1] || ''; return `<img data-fimg="${id}" alt="${esc(alt)}">`; })
+      .replace(/<photo\b[^>]*?fabro-img:([a-f0-9]{8,40})[^>]*>/g, (x, id) => `<img data-fimg="${id}" alt="">`);
+    let h = DOMPurify.sanitize(marked.parse(src));
+    h = h.replace(/<img data-fimg="([a-f0-9]{8,40})"/g, (x, id) => { loadFimg(id); const u = fimg.get(id); return u ? `<img class="fimg" src="${u}" data-fimg="${id}"` : `<img class="fimg" data-fimg="${id}"`; });
     h = h.replace(/\[(\d{1,2})\](?![^<]*<\/a>)(?![^<]*<\/code>)/g, (x, n) => { const s = sources && sources[n - 1]; return s ? `<a class="cite" href="${esc(s.url)}"><cite>${n}</cite></a>` : `<cite>${n}</cite>`; });
     return h;
   }
@@ -322,7 +334,7 @@
       ${u && u.state === 'ready' && u.version ? `<div class="upd-line"><span class="grow">${esc(t('update', { v: u.version }))}</span><button class="btn" data-act="update">${t('updateGo')}</button></div>` : ''}
       ${u && (u.state === 'downloading' || u.state === 'launching') ? `<div class="upd-line"><span class="grow">${t('updating')}</span><span class="mono">${u.progress ? Math.round(u.progress * 100) + ' %' : ''}</span></div>` : ''}
       ${u && u.state === 'error' && u.code ? `<div class="upd-line"><span class="grow">${t('updateErr')}</span><button class="btn" data-act="update">${t('retry')}</button></div>` : ''}
-      <div class="me"><span class="av">${esc((name || 'F')[0].toUpperCase())}</span>${esc(name || 'Fabro')}<button class="model" data-act="model" title="${t('model')}">${esc(cm ? cm.label : t('model'))}</button></div>`;
+      <div class="me"><button class="who" data-act="profiles" title="${t('profiles')}"><span class="av">${esc((name || 'F')[0].toUpperCase())}</span>${esc(name || 'Fabro')}</button><button class="model" data-act="model" title="${t('model')}">${esc(cm ? cm.label : t('model'))}</button></div>`;
     Fabro._paint('sidebar');
   }
   function renderTop() {

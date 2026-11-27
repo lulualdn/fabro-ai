@@ -254,3 +254,22 @@ a.cite{text-decoration:none}
 .edit-acts{display:flex;gap:8px;justify-content:flex-end}
 .wait{font-size:13.5px;color:var(--t3);margin:2px 0 8px}
 .err-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
+/* profiles (profiles.js) */
+.pf-wrap{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px 16px;background:var(--bg);color:var(--t1)}
+.pf-wrap h1{font-size:22px;font-weight:500;margin:0;text-align:center}
+.pf-grid{display:grid;grid-template-columns:repeat(2,minmax(120px,150px));gap:14px}
+.pf-card{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 10px;border-radius:var(--r-card);border:1px solid var(--line);background:var(--surf);color:var(--t1);font:inherit;cursor:pointer}
+.pf-card:hover{border-color:var(--line2)}
+.pf-card span:last-child{display:flex;align-items:center;gap:6px;font-size:14px}
+.pf-card .i{width:14px;height:14px;stroke:var(--t3);fill:none;stroke-width:1.8}
+.pf-av{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;color:#fff;font-weight:600;font-size:14px;flex:none}
+.pf-av.big{width:64px;height:64px;font-size:26px}
+.pf-av.plus{background:var(--surf2);color:var(--t2);font-weight:400}
+.pf-form{display:flex;flex-direction:column;align-items:center;gap:12px;width:min(320px,100%)}
+.pf-form label{display:flex;flex-direction:column;gap:6px;width:100%;font-size:13px;color:var(--t2)}
+.pf-in{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-ctl);border:1px solid var(--line2);background:var(--surf);color:var(--t1);font:inherit;font-size:16px}
+.pf-help{font-size:12.5px;color:var(--t3);margin:0;line-height:1.45}
+.pf-err{color:var(--err);font-size:13px;margin:0}
+.pf-acts{display:flex;gap:8px;justify-content:flex-end;width:100%}
+.btn.danger{background:var(--err);color:#fff;border-color:transparent}

@@ -16,6 +16,7 @@
   // ───────────────────────────── text ─────────────────────────────
   const I18N = {
     fr: {
+      profile: 'Profil', me: 'Moi', pfLocked: 'Protégé par mot de passe', pfOpen: 'Sans mot de passe', pfPwSet: 'Ajouter un mot de passe', pfPwChange: 'Changer le mot de passe', pfAdd: 'Ajouter ou changer', pfChange: 'Changer de profil', pfSub: '{n} sur 4 profils sur cet appareil.', pfDelT: 'Supprimer ce profil', pfDelLead: 'Ses conversations, ses clés et le lien avec ton ordinateur sont effacés de cet appareil.', pfPwLead: 'Avec un mot de passe, les conversations et les clés de ce profil sont chiffrées sur cet appareil. Laisse vide pour l’enlever.', pfPwOld: 'Mot de passe actuel', pfPwNew: 'Nouveau mot de passe', pfWrong: 'Mot de passe incorrect.', saved: 'Enregistré',
       newChat: 'Nouvelle demande', search: 'Chercher', code: 'Fabro Code', settings: 'Réglages', today: 'Aujourd’hui', before: 'Avant', noChats: 'Rien pour l’instant',
       homeH: 'Qu’est-ce qu’on fait ?', homeSub: 'Demande n’importe quoi. Fabro cherche, lit et agit pour toi.',
       homeSubPc: 'Demande n’importe quoi. Les outils tournent sur {pc}.',
@@ -43,6 +44,7 @@
       later: 'Envoyé après la réponse en cours', empty: 'Le modèle n’a rien répondu. Réessaie ou change de modèle.', noNet: 'Pas de réseau', install: 'Installer l’app', installSub: 'Ajoute Fabro à ton écran d’accueil.',
     },
     en: {
+      profile: 'Profile', me: 'Me', pfLocked: 'Password protected', pfOpen: 'No password', pfPwSet: 'Add a password', pfPwChange: 'Change password', pfAdd: 'Add or switch', pfChange: 'Switch profile', pfSub: '{n} of 4 profiles on this device.', pfDelT: 'Delete this profile', pfDelLead: 'Its chats, keys and the link to your computer are erased from this device.', pfPwLead: 'With a password, this profile’s chats and keys are encrypted on this device. Leave empty to remove it.', pfPwOld: 'Current password', pfPwNew: 'New password', pfWrong: 'Wrong password.', saved: 'Saved',
       newChat: 'New request', search: 'Search', code: 'Fabro Code', settings: 'Settings', today: 'Today', before: 'Earlier', noChats: 'Nothing yet',
       homeH: 'What are we doing?', homeSub: 'Ask anything. Fabro searches, reads and acts for you.',
       homeSubPc: 'Ask anything. Tools run on {pc}.',
@@ -92,11 +94,14 @@
     db: null,
     open() {
       if (this.db) return Promise.resolve(this.db);
-      return new Promise((res, rej) => { const r = indexedDB.open('fabro-anywhere', 1); r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('convs', { keyPath: 'id' }); }; r.onsuccess = () => { this.db = r.result; res(this.db); }; r.onerror = () => rej(r.error); });
+      return new Promise((res, rej) => { const r = indexedDB.open(FAProfiles.dbName(), 1); r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('convs', { keyPath: 'id' }); }; r.onsuccess = () => { this.db = r.result; res(this.db); }; r.onerror = () => rej(r.error); });
     },
     async tx(store, mode, fn) { const db = await this.open(); return new Promise((res, rej) => { const tr = db.transaction(store, mode); const out = fn(tr.objectStore(store)); tr.oncomplete = () => res(out instanceof IDBRequest ? out.result : out); tr.onerror = () => rej(tr.error); }); },
-    get(s, k) { return this.tx(s, 'readonly', (x) => x.get(k)); }, put(s, v, k) { return this.tx(s, 'readwrite', (x) => (k === undefined ? x.put(v) : x.put(v, k))); },
-    del(s, k) { return this.tx(s, 'readwrite', (x) => x.delete(k)); }, all(s) { return this.tx(s, 'readonly', (x) => x.getAll()); },
+    // values are sealed when the profile has a password (profiles.js)
+    async get(s, k) { return FAProfiles.open(await this.tx(s, 'readonly', (x) => x.get(k))); },
+    async put(s, v, k) { const w = await FAProfiles.seal(v, k === undefined ? v.id : undefined); return this.tx(s, 'readwrite', (x) => (k === undefined ? x.put(w) : x.put(w, k))); },
+    del(s, k) { return this.tx(s, 'readwrite', (x) => x.delete(k)); },
+    async all(s) { const l = await this.tx(s, 'readonly', (x) => x.getAll()); return Promise.all((l || []).map((v) => FAProfiles.open(v).catch(() => null))).then((r) => r.filter(Boolean)); },
   };
   const kv = { get: (k) => DB.get('kv', k), set: (k, v) => DB.put('kv', v, k), del: (k) => DB.del('kv', k) };
 
@@ -647,7 +652,7 @@
     if (scan && (!S.sheet || S.sheet.kind !== 'pair' || S.sheet.mode !== 'scan')) scan.stop();
     if (!S.sheet) { root.innerHTML = ''; return; }
     const k = S.sheet.kind;
-    const body = k === 'model' ? modelSheet() : k === 'settings' ? settingsSheet() : k === 'pair' ? pairSheet() : k === 'code' ? codeSheet() : k === 'key' ? keySheet() : '';
+    const body = k === 'model' ? modelSheet() : k === 'settings' ? settingsSheet() : k === 'pair' ? pairSheet() : k === 'code' ? codeSheet() : k === 'key' ? keySheet() : k === 'pf' ? pfSheet() : '';
     root.innerHTML = `<div class="back" data-act="close"></div><div class="sheet glass" role="dialog" aria-modal="true">${body}</div>`;
     if (k === 'pair' && S.sheet.mode === 'scan') startScan();
     const f = $('.sheet input:not([type=hidden])', root); if (f && k !== 'settings') f.focus();
@@ -682,6 +687,7 @@
     const th = (() => { try { return localStorage.getItem('fa-theme') || 'auto'; } catch { return 'auto'; } })();
     const eco = document.documentElement.classList.contains('eco');
     return `${head(t('settings'))}
+      ${profileRows()}
       <h3>${t('pc')}</h3>
       ${linked() ? `<div class="row2"><div>${esc(pcName())}<small>${S.conn.state === 'on' ? (S.pcTools ? t('toolsOnPc', { pc: pcName() }) : t('pcOn', { pc: pcName() })) : t('pcAway')}</small></div><button class="btn" data-act="forget">${t('forget')}</button></div>
         ${'PushManager' in window ? `<div class="row2"><div>${t('notify')}<small>${t('notifySub')}</small></div><button class="tog ${S.settings.notify ? 'on' : ''}" data-act="notify" aria-pressed="${!!S.settings.notify}"></button></div>` : ''}`
@@ -695,6 +701,25 @@
       <div class="row2"><div>${t('lang')}</div><div class="seg">${[['auto', 'Auto'], ['fr', 'FR'], ['en', 'EN']].map(([v, l]) => `<button data-act="lang" data-v="${v}" class="${(S.settings.lang || 'auto') === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
       ${S.installEvt ? `<div class="row2"><div>${t('install')}<small>${t('installSub')}</small></div><button class="btn" data-act="install">${t('install')}</button></div>` : ''}
       <h3>${t('about')}</h3><div class="row2"><div>Fabro Anywhere</div><a class="btn ghost" href="../" target="_blank" rel="noopener">${t('site')}${ic('ext')}</a></div>`;
+  }
+  // profiles (profiles.js): who is using this device
+  function profileRows() {
+    const p = FAProfiles.current() || {}; const all = FAProfiles.list();
+    const others = all.filter((x) => x.id !== p.id);
+    return `<h3>${t('profile')}</h3>
+      <div class="row2"><div style="display:flex;align-items:center;gap:10px">${FAProfiles.av(p)}<div>${esc(p.name || t('me'))}<small>${p.pw ? t('pfLocked') : t('pfOpen')}</small></div></div><button class="btn" data-act="pf-pw">${p.pw ? t('pfPwChange') : t('pfPwSet')}</button></div>
+      ${others.map((x) => `<button class="opt" data-act="pf-switch" data-id="${esc(x.id)}">${FAProfiles.av(x)}<span class="grow">${esc(x.name || t('me'))}${x.locked ? `<small>${t('pfLocked')}</small>` : ''}</span></button>`).join('')}
+      <div class="row2"><div><small>${t('pfSub', { n: all.length })}</small></div><div style="display:flex;gap:6px">${all.length > 1 ? `<button class="btn ghost" data-act="pf-del">${t('remove')}</button>` : ''}<button class="btn" data-act="pf-switch">${all.length < FAProfiles.MAX ? t('pfAdd') : t('pfChange')}</button></div></div>`;
+  }
+  function pfSheet() {
+    const p = FAProfiles.current() || {}; const m = S.sheet.mode;
+    return `${head(m === 'del' ? t('pfDelT') : p.pw ? t('pfPwChange') : t('pfPwSet'))}
+      <form data-form="pf">
+      ${m === 'del' ? `<p class="lead">${t('pfDelLead')}</p>` : `<p class="lead">${t('pfPwLead')}</p>`}
+      ${p.pw ? `<label class="field">${t('pfPwOld')}<input name="old" type="password" autocomplete="current-password" required></label>` : ''}
+      ${m === 'del' ? '' : `<label class="field">${t('pfPwNew')}<input name="pw" type="password" autocomplete="new-password"></label>`}
+      ${S.sheet.err ? `<p class="err">${esc(S.sheet.err)}</p>` : ''}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" data-act="close">${t('cancel')}</button><button class="btn ${m === 'del' ? 'danger' : 'pri'}" ${S.sheet.busy ? 'disabled' : ''}>${S.sheet.busy ? '…' : m === 'del' ? t('remove') : t('save')}</button></div></form>`;
   }
   function pairSheet() {
     const mode = S.sheet.mode || 'choose';
@@ -734,6 +759,9 @@
     if (a === 'del-key') { S.keys = S.keys.filter((k) => k.id !== el.dataset.id); await kv.set('keys', S.keys); if (!keyOf(S.settings.model) && String(S.settings.model).startsWith('key:')) { S.settings.model = 'cloud:auto'; await saveSettings(); } renderSheet(); renderTop(); return; }
     if (a === 'forget') { if (confirm(t('forgetQ'))) { await forget(false); S.sheet = null; renderSheet(); } return; }
     if (a === 'notify') { if (S.settings.notify) await disablePush(); else await ensurePush(true); return renderSheet(); }
+    if (a === 'pf-pw') { S.sheet = { kind: 'pf', mode: 'pw' }; return renderSheet(); }
+    if (a === 'pf-del') { S.sheet = { kind: 'pf', mode: 'del' }; return renderSheet(); }
+    if (a === 'pf-switch') { if (el.dataset.id) return FAProfiles.switchTo(el.dataset.id); return FAProfiles.lock(); }
     if (a === 'theme') { try { localStorage.setItem('fa-theme', el.dataset.v); } catch {} applyTheme(); return renderSheet(); }
     if (a === 'eco') { const on = !document.documentElement.classList.contains('eco'); document.documentElement.classList.toggle('eco', on); try { localStorage.setItem('fa-eco', on ? '1' : '0'); } catch {} if (!on) tintSoon(); return renderSheet(); }
     if (a === 'lang') { S.settings.lang = el.dataset.v; await saveSettings(); applyLang(); compEl = null; renderAll(); return renderSheet(); }
@@ -783,6 +811,14 @@
   document.addEventListener('submit', async (e) => {
     const f = e.target.closest('form[data-form]'); if (!f) return; e.preventDefault();
     if (f.dataset.form === 'code') { const d = await A.parseTextCode($('#code-in').value); if (d) pairWith(d); else { S.sheet = { ...S.sheet, err: t('badCode') }; renderSheet(); } return; }
+    if (f.dataset.form === 'pf') {
+      const fd = new FormData(f); S.sheet = { ...S.sheet, busy: true, err: '' }; renderSheet();
+      try {
+        if (S.sheet.mode === 'del') { const id = FAProfiles.current().id; await FAProfiles.remove(id, fd.get('old')); return FAProfiles.lock(); }
+        await FAProfiles.setPassword(fd.get('pw') || null, fd.get('old')); S.sheet = { kind: 'settings' }; renderSheet(); toast(t('saved'));
+      } catch (err) { S.sheet = { ...S.sheet, busy: false, err: err.message === 'wrong' ? t('pfWrong') : String(err.message || err) }; renderSheet(); }
+      return;
+    }
     if (f.dataset.form === 'key') {
       const fd = new FormData(f); const p = PRESETS.find((x) => x.id === fd.get('preset')) || PRESETS[0];
       const k = { id: A.uid(), name: p.id === 'custom' ? host(String(fd.get('base'))) : p.name, base: p.id === 'custom' ? String(fd.get('base')).trim() : p.base, key: String(fd.get('key')).trim(), model: String(fd.get('model')).trim() };
@@ -823,6 +859,7 @@
   (async () => {
     applyLang();
     try { const svg = await (await fetch('icons/mark.svg')).text(); MARK = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, ''); } catch {}
+    await FAProfiles.ready($('#app'));
     try {
       const [settings, idJwk, link, outbox, tomb, metas, keys, convs] = await Promise.all(['settings', 'identity', 'link', 'outbox', 'tombstones', 'metas', 'keys'].map((k) => kv.get(k)).concat(DB.all('convs')));
       if (settings) { S.settings = { ...S.settings, ...settings }; if (!S.settings.model || S.settings.model === 'phone') S.settings.model = 'cloud:auto'; }

@@ -117,6 +117,7 @@ svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stro
 .md th{font-weight:500;color:var(--t2)}
 .md blockquote{border-left:2px solid var(--line2);padding-left:12px;color:var(--t2)}
 .md img{max-width:100%;border-radius:var(--r-card)}
+.md img.fimg{display:block;max-height:440px;width:auto;margin:10px 0;background:var(--bg2,transparent)}
 cite{font-style:normal;font-family:var(--mono);font-size:10.5px;padding:1px 5px;border-radius:5px;background:var(--line);color:var(--t2);vertical-align:1px}
 a.cite{text-decoration:none}
 .caret{display:inline-block;width:7px;height:15px;background:var(--accent);vertical-align:-2px;margin-left:2px;animation:blink 1s steps(2) infinite}
@@ -303,3 +304,9 @@ input.in:focus,textarea.in:focus{border-color:var(--line2)}
 .code-bar b{font-weight:500}
 .code-bar small{display:block;color:var(--t3);font-size:12.5px}
 .code-bar code{font-size:12px;color:var(--t3)}
+.me .who{all:unset;display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer;border-radius:8px;padding:2px 4px;margin:-2px -4px}
+.me .who:hover{background:var(--hover,rgba(127,127,127,.08))}
+.pfa{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;color:#fff;font-weight:600;font-size:12px;background-size:cover;background-position:center;flex:none}
+.pf-new{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.pf-new .acts{display:flex;gap:8px;justify-content:flex-end}
+.sheet .acts{display:flex;gap:8px;align-items:center}
