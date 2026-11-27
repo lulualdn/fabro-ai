@@ -252,7 +252,7 @@ function help() {
 }
 function labs() {
   const dir = path.join(CONTENT, 'labs');
-  const posts = fs.readdirSync(dir).filter((f) => /\.en\.md$/.test(f)).map((f) => f.replace(/\.en\.md$/, ''));
+  const posts = (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((f) => /\.en\.md$/.test(f)).map((f) => f.replace(/\.en\.md$/, ''));
   return layout({ page: 'labs', file: 'labs', desc: EN.labs_lead, body: `
 <section class="hero sub"><div class="wrap">${T('labs_h1', 'h1')}${T('labs_lead', 'p', 'class="lead"')}</div></section>
 <section><div class="wrap narrow">${posts.length ? `<ul class="toc">${posts.map((s) => { const b = bilingual(path.join(dir, s)); return `<li><a href="labs-${s}.html"><span data-lang="en">${esc(b.titleEn)}</span><span data-lang="fr" hidden>${esc(b.titleFr)}</span>${ic('right')}</a></li>`; }).join('')}</ul>` : T('labs_empty', 'p', 'class="empty"')}</div></section>` });
