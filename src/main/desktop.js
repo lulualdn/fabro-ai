@@ -56,10 +56,14 @@ function trayImage() {
   if (isMac) { const img = nativeImage.createFromPath(asset('trayTemplate.png')); img.setTemplateImage(true); return img; }
   return nativeImage.createFromPath(asset(process.platform === 'win32' ? 'icon.ico' : 'tray.png'));
 }
+// while Fabro uses the computer, the tray menu starts with « Arrêter » (computer/stop-pill.js)
+let computerStop = null;
+function setComputerStop(fn, label) { computerStop = fn ? { fn, label: label || 'Stop' } : null; buildTrayMenu(); }
 function buildTrayMenu() {
   if (!tray) return;
   const hk = store.getSettings().hotkey || {};
   tray.setContextMenu(Menu.buildFromTemplate([
+    ...(computerStop ? [{ label: computerStop.label, accelerator: 'CommandOrControl+Alt+Escape', click: computerStop.fn }, { type: 'separator' }] : []),
     { label: tr('open'), click: showMain },
     { label: tr('newChat'), click: () => { showMain(); send('app:command', { cmd: 'new-chat' }); } },
     { label: tr('quick'), accelerator: hk.enabled ? hk.accelerator : undefined, click: () => toggleQuick(true) },
@@ -201,4 +205,4 @@ function init(getMainWindow, ipc) {
 // chat events also stream into the quick bar
 function forward(ch, data) { if (quick && !quick.isDestroyed()) quick.webContents.send(ch, data); }
 
-module.exports = { init, attachMain, showMain, forward, notify, getQuick: () => quick, tr: (k) => tr(k), isQuitting: () => quitting, setQuitting: () => { quitting = true; } };
+module.exports = { init, setComputerStop, attachMain, showMain, forward, notify, getQuick: () => quick, tr: (k) => tr(k), isQuitting: () => quitting, setQuitting: () => { quitting = true; } };

@@ -1,5 +1,5 @@
 // What the user sees while Fabro uses the computer: a soft glowing frame around the screen being
-// controlled, a status pill, and a ripple where Fabro clicks. Click-through, never focused, and
+// controlled (the status + stop button is stop-pill.js), and a ripple where Fabro clicks. Click-through, never focused, and
 // hidden from screenshots (content protection), so it never gets in the AI's way.
 const { BrowserWindow, screen } = require('electron');
 
@@ -8,7 +8,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-famil
 .frame{position:fixed;inset:0;border-radius:10px;box-shadow:inset 0 0 0 3px rgba(255,94,66,.85),inset 0 0 26px 6px rgba(255,94,66,.35);animation:breathe 2.4s ease-in-out infinite;transition:box-shadow .3s}
 body.paused .frame{box-shadow:inset 0 0 0 3px rgba(120,130,150,.8),inset 0 0 22px 4px rgba(120,130,150,.3);animation:none}
 @keyframes breathe{50%{box-shadow:inset 0 0 0 3px rgba(255,94,66,.6),inset 0 0 40px 10px rgba(255,94,66,.25)}}
-.pill{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:9px 16px 9px 12px;border-radius:999px;
+.pill{display:none!important;position:fixed;left:50%;bottom:64px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:9px 16px 9px 12px;border-radius:999px;
  background:rgba(22,24,32,.86);color:#fff;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.35);backdrop-filter:blur(8px);max-width:70vw;white-space:nowrap}
 .pill .dot{width:22px;height:22px;flex:none;animation:spin 3.2s linear infinite}
 body.paused .pill .dot{animation:none;opacity:.6}
@@ -83,8 +83,12 @@ module.exports = {
   async aside(fn) {
     // (recent macOS versions capture "protected" windows too)
     const hide = win && !win.isDestroyed() && win.isVisible() && process.platform !== 'win32';
-    if (hide) { win.hide(); await new Promise((r) => setTimeout(r, 90)); }
-    try { return await fn(); } finally { if (hide && win && !win.isDestroyed()) win.showInactive(); }
+    const pw = process.platform !== 'win32' && require('./stop-pill')._win();
+    const hidePill = pw && !pw.isDestroyed() && pw.isVisible();
+    if (hidePill) pw.hide();
+    if (hide) win.hide();
+    if (hide || hidePill) await new Promise((r) => setTimeout(r, 90));
+    try { return await fn(); } finally { if (hide && win && !win.isDestroyed()) win.showInactive(); if (hidePill && !pw.isDestroyed()) pw.showInactive(); }
   },
   hide() { if (win && !win.isDestroyed()) win.hide(); },
   destroy() { if (win && !win.isDestroyed()) win.destroy(); win = null; },

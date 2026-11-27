@@ -18,6 +18,8 @@ const motion = require('./motion');
 const keys = require('./keys');
 const paint = require('./paint');
 const overlay = require('./overlay');
+const pill = require('./stop-pill');
+const say = (t) => { overlay.status(t); pill.status(t); };
 
 const DEFAULTS = { enabled: true, confirm: true, hideFabro: true, speed: 'natural', ocr: 'auto', width: 1280, overlay: true, maxMarks: 80 };
 const cs = () => ({ ...DEFAULTS, ...(store.getSettings().computer || {}) });
@@ -67,7 +69,7 @@ function finish() {
   if (!S.active) return;
   S.active = false;
   if (backend) backend.call('watch', { on: false }).catch(() => {});
-  overlay.hide();
+  overlay.hide(); pill.hide();
   if (S.minimized) { S.minimized = false; showFabro(); }
 }
 // chat.js calls this when a turn ends (done, error or stopped)
@@ -90,10 +92,26 @@ async function hold(on) {
   if (!S.active || !backend) return;
   holds = Math.max(0, holds + (on ? 1 : -1));
   if (on && holds === 1) { await backend.call('watch', { on: false }).catch(() => {}); showFabro(); }
-  if (!on && holds === 0) { S.paused = null; overlay.status(''); await backend.call('watch', { on: true }).catch(() => {}); }
+  if (!on && holds === 0) { S.paused = null; say(''); await backend.call('watch', { on: true }).catch(() => {}); }
+}
+// The stop pill (click, Ctrl+Alt+Esc, tray): stop the turn now and let go of anything held down.
+async function stopNow(how) {
+  if (!S.active) return;
+  S.paused = 'stop';
+  const root = S.root;
+  if (backend) {
+    const steps = [];
+    for (const b of ['left', 'right', 'middle']) steps.push({ t: 'up', b, ms: 0 });
+    for (const k of ['shift', 'ctrl', 'alt', 'win']) { try { steps.push(keys.up(keys.key(k))); } catch {} }
+    await backend.call('play', { steps }, 5000).catch(() => {});
+  }
+  try { require('../chat').abort(root); } catch {}
+  overlay.paused(); say('');
+  if (S.minimized) { S.minimized = false; showFabro(); }
+  console.log('computer use stopped by the user:', how);
 }
 function pausedError() {
-  const how = S.paused === 'esc' ? 'pressed Esc' : S.paused === 'keyboard' ? 'used the keyboard' : 'moved the mouse';
+  const how = S.paused === 'stop' ? 'clicked Stop' : S.paused === 'esc' ? 'pressed Esc' : S.paused === 'keyboard' ? 'used the keyboard' : 'moved the mouse';
   return err(`Stopped: the user ${how} and took back control of the computer. Do not use the computer tools again in this turn. Tell the user in one sentence where you stopped; they can ask you to continue.`, 'USER_CONTROL');
 }
 
@@ -205,7 +223,7 @@ function changed(a, b, cursors = []) {
   return { cells: big, share: big / (n || 1) };
 }
 
-const ownWindow = (w) => w.pid === process.pid || overlay.isOwn(w.hwnd);
+const ownWindow = (w) => w.pid === process.pid || overlay.isOwn(w.hwnd) || pill.isOwn(w.hwnd);
 async function listWindows() { return ((await backend.call('windows', {}, 15000)).windows || []).filter((w) => !ownWindow(w)); }
 // a window named by the AI: exact title, part of the title, or the app's name
 function findWindow(wins, query) {
@@ -252,6 +270,7 @@ async function look(o = {}, ctx) {
     if (x2 - x1 > 80 && y2 - y1 > 60) mon = { ...screen, x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
   }
   if (c.overlay) await overlay.show(screen, lang()).catch(() => {});
+  await pill.show(screen, lang(), stopNow).catch((e) => console.error('stop pill', e));
   const seq = ++S.n;
   const shot = path.join(shotsDir(), `screen-${seq % 4}.png`);
   const readElements = () => b.call('elements', { hwnds: fg ? [fg.hwnd] : [], taskbar: process.platform !== 'linux' && !target, max: 1500, ms: 2200 }, 12000).catch((e) => ({ elements: [], error: e.message }));
@@ -498,7 +517,7 @@ async function act(a, ctx, actions, { settle = 450, label } = {}) {
   const c0 = await b.call('cursor', {}, 5000).catch(() => null);
   const compiled = compile(actions, L, c0 && c0.x != null ? [c0.x, c0.y] : [L.mon.x + L.mon.w / 2, L.mon.y + L.mon.h / 2]);
   await guardTargets(compiled);
-  overlay.status(label || compiled.said[0]);
+  say(label || compiled.said[0]);
   await play(b, compiled);
   if (a.look === false) return { content: `Done: ${compiled.said.join(', ')}.`, view: { kind: 'computer', said: compiled.said } };
   await wait(Math.min(15000, a.wait_ms ?? settle));
@@ -515,6 +534,7 @@ async function act(a, ctx, actions, { settle = 450, label } = {}) {
 
 // Clicks that land on Fabro itself are refused (the AI would be clicking its own chat).
 async function guardTargets(compiled) {
+  for (const p of compiled.points) if (pill.contains(p.x, p.y)) throw err('That point is on the Stop button Fabro shows at the top of the screen: only the user can press it. Scroll or move the window so the target is lower.', 'SELF_TARGET');
   if (process.platform === 'linux') return;
   for (const p of compiled.points) {
     const info = await backend.call('point', { x: p.x, y: p.y }, 5000).catch(() => null);
@@ -754,7 +774,7 @@ agent.register({ ...common, name: 'computer_window',
     }
     const w = findWindow(wins, a.window);
     if (!w) throw noWindow(a.window, wins);
-    overlay.status(`${a.action} · ${q(w.title, 40)}`);
+    say(`${a.action} · ${q(w.title, 40)}`);
     const r = await b.call('window', { hwnd: w.hwnd, action: a.action }, 8000);
     await wait(a.action === 'close' ? 600 : 400);
     // after focus / maximize / restore: look at that window only (sharper, ids for it)
@@ -780,6 +800,6 @@ async function test() {
 }
 
 function status() { return { supported: supported(), platform: process.platform, active: S.active, paused: S.paused, ready: !!hello }; }
-function shutdown() { finish(); if (backend) backend.kill(); backend = null; hello = null; paint.close(); overlay.destroy(); }
+function shutdown() { finish(); if (backend) backend.kill(); backend = null; hello = null; paint.close(); overlay.destroy(); pill.destroy(); }
 
 module.exports = { init, turnEnded, hold, test, status, shutdown, _internal: { buildMarks, compile, S, look, target, backend: () => backend } };
